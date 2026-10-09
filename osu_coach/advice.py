@@ -111,9 +111,7 @@ def _miss_cause_tip(p: Profile, s: Setup):
                                                                    "one was still active; osu! ignores that tap."),
     }[top]
     actions = {
-        "aim": ["Focus practice on aim first (the 'Jump aim' playlist in Improve a skill).",
-                "Your tablet area / sensitivity is checked from your jumps (Aim page → Aim calibration); a "
-                "separate tip appears only if it is off — otherwise it's precision, not calibration."],
+        "aim": _aim_miss_actions(p),
         "timing": ["Play below your comfort level and aim for 300s, not just hitting notes.",
                    "Tap to the music, not to the approach circle; enable the hit-error meter."],
         "tapping": ["Practice bursts/streams at a lower BPM with strict alternation.",
@@ -126,6 +124,39 @@ def _miss_cause_tip(p: Profile, s: Setup):
     breakdown = ", ".join(f"{k} {v}" for k, v in sorted(groups.items(), key=lambda kv: -kv[1]) if v)
     return [Tip("Overview", f"{text[0]} ({share:.0%})", 3 if share >= 0.4 else 2,
                 f"{text[1]} Miss causes over {total} misses: {breakdown}.", actions)]
+
+
+def _aim_miss_where(p: Profile) -> dict[str, int]:
+    """Aim misses by kind of pattern: streams (incl. bursts), flow (spaced streams), jumps, single notes."""
+    O = getattr(p, "objects", None)
+    if O is None or O.empty or "miss_reason" not in O or "pattern" not in O:
+        return {}
+    m = O[O["played"].astype(bool) & ~O["head_hit"].astype(bool) & (O["miss_reason"] == "aim")]
+    flow = m["spaced_stream"].astype(bool) if "spaced_stream" in m else False
+    streams = m["pattern"].isin(["burst", "stream"])
+    return {"streams": int((streams & ~flow).sum()), "flow": int((streams & flow).sum()),
+            "jumps": int(m["pattern"].isin(["jump", "spaced"]).sum()), "single notes": int((m["pattern"] == "single").sum())}
+
+
+def _aim_miss_actions(p: Profile) -> list[str]:
+    jump_advice = ["Focus practice on aim first (the 'Jump aim' playlist in Improve a skill).",
+                   "Your tablet area / sensitivity is checked from your jumps (Aim page → Aim calibration); a "
+                   "separate tip appears only if it is off — otherwise it's precision, not calibration."]
+    where = _aim_miss_where(p)
+    total = sum(where.values())
+    if total < 30:
+        return jump_advice
+    streams = where["streams"] + where["flow"]
+    split = (f"streams and bursts {streams / total:.0%}, jumps {where['jumps'] / total:.0%}, "
+             f"single notes {where['single notes'] / total:.0%}")
+    if streams / total >= 0.4 and streams >= where["jumps"]:
+        playlist = "Flow aim (spaced streams)" if where["flow"] > where["streams"] else "Tapping speed (bursts/streams)"
+        return [f"Most of them are in streams and bursts ({split}): you keep tapping but the cursor falls "
+                "behind or cuts corners.",
+                f"Slow streams down (HT, or the '{playlist}' playlist in Improve a skill) until the cursor stays "
+                "on every note, then raise the speed step by step.",
+                "Move with the stream's shape — a steady motion through the notes, not small jumps between them."]
+    return [f"Where they happen: {split}."] + jump_advice
 
 
 def _area_scale_tips(p: Profile, s: Setup):
@@ -382,7 +413,7 @@ def _stream_tips(p: Profile, s: Setup):
         target = (comfort or (limit - 20 if limit else 150)) + 10
         tips.append(Tip("Tapping", "Your stream speed", 2 if limit else 1,
                         "Bursts/streams (1/4 notes): " + ", ".join(ev) + ".",
-                        [f"Train streams around {target}-{target + 10} BPM (Stream speed playlist), then step up "
+                        [f"Train streams around {target}-{target + 10} BPM (the 'Tapping speed' playlist), then step up "
                          "by ~10 BPM when they feel clean.",
                          "Alternate strictly; keep fingers close to the keys; tap from the fingers, not the arm.",
                          "Rate tools: lazer 'Rate adjust'/DT, stable DT/HT for slower/faster practice."],
@@ -428,10 +459,10 @@ def _key_usage_tips(p: Profile, s: Setup):
                         f"{label} gets {v / sum(kb.values()):.0%} of presses.",
                         ["Alternate on 1/2 rhythms too (or at least in every burst) so both fingers get trained."]))
     ex = t.get("extra_presses_per_100")
-    if not _nan(ex) and ex >= 8:
+    if not _nan(ex) and ex >= 3:
         tips.append(Tip("Tapping", "Extra taps that hit nothing", 1,
-                        f"{ex:.1f} presses per 100 notes landed while notes were due but hit nothing "
-                        "(over-tapping, double taps).",
+                        f"{ex:.1f} presses per 100 notes landed near a note but hit nothing and weren't aimed at "
+                        "it (over-tapping, double taps).",
                         ["In bursts, count the notes; don't mash.", "If you use rapid trigger, see the keyboard tip."]))
     return tips
 
