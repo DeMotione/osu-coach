@@ -701,8 +701,10 @@ def page_improve():
             "**osu!stable** — put the .osz files in the Songs folder (or drag them onto the osu! window), then use "
             "*Add to my osu!stable collections* above with osu! closed. Your old collection.db is backed up.\n\n"
             "**osu!lazer** — import the .osz files (open them, or drag them into the game). Then put the "
-            "downloaded `collection.db` into an empty folder and run *Settings → General → Run setup wizard → "
-            "Import from previous version*, pointing it at that folder. The collection shows up in song select.")
+            "downloaded `collection.db` into an empty folder together with an empty file named `osu!.user.cfg` "
+            "(lazer only accepts folders that look like an osu!stable install) and run *Settings → General → Run "
+            "setup wizard → Import from previous version*, pointing it at that folder and importing collections. "
+            "The collection shows up in song select.")
 
 
 # ------------------------------------------------------------------ main

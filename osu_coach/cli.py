@@ -195,8 +195,9 @@ def cmd_playlist(args) -> int:
     hashes = list(pl["md5"])
     if args.collection:
         p = write_collection_db(args.collection, {name: hashes})
-        print(f"\nwrote {p} (import: lazer → Settings → General → Run setup wizard → import from previous "
-              "version pointing at its folder; stable → merge with --merge or Collection Manager)")
+        print(f"\nwrote {p}\n  lazer: put it in an empty folder with an empty file named 'osu!.user.cfg', then "
+              "Settings → General → Run setup wizard → Import from previous version → that folder\n"
+              "  stable: use --merge (with osu! closed) or Collection Manager")
     if args.merge:
         st = [i for i in locate.find_installs() if i.kind == "stable"]
         if not st:
