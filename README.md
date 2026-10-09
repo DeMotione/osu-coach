@@ -13,9 +13,9 @@ Analyses your own osu!standard replays and tells you what to work on:
   rotation, offset), rapid-trigger actuation/sensitivity, offset calibration, key usage.
 - **Map suggestions** from a bundled pool of ~2,700 popular ranked maps (0.8–8.5★), each analysed for
   its patterns.
-- **Improve a skill.** Builds a staged playlist (warm-up / core / push) for one skill. You can export
-  it as a `collection.db` for stable or lazer, add it to your stable collections directly, and
-  download the maps (.osz).
+- **Improve a skill.** Builds a staged playlist (warm-up / core / push) for one skill and gets it into
+  the game: for **lazer**, one click makes an import folder with the maps and the collection (see
+  below); for **stable**, it adds the collection to your `collection.db` and downloads the maps (.osz).
 
 Everything runs locally. The only network use is downloading beatmaps you don't have, by MD5 from
 osu.direct and osu.ppy.sh (verified), and downloading playlist maps from public mirrors.
@@ -42,14 +42,36 @@ python -m venv .venv
 - Any folder with `.osr` files, or drag and drop files into the app.
 
 You need **20 or more replays** for useful statistics, and the more the better. Relax, autopilot and
-autoplay replays are skipped.
+autoplay replays are skipped, and so are lazer replays with mods the simulation can't follow (Wind Up/Down
+and Adaptive Speed change the speed mid-map; Random, Wiggle, Magnetised and similar move notes or the
+cursor). The app lists every skipped replay with the reason.
+
+### Playlists in osu!lazer
+
+lazer can't open a `collection.db` by itself, but *Settings → General → Run setup wizard → Import*
+("import from a previous osu! version") takes maps **and** collections from any folder that looks like an
+osu!stable install. **Make lazer import folder** (Improve a skill → osu!lazer tab, or
+`osu-coach playlist SKILL --lazer`) builds exactly that, in `Downloads/osu-coach lazer import/<playlist>`:
+
+```
+osu!.user.cfg      empty: marks the folder as a stable install
+collection.db      the playlist
+Songs/<set id>/    the maps you don't have yet, downloaded and unpacked
+```
+
+Then in lazer: open the setup wizard, press **Next** until **Import**, drag the folder onto the lazer
+window (or click *previous osu! install* and pick it) and press **Import content from previous version**.
+lazer imports the maps first and the collection after them; re-importing the same playlist only adds
+what's new. The folder can be deleted afterwards. *Folder without maps (.zip)* is the same folder with
+only the collection, for lazer on another computer.
 
 ### Command line
 
 ```
 osu-coach locate                                   # what was found
 osu-coach analyze [--folder DIR] [--player NAME]   # full report in the terminal (+ --json)
-osu-coach playlist aim --collection collection.db  # playlist for one skill
+osu-coach playlist aim --lazer                     # playlist + lazer import folder (maps + collection)
+osu-coach playlist aim --merge                     # ... added to your osu!stable collections instead
 osu-coach playlist speed --comfort 3 --download ~/maps   # without replays: give your level
 ```
 
@@ -58,12 +80,18 @@ Skills: `aim flow_aim speed stamina accuracy sliders reading consistency quadran
 ## How it works
 
 1. **Replay parsing**: `.osr` from stable and lazer, including lazer's extra data.
-2. **Judgement re-simulation**: every replay is played back against the exact beatmap with osu!stable's
-   rules: hit windows, circle radius, notelock, slider follow circle, ticks and repeats, stacking, and
-   HR/DT/HT/EZ. Rules are ported from danser-go and osu!lazer's legacy code. Lazer replays use lazer's
-   hit policy. The result is checked against the counts stored in the replay. On the test set it matches
-   exactly on most replays and agrees on 99.6% of judgements. Each miss gets a reason: aim, early,
-   late, no tap, lost, or notelock.
+2. **Judgement re-simulation**: every replay is played back against the exact beatmap with the rules of
+   the client that recorded it. Each miss gets a reason: aim, early, late, no tap, lost, or notelock.
+   - **osu!stable** (`judge.py`): hit windows, circle radius, notelock, slider follow circle, ticks and
+     repeats, stacking and HR/DT/HT/EZ, ported from danser-go and osu!lazer's legacy code. On the test
+     set it matches the stored counts exactly on most replays and agrees on 99.6% of judgements.
+   - **osu!lazer** (`judge_lazer.py`), ported from lazer's current source: floored hit windows (from
+     the June 2025 client on), the hit policy that misses skipped notes, slider tracking with the
+     2.4× follow area and the key that hit the head, the tail judged from 36 ms before the end, the
+     Classic mod (old slider scoring, note lock), spinners, Difficulty Adjust / Mirror / custom rates,
+     and failed plays. On 111 real lazer replays the 300/100/50/miss counts match exactly on 109, and
+     all 13 statistics lazer stores (ticks, slider tails, spinner bonus, ...) plus the max combo on 78;
+     slider tails are off by 0.1% because live play updates more often than a replay records.
 3. **Pattern features** for every note: spacing, angle, direction, quadrant, rhythm snap, streams and
    bursts with their BPM, slider velocity, how many notes are on screen. Local difficulty comes from
    osu!'s own strain model (rosu-pp).
@@ -86,8 +114,11 @@ python dev_tools/build_pool.py RAW             # rebuild osu_coach/data/pool.jso
 ```
 
 Caches, settings and downloaded beatmaps live in the per-user cache folder (`~/.cache/osu-coach`,
-`%LOCALAPPDATA%\osu-coach`). Set `OSU_COACH_CACHE` to override.
+`%LOCALAPPDATA%\osu-coach`). Set `OSU_COACH_CACHE` to override. `OSU_COACH_NO_AUTODETECT=1` turns off
+the automatic osu! search (the tests set it, so they never read the osu! installs of the computer they
+run on).
 
-Limitations: lazer judgement is approximated with stable rules plus lazer's hit policy, so slider
-scoring differs slightly. Tips are heuristics based on your numbers. Change one setting at a time and
-re-check after about 20 new replays.
+Limitations: lazer replays only record left/right, not which key or mouse button was used, so the
+keyboard-vs-mouse-button tip uses stable replays only. Replays from much older lazer clients (e.g. 2022)
+were judged with older rules and only match approximately. Tips are heuristics based on your numbers.
+Change one setting at a time and re-check after about 20 new replays.

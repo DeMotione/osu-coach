@@ -231,7 +231,10 @@ def cmd_playlist(args) -> int:
 
 def cmd_ui(args) -> int:
     app = Path(__file__).parent / "webapp" / "app.py"
+    # localhost only: the app reads and writes local files, so it must not be reachable from the network
+    # (also avoids the Windows firewall prompt on first start)
     cmd = [sys.executable, "-m", "streamlit", "run", str(app), "--server.port", str(args.port),
+           "--server.address", "localhost",
            "--browser.gatherUsageStats", "false", "--client.toolbarMode", "viewer", "--theme.base", "dark",
            "--theme.primaryColor", "#ff66aa",
            "--theme.backgroundColor", "#16161d", "--theme.secondaryBackgroundColor", "#22222c",
