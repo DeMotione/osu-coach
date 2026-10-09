@@ -133,3 +133,30 @@ def test_practice_plan_names_weakest_skill(base):
     plan = practice_plan(base)
     label = base.skills[base.weaknesses[0]]["label"] if base.weaknesses else "your weakest skill"
     assert any(label in step for step in plan)
+
+
+def _aim_misses_in(base, pattern: str, spaced: bool = False, n: int = 200):
+    """The base profile with its misses replaced by n aim misses on notes of one pattern."""
+    O = base.objects.copy()
+    O["head_hit"] = True
+    O["miss_reason"] = None
+    idx = O.index[O["played"].astype(bool) & (O["kind"] != "spinner")][:n]
+    O.loc[idx, "head_hit"] = False
+    O.loc[idx, "miss_reason"] = "aim"
+    O.loc[idx, "pattern"] = pattern
+    O.loc[idx, "spaced_stream"] = spaced
+    return with_(base, objects=O, miss_breakdown={"aim": n, "lost": 5})
+
+
+def test_aim_miss_tip_points_to_streams_when_they_miss_in_streams(base):
+    t = tip(make_tips(_aim_misses_in(base, "stream")), "Overview", "aim misses")
+    assert t is not None and "streams and bursts 100%" in t.actions[0]
+    assert "Tapping speed" in t.actions[1]
+    t = tip(make_tips(_aim_misses_in(base, "stream", spaced=True)), "Overview", "aim misses")
+    assert "Flow aim" in t.actions[1]
+
+
+def test_aim_miss_tip_keeps_jump_advice_for_jumps(base):
+    t = tip(make_tips(_aim_misses_in(base, "jump")), "Overview", "aim misses")
+    assert t is not None and "jumps 100%" in t.actions[0]
+    assert any("Jump aim" in a for a in t.actions)

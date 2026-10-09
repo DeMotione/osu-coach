@@ -501,8 +501,11 @@ def page_tapping():
             keys = sorted(shares)
             fig = go.Figure(go.Bar(x=keys, y=[shares[k] * 100 for k in keys], marker_color=ACCENT))
             fig.update_yaxes(title="% of presses")
-            st.plotly_chart(style(fig, 300, "Keys used (K = keyboard, M = mouse/pen buttons)"),
-                            config={"displayModeBar": False})
+            title = "Keys used (K = keyboard, M = mouse/pen buttons"
+            title += ", L/R = lazer left/right)" if {"L", "R"} & set(keys) else ")"
+            st.plotly_chart(style(fig, 300, title), config={"displayModeBar": False})
+            if {"L", "R"} & set(keys):
+                st.caption("lazer replays only store left/right, not whether a key or a mouse/pen button was used.")
         Pr = p.presses
         if Pr is not None and len(Pr):
             rates = dict(zip(p.replays["key"], p.replays["rate"]))

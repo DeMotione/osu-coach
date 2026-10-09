@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import Counter
 import math
 import subprocess
 import sys
@@ -167,7 +168,8 @@ def cmd_analyze(args) -> int:
                 print(f"    {r['stars']:.2f}★  {r['artist']} - {r['title']} [{r['version']}]  · {r['why']}\n"
                       f"           {r['url']}")
     if errors:
-        print(f"\n({len(errors)} replay(s) skipped — e.g. beatmap not available)")
+        reasons = Counter(err.removeprefix("skipped: ") for _, err in errors)
+        print(f"\n{len(errors)} replay(s) skipped: " + "; ".join(f"{n}× {r}" for r, n in reasons.most_common(4)))
     return 0
 
 
