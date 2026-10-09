@@ -80,3 +80,12 @@ def test_rate_converts_to_real_time():
     df = object_features(PlayableBeatmap(make_map(objs), mods=64))
     assert df["stream_bpm"].iloc[5] == pytest.approx(180, abs=0.5)
     assert np.allclose(df["dt_real"].iloc[1:], 125 / 1.5)
+
+
+def test_simultaneous_notes_do_not_produce_infinite_stream_bpm():
+    # 2B-style: two notes at the same time inside a stream
+    objs = [(100 + 15 * i, 200, 1000 + 125 * i) for i in range(10)] + [(300, 300, 1000 + 125 * 5)]
+    objs.sort(key=lambda o: o[2])
+    df = object_features(PlayableBeatmap(make_map(objs)))
+    assert np.isfinite(df["stream_bpm"].dropna()).all()
+    assert df["stream_bpm"].dropna().median() == pytest.approx(120, abs=0.5)

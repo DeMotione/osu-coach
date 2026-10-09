@@ -135,8 +135,10 @@ def _label_runs(df: pd.DataFrame):
     df["run_len"] = run_len
     df["run_pos"] = run_pos
     # BPM of the stream expressed in 1/4 notes, real time
-    dtr = df["dt_real"].to_numpy()
-    stream_bpm = np.where(run_id >= 0, 15000.0 / np.where(run_pos > 0, dtr, np.nan), np.nan)
+    dtr = df["dt_real"].to_numpy(dtype=float)
+    dtr = np.where((run_pos > 0) & (dtr > 0), dtr, np.nan)   # simultaneous notes (2B maps) have dt = 0
+    with np.errstate(divide="ignore", invalid="ignore"):
+        stream_bpm = np.where(run_id >= 0, 15000.0 / dtr, np.nan)
     # first note of a run gets the run's median speed
     s = pd.Series(stream_bpm)
     med = s.groupby(run_id).transform("median")

@@ -51,6 +51,21 @@ def test_dt_errors_are_converted_to_real_time():
     assert a.meta["rate"] == 1.5
 
 
+def test_replay_without_results_falls_back_to_simulation():
+    """Some tools write .osr files with all-zero result counts."""
+    from pathlib import Path
+    from osu_coach.analysis import analyze
+    from osu_coach.osr import parse_replay_file
+    rp, mp, _ = replay_and_map("circlecore__legit__legit-12.osr")
+    replay = parse_replay_file(rp)
+    replay.n300 = replay.n100 = replay.n50 = replay.nmiss = 0
+    a = analyze(replay, Path(mp).read_bytes())
+    assert a.meta["header_empty"] and a.meta["sim_match"] is None
+    assert np.isnan(a.meta["sim_agreement"])
+    assert a.meta["nmiss"] == 303
+    assert 0.5 < a.meta["accuracy"] < 1.0
+
+
 def test_along_cross_projection():
     # moving right; click lands 10px right of centre -> overshoot +10, cross 0
     assert along_cross(10, 0, 1, 0) == pytest.approx((10, 0))

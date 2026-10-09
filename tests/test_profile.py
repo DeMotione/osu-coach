@@ -91,6 +91,48 @@ def test_miss_model_increases_with_difficulty():
     assert model(np.array([2.0]))[0] < model(np.array([4.5]))[0]
 
 
+def _sections(tilt: float, seed: int):
+    """Blocks of 50 hard (25 % miss) / easy (2 % miss) notes. With tilt > 1 the
+    5 notes after a miss get tilt-times the miss chance."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for rep in range(12):
+        since = 99
+        for i in range(600):
+            hard = (i // 50) % 2 == 1
+            p = 0.25 if hard else 0.02
+            if since < 5:
+                p = min(0.9, p * tilt)
+            miss = rng.uniform() < p
+            since = 0 if miss else since + 1
+            rows.append({"replay_key": f"r{rep}", "local_eq": 4.0 if hard else 2.0, "head_hit": not miss,
+                         "miss_reason": "aim" if miss else None})
+    return pd.DataFrame(rows)
+
+
+def test_miss_chains_from_hard_sections_are_not_tilt():
+    from osu_coach.profile import miss_chain_ratio
+    df = _sections(tilt=1.0, seed=4)
+    naive = df.groupby("replay_key")["head_hit"].apply(lambda s: (~s).rolling(2).sum().eq(2).mean()).mean()
+    assert naive > (~df["head_hit"]).mean() ** 2 * 1.5   # misses do cluster ...
+    assert miss_chain_ratio(df) == pytest.approx(1.0, abs=0.2)   # ... but only because of difficulty
+
+
+def test_tilt_after_misses_is_detected():
+    from osu_coach.profile import miss_chain_ratio
+    assert miss_chain_ratio(_sections(tilt=3.0, seed=5)) > 1.5
+
+
+def test_notelock_followups_do_not_count_as_tilt():
+    from osu_coach.profile import miss_chain_ratio
+    df = _sections(tilt=1.0, seed=6)
+    # every miss drags the next note with it through notelock
+    extra = df.index[(~df["head_hit"]).shift(1, fill_value=False)]
+    df.loc[extra, "head_hit"] = False
+    df.loc[extra, "miss_reason"] = "notelock"
+    assert miss_chain_ratio(df) == pytest.approx(1.0, abs=0.25)
+
+
 @pytest.fixture(scope="module")
 def real_profile():
     names = ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr",
@@ -116,3 +158,18 @@ def test_profile_skill_scores_in_range(real_profile):
 def test_profile_miss_breakdown_sums(real_profile):
     mb = real_profile.miss_breakdown
     assert sum(mb.values()) == real_profile.overview["head_misses"]
+
+
+def test_profile_survives_a_perfect_play_without_streams():
+    """Autoplay: no misses at all; also a single replay has too little data for most bins."""
+    a = analyze_files(*replay_and_map("circlecore__auto__auto-3.osr")[:2])
+    p = build_profile([a])
+    assert p.overview["head_misses"] == 0
+    assert list(p.stream_profile.columns)[:3] == ["bpm_bin", "objects", "miss_rate"]
+    assert p.worst_quadrant is None
+
+
+def test_stream_profile_ignores_short_bursts():
+    rows = [{"run_len": 3, "run_pos": i % 3, "stream_bpm": 300.0, "head_hit": True, "err_real": 1.0,
+             "played": True, "kind": "circle", "head_result": 300, "pattern": "burst"} for i in range(300)]
+    assert stream_speed_profile(pd.DataFrame(rows)).empty

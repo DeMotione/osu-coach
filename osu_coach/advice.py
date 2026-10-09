@@ -111,8 +111,9 @@ def _miss_cause_tip(p: Profile, s: Setup):
                                                                    "one was still active; osu! ignores that tap."),
     }[top]
     actions = {
-        "aim": ["Focus practice on aim first (see Aim tips and the 'Jump aim' playlist).",
-                "Check your tablet area / sensitivity tips below — they are measured from your jumps."],
+        "aim": ["Focus practice on aim first (the 'Jump aim' playlist in Improve a skill).",
+                "Your tablet area / sensitivity is checked from your jumps (Aim page → Aim calibration); a "
+                "separate tip appears only if it is off — otherwise it's precision, not calibration."],
         "timing": ["Play below your comfort level and aim for 300s, not just hitting notes.",
                    "Tap to the music, not to the approach circle; enable the hit-error meter."],
         "tapping": ["Practice bursts/streams at a lower BPM with strict alternation.",
@@ -201,7 +202,8 @@ def _area_rotation_offset_tips(p: Profile, s: Setup):
                         act, {"rotation_deg": round(rot, 1)}))
     ox, oy = r["offset_x"], r["offset_y"]
     off = math.hypot(ox, oy)
-    if off >= max(2.5, 3 * r["offset_se"]) and off >= 0.08 * r["radius"]:
+    # a few px of bias don't cost hits (circle radius is ~25-55 px); only report clear, sizeable offsets
+    if off >= max(4.0, 3 * r["offset_se"]) and off >= 0.15 * r["radius"]:
         horiz = "left" if ox < 0 else "right"
         vert = "up" if oy < 0 else "down"
         evidence = (f"On average your clicks land {abs(ox):.1f} px {horiz} and {abs(oy):.1f} px {vert} of the "
@@ -222,7 +224,7 @@ def _area_rotation_offset_tips(p: Profile, s: Setup):
             act.append("A constant offset with a mouse usually means you look at the edge of the circle — aim for "
                        "the centre number.")
         tips.append(Tip("Tablet area" if s.device == "tablet" else "Aim", "Your clicks are consistently off-centre",
-                        2, evidence, act, settings))
+                        1, evidence, act, settings))
     return tips
 
 
@@ -286,11 +288,17 @@ def _direction_tips(p: Profile, s: Setup):
     overall = float((d["miss_rate"] * d["objects"]).sum() / d["objects"].sum())
     worst = d["miss_rate"].idxmax()
     row = d.loc[worst]
-    if overall <= 0 or row["miss_rate"] < 1.4 * overall:
+    rest = d.drop(index=worst)
+    n1, p1 = row["objects"], row["miss_rate"]
+    n2 = rest["objects"].sum()
+    p2 = float((rest["miss_rate"] * rest["objects"]).sum() / n2) if n2 else 0.0
+    pooled = (p1 * n1 + p2 * n2) / (n1 + n2)
+    se = math.sqrt(max(pooled * (1 - pooled) * (1 / n1 + 1 / max(n2, 1)), 1e-12))
+    if overall <= 0 or p1 < 1.4 * overall or (p1 - p2) / se < 2.0 or n1 < 100:
         return []
     along = row["along"]
     extra = ""
-    if not _nan(along):
+    if not _nan(along) and abs(along) >= 0.15:
         extra = (" and you tend to " + ("overshoot" if along > 0 else "undershoot") +
                  f" them ({abs(along):.2f} circle radii)")
     return [Tip("Aim", f"Jumps moving {worst} are your weakest direction", 2,
@@ -419,7 +427,7 @@ def _key_usage_tips(p: Profile, s: Setup):
                         f"{k} gets {v / sum(kb.values()):.0%} of keyboard presses.",
                         ["Alternate on 1/2 rhythms too (or at least in every burst) so both fingers get trained."]))
     ex = t.get("extra_presses_per_100")
-    if not _nan(ex) and ex >= 3:
+    if not _nan(ex) and ex >= 8:
         tips.append(Tip("Tapping", "Extra taps that hit nothing", 1,
                         f"{ex:.1f} presses per 100 notes landed while notes were due but hit nothing "
                         "(over-tapping, double taps).",
@@ -556,9 +564,10 @@ def _consistency_tips(p: Profile, s: Setup):
     c = p.consistency
     tips = []
     r = c.get("miss_after_miss_ratio")
-    if not _nan(r) and r >= 2.2:
+    if not _nan(r) and r >= 3.0:
         tips.append(Tip("Consistency", "Misses come in chains", 2,
-                        f"After a miss your chance to miss again within 10 notes is {r:.1f}× your normal rate.",
+                        f"Right after a miss you miss {r:.1f}× more often than the difficulty of the next notes "
+                        "explains (typical: about 2×).",
                         ["After a mistake, keep tapping the rhythm and re-find the pattern — don't freeze or mash.",
                          "Practice full combos on easier maps to build calm, then step up."]))
     es, eo = c.get("end_miss_share"), c.get("end_object_share")

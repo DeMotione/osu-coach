@@ -287,3 +287,26 @@ def peek_header(data: bytes) -> dict | None:
         return {"mode": mode, "version": version, "beatmap_md5": md5, "player": player}
     except (ValueError, EOFError, struct.error):
         return None
+
+
+def parse_header(data: bytes) -> dict | None:
+    """All header fields up to the timestamp, without decoding the frames (cheap).
+    Returns None for anything that isn't an .osr (or is truncated)."""
+    if peek_header(data) is None:
+        return None
+    try:
+        r = _Reader(data)
+        mode, version = r.byte(), r.int()
+        md5, player, replay_md5 = r.string(), r.string(), r.string()
+        n300, n100, n50, ngeki, nkatu, nmiss = (r.short() for _ in range(6))
+        score, max_combo, perfect, mods = r.int(), r.short(), bool(r.byte()), r.int()
+        r.string()  # life bar graph
+        ts = _ticks_to_datetime(r.long())
+    except (ValueError, EOFError, struct.error, IndexError, OverflowError, OSError):
+        return None
+    total = n300 + n100 + n50 + nmiss
+    acc = (300 * n300 + 100 * n100 + 50 * n50) / (300 * total) if total else 0.0
+    return {"mode": mode, "version": version, "beatmap_md5": md5, "player": player, "replay_md5": replay_md5,
+            "n300": n300, "n100": n100, "n50": n50, "nmiss": nmiss, "score": score, "max_combo": max_combo,
+            "perfect": perfect, "mods": mods, "mod_string": mods_to_string(mods), "timestamp": ts.isoformat(),
+            "accuracy": acc, "is_lazer": version >= 30000000}

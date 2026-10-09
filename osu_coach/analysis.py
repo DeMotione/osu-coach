@@ -21,7 +21,7 @@ from .features import object_features
 from .judge import simulate
 from .osr import MOD_BITS, Replay, parse_replay, mods_to_string
 
-ANALYSIS_VERSION = 3
+ANALYSIS_VERSION = 5
 
 
 @dataclass
@@ -131,17 +131,23 @@ def analyze(replay: Replay, osu_bytes: bytes, raw_replay: bytes | None = None,
     n_played = int(obj["played"].sum())
     header = (replay.n300, replay.n100, replay.n50, replay.nmiss)
     simc = (sim.counts[300], sim.counts[100], sim.counts[50], sim.counts[0])
-    total = max(sum(header), 1)
+    header_total, sim_total = sum(header), sum(simc)
+    # some tools write replays without results (all zero): fall back to the simulation then
+    counts = header if header_total else simc
+    acc = ((300 * counts[0] + 100 * counts[1] + 50 * counts[2]) / (300 * sum(counts))) if sum(counts) else math.nan
     meta = {
         "key": key, "player": replay.player, "date": replay.timestamp, "beatmap_md5": replay.beatmap_md5,
         "title": bm.title, "artist": bm.artist, "version": bm.version_name, "creator": bm.creator,
         "beatmap_id": bm.beatmap_id, "beatmapset_id": bm.beatmapset_id, "map_name": bm.display_name,
         "mods": replay.mods, "mod_string": mods_to_string(replay.mods), "rate": rate, "rules": sim.rules,
         "client": "lazer" if replay.is_lazer else "stable", "replay_version": replay.version,
-        "n300": replay.n300, "n100": replay.n100, "n50": replay.n50, "nmiss": replay.nmiss,
-        "max_combo": replay.max_combo, "score": replay.score, "accuracy": replay.accuracy,
-        "sim_counts": simc, "sim_max_combo": sim.max_combo, "sim_match": simc == header,
-        "sim_agreement": 1 - sum(abs(a - b) for a, b in zip(simc, header)) / total,
+        "n300": counts[0], "n100": counts[1], "n50": counts[2], "nmiss": counts[3],
+        "max_combo": replay.max_combo if header_total else sim.max_combo, "score": replay.score, "accuracy": acc,
+        "header_empty": header_total == 0,
+        "sim_counts": simc, "sim_max_combo": sim.max_combo,
+        "sim_match": (simc == header) if header_total else None,
+        "sim_agreement": (1 - sum(abs(a - b) for a, b in zip(simc, header)) / header_total) if header_total
+        else math.nan,
         "n_objects": len(obj), "n_played": n_played, "completed": n_played >= len(obj) - 1,
         "cs": pb.cs, "ar": pb.effective_ar, "od": pb.effective_od, "hp": pb.hp,
         "bpm": bm.main_bpm() * rate, "length_s": bm.drain_seconds / rate,

@@ -32,6 +32,14 @@ SKILL_LABELS = {
     "reading": "Reading (dense parts / AR)",
     "consistency": "Consistency",
 }
+MISS_LABELS = {
+    "aim": "aim — tapped in time but outside the circle",
+    "early": "too early — cursor on the note, tap outside the hit window",
+    "late": "too late — cursor on the note, tap after the hit window",
+    "no_tap": "no tap — cursor was on the note but no key was pressed",
+    "lost": "lost — no tap and the cursor far away (didn't see / read it)",
+    "notelock": "notelock — tap ignored because the previous note was still active",
+}
 
 
 @dataclass
@@ -206,11 +214,17 @@ def aim_regression(O: pd.DataFrame, min_dist_norm: float = 1.5) -> dict | None:
 
 
 # ------------------------------------------------------------------ tapping
-def stream_speed_profile(O: pd.DataFrame, min_objects: int = 20) -> pd.DataFrame:
+STREAM_PROFILE_COLUMNS = ["bpm_bin", "objects", "miss_rate", "non300_rate", "ur", "mean_err"]
+
+
+def stream_speed_profile(O: pd.DataFrame, min_objects: int = 20, min_run: int = 7) -> pd.DataFrame:
+    """Miss rate / UR by stream speed (1/4-note BPM, real time). Short bursts are
+    left out (min_run): 3-note triplets at 300 BPM say nothing about streaming."""
     P = _played(O)
-    S = P[(P["run_len"] >= 3) & (P["run_pos"] >= 1)].dropna(subset=["stream_bpm"])
+    S = P[(P["run_len"] >= min_run) & (P["run_pos"] >= 1)].dropna(subset=["stream_bpm"])
+    S = S[np.isfinite(S["stream_bpm"].astype(float))]
     if S.empty:
-        return pd.DataFrame(columns=["bpm_bin", "objects", "miss_rate", "non300_rate", "ur", "mean_err"])
+        return pd.DataFrame(columns=STREAM_PROFILE_COLUMNS)
     S = S.assign(bpm_bin=(S["stream_bpm"] // 10 * 10).astype(int))
     rows = []
     for b, d in S.groupby("bpm_bin"):
@@ -220,6 +234,8 @@ def stream_speed_profile(O: pd.DataFrame, min_objects: int = 20) -> pd.DataFrame
         rows.append({"bpm_bin": int(b), "objects": len(d), "miss_rate": _rate(~d["head_hit"]),
                      "non300_rate": _rate(hits["head_result"] != 300) if len(hits) else math.nan,
                      "ur": _ur(hits["err_real"]), "mean_err": float(hits["err_real"].mean()) if len(hits) else math.nan})
+    if not rows:
+        return pd.DataFrame(columns=STREAM_PROFILE_COLUMNS)
     return pd.DataFrame(rows).sort_values("bpm_bin").reset_index(drop=True)
 
 
@@ -390,8 +406,8 @@ def build_profile(analyses: list[ReplayAnalysis]) -> Profile:
         "avg_stars": float(np.average(metas["stars"].fillna(0), weights=metas["n_objects"])) if "stars" in metas and len(metas) else math.nan,
         "max_stars_passed": float(metas.loc[metas["completed"], "stars"].max()) if "stars" in metas and metas["completed"].any() else math.nan,
         "ur": _ur(P.loc[P["head_hit"], "err_real"]),
-        "sim_exact_share": float(metas["sim_match"].mean()) if len(metas) else math.nan,
-        "sim_agreement": float(metas["sim_agreement"].mean()) if len(metas) else math.nan,
+        "sim_exact_share": float(metas["sim_match"].dropna().astype(float).mean()) if len(metas) else math.nan,
+        "sim_agreement": float(pd.to_numeric(metas["sim_agreement"], errors="coerce").mean()) if len(metas) else math.nan,
         "play_minutes": float(metas["length_s"].sum() / 60) if "length_s" in metas else math.nan,
         "first_date": metas["date"].min() if len(metas) else None, "last_date": metas["date"].max() if len(metas) else None,
     }
@@ -458,23 +474,47 @@ def _reading_metrics(P: pd.DataFrame, misses: pd.DataFrame) -> dict:
     return out
 
 
+def miss_chain_ratio(P: pd.DataFrame, window: int = 10) -> float:
+    """Do misses make more misses? Observed / expected misses on the `window`
+    notes after a miss, where "expected" comes from the player's own
+    difficulty->miss model. Misses cluster in hard sections anyway; this ratio
+    only rises above ~1 when a miss itself throws the player off (tilt, losing
+    the rhythm). Notelock follow-ups are mechanical, so they are ignored."""
+    if P.empty or "local_eq" not in P:
+        return math.nan
+    parts = []
+    for _, d in P.groupby("replay_key", sort=False):
+        is_nl = ((d["miss_reason"] == "notelock") & ~d["head_hit"].astype(bool)).to_numpy()
+        prim = (~d["head_hit"].astype(bool)).to_numpy() & ~is_nl
+        recent = pd.Series(prim.astype(float)).rolling(window, min_periods=1).max().shift(1).fillna(0).to_numpy()
+        parts.append(pd.DataFrame({"local_eq": d["local_eq"].to_numpy(), "head_hit": ~prim,
+                                   "after": recent > 0, "skip": is_nl}))
+    if not parts:
+        return math.nan
+    D = pd.concat(parts, ignore_index=True)
+    D = D[~D["skip"]]
+    fresh, after = D[~D["after"]], D[D["after"]]
+    if len(after) < 20 or len(fresh) < 50:
+        return math.nan
+    # expectation from notes with no recent miss, at the same local difficulty
+    model = fit_miss_model(fresh)
+    exp = float(np.nansum(model(after["local_eq"].to_numpy())))
+    obs = float((~after["head_hit"]).sum())
+    if exp <= 0:
+        return math.nan
+    # shrink towards the typical value (~2x, median of real replays) so a handful of
+    # misses can't produce extreme ratios: prior worth 5 expected misses
+    return (obs + 5 * TYPICAL_CHAIN_RATIO) / (exp + 5)
+
+
+TYPICAL_CHAIN_RATIO = 2.0
+
+
 def _consistency_metrics(P: pd.DataFrame, metas: pd.DataFrame) -> dict:
     out = {}
     if P.empty:
         return out
-    clustered = []
-    for _, d in P.groupby("replay_key"):
-        m = (~d["head_hit"]).to_numpy(dtype=float)
-        if len(m) < 20:
-            continue
-        recent = pd.Series(m).rolling(10, min_periods=1).max().shift(1).fillna(0).to_numpy()
-        clustered.append((m, recent))
-    if clustered:
-        m = np.concatenate([c[0] for c in clustered])
-        r = np.concatenate([c[1] for c in clustered])
-        base = m.mean()
-        after = m[r > 0].mean() if (r > 0).any() else math.nan
-        out["miss_after_miss_ratio"] = float(after / base) if base > 0 and not math.isnan(after) else math.nan
+    out["miss_after_miss_ratio"] = miss_chain_ratio(P)
     end = P["time_frac"] >= 0.8
     out["end_miss_share"] = float((~P.loc[end, "head_hit"]).sum() / max((~P["head_hit"]).sum(), 1))
     out["end_object_share"] = float(end.mean())
@@ -527,7 +567,8 @@ def _skills(P, model, tapping, sliders, reading, consistency) -> dict:
     else:
         s["reading"] = {"score": None, "n": 0}
     ratio = consistency.get("miss_after_miss_ratio", math.nan)
-    s["consistency"] = {"score": _clip(50 + 35 * math.log2(1.8 / ratio)) if ratio and not math.isnan(ratio) else None,
+    s["consistency"] = {"score": _clip(50 + 30 * math.log2(TYPICAL_CHAIN_RATIO / ratio))
+                        if ratio and not math.isnan(ratio) else None,
                         "n": len(P), "miss_after_miss_ratio": ratio}
     for k, v in s.items():
         v["label"] = SKILL_LABELS[k]

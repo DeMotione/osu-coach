@@ -13,9 +13,9 @@ dependencies = [
     "numpy>=1.26",
     "pandas>=2.1",
     "plotly>=5.18",
-    "streamlit>=1.36",
+    "streamlit>=1.46",
     "requests>=2.31",
-    "rosu-pp-py>=3.0",
+    "rosu-pp-py>=4,<5",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +25,7 @@ dev = ["pytest>=8", "osrparse>=7"]
 osu-coach = "osu_coach.cli:main"
 
 [tool.setuptools]
-packages = ["osu_coach"]
+packages = ["osu_coach", "osu_coach.webapp"]
 
 [tool.setuptools.package-data]
 osu_coach = ["data/*.json.gz"]
