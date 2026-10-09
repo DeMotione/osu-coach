@@ -1,0 +1,86 @@
+[
+ {
+  "replay": "osrparse__resources__lazer_standard_format.osr",
+  "md5": "0619c930348063c2a967a3af4d69cd6b",
+  "player": "MyAngelAku",
+  "mods": 0,
+  "n300": 435,
+  "n100": 56,
+  "n50": 1,
+  "nmiss": 37,
+  "map_ok": true,
+  "status": "ok id=3076104"
+ },
+ {
+  "replay": "osrparse__resources__replay.osr",
+  "md5": "da8aae79c8f3306b5d65ec951874a7fb",
+  "player": "Cookiezi",
+  "mods": 0,
+  "n300": 1982,
+  "n100": 1,
+  "n50": 0,
+  "nmiss": 0,
+  "map_ok": true,
+  "status": "ok id=129891"
+ },
+ {
+  "replay": "osrparse__resources__replay2.osr",
+  "md5": "e0d805c891bf0e18ecb543435c6625f7",
+  "player": "Cookiezi",
+  "mods": 24,
+  "n300": 1756,
+  "n100": 23,
+  "n50": 4,
+  "nmiss": 0,
+  "map_ok": true,
+  "status": "ok id=151229"
+ },
+ {
+  "replay": "circlecore__auto__auto-3.osr",
+  "md5": "2c90bbf51e8e7b064107319bf50ad13e",
+  "player": "hanahaneull",
+  "mods": 0,
+  "n300": 415,
+  "n100": 0,
+  "n50": 0,
+  "nmiss": 0,
+  "map_ok": true,
+  "status": "ok id=1234694"
+ },
+ {
+  "replay": "circlecore__legit__legit-12.osr",
+  "md5": "2f7ee8e31132e725b2332f09b57e2e6a",
+  "player": "",
+  "mods": 1,
+  "n300": 1856,
+  "n100": 766,
+  "n50": 216,
+  "nmiss": 303,
+  "map_ok": true,
+  "status": "ok id=1031991"
+ },
+ {
+  "replay": "circlecore__legit__legit_snaps-22.osr",
+  "md5": "7cae627670267a490862e0047928f189",
+  "player": "badeu",
+  "mods": 72,
+  "n300": 424,
+  "n100": 30,
+  "n50": 4,
+  "nmiss": 1,
+  "map_ok": true,
+  "status": "ok id=1193499"
+ },
+ {
+  "replay": "circlecore__low_frametime_old__replay-osu_24722_433541214.osr",
+  "md5": "15f8cc75cee3f3752c562ef069fe1270",
+  "player": "val0108",
+  "mods": 0,
+  "n300": 942,
+  "n100": 91,
+  "n50": 17,
+  "nmiss": 49,
+  "map_ok": true,
+  "status": "ok id=24722"
+ }
+]

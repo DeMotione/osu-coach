@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "osu-coach"
+version = "0.1.0"
+description = "Analyse your osu! replays: tapping, aim, quadrant misses, setup tips, map suggestions and skill playlists."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "plotly>=5.18",
+    "streamlit>=1.36",
+    "requests>=2.31",
+    "rosu-pp-py>=3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "osrparse>=7"]
+
+[project.scripts]
+osu-coach = "osu_coach.cli:main"
+
+[tool.setuptools]
+packages = ["osu_coach"]
+
+[tool.setuptools.package-data]
+osu_coach = ["data/*.json.gz"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
