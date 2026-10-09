@@ -12,7 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from osu_coach import locate, sources
+from osu_coach import lazer_import, locate, sources
 from osu_coach.advice import Setup, make_tips, practice_plan
 from osu_coach.collection_db import dumps as collection_bytes
 from osu_coach.collection_db import merge_into
@@ -117,7 +117,23 @@ def maps_table(df: pd.DataFrame, extra: list[str] | None = None):
 
 def setup_from_settings() -> Setup:
     s = settings()
-    return Setup(**{k: v for k, v in s.items() if k in Setup.__dataclass_fields__})
+    setup = Setup(**{k: v for k, v in s.items() if k in Setup.__dataclass_fields__})
+    if s.get("client") not in ("stable", "lazer"):
+        setup.client = preferred_client()
+    return setup
+
+
+def preferred_client() -> str:
+    """The client the player uses: saved setting, else what their replays / installs say."""
+    s = settings()
+    if s.get("client") in ("stable", "lazer"):
+        return s["client"]
+    p = profile()
+    reps = getattr(p, "replays", None)
+    if reps is not None and len(reps) and "client" in reps:
+        return "lazer" if (reps["client"] == "lazer").mean() >= 0.5 else "stable"
+    kinds = {i.kind for i in installs_cached()}
+    return "lazer" if kinds == {"lazer"} else "stable"
 
 
 # ------------------------------------------------------------------ Replays
@@ -664,16 +680,56 @@ def page_improve():
         maps_table(part)
     st.subheader("Get the playlist into osu!")
     hashes = list(pl["md5"])
-    c = st.columns(3)
-    c[0].download_button("collection.db", data=collection_bytes({name: hashes}), file_name="collection.db",
-                         mime="application/octet-stream", icon=":material/download:",
-                         help="A collection file with this playlist (works for stable and lazer).")
     text = "\n".join(f"[{r.stage}] {r.stars:.2f}* {r.artist} - {r.title} [{r.version}]  {r.url}"
                      for r in pl.itertuples())
-    c[1].download_button("List with links (.txt)", data=f"{name}\n\n{text}\n", file_name="playlist.txt",
-                         mime="text/plain", icon=":material/list:")
+    order = ["osu!lazer", "osu!stable"] if preferred_client() == "lazer" else ["osu!stable", "osu!lazer"]
+    tabs = dict(zip(order, st.tabs(order)))
+    with tabs["osu!lazer"]:
+        lazer_import_ui(pl, name, hashes)
+    with tabs["osu!stable"]:
+        stable_import_ui(pl, name, hashes, skill)
+    st.download_button("Map list with links (.txt)", data=f"{name}\n\n{text}\n", file_name="playlist.txt",
+                       mime="text/plain", icon=":material/list:")
+
+
+def lazer_import_ui(pl: pd.DataFrame, name: str, hashes: list[str]):
+    st.markdown("lazer can't open a collection file by itself, but its **import from a previous osu! version** "
+                "takes maps *and* collections from any folder that looks like an osu!stable install. osu! coach "
+                "makes that folder for you in one click.")
+    lib = st.session_state.get("lib")
+    have = getattr(lib, "installed", {}).get("lazer", set()) if lib is not None else set()
+    sets = lazer_import.sets_to_download(zip(pl["md5"], pl["beatmapset_id"]), have)
+    n_sets = len(set(int(s) for s in pl["beatmapset_id"]))
+    dest = lazer_import.default_pack_dir(name)
+    st.caption(f"{len(sets)} of {n_sets} beatmap sets will be downloaded"
+               + (" (you already have the others)" if len(sets) < n_sets else "") + f" · folder: `{dest}`")
+    c = st.columns(2)
+    if c[0].button("Make lazer import folder", type="primary", icon=":material/create_new_folder:"):
+        bar = st.progress(0.0, text="Preparing…")
+        res = lazer_import.build_pack(dest, {name: hashes}, sets,
+                                      progress=lambda i, n, msg: bar.progress(i / max(n, 1), text=msg))
+        bar.empty()
+        msg = f"Ready: `{res['path']}` with {len(res['maps'])} map set(s) and the collection."
+        if res["failed"]:
+            msg += f" Couldn't download set(s) {', '.join(map(str, res['failed']))}: use the links in the map list."
+        st.success(msg, icon=":material/folder_open:")
+        lazer_import.reveal(res["path"])
+    c[1].download_button("Folder without maps (.zip)", data=lazer_import.pack_zip({name: hashes}, name),
+                         file_name=f"{lazer_import.safe_name(name)}.zip", mime="application/zip",
+                         icon=":material/folder_zip:",
+                         help="Just the collection, e.g. for lazer on another computer: unzip it and import the "
+                              "folder the same way. Get the maps from the links.")
+    steps = "\n".join(f"{i}. {s}" for i, s in enumerate(lazer_import.INSTRUCTIONS, 1))
+    st.markdown(f"**Then, in lazer:**\n\n{steps}")
+
+
+def stable_import_ui(pl: pd.DataFrame, name: str, hashes: list[str], skill: str):
+    c = st.columns(2)
+    c[0].download_button("collection.db", data=collection_bytes({name: hashes}), file_name="collection.db",
+                         mime="application/octet-stream", icon=":material/download:",
+                         help="A collection file with this playlist, e.g. for Collection Manager.")
     stable = [i for i in installs_cached() if i.kind == "stable"]
-    if stable and c[2].button("Add to my osu!stable collections", icon=":material/library_add:"):
+    if stable and c[1].button("Add to my osu!stable collections", icon=":material/library_add:"):
         if locate.is_osu_running():
             st.error("Close osu! first — it rewrites collection.db when it exits.")
         else:
@@ -682,7 +738,7 @@ def page_improve():
     default_dest = stable[0].songs if stable and stable[0].songs else Path.home() / "osu-coach-maps" / skill
     dest = st.text_input("Download the maps (.osz) to", value=str(default_dest),
                          help="osu!stable picks up .osz files in its Songs folder on the next start (or F5 in song "
-                              "select). For lazer, open the downloaded files or drag them into the game.")
+                              "select).")
     if st.button("Download maps", icon=":material/cloud_download:"):
         sets = list(dict.fromkeys(int(s) for s in pl["beatmapset_id"]))
         bar = st.progress(0.0)
@@ -696,15 +752,8 @@ def page_improve():
         bar.empty()
         st.success(f"Downloaded {ok}/{len(sets)} beatmap sets to {dest}." +
                    (f" Failed: {', '.join(map(str, failed))}" if failed else ""))
-    with st.expander("How to import", icon=":material/help:"):
-        st.markdown(
-            "**osu!stable** — put the .osz files in the Songs folder (or drag them onto the osu! window), then use "
-            "*Add to my osu!stable collections* above with osu! closed. Your old collection.db is backed up.\n\n"
-            "**osu!lazer** — import the .osz files (open them, or drag them into the game). Then put the "
-            "downloaded `collection.db` into an empty folder together with an empty file named `osu!.user.cfg` "
-            "(lazer only accepts folders that look like an osu!stable install) and run *Settings → General → Run "
-            "setup wizard → Import from previous version*, pointing it at that folder and importing collections. "
-            "The collection shows up in song select.")
+    st.caption("Put the .osz files in the Songs folder (or drag them onto the osu! window), then use *Add to my "
+               "osu!stable collections* with osu! closed — your old collection.db is backed up first.")
 
 
 # ------------------------------------------------------------------ main

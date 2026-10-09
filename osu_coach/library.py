@@ -14,7 +14,7 @@ from collections import Counter
 from pathlib import Path
 
 from . import locate, sources
-from .analysis import ANALYSIS_VERSION, ReplayAnalysis, analyze
+from .analysis import ANALYSIS_VERSION, ReplayAnalysis, UnsupportedReplay, analyze
 from .osr import MOD_BITS, parse_replay
 
 # relax / autopilot / autoplay / cinema / target practice: not the player's own aim+tapping
@@ -39,12 +39,17 @@ def _work(replay_path: str, osu_path: str) -> ReplayAnalysis:
     return analyze(replay, Path(osu_path).read_bytes(), raw)
 
 
+def _error_text(exc: Exception) -> str:
+    return str(exc) if isinstance(exc, UnsupportedReplay) else f"analysis failed: {exc}"
+
+
 class Library:
     def __init__(self, cache_dir=None):
         self.cache = Path(cache_dir or default_cache_dir())
         self.cache.mkdir(parents=True, exist_ok=True)
         self.replays: list[dict] = []
         self.maps: dict[str, str] = {}
+        self.installed: dict[str, set[str]] = {"stable": set(), "lazer": set()}  # beatmap md5s in the game
         self.sources: list[str] = []
         self._index_path = self.cache / "index.json"
         try:
@@ -75,11 +80,14 @@ class Library:
         if inst.kind == "lazer" and inst.files_dir:
             r, m = locate.scan_lazer_store(inst.files_dir, self.index, progress)
             self._add(r, m, "lazer")
+            self.installed["lazer"].update(m)
         for d in inst.replay_dirs:
             r, m = locate.scan_folder(d, self.index)
             self._add(r, m, inst.kind)
         if inst.kind == "stable" and inst.songs and index_songs:
-            self._add([], locate.index_songs(inst.songs, self.index, progress), "stable")
+            m = locate.index_songs(inst.songs, self.index, progress)
+            self._add([], m, "stable")
+            self.installed["stable"].update(m)
         self.save_index()
 
     def add_folder(self, folder, source: str = "folder"):
@@ -200,7 +208,7 @@ class Library:
                         try:
                             finish(item, fut.result())
                         except Exception as exc:  # noqa: BLE001
-                            errors.append((item[0], f"analysis failed: {exc}"))
+                            errors.append((item[0], _error_text(exc)))
                         if progress:
                             progress(len(done) + len(errors), total, item[0].get("path", ""))
                 return done, errors
@@ -210,7 +218,7 @@ class Library:
             try:
                 finish(item, _work(item[0]["path"], item[2]))
             except Exception as exc:  # noqa: BLE001
-                errors.append((item[0], f"analysis failed: {exc}"))
+                errors.append((item[0], _error_text(exc)))
             if progress:
                 progress(len(done) + len(errors), total, item[0].get("path", ""))
         return done, errors

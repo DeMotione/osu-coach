@@ -420,11 +420,12 @@ def _key_usage_tips(p: Profile, s: Setup):
                         f"{_pct(mb)} of presses were M1/M2 (pen tip or mouse clicks).",
                         ["Tap with keyboard keys (e.g. Z/X) — they are faster and don't move the cursor.", where]))
     shares = t.get("key_share") or {}
-    kb = {k: v for k, v in shares.items() if k in ("K1", "K2")}
+    kb = {k: v for k, v in shares.items() if k in ("K1", "K2")} or {k: v for k, v in shares.items() if k in ("L", "R")}
     if len(kb) == 2 and max(kb.values()) / max(sum(kb.values()), 1e-9) > 0.75 and t.get("press_count", 0) > 500:
         k, v = max(kb.items(), key=lambda kv: kv[1])
+        label = {"L": "the left key", "R": "the right key"}.get(k, k)
         tips.append(Tip("Tapping", "You rely mostly on one key", 1,
-                        f"{k} gets {v / sum(kb.values()):.0%} of keyboard presses.",
+                        f"{label} gets {v / sum(kb.values()):.0%} of presses.",
                         ["Alternate on 1/2 rhythms too (or at least in every burst) so both fingers get trained."]))
     ex = t.get("extra_presses_per_100")
     if not _nan(ex) and ex >= 8:
@@ -518,8 +519,9 @@ def _slider_tips(p: Profile, s: Setup):
                          "and repeating sliders."],
             "follow": ["Your cursor left the follow circle — slow down on sliders, follow the ball, watch for "
                        "reverse arrows and fast sliders."],
-            "key_swap": ["You switched keys inside the slider (stable quirk: releasing the key you started "
-                         "the slider with can break it). Keep holding the first key until the end."],
+            "key_swap": ["You switched keys inside the slider. osu! keeps tracking only with the key you hit the "
+                         "head with (lazer: until the other key is let go; stable: releasing that key can break it). "
+                         "Keep holding the first key until the end."],
         }[top]
         tips.append(Tip("Sliders", "Slider breaks cost you combo", 2 if br >= 0.08 else 1,
                         f"{_pct(br)} of sliders broke after a good head ({', '.join(f'{k} {v}' for k, v in reasons.items())}).",
@@ -541,20 +543,22 @@ def _reading_tips(p: Profile, s: Setup):
                         f"{_pct(ls)} of misses had no tap and the cursor far away from the note.",
                         ["Play slightly lower AR, then raise it step by step (Reading playlist).",
                          "Learn hard sections with Half Time; look ahead to the next notes, not at your cursor."]))
-    d, sp = r.get("dense_miss_rate"), r.get("sparse_miss_rate")
-    if not _nan(d) and not _nan(sp) and sp > 0 and d >= 1.6 * sp:
-        tips.append(Tip("Reading", "Dense sections (many notes on screen) are hard", 1,
-                        f"Miss rate {_pct(d)} when ≥{r.get('dense_threshold', 0):.0f} notes are on screen vs "
-                        f"{_pct(sp)} otherwise.", ["Reading practice: maps with overlapping patterns at your "
-                                                   "level; take it slow with HT first."]))
-    hi, lo, mid = r.get("high_ar_miss_rate"), r.get("low_ar_miss_rate"), r.get("mid_ar_miss_rate")
-    if not _nan(hi) and not _nan(mid) and mid > 0 and hi >= 1.5 * mid:
+    d, sp = r.get("dense_ratio"), r.get("sparse_ratio")
+    if not _nan(d) and not _nan(sp) and sp > 0 and d >= 1.3 * sp and (r.get("dense_misses") or 0) >= 20:
+        tips.append(Tip("Reading", "Dense sections (many notes on screen) are hard for you", 1,
+                        f"With ≥{r.get('dense_threshold', 0):.0f} notes on screen you miss {d:.1f}× as often as their "
+                        f"difficulty predicts, vs {sp:.1f}× elsewhere.",
+                        ["Reading practice: maps with overlapping patterns at your level; take it slow with HT "
+                         "first."]))
+    hi, lo, mid = r.get("high_ar_ratio"), r.get("low_ar_ratio"), r.get("mid_ar_ratio")
+    if not _nan(hi) and not _nan(mid) and mid > 0 and hi >= 1.3 * mid and (r.get("high_ar_misses") or 0) >= 20:
         tips.append(Tip("Reading", "High approach rate (AR 9.5+) hurts you", 1,
-                        f"Miss rate {_pct(hi)} at AR ≥ 9.5 vs {_pct(mid)} at AR 7-9.5.",
+                        f"At AR ≥ 9.5 you miss {hi:.1f}× as often as the difficulty predicts, vs {mid:.1f}× at "
+                        f"AR 7-9.5 ({_pct(r.get('high_ar_miss_rate'))} vs {_pct(r.get('mid_ar_miss_rate'))} raw).",
                         ["Practice AR 9-9.5 maps until comfortable before going higher (DT raises AR too)."]))
-    if not _nan(lo) and not _nan(mid) and mid > 0 and lo >= 1.5 * mid:
+    if not _nan(lo) and not _nan(mid) and mid > 0 and lo >= 1.3 * mid and (r.get("low_ar_misses") or 0) >= 20:
         tips.append(Tip("Reading", "Low approach rate (AR ≤ 7) confuses you", 1,
-                        f"Miss rate {_pct(lo)} at AR ≤ 7 vs {_pct(mid)} at AR 7-9.5.",
+                        f"At AR ≤ 7 you miss {lo:.1f}× as often as the difficulty predicts, vs {mid:.1f}× at AR 7-9.5.",
                         ["Play some low-AR maps on purpose; focus on rhythm instead of waiting for the approach "
                          "circle."]))
     return tips

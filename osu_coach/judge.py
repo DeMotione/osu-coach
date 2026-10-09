@@ -1,4 +1,5 @@
-"""Stable-like judgement simulation of a replay on a beatmap.
+"""Judgement simulation of a replay on a beatmap: osu!stable rules here, osu!lazer
+rules in :mod:`judge_lazer` (``simulate`` picks the right one per replay).
 
 Port of the osu!stable rules as reproduced by danser-go (app/rulesets/osu):
 * clicks = new presses of the left (M1/K1) or right (M2/K2) button;
@@ -99,6 +100,7 @@ class SimResult:
     radius: float
     hit_windows: tuple[int, int, int]
     rules: str = "stable"
+    lazer_stats: dict | None = None  # lazer rules: the same statistics lazer stores in its replays
 
 
 class _ObjState:
@@ -139,7 +141,10 @@ def _result_for_delta(pb: PlayableBeatmap, delta: float) -> int:
 
 
 def simulate(pb: PlayableBeatmap, replay: Replay, rules: str | None = None) -> SimResult:
-    """rules: 'stable' / 'lazer' / None (auto: lazer replays use lazer's hit policy)."""
+    """rules: 'stable' / 'lazer' / None (auto: lazer replays use lazer's rules, see judge_lazer)."""
+    if rules == "lazer" or (rules is None and replay.is_lazer):
+        from .judge_lazer import lazer_options, simulate_lazer
+        return simulate_lazer(pb, replay, **lazer_options(replay))
     objs = pb.beatmap.objects
     radius = pb.radius
     results = []
@@ -181,7 +186,6 @@ def simulate(pb: PlayableBeatmap, replay: Replay, rules: str | None = None) -> S
     ts, xs, ys, ks = replay.t, replay.x, replay.y, replay.keys
     n_frames = len(ts)
     old_handling = replay.version < 20190506
-    lazer_rules = rules == "lazer" if rules else (replay.is_lazer and not _lazer_classic_notelock(replay))
 
     for fi in range(n_frames):
         t = int(ts[fi])
@@ -238,12 +242,14 @@ def simulate(pb: PlayableBeatmap, replay: Replay, rules: str | None = None) -> S
                 px, py = pos_cache[o.index]
                 dist = math.hypot(cx - px, cy - py)
                 in_range = dist <= radius
-                if lazer_rules:
-                    action = _can_be_hit_lazer(t, st, processed)
-                else:
-                    action = _can_be_hit(t, st, si, processed, pb)
+                action = _can_be_hit(t, st, si, processed, pb)
                 if abs(t - o.time) <= pb.hit50 + 200:
                     st.res.clicks.append(ClickSeen(t, dist / radius, action, in_range, cx, cy))
+                if not in_range and action == CLICK and abs(t - o.time) < pb.hit50:
+                    # tapped for this note but outside the circle: an aim miss, not an extra tap
+                    for press in (new_left_press if left_e else None, new_right_press if right_e else None):
+                        if press is not None and press.outcome == "none":
+                            press.outcome = "off_target"
                 if in_range:
                     if action == CLICK:
                         if left_e:
@@ -273,25 +279,6 @@ def simulate(pb: PlayableBeatmap, replay: Replay, rules: str | None = None) -> S
                             st.is_hit = True
                             r.result = result
                             add_combo("inc" if result else "reset")
-                        if lazer_rules:
-                            # lazer hit policy: hitting an object misses every earlier unhit one
-                            for g in processed:
-                                if g is st:
-                                    break
-                                if g.obj.is_spinner:
-                                    continue
-                                if g.obj.is_slider and not g.is_start_hit:
-                                    g.is_start_hit = True
-                                    g.start_result = 0
-                                    g.res.head_result = 0
-                                    g.res.forced_miss = True
-                                    add_combo("reset")
-                                elif g.obj.kind == "circle" and not g.is_hit:
-                                    g.is_hit = True
-                                    g.res.result = 0
-                                    g.res.head_result = 0
-                                    g.res.forced_miss = True
-                                    add_combo("reset")
                     else:
                         label = "too_early" if abs(t - o.time) >= HITTABLE_RANGE else "notelock"
                         for press in (new_left_press if left_e else None, new_right_press if right_e else None):
@@ -425,37 +412,9 @@ def simulate(pb: PlayableBeatmap, replay: Replay, rules: str | None = None) -> S
 
     counts = {300: 0, 100: 0, 50: 0, 0: 0}
     for r in results:
-        # lazer exports count slider *heads* (their own judgement) instead of whole sliders
-        value = r.head_result if (lazer_rules and r.kind == "slider" and r.result != -1) else r.result
-        if value in counts:
-            counts[value] += 1
-    return SimResult(results, presses, counts, max_combo, radius, (pb.hit300, pb.hit100, pb.hit50),
-                     "lazer" if lazer_rules else "stable")
-
-
-def _lazer_classic_notelock(replay: Replay) -> bool:
-    for m in (replay.lazer or {}).get("mods", []) or []:
-        if str(m.get("acronym", "")).upper() == "CL":
-            return bool((m.get("settings") or {}).get("classic_note_lock", True))
-    return False
-
-
-def _can_be_hit_lazer(t: int, st: _ObjState, processed: list[_ObjState]) -> int:
-    """lazer's hit policy (danser CanBeHitLazer): an object can't be hit before the
-    previous object's start time unless that object was already hit."""
-    last = None
-    for g in processed:
-        if g.obj.time >= st.obj.time:
-            break
-        if not g.obj.is_spinner:
-            last = g
-    if last is not None:
-        hit = last.is_start_hit if last.obj.is_slider else last.is_hit
-        if not hit and t < last.obj.time:
-            return SHAKE
-    if abs(t - st.obj.time) >= HITTABLE_RANGE:
-        return SHAKE
-    return CLICK
+        if r.result in counts:
+            counts[r.result] += 1
+    return SimResult(results, presses, counts, max_combo, radius, (pb.hit300, pb.hit100, pb.hit50), "stable")
 
 
 def _can_be_hit(t: int, st: _ObjState, si: int, processed: list[_ObjState], pb: PlayableBeatmap) -> int:

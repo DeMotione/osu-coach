@@ -1,2 +1,8 @@
 *.bat text eol=crlf
 *.sh text eol=lf
+# beatmaps are identified by the MD5 of their exact bytes: never convert line endings
+*.osu -text
+*.osr binary
+*.osz binary
+*.db binary
+*.gz binary

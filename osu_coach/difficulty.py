@@ -25,17 +25,35 @@ def _map(osu_bytes: bytes):
     return rosu.Beatmap(bytes=osu_bytes)
 
 
-def attributes(osu_bytes: bytes, mods: int = 0, rate: float | None = None) -> dict:
+def _kwargs(mods: int, rate: float | None, lazer_mods: list | None, lazer: bool) -> dict:
+    if lazer_mods:
+        # lazer replays: the exact mod list incl. settings (custom rates, Difficulty Adjust, Classic ...)
+        return {"mods": [{"acronym": str(m["acronym"]), "settings": dict(m.get("settings") or {})}
+                         for m in lazer_mods if m.get("acronym")], "lazer": True}
+    kw = {"mods": int(mods), "lazer": bool(lazer)}
+    if rate and abs(rate - _legacy_rate(mods)) > 1e-6:
+        kw["clock_rate"] = float(rate)
+    return kw
+
+
+def _difficulty(mods: int, rate: float | None, lazer_mods: list | None, lazer: bool):
+    try:
+        return rosu.Difficulty(**_kwargs(mods, rate, lazer_mods, lazer))
+    except Exception:  # noqa: BLE001 - mods rosu-pp doesn't know: fall back to legacy bits + rate
+        if not lazer_mods:
+            raise
+        return rosu.Difficulty(**_kwargs(mods, rate, None, lazer))
+
+
+def attributes(osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer_mods: list | None = None,
+               lazer: bool = False) -> dict:
     if rosu is None:
         return {}
     try:
         m = _map(osu_bytes)
         if m.is_suspicious():
             return {}
-        kw = {"mods": int(mods)}
-        if rate and abs(rate - _legacy_rate(mods)) > 1e-6:
-            kw["clock_rate"] = float(rate)
-        a = rosu.Difficulty(**kw).calculate(m)
+        a = _difficulty(mods, rate, lazer_mods, lazer).calculate(m)
     except Exception:  # noqa: BLE001
         return {}
     out = {}
@@ -46,15 +64,13 @@ def attributes(osu_bytes: bytes, mods: int = 0, rate: float | None = None) -> di
     return out
 
 
-def strains(osu_bytes: bytes, mods: int = 0, rate: float | None = None) -> dict | None:
+def strains(osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer_mods: list | None = None,
+            lazer: bool = False) -> dict | None:
     if rosu is None:
         return None
     try:
         m = _map(osu_bytes)
-        kw = {"mods": int(mods)}
-        if rate and abs(rate - _legacy_rate(mods)) > 1e-6:
-            kw["clock_rate"] = float(rate)
-        s = rosu.Difficulty(**kw).strains(m)
+        s = _difficulty(mods, rate, lazer_mods, lazer).strains(m)
     except Exception:  # noqa: BLE001
         return None
     return {

@@ -59,6 +59,7 @@ class HitObject:
     pixel_length: float = 0.0
     velocity: float = 0.0  # osu!px per ms
     span_duration: float = 0.0
+    tick_distance: float = 0.0
     events: list[SliderEvent] = field(default_factory=list)
 
     @property
@@ -365,6 +366,7 @@ def _parse_slider(parts, idx, x, y, t, nc, bm: Beatmap, sv_times, sv_values) -> 
     tick_distance = scoring_distance / bm.tick_rate
     if bm.format_version < 8:
         tick_distance /= sv
+    obj.tick_distance = tick_distance
     obj.events = _slider_events(obj, tick_distance)
     return obj
 
@@ -410,18 +412,29 @@ def _slider_events(o: HitObject, tick_distance: float) -> list[SliderEvent]:
 
 # --------------------------------------------------------------------------- playable view
 class PlayableBeatmap:
-    """A beatmap with mods applied: adjusted settings, stacking, flipped positions."""
+    """A beatmap with mods applied: adjusted settings, stacking, flipped positions.
 
-    def __init__(self, beatmap: Beatmap, mods: int = 0, rate: float | None = None):
+    ``overrides``: lazer's Difficulty Adjust values ({"cs"/"ar"/"od"/"hp": value}), applied
+    instead of the map's own settings. ``mirror``: lazer's Mirror mod, "horizontal",
+    "vertical" or "both"."""
+
+    def __init__(self, beatmap: Beatmap, mods: int = 0, rate: float | None = None,
+                 overrides: dict | None = None, mirror: str | None = None):
         self.beatmap = beatmap
         self.mods = mods
         cs, ar, od, hp = beatmap.cs, beatmap.ar, beatmap.od, beatmap.hp
+        if overrides:
+            cs = overrides.get("cs", cs)
+            ar = overrides.get("ar", ar)
+            od = overrides.get("od", od)
+            hp = overrides.get("hp", hp)
         if mods & MOD_HR:
             cs, ar, od, hp = min(cs * 1.3, 10), min(ar * 1.4, 10), min(od * 1.4, 10), min(hp * 1.4, 10)
         if mods & MOD_EZ:
             cs, ar, od, hp = cs / 2, ar / 2, od / 2, hp / 2
         self.cs, self.ar, self.od, self.hp = cs, ar, od, hp
-        self.flip = bool(mods & MOD_HR)
+        self.flip = bool(mods & MOD_HR) != (mirror in ("vertical", "both"))
+        self.flip_x = mirror in ("horizontal", "both")
         if rate is None:
             rate = 1.5 if mods & (MOD_DT | MOD_NC) else 0.75 if mods & MOD_HT else 1.0
         self.rate = rate
@@ -451,6 +464,8 @@ class PlayableBeatmap:
         x, y = p
         if self.flip:
             y = PLAYFIELD_H - y
+        if self.flip_x:
+            x = PLAYFIELD_W - x
         off = self.stack(obj) * self.radius / 10.0
         return (x - off, y - off)
 

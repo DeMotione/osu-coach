@@ -292,7 +292,10 @@ def tapping_metrics(O: pd.DataFrame, Pr: pd.DataFrame, rates: dict) -> dict:
     total = len(Pr)
     keys = Pr["key"].value_counts()
     out["key_share"] = {k: float(v / total) for k, v in keys.items()}
-    out["mouse_button_share"] = float(Pr["key"].isin(["M1", "M2"]).mean())
+    # lazer replays only record left/right ("L"/"R"), not whether a key or a mouse/pen button was used
+    legacy = Pr[Pr["key"].isin(["K1", "K2", "M1", "M2"])]
+    out["mouse_button_share"] = float(legacy["key"].isin(["M1", "M2"]).mean()) if len(legacy) >= 200 else math.nan
+    out["key_device_known_share"] = float(len(legacy) / total) if total else math.nan
     in_run = Pr[(Pr["target_run_len"] >= 3)]
     out["alternation_in_streams"] = float(in_run["alternated"].mean()) if len(in_run) > 30 else math.nan
     half = Pr[(Pr["target_pattern"].isin(["jump", "single", "spaced"])) & (Pr["gap_prev"] < 400)]
@@ -354,7 +357,7 @@ def fit_miss_model(df: pd.DataFrame, col: str = "local_eq"):
     w = np.array([math.log(max(base, 1e-3) / max(1 - base, 1e-3)), 0.0])
     lam = 1e-3
     for _ in range(50):
-        p = 1 / (1 + np.exp(-(X @ w)))
+        p = _sigmoid(X @ w)
         g = X.T @ (p - y) + lam * w
         H = X.T @ (X * (p * (1 - p))[:, None]) + lam * np.eye(2)
         step = np.linalg.solve(H, g)
@@ -364,10 +367,15 @@ def fit_miss_model(df: pd.DataFrame, col: str = "local_eq"):
 
     def predict(e):
         e = (np.asarray(e, dtype=float) - mu) / sd
-        return 1 / (1 + np.exp(-(w[0] + w[1] * e)))
+        return _sigmoid(w[0] + w[1] * e)
 
     predict.coef = (w[0], w[1], mu, sd)  # type: ignore[attr-defined]
     return predict
+
+
+def _sigmoid(z):
+    # clipped: extreme difficulty values must not overflow exp() (p is ~0 or ~1 there anyway)
+    return 1 / (1 + np.exp(-np.clip(z, -35.0, 35.0)))
 
 
 def _local_eq(O: pd.DataFrame) -> pd.Series:
@@ -445,6 +453,7 @@ def build_profile(analyses: list[ReplayAnalysis]) -> Profile:
     reading = _reading_metrics(P, misses)
     consistency = _consistency_metrics(P, metas)
     model = fit_miss_model(P.assign(local_eq=P["local_eq"]))
+    reading.update(_reading_ratios(P, model))
     skills = _skills(P, model, tapping, slider_metrics, reading, consistency)
     strengths, weaknesses = _rank_skills(skills)
     levels = _levels(metas, P, model)
@@ -471,6 +480,31 @@ def _reading_metrics(P: pd.DataFrame, misses: pd.DataFrame) -> dict:
         out["ar_table"] = (P.assign(ar_bin=(ar * 2).round() / 2).groupby("ar_bin")
                            .agg(objects=("head_hit", "size"), miss_rate=("head_hit", lambda s: float((~s).mean())))
                            .query("objects >= 30"))
+    return out
+
+
+def _reading_ratios(P: pd.DataFrame, model) -> dict:
+    """Observed / expected misses (the player's own difficulty model) for reading-related
+    subsets. Raw miss rates by AR or note density mostly measure that high-AR / dense maps
+    are harder; these ratios ask whether you miss *more than their difficulty explains*."""
+    out = {}
+    if P.empty:
+        return out
+
+    def ratio(mask) -> tuple[float, int, float]:
+        d = P[mask]
+        if len(d) < 150:
+            return math.nan, len(d), math.nan
+        exp = float(np.nansum(model(d["local_eq"].to_numpy())))
+        obs = float((~d["head_hit"]).sum())
+        return (obs / exp if exp >= 5 else math.nan), len(d), obs
+
+    ar = P["map_ar"]
+    for name, mask in (("high_ar", ar >= 9.5), ("mid_ar", (ar > 7) & (ar < 9.5)), ("low_ar", ar <= 7)):
+        out[f"{name}_ratio"], out[f"{name}_n"], out[f"{name}_misses"] = ratio(mask)
+    thr = max(4, P["density"].quantile(0.8))
+    out["dense_ratio"], out["dense_n"], out["dense_misses"] = ratio(P["density"] >= thr)
+    out["sparse_ratio"], out["sparse_n"], _ = ratio(P["density"] < thr)
     return out
 
 

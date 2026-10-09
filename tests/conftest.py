@@ -7,6 +7,12 @@ RES = pathlib.Path(__file__).parent / "resources"
 DEV = pathlib.Path(__file__).parent.parent / "dev_data"
 
 
+@pytest.fixture(autouse=True)
+def _no_real_osu(monkeypatch):
+    """Never pick up the osu! installs of the computer running the tests."""
+    monkeypatch.setenv("OSU_COACH_NO_AUTODETECT", "1")
+
+
 @pytest.fixture
 def res():
     def _res(rel: str) -> pathlib.Path:

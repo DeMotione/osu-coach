@@ -82,5 +82,41 @@
   "nmiss": 49,
   "map_ok": true,
   "status": "ok id=24722"
+ },
+ {
+  "replay": "mot1one__lazer_failed.osr",
+  "md5": "4c67b8f32243afabb8db0b5c9e3a6767",
+  "player": "Mot1one",
+  "mods": 0,
+  "n300": 263,
+  "n100": 32,
+  "n50": 0,
+  "nmiss": 30,
+  "map_ok": true,
+  "status": "lazer 2026.804.2-lazer (Nikita's own play)"
+ },
+ {
+  "replay": "mot1one__lazer_dthd_spinner.osr",
+  "md5": "a9cd07bfcaf628c6c5ef283be442b0a1",
+  "player": "Mot1one",
+  "mods": 72,
+  "n300": 188,
+  "n100": 20,
+  "n50": 0,
+  "nmiss": 2,
+  "map_ok": true,
+  "status": "lazer 2026.804.2-lazer (Nikita's own play)"
+ },
+ {
+  "replay": "mot1one__lazer_nm.osr",
+  "md5": "87dfd53828919571ac88a8ac10cc9c1f",
+  "player": "Mot1one",
+  "mods": 0,
+  "n300": 400,
+  "n100": 19,
+  "n50": 0,
+  "nmiss": 2,
+  "map_ok": true,
+  "status": "lazer 2026.804.2-lazer (Nikita's own play)"
  }
 ]

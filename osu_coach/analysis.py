@@ -19,9 +19,42 @@ from . import difficulty
 from .beatmap import Beatmap, PlayableBeatmap, parse_beatmap_bytes
 from .features import object_features
 from .judge import simulate
+from .judge_lazer import lazer_mod_settings
 from .osr import MOD_BITS, Replay, parse_replay, mods_to_string
 
-ANALYSIS_VERSION = 5
+ANALYSIS_VERSION = 6
+
+# lazer mods whose effect the simulation can't reproduce (speed or note positions change during the
+# map, extra input rules): such replays are skipped with this reason
+UNSUPPORTED_LAZER_MODS = {
+    "WU": "Wind Up changes the speed during the map", "WD": "Wind Down changes the speed during the map",
+    "AS": "Adaptive Speed changes the speed during the map", "RD": "Random moves the notes",
+    "WG": "Wiggle moves the notes", "TR": "Transform moves the notes", "MG": "Magnetised moves the cursor",
+    "RP": "Repel moves the cursor", "BR": "Barrel Roll rotates the playfield", "DP": "Depth moves the notes",
+    "GR": "Grow changes the note size", "DF": "Deflate changes the note size", "SI": "Spin In changes the notes",
+    "TP": "Target Practice replaces the map", "AL": "Alternate blocks some presses",
+    "SG": "Single Tap blocks some presses", "ST": "Strict Tracking changes slider rules",
+}
+
+
+class UnsupportedReplay(ValueError):
+    """A replay osu-coach can't analyse faithfully (reason in the message)."""
+
+
+def playable(bm: Beatmap, replay: Replay) -> PlayableBeatmap:
+    """The beatmap as it was played: legacy mods, lazer's speed changes, Difficulty Adjust and Mirror."""
+    mods = lazer_mod_settings(replay)
+    da = mods.get("DA") or {}
+    overrides = {k: float(da[src]) for k, src in (("cs", "circle_size"), ("ar", "approach_rate"),
+                                                  ("od", "overall_difficulty"), ("hp", "drain_rate"))
+                 if isinstance(da.get(src), (int, float))}
+    mirror = None
+    if "MR" in mods:
+        refl = mods["MR"].get("reflection", 0)
+        mirror = {0: "horizontal", 1: "vertical", 2: "both"}.get(refl, str(refl).lower())
+        if mirror not in ("horizontal", "vertical", "both"):
+            mirror = "horizontal"
+    return PlayableBeatmap(bm, replay.mods, rate=replay.rate, overrides=overrides or None, mirror=mirror)
 
 
 @dataclass
@@ -60,9 +93,12 @@ def analyze_files(replay_path, beatmap_path) -> ReplayAnalysis:
 
 def analyze(replay: Replay, osu_bytes: bytes, raw_replay: bytes | None = None,
             beatmap: Beatmap | None = None) -> ReplayAnalysis:
+    unsupported = [UNSUPPORTED_LAZER_MODS[m] for m in lazer_mod_settings(replay) if m in UNSUPPORTED_LAZER_MODS]
+    if unsupported:
+        raise UnsupportedReplay(f"skipped: {unsupported[0]}")
     bm = beatmap or parse_beatmap_bytes(osu_bytes)
     rate = replay.rate
-    pb = PlayableBeatmap(bm, replay.mods, rate=rate)
+    pb = playable(bm, replay)
     sim = simulate(pb, replay)
     feats = object_features(pb)
     key = replay_key(replay, raw_replay)
@@ -119,7 +155,8 @@ def analyze(replay: Replay, osu_bytes: bytes, raw_replay: bytes | None = None,
     obj["along"] = along
     obj["cross"] = cross
 
-    attrs = difficulty.attributes(osu_bytes, replay.mods, rate)
+    lazer_mods = (replay.lazer or {}).get("mods") or None
+    attrs = difficulty.attributes(osu_bytes, replay.mods, rate, lazer_mods=lazer_mods, lazer=replay.is_lazer)
     _attach_strains(obj, osu_bytes, replay, pb, rate, attrs)
 
     presses = _press_table(sim.presses, obj)
@@ -157,6 +194,12 @@ def analyze(replay: Replay, osu_bytes: bytes, raw_replay: bytes | None = None,
         "relax_or_autopilot": bool(replay.mods & (MOD_BITS["RX"] | MOD_BITS["AP"] | MOD_BITS["AT"])),
         "source_path": replay.source_path, "analysis_version": ANALYSIS_VERSION,
     }
+    # lazer replays also store slider tick / tail results: a second, finer check of the simulation
+    stats = (replay.lazer or {}).get("statistics") or {}
+    if sim.lazer_stats is not None and stats:
+        for k, name in (("large_tick_hit", "ticks"), ("slider_tail_hit", "tails")):
+            meta[f"sim_{name}"] = sim.lazer_stats.get(k, 0)
+            meta[f"replay_{name}"] = int(stats.get(k, 0) or 0)
     for k in ("stars", "aim", "speed", "reading", "slider_factor", "speed_note_count", "max_combo"):
         if k in attrs:
             meta["map_max_combo" if k == "max_combo" else k] = attrs[k]
@@ -171,7 +214,8 @@ def _attach_strains(obj: pd.DataFrame, osu_bytes: bytes, replay: Replay, pb: Pla
     ``*_eq`` = star-equivalent of the section: the rating a map would have if it
     were this hard all the way through, c*sqrt(10*S) with c calibrated so the
     map's own peaks reproduce its official aim/speed rating."""
-    s = difficulty.strains(osu_bytes, replay.mods, rate)
+    s = difficulty.strains(osu_bytes, replay.mods, rate, lazer_mods=(replay.lazer or {}).get("mods") or None,
+                           lazer=replay.is_lazer)
     for col in ("aim_strain", "speed_strain", "reading_strain", "aim_eq", "speed_eq"):
         obj[col] = np.nan
     if not s or len(obj) < 2:

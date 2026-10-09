@@ -134,6 +134,11 @@ def lazer_install(root: Path) -> Install | None:
 
 
 def find_installs(stable_roots=None, lazer_roots=None) -> list[Install]:
+    """osu! installs on this computer.  Set ``OSU_COACH_NO_AUTODETECT=1`` to skip the
+    automatic search (only explicitly given roots are checked; used by the tests)."""
+    if os.environ.get("OSU_COACH_NO_AUTODETECT", "").strip() not in ("", "0"):
+        stable_roots = stable_roots if stable_roots is not None else []
+        lazer_roots = lazer_roots if lazer_roots is not None else []
     out, seen = [], set()
     for roots, fn in ((stable_roots if stable_roots is not None else stable_candidates(), stable_install),
                       (lazer_roots if lazer_roots is not None else lazer_candidates(), lazer_install)):

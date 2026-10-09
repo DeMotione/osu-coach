@@ -3,7 +3,7 @@
   osu-coach ui                         open the app in your browser
   osu-coach locate                     show detected osu! installs
   osu-coach analyze [--folder DIR]     analyse your replays, print stats + tips
-  osu-coach playlist SKILL [...]       practice playlist (+ collection.db / .osz export)
+  osu-coach playlist SKILL [...]       practice playlist (+ lazer import folder, collection.db, .osz)
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import locate, sources
+from . import lazer_import, locate, sources
 from .advice import Setup, make_tips, practice_plan
 from .collection_db import merge_into, write_collection_db
 from .library import Library, load_settings
@@ -175,10 +175,11 @@ def cmd_playlist(args) -> int:
     pool = load_pool()
     if pool.empty:
         raise SystemExit("Map pool is missing (osu_coach/data/pool.json.gz).")
+    lib = None
     if args.comfort:
         t = Targets(comfort=args.comfort, stream_bpm=args.stream_bpm)
     else:
-        *_, prof = _analyse(args, _log(args.quiet))
+        lib, *_, prof = _analyse(args, _log(args.quiet))
         t = targets_from_profile(prof)
         if args.stream_bpm:
             t.stream_bpm = args.stream_bpm
@@ -193,10 +194,20 @@ def cmd_playlist(args) -> int:
             print(f"  {r['stars']:.2f}★  {r['artist']} - {r['title']} [{r['version']}]  · {r['why']}\n"
                   f"         {r['url']}")
     hashes = list(pl["md5"])
+    if args.lazer:
+        dest = Path(args.lazer) if isinstance(args.lazer, str) else lazer_import.default_pack_dir(name)
+        have = lib.installed["lazer"] if lib is not None else set()
+        sets = [] if args.no_maps else lazer_import.sets_to_download(zip(pl["md5"], pl["beatmapset_id"]), have)
+        log = _log(args.quiet)
+        res = lazer_import.build_pack(dest, {name: hashes}, sets, progress=lambda i, n, msg: log(msg))
+        print(f"\nlazer import folder: {res['path']}  ({len(res['maps'])} map set(s) + the collection)")
+        if res["failed"]:
+            print(f"  couldn't download set(s) {', '.join(map(str, res['failed']))} — use the links above")
+        for i, step in enumerate(lazer_import.INSTRUCTIONS, 1):
+            print(f"  {i}. {step.replace('**', '').replace('*', '')}")
     if args.collection:
         p = write_collection_db(args.collection, {name: hashes})
-        print(f"\nwrote {p}\n  lazer: put it in an empty folder with an empty file named 'osu!.user.cfg', then "
-              "Settings → General → Run setup wizard → Import from previous version → that folder\n"
+        print(f"\nwrote {p}\n  lazer: use --lazer instead (lazer can't open a collection.db on its own)\n"
               "  stable: use --merge (with osu! closed) or Collection Manager")
     if args.merge:
         st = [i for i in locate.find_installs() if i.kind == "stable"]
@@ -265,6 +276,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--comfort", type=float, help="your comfortable star rating (skips replay analysis)")
     p.add_argument("--stream-bpm", type=float, help="stream speed to train at")
     p.add_argument("--maps", type=int, default=15)
+    p.add_argument("--lazer", nargs="?", const=True, metavar="DIR",
+                   help="make a folder for lazer's 'import from previous version' with the maps and the collection "
+                        "(default: Downloads/osu-coach lazer import/<playlist>)")
+    p.add_argument("--no-maps", action="store_true", help="with --lazer: only the collection, no map downloads")
     p.add_argument("--collection", help="write a collection.db with the playlist")
     p.add_argument("--merge", action="store_true", help="add the playlist to your osu!stable collections")
     p.add_argument("--download", help="download the maps (.osz) into this folder")

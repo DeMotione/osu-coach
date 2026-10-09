@@ -217,11 +217,15 @@ def targets_from_profile(p) -> Targets:
     wq = getattr(p, "worst_quadrant", None)
     quadrant = wq["quadrant"] if wq and wq.get("significant") else None
     rd = getattr(p, "reading", {}) or {}
-    hi, mid, lo = _f(rd.get("high_ar_miss_rate")), _f(rd.get("mid_ar_miss_rate")), _f(rd.get("low_ar_miss_rate"))
+    # difficulty-adjusted (observed / expected misses) when available, raw miss rates otherwise
+    adjusted = not math.isnan(_f(rd.get("mid_ar_ratio")))
+    key = "_ratio" if adjusted else "_miss_rate"
+    hi, mid, lo = (_f(rd.get(k + key)) for k in ("high_ar", "mid_ar", "low_ar"))
+    factor = 1.3 if adjusted else 1.5
     ar_range = None
-    if not math.isnan(hi) and not math.isnan(mid) and mid > 0 and hi >= 1.5 * mid:
+    if not math.isnan(hi) and not math.isnan(mid) and mid > 0 and hi >= factor * mid:
         ar_range = (9.0, 9.7)
-    elif not math.isnan(lo) and not math.isnan(mid) and mid > 0 and lo >= 1.5 * mid:
+    elif not math.isnan(lo) and not math.isnan(mid) and mid > 0 and lo >= factor * mid:
         ar_range = (5.0, 8.0)
     reps = getattr(p, "replays", None)
     played = frozenset(reps["beatmap_md5"].dropna().astype(str)) if reps is not None and len(reps) else frozenset()
