@@ -34,6 +34,8 @@ class ClickSeen:
     dist: float          # cursor distance to object centre / radius
     action: int          # CLICK / SHAKE / IGNORED
     in_range: bool
+    x: float = 0.0       # cursor position at the click
+    y: float = 0.0
 
 
 @dataclass
@@ -55,6 +57,9 @@ class ObjResult:
     press_id: int | None = None
     miss_reason: str | None = None
     miss_dist: float | None = None   # closest click distance (radii) when relevant
+    miss_x: float | None = None      # cursor position of that closest click
+    miss_y: float | None = None
+    miss_time: float | None = None
     forced_miss: bool = False        # lazer: missed because a later object was hit first
     clicks: list[ClickSeen] = field(default_factory=list, repr=False)
     # sliders
@@ -238,7 +243,7 @@ def simulate(pb: PlayableBeatmap, replay: Replay, rules: str | None = None) -> S
                 else:
                     action = _can_be_hit(t, st, si, processed, pb)
                 if abs(t - o.time) <= pb.hit50 + 200:
-                    st.res.clicks.append(ClickSeen(t, dist / radius, action, in_range))
+                    st.res.clicks.append(ClickSeen(t, dist / radius, action, in_range, cx, cy))
                 if in_range:
                     if action == CLICK:
                         if left_e:
@@ -520,13 +525,17 @@ def _classify_miss(st: _ObjState, pb: PlayableBeatmap, replay: Replay):
         return
     aimed = [c for c in in_window if not c.in_range and c.action == CLICK]
     if aimed:
+        best = min(aimed, key=lambda c: c.dist)
         r.miss_reason = "aim"
-        r.miss_dist = min(c.dist for c in aimed)
+        r.miss_dist = best.dist
+        r.miss_x, r.miss_y, r.miss_time = best.x, best.y, best.time
         return
     late = [c for c in r.clicks if hi < c.time <= hi + 200 and c.dist <= 1.5]
     if late:
+        best = min(late, key=lambda c: c.dist)
         r.miss_reason = "late"
-        r.miss_dist = min(c.dist for c in late)
+        r.miss_dist = best.dist
+        r.miss_x, r.miss_y, r.miss_time = best.x, best.y, best.time
         return
     # no click reached this object inside its window
     px, py = r.x, r.y
