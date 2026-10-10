@@ -56,16 +56,10 @@ SKILL_HELP = {
     "speed": ("Tapping speed: bursts (3–8 notes) and streams (9+ notes) at their real BPM.", MISS_MODEL_SCORE,
               "Stream and burst maps 10–20 BPM above the speed you tap cleanly, in short sets with relaxed "
               "fingers. See the Tapping page for your clean stream speed."),
-    "stamina": ("Stamina: how long, how fast and how steadily you keep tapping, not how accurate you stay. "
-                "100s, 50s and misses where you still tapped count; overstreaming (tapping faster than the "
-                "notes) never counts against you.",
-                "Score: load = notes × (BPM/200)³ × quality (kept 90%+ of the notes, taps didn't slow down or "
-                "get uneven in the second half). Average of 3 parts, each your 5 hardest: single streams of "
-                "16+ notes, the most streaming in 30 seconds, and the total of a finished map. "
-                "50 = typical for your level; each doubling of the load = +25. Marathons: every note you kept "
-                "pressing in a finished map counts (× tapping speed), double after 5 minutes of play, triple after "
-                "10, ×4 after 20, ×5 after 40 (breaks pause the clock). That endurance lifts the score halfway "
-                "towards its own, but by itself never above 80, so marathons don't outrank controlled death streams.",
+    "stamina": ("Stamina: how long, how fast and how steadily you keep tapping, not how accurate you stay.",
+                "Score: load = notes × (BPM/200)³ × quality (kept 90%+ of the notes: 100s, 50s and misses where "
+                "you tapped count; steady taps). Average of your 5 hardest streams, 30 seconds and maps; 50 = "
+                "typical for your level, +25 per doubling. Long maps lift it (up to 80). Details under the chart.",
                 "Finish stream-heavy maps and keep tapping through long streams even when accuracy drops; "
                 "make streams longer first, then faster. Finishing long maps raises it too."),
     "accuracy": ("Hit timing on single notes (not in streams): how many of them you hit as 300s.",

@@ -876,17 +876,14 @@ def skill_facts(key: str, v: dict) -> list[str]:
     elif key == "stamina":
         bs, stead = v.get("best_stream") or {}, _num(v.get("steadiness"), ".0%")
         facts.append(f"{v.get('streams_kept', 0)} of {v.get('streams_long', 0)} long streams kept"
-                     + (f", hardest {bs['notes']} notes at {bs['bpm']:.0f} BPM" if bs else ""))
+                     + (f", hardest {bs['notes']} notes at {bs['bpm']:.0f} BPM" if bs else "")
+                     + (f", steadiness {stead}" if stead else ""))
         parts = [(n, _num(v.get(k))) for n, k in (("streams", "stream_score"), ("30 s", "window_score"),
                                                    ("maps", "map_score"), ("endurance", "endurance_score"))]
-        if any(sc for _, sc in parts):
-            facts.append("parts: " + ", ".join(f"{n} {sc}" for n, sc in parts if sc))
         mins = _num(v.get("longest_minutes"))
-        if mins:
-            facts.append(f"longest finished map: {mins} min of play")
-        if stead:
-            facts.append(f"steadiness {stead} ({v.get('streams_slowed', 0)} streams slowed down, "
-                         f"{v.get('streams_overstreamed', 0)} overstreamed: fine)")
+        if any(sc for _, sc in parts):
+            facts.append("parts: " + ", ".join(f"{n} {sc}" for n, sc in parts if sc)
+                         + (f" (longest map {mins} min)" if mins else ""))
     else:
         o, x = _num(v.get("observed")), _num(v.get("expected"))
         facts.append(f"{n:,} notes" + (f", {o} misses vs {x} expected" if o and x else ""))
@@ -955,20 +952,28 @@ def page_overview():
         fig.update_yaxes(autorange="reversed")
         # hovering anywhere on a skill's row (also an empty "not enough data" row) shows its explanation
         fig.update_layout(hovermode="y", hoverlabel=dict(align="left"))
-        plot(style(fig, 360))
+        plot(style(fig, 420))
         stam = p.skills.get("stamina") or {}
         if stam.get("score") is not None:
             bs = stam.get("best_stream") or {}
+            mins = stam.get("longest_minutes")
             st.caption("**Stamina** is not a miss count: it measures how long, how fast and how steadily you keep "
                        "tapping. A stream's load = notes × (BPM/200)³ × quality: you pressed for 90%+ of its notes "
                        "(100s, 50s and misses where you tapped count) and your taps didn't slow down or get uneven "
                        "in its second half. Overstreaming (tapping faster than the notes) never counts against you. "
                        "The score is the average of three parts, each your 5 hardest: single streams of 16+ notes, "
-                       "the most streaming inside 30 seconds, and the total of a finished map (longer maps with "
-                       f"more streams load more). 50 = {STAMINA_REF_NOTES}-note streams at {stam['ref_bpm']:.0f} BPM, "
-                       "typical for your level; every doubling = +25."
+                       "the most streaming inside 30 seconds, and the total of a finished map. 50 = "
+                       f"{STAMINA_REF_NOTES}-note streams at {stam['ref_bpm']:.0f} BPM, typical for your level; every "
+                       "doubling = +25. **Marathons**: every note you kept pressing in a finished map also counts "
+                       "(× tapping speed), ×2 after 5 minutes of play, ×3 after 10, ×4 after 20, ×5 after 40; breaks "
+                       "pause the clock. This endurance part only lifts the score, halfway towards its own, and by "
+                       "itself never above 80, so finishing marathons can't outrank controlled death streams."
                        + (f" Your hardest stream: {bs['notes']} notes at {bs['bpm']:.0f} BPM." if bs else "")
-                       + (f" Steadiness {stam['steadiness']:.0%}." if stam.get("steadiness") == stam.get("steadiness")
+                       + (f" Longest finished map: {mins:.0f} min of play." if mins == mins and mins is not None
+                          else "")
+                       + (f" Steadiness {stam['steadiness']:.0%} ({stam.get('streams_slowed', 0)} streams slowed "
+                          f"down, {stam.get('streams_overstreamed', 0)} overstreamed: fine)."
+                          if stam.get("steadiness") == stam.get("steadiness")
                           and stam.get("steadiness") is not None else ""))
     with right:
         section("Strengths & weaknesses", "Your three best skills (score ≥ 55) and up to three to work on (≤ 45).")
