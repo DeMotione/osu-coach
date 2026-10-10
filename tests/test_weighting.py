@@ -352,3 +352,54 @@ def test_stamina_without_presses_still_scores_from_kept_streams():
 def _args(op):
     O, Pr = op
     return O, None, 6.0, Pr
+
+
+# ------------------------------------------------------------------ stamina: endurance (marathons)
+def _map(key, segments, completed=True):
+    """A play from (notes, ms between notes, stream?) segments, in order; stream segments are one run each."""
+    rows, t, rid = [], 1000.0, 0
+    for notes, gap, stream in segments:
+        for i in range(notes):
+            t += gap
+            rows.append({"time": t, "dt_real": gap if rows else np.nan, "head_hit": True, "miss_reason": None,
+                         "kind": "circle", "completed": completed, "replay_key": key, "played": True, "rate": 1.0,
+                         "run_id": rid if stream else -1, "run_len": notes if stream else 1,
+                         "run_pos": i if stream else 0, "stream_bpm": 15000.0 / gap if stream else np.nan})
+        rid += int(stream)
+    return rows
+
+
+def test_endurance_ramp_steps_up_every_time_the_minutes_double():
+    from osu_coach.profile import endurance_ramp
+    assert list(endurance_ramp([0, 4.9, 5, 9.9, 10, 20, 39, 40, 80])) == [1, 1, 2, 2, 3, 4, 4, 5, 6]
+
+
+def test_breaks_pause_the_endurance_clock_instead_of_resetting_it():
+    from osu_coach.profile import endurance_loads
+    half = (1200, 200.0, False)                                    # 4 min of 1/4 notes at 75 BPM each half
+    E = endurance_loads(pd.DataFrame(_map("m", [half, (1, 60000.0, False), half])))
+    assert E["minutes"].iloc[0] == pytest.approx(8.0, abs=0.01)     # the 1-minute break isn't play time
+    speed = 15000 / 200 / 200
+    # notes after 5 minutes of play (not 5 minutes of map time) count double
+    assert E["load"].iloc[0] == pytest.approx(speed * (1499 * 1 + 900 * 2), rel=0.01)
+    failed = endurance_loads(pd.DataFrame(_map("f", [half], completed=False)))
+    assert failed.empty                                             # only finished maps count
+
+
+def test_marathons_lift_stamina_but_never_above_controlled_death_streams():
+    """A 45-minute marathon of 1/2 notes, played clean, vs. short maps full of long 280 BPM streams kept steady."""
+    marathon = pd.DataFrame(_map("mar", [(16200, 166.7, False)]))             # 45 min at 180 BPM 1/2 notes
+    death = []
+    for k in range(5):
+        death += _map(f"d{k}", [(200, 333.0, False)] + [(128, 15000 / 280, True), (16, 333.0, False)] * 4)
+    death = pd.DataFrame(death)
+    lvl = 8.0
+    m, d = stamina_score(marathon, level=lvl), stamina_score(death, level=lvl)
+    assert m["stream_based_score"] is None and m["endurance_score"] == pytest.approx(100)
+    assert m["score"] == pytest.approx(50)                         # halfway from 0 towards 100
+    assert d["score"] > m["score"] and d["score"] > 80             # death streams win
+    both = stamina_score(pd.concat([death, marathon], ignore_index=True), level=lvl)
+    assert both["score"] >= d["score"]                             # endurance never lowers a score
+    # endurance alone can never reach past 80, however long the marathons
+    many = pd.concat([pd.DataFrame(_map(f"m{k}", [(30000, 166.7, False)])) for k in range(5)], ignore_index=True)
+    assert stamina_score(many, level=lvl)["score"] <= 80

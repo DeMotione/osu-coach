@@ -163,6 +163,13 @@ The score is the average of three parts, each your 5 hardest: **streams** (singl
 (the total load of a finished play: map length). 50 = a 32-note stream / 140 stream notes in 30 s / 400 in a
 map at the stream speed typical for your level (120 + 15 × level BPM, e.g. 210 at 6★); every doubling = +25.
 Difficulty weights don't apply here: a 9★ map played for fun shows what you can sustain.
+**Endurance (marathons)**: every note you kept pressing in a finished map counts, × its tapping speed (as 1/4-note
+BPM over 200, linear: a 1/2 note at 180 BPM = 0.45) × how long you'd been playing: ×1 for the first 5 minutes,
+×2 from 5, ×3 from 10, ×4 from 20, ×5 from 40 (+1 each time the minutes double). A gap of 5+ seconds is a break:
+the clock pauses there, it doesn't reset. 50 = a ~4-minute map at your level's speed, +25 per doubling. This
+part only ever *lifts* the score, halfway from the stream-based score towards its own, and never above 80 by
+itself, so passing marathons can't outrank controlled death streams. On the reference replays: Kingling's
+53-minute The Unforgiving went from 0 to 50, LONG SEASON from 24 to 62; stream maps kept their scores.
 *Stamina in long streams* (Tapping page) shows how precise your taps stay through streams of 16+ notes:
 the average **absolute** timing error (early and late alike — the plain average cancels them out to ~0) on
 notes 1–4, 5–8, … with one line per stream length (16–31, 32–63, 64+ notes). Where it starts to climb is

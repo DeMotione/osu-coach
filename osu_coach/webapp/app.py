@@ -878,9 +878,12 @@ def skill_facts(key: str, v: dict) -> list[str]:
         facts.append(f"{v.get('streams_kept', 0)} of {v.get('streams_long', 0)} long streams kept"
                      + (f", hardest {bs['notes']} notes at {bs['bpm']:.0f} BPM" if bs else ""))
         parts = [(n, _num(v.get(k))) for n, k in (("streams", "stream_score"), ("30 s", "window_score"),
-                                                   ("maps", "map_score"))]
+                                                   ("maps", "map_score"), ("endurance", "endurance_score"))]
         if any(sc for _, sc in parts):
             facts.append("parts: " + ", ".join(f"{n} {sc}" for n, sc in parts if sc))
+        mins = _num(v.get("longest_minutes"))
+        if mins:
+            facts.append(f"longest finished map: {mins} min of play")
         if stead:
             facts.append(f"steadiness {stead} ({v.get('streams_slowed', 0)} streams slowed down, "
                          f"{v.get('streams_overstreamed', 0)} overstreamed: fine)")

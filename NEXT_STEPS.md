@@ -147,8 +147,11 @@ Files in `reference_replays/` (ignored by git); `dev_tools/reference_analysis.py
 - **Stamina (open)**: stream specialists 84–100 (ENTANGLE NIGHT 100, rog-limitation 100, Snow Goose 93,
   NE PLACH' 86), tapping 63–100, flow 57–87, but **Kingling's 53-min The Unforgiving HDHR scores 0** and the
   30-min marathons 24–27: only streams of 8+ notes load, at (BPM/200)³, so long maps of slower 1/2 notes count for
-  nothing. ilikegirls asked for map length to count; a length / sustained-tapping part needs a decision (proposed
-  to him, not built).
+  nothing. **Done (ilikegirls' choice)**: endurance part (`endurance_loads`, `endurance_ramp`): kept notes of
+  finished plays × linear speed × ramp (×1 < 5 min, +1 per doubling: ×2 from 5, ×3 from 10, …), 5 s gaps pause
+  the clock; top-5 plays vs `ENDURANCE_REF` × ref_bpm/200; final = max(S, min(S + ½·(E − S), 80)) with S = the
+  old stream-based score, so marathons only lift it and never above 80 alone. Reference: The Unforgiving 0 → 50,
+  LONG SEASON 24 → 62, marathon group 37 → 68 (stream group 84, unchanged).
 
 ## Next steps, in order
 
