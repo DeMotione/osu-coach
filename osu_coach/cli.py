@@ -15,7 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import lazer_import, locate, sources
+from . import lazer_import, locate, progress, sources
 from .advice import Setup, make_tips, practice_plan
 from .collection_db import merge_into, write_collection_db
 from .library import Library, load_settings
@@ -86,14 +86,19 @@ def _analyse(args, log):
         log(f"downloading {len(missing)} missing beatmap(s)…")
         lib.fetch_missing(missing)
 
-    def progress(done, total, _msg):
+    def analysed(done, total, _msg):
         if done == total or done % 10 == 0:
             log(f"analysed {done}/{total}")
-    analyses, errors = lib.analyze(refs, workers=args.workers, progress=progress)
+    analyses, errors = lib.analyze(refs, workers=args.workers, progress=analysed)
     for ref, err in errors[:5]:
         log(f"skipped {Path(ref['path']).name}: {err}")
     if not analyses:
         raise SystemExit("None of the replays could be analysed.")
+    log("saving your progress by month…")
+    try:
+        progress.update(lib.cache, analyses, lib.load_cached)
+    except Exception as exc:  # noqa: BLE001 - the report matters more than the history
+        log(f"could not save progress: {exc}")
     return lib, player, analyses, errors, build_profile(analyses)
 
 
@@ -242,6 +247,48 @@ def cmd_playlist(args) -> int:
     return 0
 
 
+PROGRESS_COLUMNS = [  # (header, column, format)
+    ("Plays", "plays", "{:.0f}"), ("Maps", "maps", "{:.0f}"), ("New", "new_maps", "{:.0f}"), ("Min", "minutes", "{:.0f}"),
+    ("Comfort★", "comfort_stars", "{:.2f}"), ("Avg★", "avg_stars", "{:.2f}"), ("Passed★", "max_stars_passed", "{:.2f}"),
+    ("FC★", "max_stars_fc", "{:.2f}"), ("Acc%", "accuracy", "{:.2%}"), ("UR", "ur", "{:.0f}"),
+    ("BPM", "stream_bpm", "{:.0f}"), ("Aim", "skill_aim", "{:.0f}"), ("Flow", "skill_flow_aim", "{:.0f}"),
+    ("Speed", "skill_speed", "{:.0f}"), ("Stam", "skill_stamina", "{:.0f}"), ("AccSk", "skill_accuracy", "{:.0f}"),
+    ("Slid", "skill_sliders", "{:.0f}"), ("Read", "skill_reading", "{:.0f}"), ("Cons", "skill_consistency", "{:.0f}"),
+]
+
+
+def cmd_progress(args) -> int:
+    conn = progress.connect(args.cache)
+    try:
+        names = progress.players(conn)
+        if not names:
+            print("Nothing saved yet: run `osu-coach analyze` first — every analysis is saved by month.")
+            return 0
+        player = args.player if args.player is not None else names[0][0]
+        m = progress.monthly(conn, player)
+    finally:
+        conn.close()
+    if m.empty:
+        print(f"Nothing saved for '{player}'. Players: " + ", ".join(f"{p} ({n})" for p, n in names))
+        return 0
+    print(f"Progress — {player or '(no name)'}: {int(m['plays'].sum())} plays in {len(m)} "
+          f"month{'' if len(m) == 1 else 's'} "
+          f"(saved in {progress.db_path(args.cache)})\n")
+    widths = [max(len(h), 6) for h, _, _ in PROGRESS_COLUMNS]
+    print("Month    " + " ".join(h.rjust(w) for (h, _, _), w in zip(PROGRESS_COLUMNS, widths)))
+    for _, row in m.iterrows():
+        cells = []
+        for (_, col, fmt), w in zip(PROGRESS_COLUMNS, widths):
+            v = row.get(col)
+            cells.append(("–" if v is None or (isinstance(v, float) and math.isnan(v)) else fmt.format(v)).rjust(w))
+        print(f"{row['month']}{'*' if row['few_plays'] else ' '} " + " ".join(cells))
+    print("\n* fewer than 5 plays that month (no skill numbers then). Comfort★ = 75% of your clean finished plays "
+          "(≤ 2 misses per 100 notes) are at or below it. Passed★ = hardest map finished with ≤ 5 misses per 100 "
+          "notes. Skills (Aim … Cons): 50 = your all-time average at the same difficulty, higher = fewer misses "
+          "than usual that month.")
+    return 0
+
+
 def cmd_ui(args) -> int:
     app = Path(__file__).parent / "webapp" / "app.py"
     # localhost only: the app reads and writes local files, so it must not be reachable from the network
@@ -301,6 +348,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--merge", action="store_true", help="add the playlist to your osu!stable collections")
     p.add_argument("--download", help="download the maps (.osz) into this folder")
     p.set_defaults(func=cmd_playlist)
+    p = sub.add_parser("progress", help="your progress by month (every analysis is saved)")
+    p.add_argument("--player", help="player name (default: the one with most saved plays)")
+    p.add_argument("--cache", help="data folder (default: per-user cache dir)")
+    p.set_defaults(func=cmd_progress)
     return ap
 
 

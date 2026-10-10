@@ -67,6 +67,7 @@ class Profile:
     levels: dict
     objects: pd.DataFrame = field(repr=False)
     presses: pd.DataFrame = field(repr=False)
+    model: object = field(default=None, repr=False)   # miss chance by local difficulty (fit_miss_model)
 
 
 # ------------------------------------------------------------------ helpers
@@ -213,10 +214,48 @@ def aim_regression(O: pd.DataFrame, min_dist_norm: float = 1.5) -> dict | None:
             "residual_px": float(math.sqrt((resid_x.var() + resid_y.var()) / 2)), "radius": radius}
 
 
+CLICK_BANDS = [(0.0, 0.25, "≤ ¼"), (0.25, 0.5, "¼–½"), (0.5, 0.75, "½–¾"), (0.75, 1.0, "¾–1"),
+               (1.0, math.inf, "outside")]
+
+
+def click_points(O: pd.DataFrame, frame: str = "screen") -> pd.DataFrame:
+    """Where clicks land, in circle radii from the note centre: the click that hit each circle /
+    slider head, and the closest click of every aim miss (misses without a click aren't clicks).
+
+    ``frame="screen"``: x right, y down, as on screen — every hit note. ``"movement"``: jumps only,
+    rotated so each jump goes right (x = overshoot, y = clockwise side); a constant offset averages
+    out in this frame, so it can only be seen on screen."""
+    P = _played(O)
+    S = P[P["head_hit"] | (P["miss_reason"] == "aim")]
+    if frame == "movement":
+        S = S[S["dist_norm"] >= 1]
+        x, y = S["along"], S["cross"]
+    else:
+        x, y = S["err_dx"] / S["radius"], S["err_dy"] / S["radius"]
+    out = pd.DataFrame({"x": x.to_numpy(float), "y": y.to_numpy(float), "radius": S["radius"].to_numpy(float),
+                        "hit": S["head_hit"].to_numpy(bool)})
+    return out.dropna(subset=["x", "y"]).reset_index(drop=True)
+
+
+def click_summary(C: pd.DataFrame) -> dict:
+    """Average click (osu!px, with a 95% margin), spread, and the share of clicks by distance from the
+    centre (``bands``, "outside" = beyond the circle's edge)."""
+    n = len(C)
+    if not n:
+        return {"n": 0}
+    px, py = C["x"] * C["radius"], C["y"] * C["radius"]
+    d = np.hypot(C["x"], C["y"])
+    sd = (float(px.std()), float(py.std())) if n > 1 else (math.nan, math.nan)
+    ci = 1.96 * math.hypot(*sd) / math.sqrt(2 * n) if n > 1 else math.nan
+    bands = {label: float(((d > lo) & (d <= hi)).mean() if lo > 0 else (d <= hi).mean())
+             for lo, hi, label in CLICK_BANDS}
+    return {"n": n, "mean_px": (float(px.mean()), float(py.mean())), "mean_r": (float(C["x"].mean()),
+            float(C["y"].mean())), "ci_px": ci, "sd_px": sd, "median_r": float(d.median()),
+            "outside": bands["outside"], "bands": bands, "radius": float(C["radius"].median())}
+
+
 # ------------------------------------------------------------------ tapping
 STREAM_PROFILE_COLUMNS = ["bpm_bin", "objects", "miss_rate", "non300_rate", "ur", "mean_err"]
-
-
 def stream_speed_profile(O: pd.DataFrame, min_objects: int = 20, min_run: int = 7) -> pd.DataFrame:
     """Miss rate / UR by stream speed (1/4-note BPM, real time). Short bursts are
     left out (min_run): 3-note triplets at 300 BPM say nothing about streaming."""
@@ -412,7 +451,7 @@ def build_profile(analyses: list[ReplayAnalysis]) -> Profile:
         "misses_per_100": 100 * _rate(~P["head_hit"]),
         "accuracy": float(metas["accuracy"].mean()) if len(metas) else math.nan,
         "avg_stars": float(np.average(metas["stars"].fillna(0), weights=metas["n_objects"])) if "stars" in metas and len(metas) else math.nan,
-        "max_stars_passed": float(metas.loc[metas["completed"], "stars"].max()) if "stars" in metas and metas["completed"].any() else math.nan,
+        "max_stars_passed": float(metas.loc[clean_pass(metas), "stars"].max()) if "stars" in metas and clean_pass(metas).any() else math.nan,
         "ur": _ur(P.loc[P["head_hit"], "err_real"]),
         "sim_exact_share": float(metas["sim_match"].dropna().astype(float).mean()) if len(metas) else math.nan,
         "sim_agreement": float(pd.to_numeric(metas["sim_agreement"], errors="coerce").mean()) if len(metas) else math.nan,
@@ -462,7 +501,7 @@ def build_profile(analyses: list[ReplayAnalysis]) -> Profile:
                    grid=grid_stats(O), directions=direction_stats(O), distances=distance_stats(O),
                    angles=angle_stats(O), regression=reg, sliders=slider_metrics, reading=reading,
                    consistency=consistency, skills=skills, strengths=strengths, weaknesses=weaknesses,
-                   levels=levels, objects=O, presses=Pr)
+                   levels=levels, objects=O, presses=Pr, model=model)
 
 
 def _reading_metrics(P: pd.DataFrame, misses: pd.DataFrame) -> dict:
@@ -619,18 +658,37 @@ def _rank_skills(skills: dict) -> tuple[list, list]:
     return strengths, weaknesses
 
 
+CLEAN_PASS_MISSES_PER_100 = 5.0
+
+
+def clean_pass(metas: pd.DataFrame) -> pd.Series:
+    """Finished plays with at most 5 misses per 100 notes: getting through a map with many more (lazer
+    lets you) is no real pass of it."""
+    per_100 = metas["head_misses"] / metas["n_objects"].clip(lower=1) * 100
+    return metas["completed"].astype(bool) & (per_100 <= CLEAN_PASS_MISSES_PER_100)
+
+
+def comfort_stars(metas: pd.DataFrame) -> float:
+    """Star rating you play comfortably: 75th percentile of finished plays with at most 2 misses per 100
+    notes (columns stars, head_misses, n_objects, completed)."""
+    if metas.empty or "stars" not in metas:
+        return math.nan
+    m = metas.dropna(subset=["stars"])
+    if m.empty:
+        return math.nan
+    m = m.assign(miss_per_100=m["head_misses"] / m["n_objects"].clip(lower=1) * 100)
+    good = m[(m["miss_per_100"] <= 2.0) & (m["completed"].astype(bool))]
+    if len(good):
+        return float(good["stars"].quantile(0.75))
+    return float(m["stars"].quantile(0.25) - 0.4)
+
+
 def _levels(metas: pd.DataFrame, P: pd.DataFrame, model) -> dict:
     """Difficulty levels (star rating units) used to pick practice maps."""
     out = {"comfort_stars": math.nan, "aim_level": math.nan, "speed_level": math.nan}
     if metas.empty or "stars" not in metas:
         return out
-    m = metas.dropna(subset=["stars"])
-    m = m.assign(miss_per_100=m["head_misses"] / m["n_objects"].clip(lower=1) * 100)
-    good = m[(m["miss_per_100"] <= 2.0) & (m["completed"])]
-    if len(good):
-        out["comfort_stars"] = float(good["stars"].quantile(0.75))
-    else:
-        out["comfort_stars"] = float(m["stars"].quantile(0.25) - 0.4)
+    out["comfort_stars"] = comfort_stars(metas)
     # skill levels: local star-equivalent where predicted miss chance reaches 5%
     coef = getattr(model, "coef", None)
     for skill, col in (("aim_level", "aim_eq"), ("speed_level", "speed_eq")):

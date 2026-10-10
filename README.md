@@ -71,12 +71,36 @@ lazer imports the maps first and the collection after them; re-importing the sam
 what's new. The folder can be deleted afterwards. *Folder without maps (.zip)* is the same folder with
 only the collection, for lazer on another computer.
 
+### Progress by month
+
+Every analysis is also saved in `progress.sqlite` in the osu! coach data folder, one row per replay, so
+the history stays even after replays are deleted. The **Progress** page (or `osu-coach progress`) shows,
+per month: plays, maps and maps played for the first time, play time, star rating (comfortable level,
+average, hardest clean pass = finished with at most 5 misses per 100 notes, hardest full combo),
+accuracy, UR, stream speed and the skills. Monthly skill scores are measured against one miss model
+fitted on all your replays — 50 = your all-time average at the same difficulty, higher = fewer misses
+than usual that month — and need 5+ plays in a month. Analyse with *All* once to fill in older months;
+after that *Latest N* is enough (older analyses are reused from the cache).
+
+### Setup (Tips & setup page)
+
+- **Aim**: tablet (area width/height and X/Y — OpenTabletDriver values, X/Y = centre of the area) or
+  mouse (DPI, sensitivity). With the area known, *Tablet area to try* gives new width/height (from over/
+  underaim) and X/Y (from a constant click offset; kept if the offset is too small to matter).
+- **Keys**: keyboard, rapid-trigger keyboard (actuation, RT sensitivity) or **SayoDevice keypad** with the
+  configurator's settings: Stroke, Trigger, Release, RT Mode, RT Trigger, RT Release, Full Stroke,
+  RT Upper Bound, RT Lower Bound. The SayoDevice tip shows *Now → Try* for each, from your tapping
+  (double presses, early releases in sliders, falling behind or overlapping keys in streams, presses that
+  didn't register) and checks values that don't fit together (Release below Trigger, RT Lower Bound at the
+  very bottom of the stroke, ...).
+
 ### Command line
 
 ```
 osu-coach locate                                   # what was found
 osu-coach analyze [--folder DIR] [--player NAME]   # full report in the terminal (+ --json)
 osu-coach analyze --latest 500                     # only your newest 500 replays (read and analysed)
+osu-coach progress [--player NAME]                 # your progress by month (saved by every analysis)
 osu-coach playlist aim --lazer                     # playlist + lazer import folder (maps + collection)
 osu-coach playlist aim --merge                     # ... added to your osu!stable collections instead
 osu-coach playlist speed --comfort 3 --download ~/maps   # without replays: give your level
@@ -108,6 +132,10 @@ Skills: `aim flow_aim speed stamina accuracy sliders reading consistency quadran
      for being hard.
    - Aim calibration fits your actual movement against the needed movement on jumps (affine fit:
      scale x/y, rotation, offset). That fit drives the tablet area and sensitivity advice.
+   - *Where your clicks land* (Aim page) draws a random sample of all clicks — the click that hit each
+     note and the closest click of each aim miss — **on screen** (shows a constant offset) or **along
+     the jump** (rotated so every jump goes right: over/undershoot; a constant offset cancels out there).
+     A hit is always inside the circle, so only aim misses land outside it.
    - The quadrant result uses a significance test, so noise isn't reported as a weakness.
 5. **Tips and maps** are built from those numbers. Every tip shows the evidence it is based on.
 

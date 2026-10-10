@@ -2,7 +2,7 @@ import dataclasses
 
 import pytest
 
-from osu_coach.advice import Setup, make_tips, practice_plan, rt_baseline
+from osu_coach.advice import Setup, make_tips, mm_per_osu_px, practice_plan, rt_baseline, suggest_tablet_area
 from osu_coach.analysis import analyze_files
 from osu_coach.profile import build_profile
 from tests.conftest import replay_and_map
@@ -160,3 +160,105 @@ def test_aim_miss_tip_keeps_jump_advice_for_jumps(base):
     t = tip(make_tips(_aim_misses_in(base, "jump")), "Overview", "aim misses")
     assert t is not None and "jumps 100%" in t.actions[0]
     assert any("Jump aim" in a for a in t.actions)
+
+
+# ---------------------------------------------------------------- tablet area position (X / Y)
+AREA = dict(area_w_mm=100.0, area_h_mm=56.25, area_x_mm=76.0, area_y_mm=47.0)
+
+
+def test_area_position_follows_a_sizeable_click_offset(base):
+    p = with_(base, regression={**REG, "offset_x": 8.0, "offset_y": -4.0, "offset_se": 0.2})
+    s = Setup(**AREA)
+    a = suggest_tablet_area(p, s)
+    mm_x, mm_y = mm_per_osu_px(s)
+    # clicks land right/up of the centre -> move the area the same way
+    assert a["x"] == pytest.approx(76.0 + 8.0 * mm_x, abs=0.05)
+    assert a["y"] == pytest.approx(47.0 - 4.0 * mm_y, abs=0.05)
+    assert a["changed"]
+    t = tip(make_tips(p, s), "Tablet area", "off-centre")
+    assert t.settings["area_x_mm"] == a["x"] and t.settings["area_y_mm"] == a["y"]
+
+
+def test_centred_clicks_keep_the_area_position(base):
+    p = with_(base, regression={**REG, "offset_x": -0.76, "offset_y": 0.49, "offset_se": 0.06})
+    a = suggest_tablet_area(p, Setup(**AREA))
+    assert (a["x"], a["y"], a["w"], a["h"]) == (76.0, 47.0, 100.0, 56.25)
+    assert not a["changed"] and any("centred" in w for w in a["why"])
+
+
+def test_area_suggestion_combines_size_and_position(base):
+    p = with_(base, regression={**REG, "scale_x": 1.10, "scale_y": 1.10, "offset_x": 8.0, "offset_se": 0.2})
+    a = suggest_tablet_area(p, Setup(**AREA))
+    assert a["w"] > 100.0 and a["h"] > 56.25 and a["x"] > 76.0 and a["y"] == 47.0
+
+
+def test_no_area_suggestion_without_an_area_or_with_a_mouse(base):
+    p = with_(base, regression={**REG, "offset_x": 8.0, "offset_se": 0.2})
+    assert suggest_tablet_area(p, Setup()) is None
+    assert suggest_tablet_area(p, Setup(device="mouse", **AREA)) is None
+
+
+# ---------------------------------------------------------------- SayoDevice keypad
+# Nikita's settings (SayoDevice web configurator screenshot)
+SAYO = dict(keyboard="sayo", sayo_stroke_mm=4.0, sayo_trigger_mm=0.40, sayo_release_mm=0.35, sayo_rt=True,
+            sayo_rt_trigger_mm=0.10, sayo_rt_release_mm=0.15, sayo_full_stroke=False, sayo_rt_upper_mm=0.10,
+            sayo_rt_lower_mm=3.80)
+CLEAN = dict(chatter_per_1000=2.0, extra_presses_per_100=0.9, overlap_in_streams=0.43, slope_ms_per_note=0.05,
+             comfort_bpm=210)
+
+
+def _clean(base, **kw):
+    p = _tapping(base, **{**CLEAN, **kw})
+    return with_(p, slider_breaks={"follow": 52, "released": 8, "key_swap": 2},
+                 miss_breakdown={"aim": 2288, "lost": 709, "no_tap": 383, "early": 61})
+
+
+def _sayo(p, **setup):
+    return tip(make_tips(p, Setup(**{**SAYO, **setup})), "Keys / SayoDevice")
+
+
+def test_sayo_settings_that_fit_the_tapping_are_kept(base):
+    t = _sayo(_clean(base))
+    assert {k: t.settings[k] for k in ("Trigger", "Release", "RT Trigger", "RT Release", "RT Upper Bound",
+                                       "RT Lower Bound")} == {"Trigger": 0.40, "Release": 0.35, "RT Trigger": 0.10,
+                                                              "RT Release": 0.15, "RT Upper Bound": 0.10,
+                                                              "RT Lower Bound": 3.80}
+    assert t.severity == 1 and "fit" in t.title.lower()
+
+
+def test_sayo_double_presses_make_rapid_trigger_less_sensitive(base):
+    t = _sayo(_clean(base, chatter_per_1000=9.0))
+    assert t.settings["RT Trigger"] == 0.15 and t.settings["RT Release"] == 0.20
+    assert t.settings["RT Upper Bound"] == 0.40      # rapid trigger no longer fires above the trigger point
+    assert t.severity == 2
+
+
+def test_sayo_early_releases_in_sliders_raise_rt_release(base):
+    p = with_(_clean(base), slider_breaks={"released": 12, "follow": 8})
+    t = _sayo(p)
+    assert t.settings["RT Release"] == 0.20 and t.settings["RT Trigger"] == 0.10
+
+
+def test_sayo_falling_behind_in_streams_makes_presses_register_sooner(base):
+    t = _sayo(_clean(base, slope_ms_per_note=1.2), sayo_rt_trigger_mm=0.25)
+    assert t.settings["RT Trigger"] == 0.20
+
+
+def test_sayo_impossible_settings_are_fixed(base):
+    t = _sayo(_clean(base), sayo_release_mm=0.45, sayo_rt_lower_mm=4.0)
+    assert t.settings["Release"] == 0.35             # must be shallower than Trigger 0.40
+    assert t.settings["RT Lower Bound"] == 3.95      # not at the very bottom of the stroke
+    text = " ".join(t.actions)
+    assert "Release" in text and "RT Lower Bound" in text
+
+
+def test_sayo_without_values_gives_a_starting_point(base):
+    t = tip(make_tips(_clean(base), Setup(keyboard="sayo")), "Keys / SayoDevice")
+    assert t.settings["RT Mode"] is True and 0.1 <= t.settings["RT Trigger"] <= 0.3
+    assert t.settings["RT Upper Bound"] == t.settings["Trigger"]
+    assert t.settings["RT Lower Bound"] == round(t.settings["Stroke"] - 0.05, 2)
+
+
+def test_keyboard_users_get_no_sayo_tip(base):
+    tips = make_tips(_clean(base, chatter_per_1000=9.0), Setup(keyboard="standard"))
+    assert tip(tips, "Keys / SayoDevice") is None

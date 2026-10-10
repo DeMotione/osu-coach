@@ -28,14 +28,26 @@ class Setup:
     handedness: str = "right"         # right | left
     area_w_mm: float | None = None
     area_h_mm: float | None = None
+    area_x_mm: float | None = None    # area centre on the tablet (OpenTabletDriver X / Y)
+    area_y_mm: float | None = None
     screen_w_px: int = 1920
     screen_h_px: int = 1080
     mouse_dpi: int | None = None
     ingame_sens: float | None = None  # osu! sensitivity multiplier
-    keyboard: str = "standard"        # standard | rapid_trigger
+    keyboard: str = "standard"        # standard | rapid_trigger | sayo
     actuation_mm: float | None = None
     rt_press_mm: float | None = None
     rt_release_mm: float | None = None
+    # SayoDevice keypad (names as in its web configurator); None = not entered
+    sayo_stroke_mm: float | None = None
+    sayo_trigger_mm: float | None = None
+    sayo_release_mm: float | None = None
+    sayo_rt: bool | None = None
+    sayo_rt_trigger_mm: float | None = None
+    sayo_rt_release_mm: float | None = None
+    sayo_full_stroke: bool | None = None
+    sayo_rt_upper_mm: float | None = None
+    sayo_rt_lower_mm: float | None = None
     client: str = "stable"            # stable | lazer
 
 
@@ -67,6 +79,56 @@ def mm_per_osu_px(setup: Setup) -> tuple[float, float] | None:
     screen_px_per_osu_px = setup.screen_h_px * PLAYFIELD_SCREEN_FRACTION / 384.0
     return (setup.area_w_mm / setup.screen_w_px * screen_px_per_osu_px,
             setup.area_h_mm / setup.screen_h_px * screen_px_per_osu_px)
+
+
+def _scale_step(r: dict) -> float | None:
+    """Area/sensitivity change for over/underaim (fraction), None if the scale is fine."""
+    scale = (r["scale_x"] + r["scale_y"]) / 2
+    if r["n"] < 60 or 0.96 < scale < 1.04:
+        return None
+    step = max(min(abs(scale - 1), 0.10), 0.03)
+    return step if scale > 1 else -step
+
+
+def offset_is_sizeable(r: dict) -> bool:
+    """A constant click offset worth correcting: clearly measured and big enough to cost hits
+    (a few px don't matter; the circle radius is ~25-55 px)."""
+    off = math.hypot(r["offset_x"], r["offset_y"])
+    return r["n"] >= 80 and off >= max(4.0, 3 * r["offset_se"]) and off >= 0.15 * r["radius"]
+
+
+def _offset_words(ox: float, oy: float) -> tuple[str, str]:
+    return ("left" if ox < 0 else "right"), ("up" if oy < 0 else "down")
+
+
+def suggest_tablet_area(p: Profile, s: Setup) -> dict | None:
+    """Tablet area to try, in OpenTabletDriver terms (width × height, X / Y = centre of the area, mm):
+    size from over/underaim, position from a constant click offset. None without a known area."""
+    r = p.regression
+    if s.device != "tablet" or not r or not (s.area_w_mm and s.area_h_mm):
+        return None
+    w, h, x, y = s.area_w_mm, s.area_h_mm, s.area_x_mm, s.area_y_mm
+    nw, nh, nx, ny = w, h, x, y
+    why = []
+    step = _scale_step(r)
+    if step:
+        nw, nh = round(w * (1 + step), 1), round(h * (1 + step), 1)
+        why.append(f"you {'over' if step > 0 else 'under'}aim jumps by {abs(step):.0%} → area "
+                   f"{'larger' if step > 0 else 'smaller'} (same centre)")
+    ox, oy = r["offset_x"], r["offset_y"]
+    horiz, vert = _offset_words(ox, oy)
+    if offset_is_sizeable(r):
+        mm = mm_per_osu_px(s)
+        dx, dy = ox * mm[0], oy * mm[1]
+        nx = None if x is None else round(x + dx, 1)
+        ny = None if y is None else round(y + dy, 1)
+        why.append(f"your clicks land {abs(ox):.1f} px {horiz} and {abs(oy):.1f} px {vert} of the centre → move "
+                   f"the area {abs(dx):.1f} mm {horiz} and {abs(dy):.1f} mm {vert}")
+    else:
+        why.append(f"your jumps land centred (constant offset {abs(ox):.1f} px {horiz}, {abs(oy):.1f} px {vert} — "
+                   "'Constant offset' on the Aim page; too little to matter) → keep X / Y")
+    return {"w": nw, "h": nh, "x": nx, "y": ny, "now": {"w": w, "h": h, "x": x, "y": y},
+            "changed": (nw, nh, nx, ny) != (w, h, x, y), "why": why}
 
 
 # ---------------------------------------------------------------- main entry
@@ -168,9 +230,10 @@ def _area_scale_tips(p: Profile, s: Setup):
     tips = []
     evidence = (f"Measured on {r['n']} jumps: you move {_pct(sx - 1)} horizontally and {_pct(sy - 1)} vertically "
                 f"compared with the real distance (+ = too far / overaim, - = not far enough / underaim).")
-    step = max(min(abs(scale - 1), 0.10), 0.03)
+    signed = _scale_step(r) or 0.0
+    step = abs(signed)
     if s.device == "tablet":
-        if scale >= 1.04:
+        if signed > 0:
             settings = None
             act = [f"Make your tablet area about {step:.0%} larger (less sensitive).",
                    "Change in one step, then keep it for several days before judging."]
@@ -179,7 +242,7 @@ def _area_scale_tips(p: Profile, s: Setup):
                 settings = {"area_mm": [round(nw, 1), round(nh, 1)]}
                 act.insert(0, f"Area {s.area_w_mm:g} × {s.area_h_mm:g} mm → {nw:.1f} × {nh:.1f} mm.")
             tips.append(Tip("Tablet area", "You overaim jumps — your area is a bit small", 3, evidence, act, settings))
-        elif scale <= 0.96:
+        elif signed < 0:
             settings = None
             act = [f"Make your tablet area about {step:.0%} smaller (more sensitive), or commit to the full "
                    "movement — undershooting is also common when you aim too carefully.",
@@ -190,7 +253,7 @@ def _area_scale_tips(p: Profile, s: Setup):
                 act.insert(0, f"Area {s.area_w_mm:g} × {s.area_h_mm:g} mm → {nw:.1f} × {nh:.1f} mm.")
             tips.append(Tip("Tablet area", "You underaim jumps — your area is a bit large", 3, evidence, act, settings))
     else:
-        if scale >= 1.04 or scale <= 0.96:
+        if signed:
             word = "lower" if scale > 1 else "raise"
             act = [f"{word.capitalize()} your sensitivity by about {step:.0%}."]
             settings = None
@@ -232,11 +295,8 @@ def _area_rotation_offset_tips(p: Profile, s: Setup):
                         f"{direction}", 2, f"Fitted on {r['n']} jumps (rotation of your movement vs the real one).",
                         act, {"rotation_deg": round(rot, 1)}))
     ox, oy = r["offset_x"], r["offset_y"]
-    off = math.hypot(ox, oy)
-    # a few px of bias don't cost hits (circle radius is ~25-55 px); only report clear, sizeable offsets
-    if off >= max(4.0, 3 * r["offset_se"]) and off >= 0.15 * r["radius"]:
-        horiz = "left" if ox < 0 else "right"
-        vert = "up" if oy < 0 else "down"
+    if offset_is_sizeable(r):
+        horiz, vert = _offset_words(ox, oy)
         evidence = (f"On average your clicks land {abs(ox):.1f} px {horiz} and {abs(oy):.1f} px {vert} of the "
                     f"circle centre (circle radius ≈ {r['radius']:.0f} px).")
         act = []
@@ -248,6 +308,13 @@ def _area_rotation_offset_tips(p: Profile, s: Setup):
                 settings = {"area_shift_mm": [round(dx_mm, 1), round(dy_mm, 1)]}
                 act.append(f"Shift the area {abs(dx_mm):.1f} mm {horiz} and {abs(dy_mm):.1f} mm {vert} "
                            "(move it the same way your clicks drift).")
+                area = suggest_tablet_area(p, s)
+                if area and area["x"] is not None and area["y"] is not None:
+                    settings.update(area_x_mm=area["x"], area_y_mm=area["y"])
+                    act.insert(0, f"Area position X {s.area_x_mm:g} → {area['x']:g} mm, Y {s.area_y_mm:g} → "
+                                  f"{area['y']:g} mm (OpenTabletDriver: X / Y = centre of the area).")
+                else:
+                    act.append("Enter your area's X / Y in Setup to get the new values.")
             else:
                 act.append(f"Shift your tablet area slightly {horiz}/{vert} (the same direction your clicks drift); "
                            "enter your area size in Setup to get millimetres.")
@@ -476,7 +543,138 @@ def rt_baseline(speed_bpm: float | None) -> dict:
     return {"actuation_mm": (0.3, 0.6), "rt_mm": (0.1, 0.2), "note": "fast streams; watch for double taps"}
 
 
+SAYO_FIELDS = {  # configurator name -> Setup field
+    "Stroke": "sayo_stroke_mm", "Trigger": "sayo_trigger_mm", "Release": "sayo_release_mm",
+    "RT Mode": "sayo_rt", "RT Trigger": "sayo_rt_trigger_mm", "RT Release": "sayo_rt_release_mm",
+    "Full Stroke": "sayo_full_stroke", "RT Upper Bound": "sayo_rt_upper_mm", "RT Lower Bound": "sayo_rt_lower_mm",
+}
+SAYO_STEP = 0.05   # the configurator's step
+
+
+def _mm(v: float) -> float:
+    return round(round(v / SAYO_STEP) * SAYO_STEP, 2)
+
+
+def _tapping_signals(p: Profile) -> dict:
+    t = p.tapping
+    breaks = sum(p.slider_breaks.values())
+    misses = max(sum(p.miss_breakdown.values()), 1)
+    return {"speed": t.get("comfort_bpm") or t.get("limit_bpm"), "chatter": t.get("chatter_per_1000", 0) or 0,
+            "extra": t.get("extra_presses_per_100", 0) or 0, "overlap": t.get("overlap_in_streams"),
+            "slope": t.get("slope_ms_per_note"), "released": p.slider_breaks.get("released", 0), "breaks": breaks,
+            "no_tap": p.miss_breakdown.get("no_tap", 0), "no_tap_share": p.miss_breakdown.get("no_tap", 0) / misses}
+
+
+def sayo_settings(p: Profile, s: Setup) -> dict:
+    """SayoDevice values to try, from the tapping in the replays: ``now`` (entered or a starting point),
+    ``new``, ``reasons`` (what the replays show) and ``checks`` (settings that don't fit together).
+
+    How the settings act: Trigger / Release = fixed press / reset depth; inside the RT zone
+    (RT Upper Bound .. RT Lower Bound, or the whole stroke with Full Stroke) the key presses after moving
+    down RT Trigger and releases after moving up RT Release, wherever it is. Too small RT values or an
+    RT zone that starts above the Trigger point give presses from resting fingers; too large ones make
+    fast taps and early releases from wobbling fingers miss."""
+    sig = _tapping_signals(p)
+    base = rt_baseline(sig["speed"])
+    stroke = s.sayo_stroke_mm or 4.0
+    trigger = s.sayo_trigger_mm if s.sayo_trigger_mm is not None else _mm(sum(base["actuation_mm"]) / 2)
+    rt_mm = _mm(sum(base["rt_mm"]) / 2)
+    now = {"Stroke": stroke, "Trigger": trigger,
+           "Release": s.sayo_release_mm if s.sayo_release_mm is not None else _mm(trigger - SAYO_STEP),
+           "RT Mode": True if s.sayo_rt is None else bool(s.sayo_rt),
+           "RT Trigger": s.sayo_rt_trigger_mm if s.sayo_rt_trigger_mm is not None else rt_mm,
+           "RT Release": s.sayo_rt_release_mm if s.sayo_rt_release_mm is not None else rt_mm,
+           "Full Stroke": bool(s.sayo_full_stroke),
+           "RT Upper Bound": s.sayo_rt_upper_mm if s.sayo_rt_upper_mm is not None else trigger,
+           "RT Lower Bound": s.sayo_rt_lower_mm if s.sayo_rt_lower_mm is not None else _mm(stroke - SAYO_STEP)}
+    entered = any(getattr(s, f) is not None for f in SAYO_FIELDS.values())
+    new = dict(now)
+    reasons, checks = [], []
+    double = sig["chatter"] >= 5 or sig["extra"] >= 3
+    if double:
+        new["RT Trigger"] = _mm(max(now["RT Trigger"] + SAYO_STEP, 0.15))
+        new["RT Release"] = _mm(now["RT Release"] + SAYO_STEP)
+        reasons.append(f"double presses ({sig['chatter']:.1f} re-presses within 20 ms per 1000, {sig['extra']:.1f} "
+                       "extra taps per 100 notes) → RT Trigger / RT Release less sensitive")
+        if now["RT Upper Bound"] < now["Trigger"]:
+            new["RT Upper Bound"] = now["Trigger"]
+            reasons.append("RT Upper Bound = Trigger, so rapid trigger can't fire from a resting finger above "
+                           "your trigger point")
+    if sig["breaks"] >= 10 and sig["released"] / sig["breaks"] >= 0.4:
+        new["RT Release"] = max(new["RT Release"], _mm(now["RT Release"] + SAYO_STEP))
+        reasons.append(f"{sig['released']} of {sig['breaks']} slider breaks were the key letting go mid-slider "
+                       "→ RT Release higher, so finger wobble doesn't release")
+    if not double and not _nan(sig["slope"]) and sig["slope"] >= 0.6:
+        new["RT Trigger"] = _mm(max(now["RT Trigger"] - SAYO_STEP, 0.1))
+        reasons.append("you fall behind as streams go on → RT Trigger lower, so presses register sooner")
+    if not double and not _nan(sig["overlap"]) and sig["overlap"] >= 0.5:
+        new["RT Release"] = _mm(max(min(new["RT Release"], now["RT Release"] - SAYO_STEP), 0.1))
+        reasons.append(f"keys overlap on {sig['overlap']:.0%} of stream taps → RT Release lower, so they let go "
+                       "sooner")
+    if not double and sig["no_tap_share"] >= 0.25:
+        new["RT Trigger"] = _mm(max(min(new["RT Trigger"], now["RT Trigger"] - SAYO_STEP), 0.1))
+        reasons.append(f"{sig['no_tap']} misses had the cursor on the note but no press → RT Trigger lower")
+        if now["RT Lower Bound"] < stroke - 0.1:
+            new["RT Lower Bound"] = _mm(stroke - SAYO_STEP)
+            reasons.append("RT Lower Bound near the full stroke, so rapid trigger still works when you press "
+                           "keys all the way down")
+    if not now["RT Mode"] and sig["speed"] and sig["speed"] >= 200 and not double:
+        new["RT Mode"] = True
+        reasons.append(f"you stream ~{sig['speed']} BPM → RT Mode on lets keys reset without a full lift")
+    # settings that don't work together
+    if now["Release"] >= now["Trigger"]:
+        new["Release"] = _mm(now["Trigger"] - SAYO_STEP)
+        checks.append(f"Release ({now['Release']:.2f} mm) must be above Trigger ({now['Trigger']:.2f} mm), "
+                      "otherwise the key can't reset cleanly")
+    if now["RT Lower Bound"] >= stroke:
+        new["RT Lower Bound"] = _mm(stroke - SAYO_STEP)
+        checks.append(f"RT Lower Bound ({now['RT Lower Bound']:.2f} mm) at the very bottom of the stroke "
+                      f"({stroke:.2f} mm) is a common cause of stuck keys and slider breaks — keep it "
+                      f"{SAYO_STEP} mm or more above")
+    if now["RT Mode"] and not now["Full Stroke"] and new["RT Upper Bound"] > now["Trigger"]:
+        checks.append(f"between Trigger ({now['Trigger']:.2f} mm) and RT Upper Bound "
+                      f"({new['RT Upper Bound']:.2f} mm) rapid trigger is off")
+    if now["RT Mode"] and not now["Full Stroke"] and new["RT Upper Bound"] < now["Trigger"] and not double:
+        checks.append(f"RT Upper Bound ({now['RT Upper Bound']:.2f} mm) is above Trigger ({now['Trigger']:.2f} mm): "
+                      "rapid trigger works from there, i.e. before your trigger point. Your replays show no "
+                      "presses from resting fingers, so that's fine")
+    if not 3.0 <= stroke <= 4.5:
+        checks.append(f"Stroke {stroke:.2f} mm: set it to your switch's full travel (4.0 mm for most magnetic "
+                      "switches), or the calibration is off")
+    return {"now": now, "new": new, "reasons": reasons, "checks": checks, "entered": entered, "signals": sig}
+
+
+def _sayo_tip(p: Profile, s: Setup) -> list[Tip]:
+    r = sayo_settings(p, s)
+    sig, now, new = r["signals"], r["now"], r["new"]
+    changed = [k for k in SAYO_FIELDS if new[k] != now[k]]
+
+    def show(k, v):
+        return ("on" if v else "off") if isinstance(v, bool) else f"{v:.2f} mm"
+    act = []
+    if not r["entered"]:
+        base = ", ".join(f"{k} {show(k, v)}" for k, v in new.items())
+        act.append(f"Starting point for ~{sig['speed'] or '?'} BPM streams: {base}. Enter your current values in "
+                   "Setup to get changes based on your replays.")
+    else:
+        act += [f"{k}: {show(k, now[k])} → {show(k, new[k])}" for k in changed]
+    if r["reasons"]:
+        act.append("Why: " + "; ".join(r["reasons"]) + ".")
+    act += [c[0].upper() + c[1:] + "." for c in r["checks"]]
+    act.append(f"Change one value at a time, in {SAYO_STEP:g} mm steps, and play the same map a few times to "
+               "compare.")
+    fits = r["entered"] and not changed
+    title = "Your SayoDevice settings fit your tapping" if fits else "SayoDevice settings for your tapping"
+    evidence = (f"Stream comfort speed ≈ {sig['speed'] or 'unknown'} BPM; double presses {sig['chatter']:.1f} per "
+                f"1000 presses; extra taps {sig['extra']:.1f} per 100 notes; {sig['released']} of {sig['breaks']} "
+                "slider breaks were key releases.")
+    severity = 2 if r["reasons"] or (r["checks"] and changed) else 1
+    return [Tip("Keys / SayoDevice", title, severity, evidence, act, dict(new))]
+
+
 def _keyboard_tips(p: Profile, s: Setup):
+    if s.keyboard == "sayo":
+        return _sayo_tip(p, s)
     t = p.tapping
     speed = t.get("comfort_bpm") or t.get("limit_bpm")
     chatter = t.get("chatter_per_1000", 0) or 0

@@ -35,7 +35,28 @@ Streamlit UI), plus:
   now classified from a 64-byte probe instead of a 64 KB read (same result on all 12,105 files here).
   On this PC (146 replays, 12k store files) a first scan takes ~1 s either way; the gain is for big
   installs and for the analysis (100 replays ≈ 10 s).
-- **Tests**: 159 pass (`.venv\Scripts\python -m pytest`). They never read the osu! installs of the computer
+- **Progress by month (SQLite)**: `progress.py` keeps `progress.sqlite` (data folder): table `replays` (one
+  row per analysed replay, never deleted) and `month_metrics` (skills etc.). Every analysis in the app and
+  `analyze` / `playlist` in the CLI save to it (`progress.update`, ~4 s for Nikita's 123 replays; earlier
+  analyses come from the analysis cache). Progress page + `osu-coach progress`. Monthly skills use ONE
+  model fitted on all of the player's replays (per-month models would hide improvement — tested), only for
+  months with 5+ plays. "Hardest pass" = finished with ≤ 5 misses per 100 notes (`profile.clean_pass`;
+  lazer let him finish a 9★ map at 63% with 265 misses). Nikita, Sep → Oct 2026: comfort 6.01 → 6.13★,
+  UR 190 → 173, aim 48 → 68, speed 26 → 43, reading 21 → 44. Old months (2017–2021) only have the few
+  replays kept from then.
+- **"Where your clicks land" rechecked** (looked too perfect): the click data is right (equal to the replay
+  frames, checked), but the old chart (1) rotated every jump, which cancels any constant offset — the "×"
+  was at the centre by construction; (2) drew density contours that hid the outer 25% of clicks and all
+  aim misses. Now: dots of a random sample of all clicks (true share of misses), *On screen* / *Along the
+  jump* views, real numbers (Nikita: average 0.5 px left, 0.3 px low ± 0.1; 2.4% outside).
+  `profile.click_points` / `click_summary`.
+- **Setup**: tablet area X/Y (OpenTabletDriver centre) → *Tablet area to try* (`advice.suggest_tablet_area`);
+  keys = keyboard / rapid-trigger keyboard / **SayoDevice** with all configurator fields →
+  `advice.sayo_settings` (Now → Try + checks). Semantics from SayoDevice docs/osu! forum: Trigger/Release
+  fixed depths; inside RT Upper..Lower Bound (or Full Stroke) RT Trigger/RT Release distances apply. With
+  Nikita's values (Trigger 0.40, Release 0.35, RT 0.10/0.15, bounds 0.10–3.80) and tapping (2 double
+  presses per 1000, 0.9 extra taps per 100 notes) the tip says they fit.
+- **Tests**: 186 pass (`.venv\Scripts\python -m pytest`). They never read the osu! installs of the computer
   they run on (`OSU_COACH_NO_AUTODETECT=1` from `tests/conftest.py`).
 - **Windows**: `run.bat` checked on this PC from a clean copy (first run creates `.venv` with a real
   `python.exe`; the `py`/`python` app aliases can hang on this PC). The UI listens on localhost only. All
@@ -57,7 +78,11 @@ Streamlit UI), plus:
    matches slightly better, but that is fitting to his update rate.
 5. **Small clean-ups**: `levels.aim_level` / `speed_level` use a different unit than comfort stars and are
    not shown anywhere; drop or rework them.
-6. **Faster map lookup for big stable installs.** A *Latest N* scan hashes `.osu` files newest first until
+6. **Progress page tuning once more months exist**: maybe a per-skill detail view, and caching the
+   all-time model so `progress.update` only recomputes the months that changed (now all months, ~4 s).
+7. **SayoDevice rules from real data**: the thresholds (double presses ≥ 5/1000, early releases ≥ 40% of
+   slider breaks, …) are the rapid-trigger ones; check them once Nikita changes settings and replays more.
+8. **Faster map lookup for big stable installs.** A *Latest N* scan hashes `.osu` files newest first until
    the replays' maps turn up; reading `osu!.db` (MD5 → file for every map) would make that instant. lazer's
    equivalent is `client.realm` (Realm format, harder).
 
@@ -65,7 +90,7 @@ Streamlit UI), plus:
 
 - `osu_coach/`: `osr`, `beatmap`, `curves`, `judge` (stable rules, dispatches lazer replays),
   `judge_lazer`, `features`, `analysis`, `difficulty`, `profile`, `advice`, `pool` (with
-  `data/pool.json.gz`), `collection_db`, `lazer_import`, `locate`, `library`, `sources`, `cli`,
+  `data/pool.json.gz`), `collection_db`, `lazer_import`, `locate`, `library`, `progress`, `sources`, `cli`,
   `webapp/app.py`.
 - `tests/`: real replays and maps in `tests/resources` (incl. three of Nikita's lazer plays,
   `mot1one__lazer_*.osr`).

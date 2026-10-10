@@ -3,6 +3,7 @@
 """
 from __future__ import annotations
 
+import datetime as dt
 import math
 import os
 from pathlib import Path
@@ -12,18 +13,18 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from osu_coach import lazer_import, locate, sources
-from osu_coach.advice import Setup, make_tips, practice_plan
+from osu_coach import lazer_import, locate, progress, sources
+from osu_coach.advice import Setup, make_tips, practice_plan, sayo_settings, suggest_tablet_area
 from osu_coach.collection_db import dumps as collection_bytes
 from osu_coach.collection_db import merge_into
 from osu_coach.library import Library, default_cache_dir, load_settings, save_settings
 from osu_coach.pool import (SKILLS, Targets, build_playlist, collection_name, load_pool, recommendations,
                             skill_label, targets_from_profile)
-from osu_coach.profile import MISS_LABELS, build_profile
+from osu_coach.profile import MISS_LABELS, SKILL_LABELS, build_profile, click_points, click_summary
 
 ACCENT, GOOD, BAD, MUTED, INFO = "#ff66aa", "#5fd3a0", "#ff5c7a", "#8b8fa3", "#6fb7ff"
-PAGES = ["Replays", "Overview", "Aim", "Tapping", "Sliders & reading", "Tips & setup", "Map suggestions",
-         "Improve a skill"]
+PAGES = ["Replays", "Overview", "Progress", "Aim", "Tapping", "Sliders & reading", "Tips & setup",
+         "Map suggestions", "Improve a skill"]
 MISS_SHORT = {"aim": "Aim", "early": "Too early", "late": "Too late", "no_tap": "No tap", "lost": "Lost track",
               "notelock": "Notelock"}
 DIR_ANGLE = {"right": 0, "up-right": 45, "up": 90, "up-left": 135, "left": 180, "down-left": 225, "down": 270,
@@ -71,10 +72,12 @@ def pct(v, digits: int = 1) -> str:
     return "–" if isnan(v) else f"{v * 100:.{digits}f}%"
 
 
-def style(fig: go.Figure, height: int = 320, title: str | None = None) -> go.Figure:
-    fig.update_layout(template="plotly_dark", height=height, title=title, showlegend=False,
+def style(fig: go.Figure, height: int = 320, title: str | None = None, legend: bool = False) -> go.Figure:
+    fig.update_layout(template="plotly_dark", height=height, title=title, showlegend=legend,
                       margin=dict(l=10, r=10, t=44 if title else 10, b=10), font=dict(size=13),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+    if legend:
+        fig.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.12, x=0, bgcolor="rgba(0,0,0,0)"))
     return fig
 
 
@@ -311,6 +314,11 @@ def run_analysis(lib: Library, player: str, refs: list[dict], online: bool):
     if not analyses:
         st.error("None of the replays could be analysed. " + (errors[0][1] if errors else ""))
         return
+    with st.spinner("Saving your progress by month…"):
+        try:
+            progress.update(lib.cache, analyses, lib.load_cached)
+        except Exception as exc:  # noqa: BLE001 - the analysis matters more than the history
+            st.warning(f"Could not save your progress: {exc}")
     with st.spinner("Building your profile…"):
         prof = build_profile(analyses)
     st.session_state.update(profile=prof, analyses=analyses, errors=errors,
@@ -382,6 +390,103 @@ def page_overview():
                    f"{pct(ov['sim_exact_share'], 0)} of replays ({pct(ov['sim_agreement'])} of all judgements).")
 
 
+# ------------------------------------------------------------------ Progress
+SKILL_COLORS = ["#ff66aa", "#6fb7ff", "#5fd3a0", "#ffb020", "#c792ea", "#ff8c5a", "#4dd0e1", "#a1887f"]
+
+
+def _delta(last, prev, col: str, spec: str, scale: float = 1.0):
+    if prev is None or isnan(last[col]) or isnan(prev[col]):
+        return None
+    return format((last[col] - prev[col]) * scale, spec)
+
+
+def page_progress():
+    st.title("Progress")
+    st.caption("Every analysis is saved here, month by month (progress.sqlite in the osu! coach data folder). The "
+               "history stays even if you delete replays later.")
+    conn = progress.connect()
+    try:
+        names = progress.players(conn)
+        if not names:
+            st.info("Nothing saved yet. Analyse your replays on the **Replays** page — choose **All** there once to "
+                    "fill in your older months.", icon=":material/timeline:")
+            return
+        counts = dict(names)
+        opts = [n for n, _ in names]
+        pref = settings().get("player")
+        player = st.selectbox("Player", opts, index=opts.index(pref) if pref in opts else 0,
+                              format_func=lambda n: f"{n or '(no name)'} ({counts[n]} plays saved)")
+        m = progress.monthly(conn, player)
+        months = list(m["month"])
+        last = m.iloc[-1]
+        prev = m.iloc[-2] if len(m) > 1 else None
+        c = st.columns(5)
+        c[0].metric("Comfort ★", fmt(last["comfort_stars"], ".2f"), _delta(last, prev, "comfort_stars", "+.2f"),
+                    help="75% of your clean, finished plays (≤ 2 misses per 100 notes) are at or below this.")
+        c[1].metric("Hardest clean pass ★", fmt(last["max_stars_passed"], ".2f"),
+                    _delta(last, prev, "max_stars_passed", "+.2f"),
+                    help="Hardest map finished with at most 5 misses per 100 notes.")
+        c[2].metric("Plays", int(last["plays"]), _delta(last, prev, "plays", "+.0f"))
+        c[3].metric("New maps", int(last["new_maps"]), _delta(last, prev, "new_maps", "+.0f"),
+                    help="Maps played for the first time that month.")
+        c[4].metric("Accuracy", pct(last["accuracy"], 2), _delta(last, prev, "accuracy", "+.2f", 100))
+        st.caption(f"{last['month']}" + (f" compared with {prev['month']}." if prev is not None else ".")
+                   + (" Few plays that month — the numbers are rough." if last["few_plays"] else ""))
+        x = m["month"]
+        symbols = ["circle-open" if f else "circle" for f in m["few_plays"]]
+        fig = go.Figure()
+        for col, name, color, width in (("comfort_stars", "comfort", ACCENT, 3), ("avg_stars", "average played", MUTED, 1.5),
+                                        ("max_stars_passed", "hardest clean pass", INFO, 1.5),
+                                        ("max_stars_fc", "hardest full combo", GOOD, 1.5)):
+            fig.add_trace(go.Scatter(x=x, y=m[col], name=name, mode="lines+markers", connectgaps=True,
+                                     line=dict(color=color, width=width), marker=dict(symbol=symbols, size=8)))
+        fig.update_xaxes(type="category")
+        fig.update_yaxes(title="★")
+        st.plotly_chart(style(fig, 380, "Star rating by month", legend=True), config={"displayModeBar": False})
+        skill_cols = [k for k in SKILL_LABELS if m[f"skill_{k}"].notna().sum() >= 1]
+        if skill_cols:
+            chosen = st.pills("Skills", skill_cols, selection_mode="multi", default=skill_cols,
+                              format_func=lambda k: SKILL_LABELS[k].split(" (")[0], key="progress_skills")
+            fig = go.Figure()
+            for i, k in enumerate(chosen or []):
+                fig.add_trace(go.Scatter(x=x, y=m[f"skill_{k}"], name=SKILL_LABELS[k].split(" (")[0],
+                                         mode="lines+markers", connectgaps=True, marker=dict(symbol=symbols, size=8),
+                                         line=dict(color=SKILL_COLORS[i % len(SKILL_COLORS)], width=2)))
+            fig.add_hline(y=50, line=dict(color=MUTED, dash="dot"))
+            fig.update_xaxes(type="category")
+            fig.update_yaxes(range=[0, 100], title="score")
+            st.plotly_chart(style(fig, 400, "Skills by month", legend=True), config={"displayModeBar": False})
+            st.caption("50 = your all-time average at the same difficulty; higher = fewer misses than usual that "
+                       "month. Hollow points: fewer than 5 plays that month.")
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=x, y=m["plays"], name="plays", marker_color=ACCENT))
+        fig.add_trace(go.Bar(x=x, y=m["new_maps"], name="new maps", marker_color=INFO))
+        fig.add_trace(go.Scatter(x=x, y=m["minutes"], name="minutes played", yaxis="y2", mode="lines+markers",
+                                 line=dict(color=GOOD)))
+        fig.update_xaxes(type="category")
+        fig.update_layout(barmode="group", yaxis2=dict(overlaying="y", side="right", showgrid=False, title="minutes",
+                                                       rangemode="tozero", tickformat=".0f"))
+        fig.update_yaxes(rangemode="tozero")
+        st.plotly_chart(style(fig, 340, "What you played", legend=True), config={"displayModeBar": False})
+        month = st.selectbox("Maps played in", list(reversed(months)), key="progress_month")
+        plays = progress.month_plays(conn, player, month)
+    finally:
+        conn.close()
+    if plays.empty:
+        return
+    local = pd.to_datetime(plays["played_at"], utc=True).dt.tz_convert(dt.datetime.now().astimezone().tzinfo)
+    result = np.where(plays["fc"], "full combo", np.where(plays["completed"], "passed", "failed"))
+    st.dataframe(pd.DataFrame({
+        "Played": local.dt.strftime("%Y-%m-%d %H:%M"),
+        "Map": plays["artist"].fillna("") + " – " + plays["title"].fillna("") + " [" + plays["version"].fillna("") + "]",
+        "★": plays["stars"], "Mods": plays["mods"].fillna("").replace("", "NM"), "Accuracy": plays["accuracy"] * 100,
+        "Misses": plays["nmiss"], "Combo": [f"{c:.0f}/{mc:.0f}" if not isnan(mc) else f"{c:.0f}"
+                                            for c, mc in zip(plays["max_combo"], plays["map_max_combo"])],
+        "Result": result,
+    }), hide_index=True, column_config={"★": st.column_config.NumberColumn(format="%.2f"),
+                                        "Accuracy": st.column_config.NumberColumn(format="%.2f%%")})
+
+
 # ------------------------------------------------------------------ Aim
 def page_aim():
     p = need_profile()
@@ -431,22 +536,7 @@ def page_aim():
         st.plotly_chart(style(fig, 300, "Where on the playfield you miss"), config={"displayModeBar": False})
     left, right = st.columns(2, gap="large")
     with left:
-        H = P[(P["head_hit"] | (P["miss_reason"] == "aim")) & (P["dist_norm"] >= 1)].dropna(subset=["along", "cross"])
-        H = H[(H["along"].abs() < 3) & (H["cross"].abs() < 3)]
-        if len(H) > 30:
-            fig = go.Figure(go.Histogram2dContour(x=H["along"], y=H["cross"], ncontours=14, showscale=False,
-                                                  colorscale=[[0, "rgba(0,0,0,0)"], [0.2, "#3b2433"], [1, ACCENT]],
-                                                  contours=dict(coloring="heatmap", showlines=False)))
-            fig.add_shape(type="circle", x0=-1, y0=-1, x1=1, y1=1, line=dict(color="#e8e8f0", width=1.5))
-            fig.add_trace(go.Scatter(x=[H["along"].mean()], y=[H["cross"].mean()], mode="markers",
-                                     marker=dict(color="#ffffff", size=9, symbol="x"), hoverinfo="skip"))
-            fig.add_annotation(x=1.9, y=-2.2, text="movement →", showarrow=False, font=dict(color=MUTED))
-            fig.update_xaxes(range=[-2.4, 2.4], zeroline=False, title="overshoot → (circle radii)", constrain="domain")
-            fig.update_yaxes(range=[2.4, -2.4], zeroline=False, scaleanchor="x", scaleratio=1, constrain="domain")
-            st.plotly_chart(style(fig, 340, "Where your clicks land (jumps, rotated so you move right)"),
-                            config={"displayModeBar": False})
-            st.caption("The white circle is the hit circle; × is your average click. A cloud shifted right means "
-                       "overaim, left means underaim.")
+        click_chart(p)
     with right:
         d = p.directions
         r = [0 if isnan(d.loc[k, "miss_rate"]) else d.loc[k, "miss_rate"] * 100 for k in DIR_ANGLE]
@@ -491,6 +581,61 @@ def page_aim():
         if len(ang):
             st.dataframe(pd.DataFrame({"Angle between jumps": ang["abin"].astype(str), "Notes": ang["objects"],
                                        "Miss rate": (ang["miss_rate"] * 100).round(1)}), hide_index=True)
+
+
+CLICK_VIEWS = {"screen": "On screen", "movement": "Along the jump"}
+MISS_COLOR = "#ffb020"
+CLICKS_DRAWN = 4000
+
+
+def click_chart(p):
+    """Every click as a dot (a sample of the hits + all aim misses), on screen or rotated along the jump."""
+    view = st.segmented_control("View", list(CLICK_VIEWS), format_func=CLICK_VIEWS.get, default="screen",
+                                key="click_view", label_visibility="collapsed") or "screen"
+    C = click_points(p.objects, view)
+    if len(C) < 30:
+        st.caption("Not enough clicks yet.")
+        return
+    s = click_summary(C)
+    # one random sample of all clicks, so the share of aim misses in the picture is the real one
+    drawn = C.sample(CLICKS_DRAWN, random_state=0) if len(C) > CLICKS_DRAWN else C
+    drawn = drawn[(drawn["x"].abs() < 2.4) & (drawn["y"].abs() < 2.4)]
+    hits, misses = drawn[drawn["hit"]], drawn[~drawn["hit"]]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=hits["x"], y=hits["y"], mode="markers", name="hit", hoverinfo="skip",
+                             marker=dict(size=3, color=ACCENT, opacity=0.35)))
+    fig.add_trace(go.Scatter(x=misses["x"], y=misses["y"], mode="markers", name="aim miss", hoverinfo="skip",
+                             marker=dict(size=5, color=MISS_COLOR, opacity=0.9)))
+    fig.add_shape(type="circle", x0=-1, y0=-1, x1=1, y1=1, line=dict(color=MUTED, width=2))
+    fig.add_shape(type="circle", x0=-0.5, y0=-0.5, x1=0.5, y1=0.5, line=dict(color=MUTED, width=1, dash="dot"))
+    mx, my = s["mean_r"]
+    fig.add_trace(go.Scatter(x=[mx], y=[my], mode="markers", name="average", hoverinfo="skip",
+                             marker=dict(color="#ffffff", size=12, symbol="x", line=dict(color="#24242e", width=1.5))))
+    fig.update_xaxes(range=[-2.4, 2.4], zeroline=False, constrain="domain",
+                     title="circle radii" + (" · overshoot →" if view == "movement" else ""))
+    fig.update_yaxes(range=[2.4, -2.4], zeroline=False, scaleanchor="x", scaleratio=1, constrain="domain")
+    title = ("Where your clicks land — on screen" if view == "screen"
+             else "Where your clicks land — jumps, turned so you move right")
+    fig = style(fig, 430, title, legend=True)
+    fig.update_layout(legend=dict(y=-0.2))       # below the axis title
+    st.plotly_chart(fig, config={"displayModeBar": False})
+    bands = " · ".join(f"{share * 100:.0f}% {label}" if label != "outside"
+                       else f"{share * 100:.1f}% outside (aim misses)" for label, share in s["bands"].items())
+    if view == "screen":
+        (ox, oy), r = s["mean_px"], s["radius"]
+        where = f"{abs(ox):.1f} px {'left' if ox < 0 else 'right'} and {abs(oy):.1f} px {'above' if oy < 0 else 'below'}"
+        st.caption(f"Each dot is one click — {min(s['n'], CLICKS_DRAWN):,} picked at random from {s['n']:,}, so "
+                   f"the share of yellow dots is the real one. Average of all clicks: {where} the "
+                   f"centre (± {s['ci_px']:.1f} px), {math.hypot(ox, oy) / r:.0%} of the circle radius ({r:.0f} px). "
+                   f"Spread: {s['sd_px'][0]:.0f} px sideways, {s['sd_px'][1]:.0f} px up/down. Clicks by distance "
+                   f"from the centre (radii): {bands}. A hit is always inside the circle, so only aim misses land "
+                   "outside it.")
+    else:
+        st.caption(f"Jumps only ({s['n']:,} clicks, {min(s['n'], CLICKS_DRAWN):,} drawn), turned so every jump "
+                   "goes right: dots right of the centre "
+                   f"overshot, left fell short. Average {s['mean_r'][0]:+.2f} radii along the jump. A constant "
+                   "offset (e.g. always a bit left) cancels out in this view — see **On screen** for that. "
+                   f"Clicks by distance (radii): {bands}.")
 
 
 # ------------------------------------------------------------------ Tapping
@@ -613,43 +758,123 @@ SETUP_FIELDS = ["device", "handedness", "client", "area_w_mm", "area_h_mm", "scr
                 "mouse_dpi", "ingame_sens", "keyboard", "actuation_mm", "rt_press_mm", "rt_release_mm"]
 
 
+KEY_DEVICES = {"standard": "Keyboard", "rapid_trigger": "Rapid-trigger keyboard (Wooting etc.)",
+               "sayo": "SayoDevice keypad"}
+SAYO_LAYOUT = [  # rows as in the SayoDevice configurator: (label, Setup field, kind)
+    [("Stroke", "sayo_stroke_mm", "mm"), ("Trigger", "sayo_trigger_mm", "mm"), ("Release", "sayo_release_mm", "mm")],
+    [("RT Mode", "sayo_rt", "toggle"), ("RT Trigger", "sayo_rt_trigger_mm", "mm"),
+     ("RT Release", "sayo_rt_release_mm", "mm")],
+    [("Full Stroke", "sayo_full_stroke", "toggle"), ("RT Upper Bound", "sayo_rt_upper_mm", "mm"),
+     ("RT Lower Bound", "sayo_rt_lower_mm", "mm")],
+]
+SAYO_HELP = {
+    "Stroke": "Full travel of your switches (4.0 mm for most magnetic switches).",
+    "Trigger": "Fixed press depth (actuation point).",
+    "Release": "Fixed reset depth — must be above (smaller than) Trigger.",
+    "RT Mode": "Rapid trigger on/off.",
+    "RT Trigger": "Inside the RT zone: press again after moving down this far.",
+    "RT Release": "Inside the RT zone: release after moving up this far.",
+    "Full Stroke": "Rapid trigger over the whole stroke (ignores the bounds).",
+    "RT Upper Bound": "Depth where rapid trigger starts working.",
+    "RT Lower Bound": "Depth where rapid trigger stops working (keep it a bit above the full stroke).",
+}
+
+
+def setup_editor(sett: dict, s: Setup):
+    """Player setup: aim device, keys (keyboard / rapid trigger / SayoDevice) and their settings."""
+    c = st.columns(2)
+    device = c[0].radio("Aim with", ["tablet", "mouse"], index=["tablet", "mouse"].index(s.device), horizontal=True,
+                        key="setup_device")
+    keys = c[1].radio("Keys", list(KEY_DEVICES), format_func=KEY_DEVICES.get, horizontal=True,
+                      index=list(KEY_DEVICES).index(s.keyboard if s.keyboard in KEY_DEVICES else "standard"),
+                      key="setup_keys")
+    with st.form("setup"):
+        c1, c2, c3 = st.columns(3)
+        hand = c1.radio("Pen / mouse hand", ["right", "left"], index=["right", "left"].index(s.handedness),
+                        horizontal=True)
+        client = c1.radio("osu! client", ["stable", "lazer"], index=["stable", "lazer"].index(s.client),
+                          horizontal=True)
+        sw = c1.number_input("Screen width (px)", 640, 7680, int(s.screen_w_px), step=1)
+        sh = c1.number_input("Screen height (px)", 480, 4320, int(s.screen_h_px), step=1)
+        upd = {}
+        if device == "tablet":
+            upd["area_w_mm"] = c2.number_input("Tablet area width (mm)", 0.0, 500.0, float(s.area_w_mm or 0.0),
+                                               step=1.0, help="0 = unknown") or None
+            upd["area_h_mm"] = c2.number_input("Tablet area height (mm)", 0.0, 500.0, float(s.area_h_mm or 0.0),
+                                               step=1.0) or None
+            upd["area_x_mm"] = c3.number_input(
+                "Area X (mm)", 0.0, 500.0, s.area_x_mm, step=0.1, format="%.2f", placeholder="unknown",
+                help="Where the area sits on the tablet: OpenTabletDriver → Output → X (the centre of the area).")
+            upd["area_y_mm"] = c3.number_input("Area Y (mm)", 0.0, 500.0, s.area_y_mm, step=0.1, format="%.2f",
+                                               placeholder="unknown", help="OpenTabletDriver → Output → Y.")
+        else:
+            upd["mouse_dpi"] = c2.number_input("Mouse DPI", 0, 50000, int(s.mouse_dpi or 0), step=50,
+                                               help="0 = unknown") or None
+            upd["ingame_sens"] = c2.number_input("osu! sensitivity", 0.0, 10.0, float(s.ingame_sens or 1.0),
+                                                 step=0.05)
+        if keys == "rapid_trigger":
+            upd["actuation_mm"] = c3.number_input("Actuation point (mm)", 0.0, 4.0, float(s.actuation_mm or 0.0),
+                                                  step=0.05) or None
+            rt = c3.number_input("Rapid-trigger sensitivity (mm)", 0.0, 2.0, float(s.rt_release_mm or 0.0),
+                                 step=0.05) or None
+            upd.update(rt_press_mm=rt, rt_release_mm=rt)
+        elif keys == "sayo":
+            st.markdown("**SayoDevice** — the values from its configurator (sayodevice.com → Key stroke); leave "
+                        "empty what you don't know")
+            for row in SAYO_LAYOUT:
+                cols = st.columns(3)
+                for col, (label, field, kind) in zip(cols, row):
+                    cur = getattr(s, field)
+                    if kind == "toggle":
+                        default = True if cur is None and field == "sayo_rt" else bool(cur)
+                        upd[field] = col.toggle(label, value=default, help=SAYO_HELP[label])
+                    else:
+                        upd[field] = col.number_input(f"{label} (mm)", 0.0, 6.0, cur, step=0.05, format="%.3f",
+                                                      placeholder="unknown", help=SAYO_HELP[label])
+        if st.form_submit_button("Save setup", type="primary"):
+            sett.update(device=device, keyboard=keys, handedness=hand, client=client, screen_w_px=int(sw),
+                        screen_h_px=int(sh), setup_saved=True, **upd)
+            save_settings(sett)
+            st.rerun()
+
+
+def tablet_area_box(a: dict):
+    def mm(v):
+        return "–" if v is None else f"{v:g}"
+    rows = [("Width", "w"), ("Height", "h"), ("X (centre)", "x"), ("Y (centre)", "y")]
+    with st.container(border=True):
+        st.markdown("**Tablet area to try** — OpenTabletDriver values; X / Y = the centre of the area")
+        st.dataframe(pd.DataFrame({"": [r[0] for r in rows], "Now (mm)": [mm(a["now"][k]) for _, k in rows],
+                                   "Try (mm)": [mm(a[k]) for _, k in rows]}), hide_index=True)
+        why = "; ".join(a["why"])
+        st.caption(why[0].upper() + why[1:] + "." + ("" if a["now"]["x"] is not None and a["now"]["y"] is not None
+                                                     else " Enter X / Y in your setup to get the position too."))
+
+
+def sayo_table(r: dict):
+    def show(v):
+        return ("on" if v else "off") if isinstance(v, bool) else f"{v:.2f} mm"
+    names = list(r["now"])
+    table = pd.DataFrame({"Setting": names, "Now": [show(r["now"][k]) for k in names],
+                          "Try": [show(r["new"][k]) for k in names]})
+    changed = [r["new"][k] != r["now"][k] for k in names]
+    if any(changed):
+        table["Change"] = ["←" if c else "" for c in changed]
+    st.dataframe(table, hide_index=True)
+
+
 def page_tips():
     p = need_profile()
     st.title("Tips")
     sett = settings()
-    s = setup_from_settings()
-    with st.expander("Your setup — makes the tips concrete (tablet area, sensitivity, rapid trigger)",
+    with st.expander("Your setup — makes the tips concrete (tablet area, sensitivity, keyboard / SayoDevice)",
                      expanded=not sett.get("setup_saved"), icon=":material/tune:"):
-        with st.form("setup"):
-            c1, c2, c3 = st.columns(3)
-            device = c1.radio("Aim with", ["tablet", "mouse"], index=["tablet", "mouse"].index(s.device),
-                              horizontal=True)
-            hand = c1.radio("Pen / mouse hand", ["right", "left"], index=["right", "left"].index(s.handedness),
-                            horizontal=True)
-            client = c1.radio("osu! client", ["stable", "lazer"], index=["stable", "lazer"].index(s.client),
-                              horizontal=True)
-            aw = c2.number_input("Tablet area width (mm)", 0.0, 500.0, float(s.area_w_mm or 0.0), step=1.0,
-                                 help="0 = unknown")
-            ah = c2.number_input("Tablet area height (mm)", 0.0, 500.0, float(s.area_h_mm or 0.0), step=1.0)
-            sw = c2.number_input("Screen width (px)", 640, 7680, int(s.screen_w_px), step=1)
-            sh = c2.number_input("Screen height (px)", 480, 4320, int(s.screen_h_px), step=1)
-            dpi = c3.number_input("Mouse DPI", 0, 50000, int(s.mouse_dpi or 0), step=50, help="0 = unknown")
-            sens = c3.number_input("osu! sensitivity", 0.0, 10.0, float(s.ingame_sens or 1.0), step=0.05)
-            kb = c3.selectbox("Keyboard", ["standard", "rapid_trigger"],
-                              index=["standard", "rapid_trigger"].index(s.keyboard),
-                              format_func=lambda k: "Rapid trigger (Hall effect)" if k == "rapid_trigger"
-                              else "Normal keyboard / keypad")
-            act = c3.number_input("Actuation point (mm)", 0.0, 4.0, float(s.actuation_mm or 0.0), step=0.05)
-            rt = c3.number_input("Rapid-trigger sensitivity (mm)", 0.0, 2.0, float(s.rt_release_mm or 0.0),
-                                 step=0.05)
-            if st.form_submit_button("Save setup", type="primary"):
-                sett.update(device=device, handedness=hand, client=client, area_w_mm=aw or None,
-                            area_h_mm=ah or None, screen_w_px=int(sw), screen_h_px=int(sh), mouse_dpi=dpi or None,
-                            ingame_sens=sens, keyboard=kb, actuation_mm=act or None, rt_press_mm=rt or None,
-                            rt_release_mm=rt or None, setup_saved=True)
-                save_settings(sett)
-                st.rerun()
-    tips = make_tips(p, setup_from_settings())
+        setup_editor(sett, setup_from_settings())
+    s = setup_from_settings()
+    area = suggest_tablet_area(p, s)
+    if area:
+        tablet_area_box(area)
+    tips = make_tips(p, s)
     if not tips:
         st.success("No clear problems found in these replays. Keep playing and re-analyse later.")
     for t in tips:
@@ -661,9 +886,11 @@ def page_tips():
             with head[1]:
                 st.badge(label, color=color)
             st.write(t.evidence)
+            if t.category == "Keys / SayoDevice":
+                sayo_table(sayo_settings(p, s))
             for a in t.actions:
                 st.markdown(f"- {a}")
-            if t.settings:
+            if t.settings and t.category != "Keys / SayoDevice":
                 st.caption("Suggested values: " + " · ".join(f"`{k}` = {v}" for k, v in t.settings.items()
                                                                 if v is not None))
     st.subheader("Practice plan")
@@ -831,6 +1058,7 @@ with st.sidebar:
 {
     "Replays": page_replays, "Overview": page_overview, "Aim": page_aim, "Tapping": page_tapping,
     "Sliders & reading": page_sliders_reading, "Tips & setup": page_tips, "Map suggestions": page_maps,
+    "Progress": page_progress,
     "Improve a skill": page_improve,
 }[page]()
 

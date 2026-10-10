@@ -238,6 +238,17 @@ class Library:
     def _cache_path(self, key: str) -> Path:
         return self.cache / "analyses" / f"{key}-v{ANALYSIS_VERSION}.pkl"
 
+    def load_cached(self, keys) -> list[ReplayAnalysis]:
+        """Analyses of earlier runs, by replay key (those not in the cache are skipped)."""
+        out = []
+        for key in keys:
+            try:
+                with open(self._cache_path(key), "rb") as fh:
+                    out.append(pickle.load(fh))
+            except Exception:  # noqa: BLE001 - missing / stale entry
+                continue
+        return out
+
     def analyze(self, refs: list[dict], workers: int | None = None, progress=None
                 ) -> tuple[list[ReplayAnalysis], list[tuple[dict, str]]]:
         """Analyse replays (cached by replay content). Returns (analyses, errors)."""
