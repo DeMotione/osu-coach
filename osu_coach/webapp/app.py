@@ -890,13 +890,23 @@ def skill_facts(key: str, v: dict) -> list[str]:
     return facts
 
 
+def score_text(v: dict) -> str:
+    """A skill's score as shown, or why there is none."""
+    s = _num(v.get("score"))
+    if s:
+        return s
+    return "too few misses to tell" if v.get("too_few_misses") else "not enough data"
+
+
 def skill_hover(key: str, v: dict, width: int = 64) -> str:
     """Hover text of a skill bar on Overview: score, what the skill measures, how the score is worked out,
     the player's own numbers and what raises it."""
     def wrap(text: str) -> str:
         return "<br>".join(textwrap.wrap(text, width))
-    score = _num(v.get("score"))
-    lines = [f"<b>{v.get('label', SKILL_LABELS.get(key, key))}: {score if score else 'not enough data'}</b>"]
+    lines = [f"<b>{v.get('label', SKILL_LABELS.get(key, key))}: {score_text(v)}</b>"]
+    if v.get("too_few_misses"):
+        lines += [wrap("You barely miss on these notes, so there is nothing to compare: this score counts misses "
+                       "against what the difficulty predicts. That is a good sign, not a gap.")]
     help_ = SKILL_HELP.get(key)
     if help_:
         what, how, practise = help_
@@ -928,14 +938,14 @@ def page_overview():
     with left:
         section("Skills", "One bar per skill, 0–100. 50 = you miss as often as expected for how hard those notes are "
                           "(your own miss model); higher = fewer misses than expected. Green ≥ 55, red ≤ 45, grey = "
-                          "not enough data.")
+                          "not enough data, or too few misses to tell (you barely miss there).")
         rows = [(k, v["label"], v.get("score"), v.get("n", 0), v.get("observed"), v.get("expected"))
                 for k, v in p.skills.items()]
         df = pd.DataFrame(rows, columns=["key", "skill", "score", "n", "obs", "exp"])
         colors = [MUTED if isnan(s) else GOOD if s >= 55 else BAD if s <= 45 else INFO for s in df["score"]]
         hover = [skill_hover(k, p.skills[k]) for k in df["key"]]
         fig = go.Figure(go.Bar(x=df["score"].fillna(0), y=df["skill"], orientation="h", marker_color=colors,
-                               text=["not enough data" if isnan(s) else f"{s:.0f}" for s in df["score"]],
+                               text=[score_text(p.skills[k]) for k in df["key"]],
                                textposition="outside", hovertext=hover, hoverinfo="text"))
         fig.add_vline(x=50, line_dash="dot", line_color=MUTED)
         fig.update_xaxes(range=[0, 112], title="50 = as many misses as expected for the difficulty · higher is better")

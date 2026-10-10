@@ -192,3 +192,25 @@ def test_stream_profile_ignores_short_bursts():
     rows = [{"run_len": 3, "run_pos": i % 3, "stream_bpm": 300.0, "head_hit": True, "err_real": 1.0,
              "played": True, "kind": "circle", "head_result": 300, "pattern": "burst"} for i in range(300)]
     assert stream_speed_profile(pd.DataFrame(rows)).empty
+
+
+# ------------------------------------------------------------------ calibration on top players' replays
+def test_accuracy_scale_tops_out_at_99_percent_300s():
+    from osu_coach.profile import accuracy_score
+    assert accuracy_score(0.99) == pytest.approx(100) and accuracy_score(0.50) == pytest.approx(0)
+    assert accuracy_score(0.995) == 100                      # clipped
+    assert accuracy_score(0.955) == pytest.approx(92.9, abs=0.1)
+    assert accuracy_score(0.745) == pytest.approx(50)
+
+
+def test_near_perfect_play_says_too_few_misses_instead_of_no_data():
+    from osu_coach.profile import _subset_score
+    P = pd.DataFrame({"head_hit": [True] * 500 + [False], "local_eq": 5.0})
+    model = lambda e: np.full(np.shape(e), 0.001)            # noqa: E731 - expects ~0.5 misses
+    s = _subset_score(P, pd.Series(True, index=P.index), model)
+    assert s["score"] is None and s["too_few_misses"] is True
+    few = _subset_score(P.iloc[:40], pd.Series(True, index=P.index[:40]), model)   # too few notes: no data
+    assert few["score"] is None and not few.get("too_few_misses")
+    lots = P.assign(head_hit=[i % 20 != 0 for i in range(len(P))])
+    m = _subset_score(lots, pd.Series(True, index=P.index), lambda e: np.full(np.shape(e), 0.05))
+    assert m["score"] is not None and not m.get("too_few_misses")

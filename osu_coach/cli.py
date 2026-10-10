@@ -216,7 +216,8 @@ def cmd_analyze(args) -> int:
     for k, s in prof.skills.items():
         score = s.get("score")
         note = f"{_num(score, '.0f'):>3}" if score is not None else "  ?"
-        print(f"  {s['label']:<32} {_bar(score)} {note}  ({s.get('n', 0)} notes)")
+        print(f"  {s['label']:<32} {_bar(score)} {note}  ({s.get('n', 0)} notes"
+              + (", too few misses to tell)" if s.get("too_few_misses") else ")"))
     print("Strengths: " + (", ".join(prof.skills[k]["label"] for k in prof.strengths) or "–"))
     print("Work on:   " + (", ".join(prof.skills[k]["label"] for k in prof.weaknesses) or "–"))
     total = sum(prof.miss_breakdown.values())

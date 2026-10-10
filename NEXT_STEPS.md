@@ -127,6 +127,29 @@ Streamlit UI), plus:
 - **UI**: no click-and-drag zoom anywhere (`app.plot`), the sidebar collapse button always visible (CSS on
   `stSidebarCollapseButton`; not checked in a real browser this round).
 
+## Calibration round (2026-10-11, 38 reference replays)
+
+ilikegirls downloaded 38 of the 39 plays in `dev_tools/reference_replays.md` (Assailant in The Night: Merami's
+score is gone). Replacements, same maps: milosz Mou Ii kai? HDDT 97.57%; Ivaxa both Stream Practice Maps HDDT
+(97.94% / 98.08%); chocomint A Sacred Lot HDDT 99.49%; MALISZEWSKI KARMANATIONS HDHR SS. Different plays of the
+listed player: aetrna Ascension HDDTHR 96.40%, JGLF Isolation 99.93%, MALISZEWSKI AKAGE HDHR; plambob = "Plasma".
+Files in `reference_replays/` (ignored by git); `dev_tools/reference_analysis.py` gives the group numbers below.
+
+- **Pattern detection is right**: jump maps have the most jumps (216–973), AR0 maps the highest density (p90 11–22
+  vs 3–9), stream maps the most stream notes. Flow aim (`spaced_stream`: 3+ notes ≥ 0.9 diameters) also fires a
+  lot on jump maps (Sound Chimera 49%, LONG SEASON 55%) — consider a stricter spacing / snap rule.
+- **Accuracy**: single-note 300 share of all 38: 0.82–1.00, median 0.98; the old scale (100 at 95%) put almost all
+  at 100. Now `ACCURACY_TOP` = 0.99 (groups 86.6–99.0).
+- **Miss-model skills** (aim, flow aim, speed, reading) and **consistency**: 0–4 misses per group, so no score —
+  by design they're relative to the player's own miss model. They now report `too_few_misses`. Pros can't set
+  their 50; that still needs mid-level replays (next step 2).
+- **Sliders**: 37 of 38 plays have 0 breaks → 100. Nothing to move.
+- **Stamina (open)**: stream specialists 84–100 (ENTANGLE NIGHT 100, rog-limitation 100, Snow Goose 93,
+  NE PLACH' 86), tapping 63–100, flow 57–87, but **Kingling's 53-min The Unforgiving HDHR scores 0** and the
+  30-min marathons 24–27: only streams of 8+ notes load, at (BPM/200)³, so long maps of slower 1/2 notes count for
+  nothing. ilikegirls asked for map length to count; a length / sustained-tapping part needs a decision (proposed
+  to him, not built).
+
 ## Next steps, in order
 
 0. **Check the weighting and speed-aim split against how Nikita feels he plays** after a week of new replays:

@@ -66,7 +66,8 @@ SKILL_HELP = {
                 "Finish stream-heavy maps and keep tapping through long streams even when accuracy drops; "
                 "make streams longer first, then faster."),
     "accuracy": ("Hit timing on single notes (not in streams): how many of them you hit as 300s.",
-                 "Score: (300 share − 50%) ÷ 45% × 100, so 95% 300s = 100 and 50% = 0. Needs 60+ single notes.",
+                 "Score: (300 share − 50%) ÷ 49% × 100, so 99% 300s = 100 and 50% = 0 (top players' plays on "
+                 "single notes: 95–100%). Needs 60+ single notes.",
                  "Play maps you can full-combo and aim for 300s, not the combo. If your hits lean early or late "
                  "(Tapping page), fix your offset first."),
     "sliders": ("Slider control: sliders whose head you hit but then broke, by losing the follow circle or "
@@ -1085,8 +1086,22 @@ def _subset_score(P: pd.DataFrame, mask: pd.Series, model, min_n: int = 60) -> d
     obs = float(((~d["head_hit"]) * W).sum())
     exp = float(np.nansum(model(d["local_eq"].to_numpy()) * W.to_numpy()))
     score = _score_from_ratio(exp, obs) if (n >= min_n and exp >= 3) else None
-    return {"score": score, "n": int(round(n)), "observed": obs, "expected": exp,
-            "miss_rate": obs / n if n > 0 else math.nan, "ratio": obs / exp if exp > 0 else math.nan}
+    out = {"score": score, "n": int(round(n)), "observed": obs, "expected": exp,
+           "miss_rate": obs / n if n > 0 else math.nan, "ratio": obs / exp if exp > 0 else math.nan}
+    if score is None and n >= min_n and obs < FEW_MISSES and exp < FEW_MISSES:
+        # enough notes, but you (almost) never miss: the score compares misses, so there's nothing to compare
+        out["too_few_misses"] = True
+    return out
+
+
+FEW_MISSES = 3            # fewer misses than this (and expected) can't be compared: "too few misses to tell"
+FEW_MISSES_NOTES = 500    # ... for consistency, on at least this many notes
+ACCURACY_ZERO = 0.50      # accuracy score: 0 at 50% 300s on single notes ...
+ACCURACY_TOP = 0.99       # ... 100 at 99% (top players' reference plays: 95–100%, median 98%)
+
+
+def accuracy_score(r300: float) -> float:
+    return _clip((r300 - ACCURACY_ZERO) / (ACCURACY_TOP - ACCURACY_ZERO) * 100)
 
 
 STAMINA_RUN = 16          # notes: a "long" stream
@@ -1321,7 +1336,7 @@ def _skills(P, model, tapping, sliders, reading, consistency, level: float | Non
     s["stamina"] = stamina_score(P, tapping, level, presses=presses)
     r300 = tapping.get("three_hundred_rate_single", math.nan)
     n_single = float(_w(P)[P["run_len"] < 3].sum())
-    s["accuracy"] = {"score": _clip((r300 - 0.5) / 0.45 * 100) if not math.isnan(r300) and n_single >= 60 else None,
+    s["accuracy"] = {"score": accuracy_score(r300) if not math.isnan(r300) and n_single >= 60 else None,
                      "n": int(round(n_single)), "three_hundred_rate": r300, "ur": tapping.get("ur_single")}
     br = sliders.get("break_rate", math.nan)
     n_sl = sliders.get("sliders", 0)
@@ -1335,6 +1350,9 @@ def _skills(P, model, tapping, sliders, reading, consistency, level: float | Non
     s["consistency"] = {"score": _clip(50 + 30 * math.log2(TYPICAL_CHAIN_RATIO / ratio))
                         if ratio and not math.isnan(ratio) else None,
                         "n": int(round(_n(P))), "miss_after_miss_ratio": ratio}
+    misses = float(((~P["head_hit"].astype(bool)) * _w(P)).sum()) if len(P) else 0.0
+    if s["consistency"]["score"] is None and _n(P) >= FEW_MISSES_NOTES and misses < FEW_MISSES:
+        s["consistency"]["too_few_misses"] = True        # nothing to chain: no misses to follow a miss
     for k, v in s.items():
         v["label"] = SKILL_LABELS[k]
     return s

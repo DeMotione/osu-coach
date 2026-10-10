@@ -133,6 +133,16 @@ use these weights — miss causes, skill scores, stamina, UR, stream speed, the 
 sensitivity, rapid trigger) and the map suggestions. *Set my level by hand* overrides the detected level
 (remembered; CLI `--level 6.2`). The Progress page is not weighted, so months stay comparable.
 
+### Calibration on top players' replays
+
+`dev_tools/reference_analysis.py` scores 38 near-perfect plays of top players (WhiteCat, mrekk, chocomint,
+MALISZEWSKI, -GN, …; list in `dev_tools/reference_replays.md`, the .osr files go in `reference_replays/`, not in
+git) skill by skill. What it changed: **Accuracy** = (300s on single notes − 50%) ÷ 49%, so 100 = 99% 300s (was
+95%, which every top player passed: they now spread from ~87 to 99). Aim, flow aim, speed, reading and
+consistency compare your misses with what the difficulty predicts; a player who barely misses has nothing to
+compare, so those now say **too few misses to tell** instead of *not enough data*. Sliders: top players
+break none (100), so the scale's top end needed no change.
+
 ### Miss causes
 
 aim (jumps and single notes at normal speed), **speed-aim** (you tapped in time but the cursor couldn't keep
