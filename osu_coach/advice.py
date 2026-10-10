@@ -17,6 +17,8 @@ from __future__ import annotations
 import math
 from dataclasses import asdict, dataclass, field
 
+import pandas as pd
+
 from .profile import Profile, SKILL_LABELS
 
 PLAYFIELD_SCREEN_FRACTION = 0.8   # osu! playfield height = 80 % of screen height
@@ -135,7 +137,7 @@ def suggest_tablet_area(p: Profile, s: Setup) -> dict | None:
 def make_tips(p: Profile, setup: Setup | None = None) -> list[Tip]:
     setup = setup or Setup()
     tips: list[Tip] = []
-    for rule in (_miss_cause_tip, _area_scale_tips, _area_rotation_offset_tips, _quadrant_tips, _direction_tips,
+    for rule in (_miss_cause_tip, _calibration_tip, _area_scale_tips, _area_rotation_offset_tips, _quadrant_tips, _direction_tips,
                  _distance_angle_tips, _timing_tips, _stream_tips, _key_usage_tips, _keyboard_tips, _slider_tips,
                  _reading_tips, _consistency_tips):
         try:
@@ -155,6 +157,7 @@ def _miss_cause_tip(p: Profile, s: Setup):
         return []
     groups = {
         "aim": mb.get("aim", 0),
+        "speed_aim": mb.get("speed_aim", 0),
         "timing": mb.get("early", 0) + mb.get("late", 0),
         "tapping": mb.get("no_tap", 0),
         "reading": mb.get("lost", 0),
@@ -163,7 +166,10 @@ def _miss_cause_tip(p: Profile, s: Setup):
     top, n = max(groups.items(), key=lambda kv: kv[1])
     share = n / total
     text = {
-        "aim": ("Most misses are aim misses", "You clicked in time but outside the circle."),
+        "aim": ("Most misses are aim misses", "You clicked in time but outside the circle, on jumps or single "
+                                              "notes at normal speed."),
+        "speed_aim": ("Most misses are speed-aim misses", "You tapped in time, but in streams, bursts or very fast "
+                                                          "jumps the cursor couldn't keep up with the tempo."),
         "timing": ("Most misses are timing misses", "Cursor was on the note but you tapped too early/late."),
         "tapping": ("Most misses are missing taps", "Cursor was on the note but no key press arrived in time "
                                                     "(one tap for two notes, finger lag in streams)."),
@@ -174,6 +180,7 @@ def _miss_cause_tip(p: Profile, s: Setup):
     }[top]
     actions = {
         "aim": _aim_miss_actions(p),
+        "speed_aim": _speed_aim_actions(p),
         "timing": ["Play below your comfort level and aim for 300s, not just hitting notes.",
                    "Tap to the music, not to the approach circle; enable the hit-error meter."],
         "tapping": ["Practice bursts/streams at a lower BPM with strict alternation.",
@@ -183,9 +190,14 @@ def _miss_cause_tip(p: Profile, s: Setup):
         "notelock": ["These are usually caused by the miss right before them: fix the first miss and the "
                      "chain disappears.", "Don't spam-tap to 'catch up' after a mistake; re-find the rhythm."],
     }[top]
-    breakdown = ", ".join(f"{k} {v}" for k, v in sorted(groups.items(), key=lambda kv: -kv[1]) if v)
+    names = {"speed_aim": "speed-aim"}
+    breakdown = ", ".join(f"{names.get(k, k)} {v / total:.0%}" for k, v in sorted(groups.items(), key=lambda kv: -kv[1])
+                          if v >= 0.5)
+    weighted = (getattr(p, "levels", {}) or {}).get("weighted")
+    over = (f"{total:.0f} misses (weighted by how close each map is to your level)" if weighted
+            else f"{total:.0f} misses")
     return [Tip("Overview", f"{text[0]} ({share:.0%})", 3 if share >= 0.4 else 2,
-                f"{text[1]} Miss causes over {total} misses: {breakdown}.", actions)]
+                f"{text[1]} Miss causes over {over}: {breakdown}.", actions)]
 
 
 def _aim_miss_where(p: Profile) -> dict[str, int]:
@@ -193,15 +205,18 @@ def _aim_miss_where(p: Profile) -> dict[str, int]:
     O = getattr(p, "objects", None)
     if O is None or O.empty or "miss_reason" not in O or "pattern" not in O:
         return {}
-    m = O[O["played"].astype(bool) & ~O["head_hit"].astype(bool) & (O["miss_reason"] == "aim")]
+    cause = O["miss_cause"] if "miss_cause" in O else O["miss_reason"]    # "aim" without speed-aim if split
+    m = O[O["played"].astype(bool) & ~O["head_hit"].astype(bool) & (cause == "aim")]
+    w = m["w"] if "w" in m else pd.Series(1.0, index=m.index)
     flow = m["spaced_stream"].astype(bool) if "spaced_stream" in m else False
     streams = m["pattern"].isin(["burst", "stream"])
-    return {"streams": int((streams & ~flow).sum()), "flow": int((streams & flow).sum()),
-            "jumps": int(m["pattern"].isin(["jump", "spaced"]).sum()), "single notes": int((m["pattern"] == "single").sum())}
+    return {"streams": float(w[streams & ~flow].sum()), "flow": float(w[streams & flow].sum()),
+            "jumps": float(w[m["pattern"].isin(["jump", "spaced"])].sum()),
+            "single notes": float(w[m["pattern"] == "single"].sum())}
 
 
 def _aim_miss_actions(p: Profile) -> list[str]:
-    jump_advice = ["Focus practice on aim first (the 'Jump aim' playlist in Improve a skill).",
+    jump_advice = ["Focus practice on aim first (the 'Jump aim' playlist in Skill Development).",
                    "Your tablet area / sensitivity is checked from your jumps (Aim page → Aim calibration); a "
                    "separate tip appears only if it is off — otherwise it's precision, not calibration."]
     where = _aim_miss_where(p)
@@ -215,10 +230,93 @@ def _aim_miss_actions(p: Profile) -> list[str]:
         playlist = "Flow aim (spaced streams)" if where["flow"] > where["streams"] else "Tapping speed (bursts/streams)"
         return [f"Most of them are in streams and bursts ({split}): you keep tapping but the cursor falls "
                 "behind or cuts corners.",
-                f"Slow streams down (HT, or the '{playlist}' playlist in Improve a skill) until the cursor stays "
+                f"Slow streams down (HT, or the '{playlist}' playlist in Skill Development) until the cursor stays "
                 "on every note, then raise the speed step by step.",
                 "Move with the stream's shape — a steady motion through the notes, not small jumps between them."]
     return [f"Where they happen: {split}."] + jump_advice
+
+
+def _speed_aim_actions(p: Profile) -> list[str]:
+    """What to do about aim misses in streams / very fast jumps, with the split against the difficulty."""
+    acts = []
+    sp = (getattr(p, "aim", {}) or {}).get("split", {})
+    a, f = sp.get("aim"), sp.get("speed_aim")
+    if a and f and a["expected"] > 0 and f["expected"] > 0:
+        ra, rf = a["all_misses"] / a["expected"], f["all_misses"] / f["expected"]
+        verdict = (" — the fast patterns are the real gap." if rf > 1.15 * ra else
+                   " — about the same, so it's mostly that you play many fast patterns." if rf >= 0.87 * ra else
+                   " — fast patterns are relatively fine for you.")
+        acts.append(f"Against what the difficulty of the notes predicts: fast patterns {rf:.1f}× the expected "
+                    f"misses, normal-speed jumps and notes {ra:.1f}×" + verdict)
+    flow = ((getattr(p, "skills", {}) or {}).get("flow_aim") or {}).get("score")
+    acts += [("Your flow-aim score is low. " if flow is not None and flow < 45 else "")
+             + "Practise spaced streams below the tempo where they break (the 'Flow aim (spaced streams)' playlist "
+             "in Skill Development, or the same map with HT / a lower rate), then raise the speed by ~10 BPM.",
+             "Move with the stream's shape — a steady motion through the notes, not small jumps between them; "
+             "keep the arm loose so the cursor can follow the tempo."]
+    return acts
+
+
+def aim_calibration(p: Profile, s: Setup) -> dict | None:
+    """What the aim calibration (Aim page) means for the setup: ``scale`` (average), ``step`` (area /
+    sensitivity change as a fraction, 0 = keep), ``now`` / ``try`` (text, None if unknown), ``lines``."""
+    r = p.regression
+    if not r:
+        return None
+    scale = (r["scale_x"] + r["scale_y"]) / 2
+    step = _scale_step(r) or 0.0
+    word = "overaim" if scale > 1 else "underaim"
+    lines = [f"Aim calibration (Aim page), fitted on {r['n']:,} jumps: you move {_pct(r['scale_x'] - 1)} "
+             f"horizontally and {_pct(r['scale_y'] - 1)} vertically compared with the real jump "
+             f"(+ = too far), rotation {r['rotation_deg']:+.1f}°, constant offset "
+             f"{math.hypot(r['offset_x'], r['offset_y']):.1f} px."]
+    now = new = None
+    if s.device == "tablet":
+        if s.area_w_mm and s.area_h_mm:
+            now = f"{s.area_w_mm:g} × {s.area_h_mm:g} mm"
+            new = f"{s.area_w_mm * (1 + step):.1f} × {s.area_h_mm * (1 + step):.1f} mm" if step else now
+        if step:
+            lines.append(f"You {word} jumps by {abs(scale - 1):.0%} → make the tablet area {abs(step):.0%} "
+                         f"{'larger (less sensitive)' if step > 0 else 'smaller (more sensitive)'}.")
+        else:
+            lines.append("Your movement matches the jumps within ±4% → keep your tablet area size.")
+        if not (s.area_w_mm and s.area_h_mm):
+            lines.append("Enter your area width / height in Your setup to get millimetres.")
+    else:
+        sens = s.ingame_sens or 1.0
+        if s.mouse_dpi:
+            now = f"{s.mouse_dpi} DPI × {sens:g}"
+            new = (f"{int(round(s.mouse_dpi / scale / 50) * 50)} DPI × {sens:g} (or {s.mouse_dpi} DPI × "
+                   f"{sens / scale:.2f})") if step else now
+        else:
+            now = f"sensitivity {sens:g}"
+            new = f"sensitivity {sens / scale:.2f}" if step else now
+        if step:
+            lines.append(f"You {word} jumps by {abs(scale - 1):.0%} → {'lower' if scale > 1 else 'raise'} your "
+                         f"sensitivity by about {abs(scale - 1):.0%}.")
+        else:
+            lines.append("Your movement matches the jumps within ±4% → keep your sensitivity.")
+    return {"scale": scale, "step": step, "now": now, "try": new, "lines": lines, "device": s.device}
+
+
+def _calibration_tip(p: Profile, s: Setup):
+    """The aim calibration as a setup tip — shown whenever it could be measured, also when it says 'keep it'
+    (the over/underaim tips give the details when a change is due)."""
+    c = aim_calibration(p, s)
+    if not c:
+        return []
+    thing = "tablet area" if c["device"] == "tablet" else "sensitivity"
+    if c["step"]:
+        title = (f"Aim calibration: {'larger' if c['step'] > 0 else 'smaller'} tablet area"
+                 if c["device"] == "tablet" else
+                 f"Aim calibration: {'lower' if c['step'] > 0 else 'higher'} sensitivity")
+    else:
+        title = f"Aim calibration: your {thing} fits"
+    acts = c["lines"][1:]
+    if c["now"]:
+        acts.insert(0, f"Now {c['now']} → try {c['try']}.")
+    settings = {"scale": round(c["scale"], 3), "change": round(c["step"], 3)}
+    return [Tip("Setup / aim calibration", title, 2 if c["step"] else 1, c["lines"][0], acts, settings)]
 
 
 def _area_scale_tips(p: Profile, s: Setup):
@@ -486,11 +584,19 @@ def _stream_tips(p: Profile, s: Setup):
                          "Rate tools: lazer 'Rate adjust'/DT, stable DT/HT for slower/faster practice."],
                         {"stream_comfort_bpm": comfort, "stream_limit_bpm": limit}))
     slope = t.get("slope_ms_per_note")
+    fb = getattr(p, "fall_behind", None) or {}
+    onset = ""
+    if fb.get("start_note"):
+        onset = f" Your precision in long streams starts to drop after about {fb['start_note']} notes"
+        if fb.get("start_seconds") is not None:
+            onset += f" (≈ {fb['start_seconds']:.1f} s at {fb['bpm']:.0f} BPM)"
+        onset += "."
     if not _nan(slope) and t.get("n", 0) >= 60:
         if slope >= 0.6:
             tips.append(Tip("Tapping", "You fall behind in long streams", 2,
                             f"Your timing gets {slope:.1f} ms later with every note inside streams "
-                            f"(first half {t['early_half_err']:+.0f} ms → second half {t['late_half_err']:+.0f} ms).",
+                            f"(first half {t['early_half_err']:+.0f} ms → second half {t['late_half_err']:+.0f} ms)."
+                            + onset,
                             ["Speed/stamina limit: practice slightly slower streams for longer (Stamina playlist).",
                              "Relax — tension makes you slow down; breathe through long streams.",
                              "Keyboard: a lower actuation point helps (see Keyboard tips)."]))
@@ -561,8 +667,8 @@ def _tapping_signals(p: Profile) -> dict:
     misses = max(sum(p.miss_breakdown.values()), 1)
     return {"speed": t.get("comfort_bpm") or t.get("limit_bpm"), "chatter": t.get("chatter_per_1000", 0) or 0,
             "extra": t.get("extra_presses_per_100", 0) or 0, "overlap": t.get("overlap_in_streams"),
-            "slope": t.get("slope_ms_per_note"), "released": p.slider_breaks.get("released", 0), "breaks": breaks,
-            "no_tap": p.miss_breakdown.get("no_tap", 0), "no_tap_share": p.miss_breakdown.get("no_tap", 0) / misses}
+            "slope": t.get("slope_ms_per_note"), "released": round(p.slider_breaks.get("released", 0)),
+            "breaks": round(breaks), "no_tap": round(p.miss_breakdown.get("no_tap", 0)), "no_tap_share": p.miss_breakdown.get("no_tap", 0) / misses}
 
 
 def sayo_settings(p: Profile, s: Setup) -> dict:
@@ -681,9 +787,9 @@ def _keyboard_tips(p: Profile, s: Setup):
     extra = t.get("extra_presses_per_100", 0) or 0
     overlap = t.get("overlap_in_streams")
     slope = t.get("slope_ms_per_note")
-    released = p.slider_breaks.get("released", 0)
-    breaks = sum(p.slider_breaks.values())
-    no_tap = p.miss_breakdown.get("no_tap", 0)
+    released = round(p.slider_breaks.get("released", 0))
+    breaks = round(sum(p.slider_breaks.values()))
+    no_tap = round(p.miss_breakdown.get("no_tap", 0))
     misses = max(sum(p.miss_breakdown.values()), 1)
     if s.keyboard == "rapid_trigger":
         base = rt_baseline(speed)
@@ -753,7 +859,7 @@ def _slider_tips(p: Profile, s: Setup):
                          "Keep holding the first key until the end."],
         }[top]
         tips.append(Tip("Sliders", "Slider breaks cost you combo", 2 if br >= 0.08 else 1,
-                        f"{_pct(br)} of sliders broke after a good head ({', '.join(f'{k} {v}' for k, v in reasons.items())}).",
+                        f"{_pct(br)} of sliders broke after a good head ({', '.join(f'{k} {v:.0f}' for k, v in reasons.items())}).",
                         acts + ["Practice: 'Slider control' playlist (slider-heavy maps)."]))
     em = sl.get("end_miss_rate")
     if not _nan(em) and em >= 0.08:
@@ -819,7 +925,7 @@ def practice_plan(p: Profile) -> list[str]:
     lvl = f"{comfort:.1f}★" if comfort and not math.isnan(comfort) else "your comfort level"
     return [
         f"Warm-up (10 min): 2-3 maps about 1★ below {lvl}, aiming for full combos.",
-        f"Focus block (20-30 min): the '{weak[0]}' playlist from Improve a skill — repeat each map until the "
+        f"Focus block (20-30 min): the '{weak[0]}' playlist from Skill Development — repeat each map until the "
         "target in the playlist note is met.",
         f"Push (10 min): one or two maps slightly above {lvl}.",
         "Cool-down: replay a favourite map for fun.",

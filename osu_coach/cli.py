@@ -15,10 +15,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import check, lazer_import, locate, progress, sources
+from . import check, lazer_import, locate, progress, selection, sources
 from .advice import Setup, make_tips, practice_plan
 from .collection_db import merge_into, write_collection_db
-from .library import EXCLUDE_MODS, Library, load_settings, skip_reason
+from .library import EXCLUDE_MODS, Library, load_settings, save_settings, skip_reason
 from .pool import SKILLS, Targets, build_playlist, collection_name, load_pool, recommendations, skill_label, \
     targets_from_profile
 from .profile import MISS_LABELS, build_profile
@@ -58,6 +58,19 @@ def _setup_from(args) -> Setup:
 
 def _discover(args, log) -> Library:
     lib = Library(args.cache)
+    if getattr(args, "only", None):
+        files = [Path(f) for f in args.only]
+        missing = [str(f) for f in files if not f.is_file()]
+        if missing:
+            raise SystemExit("File not found: " + ", ".join(missing))
+        log(f"analysing only {len(files)} file(s)")
+        lib.add_files(files, source="file")
+        if not args.no_auto:            # their beatmaps may be in the osu! installs or the folders
+            for inst in locate.find_installs():
+                lib.add_map_source(inst)
+        for f in args.folder or []:
+            lib.add_folder(f, maps_only=True)
+        return lib
     latest = args.limit or None
     if latest:
         log(f"reading only the newest {latest} replays" + (f" of {args.player}" if args.player else ""))
@@ -77,7 +90,13 @@ def _analyse(args, log):
         raise SystemExit("No osu!standard replays found. Point --folder at a folder with .osr files "
                          "(stable: osu!/Data/r, lazer: export replays from the results screen).")
     player = args.player or players[0][0]
-    refs = lib.eligible(player, args.limit)
+    refs = lib.eligible(player)
+    since, until = _date_window(args, refs)
+    refs = selection.filter_refs(refs, since, until)[:args.limit or None]
+    if since or until:
+        log("played " + (f"from {since:%Y-%m-%d %H:%M} UTC " if since else "") + (f"until {until:%Y-%m-%d} " if until else ""))
+    if not refs and (since or until):
+        raise SystemExit(f"No replays of '{player}' in that time range.")
     if not refs:
         raise SystemExit(f"No replays for player '{player}'. Players found: "
                          + ", ".join(f"{p} ({n})" for p, n in players))
@@ -99,7 +118,45 @@ def _analyse(args, log):
         progress.update(lib.cache, analyses, lib.load_cached)
     except Exception as exc:  # noqa: BLE001 - the report matters more than the history
         log(f"could not save progress: {exc}")
-    return lib, player, analyses, errors, build_profile(analyses)
+    replay_set = _replay_set(args)
+    chosen = selection.select(analyses, replay_set)
+    if not chosen:
+        raise SystemExit("No passed plays among these replays — use --all-replays.")
+    if replay_set == "best":
+        log(f"best replays: {len(chosen)} of {len(analyses)}")
+    return lib, player, analyses, errors, build_profile(chosen, level=getattr(args, "level", None))
+
+
+def _replay_set(args) -> str:
+    """--best / --all-replays, else the choice saved by the app (remembered there and here)."""
+    if getattr(args, "replay_set", None):
+        sett = load_settings(args.cache)
+        if sett.get("replay_set") != args.replay_set:
+            sett["replay_set"] = args.replay_set
+            save_settings(sett, args.cache)
+        return args.replay_set
+    saved = load_settings(args.cache).get("replay_set")
+    return saved if saved in selection.REPLAY_SETS else "all"
+
+
+def _date_window(args, refs):
+    since_arg = getattr(args, "since", None)
+    until_arg = getattr(args, "until", None)
+    if not since_arg and not until_arg:
+        return None, None
+    import datetime as dt
+
+    def day(v):
+        try:
+            return dt.date.fromisoformat(v)
+        except ValueError:
+            raise SystemExit(f"Not a date (YYYY-MM-DD): {v}") from None
+    if since_arg in ("session", "7d", "30d"):
+        since, _ = selection.date_window(since_arg, [r.get("timestamp") for r in refs])
+    else:
+        since, _ = selection.date_window("custom", start=day(since_arg)) if since_arg else (None, None)
+    until = selection.date_window("custom", end=day(until_arg))[1] if until_arg else None
+    return since, until
 
 
 def _log(quiet):
@@ -131,6 +188,7 @@ def cmd_analyze(args) -> int:
     setup = _setup_from(args)
     tips = make_tips(prof, setup)
     ov, lv = prof.overview, prof.levels
+    replay_set = _replay_set(args)
     if args.json:
         out = {"player": player, "overview": ov, "levels": {k: v for k, v in lv.items() if k != "model_coef"},
                "skills": prof.skills, "strengths": prof.strengths, "weaknesses": prof.weaknesses,
@@ -139,9 +197,17 @@ def cmd_analyze(args) -> int:
                "tips": [t.to_dict() for t in tips], "practice_plan": practice_plan(prof)}
         Path(args.json).write_text(json.dumps(out, indent=2, default=str), encoding="utf-8")
         print(f"wrote {args.json}")
-    print(f"\nosu-coach report — {player}: {ov['replays']} {'newest ' if args.limit else ''}replays on "
+    which = "best " if replay_set == "best" else ""
+    print(f"\nosu-coach report — {player}: {ov['replays']} {which}{'newest ' if args.limit else ''}replays on "
           f"{ov['maps']} maps, "
           f"{_num(ov['play_minutes'], '.0f')} min of play")
+    if replay_set == "best":
+        print(f"  ({selection.BEST_DEFINITION})")
+    lvl = lv.get("level_stars")
+    how = ("set with --level" if lv.get("level_override") else
+           f"detected from your {lv.get('level_recent_n', 0)} most recent replays")
+    print(f"Level {_num(lvl, '.2f')}★ ({how}): replays within ±{lv.get('level_band', 0.5):g}★ count fully, the "
+          f"further away the less (weighted replays: {ov.get('weighted_replays', 0):.1f} of {ov['replays']})")
     print(f"Comfort level ≈ {_num(lv.get('comfort_stars'), '.1f')}★ | UR {_num(ov['ur'], '.0f')} | "
           f"{_num(ov['misses_per_100'], '.1f')} misses per 100 notes | accuracy {_num(ov['accuracy'] * 100, '.1f')}%")
     print(f"Judgement check: re-simulated results match the replay exactly on {ov['sim_exact_share']:.0%} of "
@@ -155,9 +221,20 @@ def cmd_analyze(args) -> int:
     print("Work on:   " + (", ".join(prof.skills[k]["label"] for k in prof.weaknesses) or "–"))
     total = sum(prof.miss_breakdown.values())
     if total:
-        print(f"\nWhy you miss ({total} misses)")
+        raw = prof.miss_breakdown_raw
+        print(f"\nWhy you miss ({sum(raw.values())} misses; shares weighted by difficulty)")
         for reason, n in sorted(prof.miss_breakdown.items(), key=lambda kv: -kv[1]):
-            print(f"  {n:>5}  {n / total:4.0%}  {MISS_LABELS.get(reason, reason)}")
+            print(f"  {raw.get(reason, 0):>5}  {n / total:4.0%}  {MISS_LABELS.get(reason, reason)}")
+    fb = prof.fall_behind or {}
+    if fb.get("start_note"):
+        secs = f" (≈ {fb['start_seconds']:.1f} s at {fb['bpm']:.0f} BPM)" if fb.get("start_seconds") is not None else ""
+        print(f"Long streams: your precision starts to drop after about {fb['start_note']} notes{secs}: "
+              f"{fb['base_ms']:.0f} ms off on average before, +{fb['growth_ms']:.0f} ms by the end. Comfortable "
+              f"stream length ≈ {fb['comfort_notes']} notes; practise {fb['practice_notes'][0]}–"
+              f"{fb['practice_notes'][1]}.")
+    elif fb.get("comfort_notes"):
+        print(f"Long streams: your precision holds up to {fb['comfort_notes']} notes (the longest measured); "
+              f"practise {fb['practice_notes'][0]}–{fb['practice_notes'][1]} notes.")
     print("\nTips (most important first)")
     for t in tips[: args.tips]:
         print(f"\n [{SEVERITY.get(t.severity, '')}] {t.category}: {t.title}")
@@ -170,7 +247,7 @@ def cmd_analyze(args) -> int:
     pool = load_pool()
     if not pool.empty:
         t = targets_from_profile(prof)
-        print("\nSuggested maps")
+        print("\nMap Suggestion")
         for sk, df in recommendations(pool, prof, per_skill=3):
             print(f"  {skill_label(sk, t)}:")
             for _, r in df.iterrows():
@@ -179,7 +256,7 @@ def cmd_analyze(args) -> int:
     if errors:
         reasons = Counter(err.removeprefix("skipped: ") for _, err in errors)
         print(f"\n{len(errors)} replay(s) skipped: " + "; ".join(f"{n}× {r}" for r, n in reasons.most_common(4)))
-    refs = lib.eligible(player, args.limit) if args.limit else []
+    refs = lib.eligible(player, args.limit) if args.limit and not getattr(args, "only", None) else []
     left = lib.left_out(player, since=refs[-1]["timestamp"] if refs else None)
     if left:
         print(("" if errors else "\n") + f"{sum(left.values())} replay(s) left out: "
@@ -344,10 +421,14 @@ def cmd_check(args) -> int:
     if not analyses:
         raise SystemExit(f"Can't check {Path(ref['path']).name}: {errors[0][1] if errors else 'unknown error'}")
     a = analyses[0]
+    same = [r for r in lib.replays if r.get("beatmap_md5") == ref.get("beatmap_md5") and r.get("mode") == 0
+            and not (r.get("mods", 0) & EXCLUDE_MODS) and not skip_reason(r)
+            and (r.get("player") or "") == (ref.get("player") or "") and str(r["path"]) != str(ref["path"])]
+    others, _ = lib.analyze(same[:50]) if same else ([], [])
     conn = progress.connect(lib.cache)
     try:
-        cmp = check.compare(conn, a)
-        progress.record(conn, [a])
+        cmp = check.compare(conn, a, others)
+        progress.record(conn, [a] + list(others))
     finally:
         conn.close()
     _print_check(a, cmp)
@@ -360,11 +441,11 @@ def _print_check(a, cmp: dict) -> None:
     m = a.meta
     length = s["length_s"] or 0
     rate = s["rate"] or 1.0
-    mods = (s["mods"] or "NM") + (f" ×{rate:g}" if abs(rate - 1) > 1e-3 and abs(rate - 1.5) > 1e-3
-                                    and abs(rate - 0.75) > 1e-3 else "")
-    print(f"\nReplay check — {s['player'] or '(no name)'}, {check.local_time(s['date'])} (osu!{s['client']})")
+    mods = check.mods_label(s["mods"], rate)
+    print(f"\nDetailed map analysis — {s['player'] or '(no name)'}, {check.local_time(s['date'])} (osu!{s['client']})")
     print(f"{s['map']} · {mods} · {s['stars'] or 0:.2f}★ · {s['bpm'] or 0:.0f} BPM · "
-          f"{int(length // 60)}:{int(length % 60):02d}")
+          f"{int(length // 60)}:{int(length % 60):02d} · {check.settings_label(m) or 'normal speed'}"
+          + (f" · UR {s['ur']:.0f}" if not check._nan(s["ur"]) else ""))
     combo = f"{s['combo']}/{s['map_combo']:.0f}x" if not check._nan(s["map_combo"]) else f"{s['combo']}x"
     n300, n100, n50, nmiss = s["counts"]
     print(f"{s['accuracy']:.2%} · {combo} · 300/100/50/miss {n300}/{n100}/{n50}/{nmiss}"
@@ -386,33 +467,26 @@ def _print_check(a, cmp: dict) -> None:
               f"{r['detail']}{' · ' + pat if pat else ''}")
     if len(ev) > EVENTS_SHOWN:
         print(f"  … and {len(ev) - EVENTS_SHOWN} more")
-    secs = [x for x in check.sections(ev) if x["count"] >= 2]
+    secs = check.practice_sections(a, ev)
     if secs:
-        print("\nWhere they cluster")
+        print("\nWhere they cluster — parts to practise (cut them out in the editor)")
         for x in secs[:5]:
             pat = check.PATTERN_WORDS.get(x["pattern"], x["pattern"] or "")
             bpm = f" {x['bpm']:.0f} BPM" if x["bpm"] and x["pattern"] in ("stream", "burst") else ""
             reasons = ", ".join(f"{n} {check.REASON_WORDS.get(k, k)}" for k, n in
                                 sorted(x["reasons"].items(), key=lambda kv: -kv[1]))
-            print(f"  {check.timestamp(x['start'])}–{check.timestamp(x['end'])}  {x['count']}: {reasons}"
-                  + (f" · {pat}{bpm}" if pat else ""))
-    print("\nCompared with your other plays")
+            print(f"  {check.timestamp(x['start'])}–{check.timestamp(x['end'])}  {x['seconds']:.1f} s, "
+                  f"{x['notes']} notes · {x['count']}: {reasons}" + (f" · {pat}{bpm}" if pat else ""))
+    print("\nYour plays of this map")
+    settings = cmp.get("settings") or "normal speed"
     if cmp["map_plays"]:
-        best = "this is your best play on it" if cmp["map_best"] else "not your best on it"
-        print(f"  This map: {cmp['map_plays']} earlier play(s), best {cmp['map_best_misses']} misses "
+        best = "this is your best with these settings" if cmp["map_best"] else "not your best with these settings"
+        print(f"  Same settings ({settings}): {cmp['map_plays']} other play(s), best {cmp['map_best_misses']} misses "
               f"({cmp['map_best_accuracy']:.2%}) — {best}.")
     else:
-        print("  This map: first play in your saved history.")
-    if cmp["similar_n"] >= 5:
-        lo, hi = cmp["similar_range"]
-        print(f"  At {lo:.1f}–{hi:.1f}★ ({cmp['similar_n']} plays): {cmp['misses_per_100']:.2f} misses per 100 notes vs "
-              f"usually {cmp['misses_median']:.2f} (fewer than in {cmp['misses_better_than']:.0%} of them); accuracy "
-              f"{s['accuracy']:.2%} vs {cmp['accuracy_median']:.2%}"
-              + (f"; UR {s['ur']:.0f} vs {cmp['ur_median']:.0f}" if not check._nan(s["ur"])
-                 and not check._nan(cmp.get("ur_median")) else "") + ".")
-    else:
-        print(f"  {'Only ' + str(cmp['similar_n']) if cmp['similar_n'] else 'No'} saved play(s) at a similar star "
-              "rating yet — run `osu-coach analyze` to compare with more.")
+        print(f"  First play with these settings ({settings}).")
+    if cmp.get("other_settings"):
+        print(f"  {cmp['other_settings']} play(s) with other settings (speed, AR/OD/CS/HP, HD/FL) aren't compared.")
 
 
 def cmd_ui(args) -> int:
@@ -421,10 +495,10 @@ def cmd_ui(args) -> int:
     # (also avoids the Windows firewall prompt on first start)
     cmd = [sys.executable, "-m", "streamlit", "run", str(app), "--server.port", str(args.port),
            "--server.address", "localhost",
-           "--browser.gatherUsageStats", "false", "--client.toolbarMode", "viewer", "--theme.base", "dark",
-           "--theme.primaryColor", "#ff66aa",
-           "--theme.backgroundColor", "#16161d", "--theme.secondaryBackgroundColor", "#22222c",
-           "--theme.textColor", "#e8e8f0"]
+           "--browser.gatherUsageStats", "false", "--client.toolbarMode", "viewer",
+           "--theme.light.primaryColor", "#e0408a", "--theme.dark.primaryColor", "#ff66aa"]
+    # only the accent colour, separately for light and dark: a fixed base / background / text colour turns
+    # Streamlit's theme into one custom theme, and its Settings → light / dark switch stops working.
     if args.no_browser:
         cmd += ["--server.headless", "true"]
     return subprocess.call(cmd)
@@ -440,6 +514,19 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--player", help="player name (default: the one with most replays)")
         p.add_argument("--limit", "--latest", type=int, metavar="N",
                        help="only your newest N replays (e.g. 100, 500, 1000): only those are read and analysed")
+        p.add_argument("--since", metavar="WHEN",
+                       help="only replays played since: session (your last session), 7d, 30d or a date YYYY-MM-DD")
+        p.add_argument("--until", metavar="DATE", help="only replays played up to this date (YYYY-MM-DD, included)")
+        sel = p.add_mutually_exclusive_group()
+        sel.add_argument("--best", dest="replay_set", action="store_const", const="best",
+                         help="Best replays: only passed plays, and for every beatmap + speed mod (NM, DT, HT, rate) "
+                              "only the best one (highest score, then accuracy). Remembered, like the app's switch")
+        sel.add_argument("--all-replays", dest="replay_set", action="store_const", const="all",
+                         help="All replays (default; remembered)")
+        p.add_argument("--level", type=float, metavar="STARS",
+                       help="your level for the difficulty weighting (default: detected from your recent replays)")
+        p.add_argument("--only", action="append", metavar="REPLAY.osr",
+                       help="analyse only these replay files (repeatable), not your library")
         p.add_argument("--offline", action="store_true", help="don't download missing beatmaps")
         p.add_argument("--workers", type=int, help="parallel analysis processes")
         p.add_argument("--cache", help="cache folder (default: per-user cache dir)")
@@ -460,7 +547,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dpi", type=int, help="mouse DPI")
     p.add_argument("--rapid-trigger", action="store_true", help="you use a rapid-trigger keyboard")
     p.set_defaults(func=cmd_analyze)
-    p = sub.add_parser("playlist", help="practice playlist for one skill")
+    p = sub.add_parser("playlist", help="Skill Development: practice playlist for one skill")
     p.add_argument("skill", choices=SKILLS + ["quadrant", "general"])
     discovery(p)
     p.add_argument("--comfort", type=float, help="your comfortable star rating (skips replay analysis)")

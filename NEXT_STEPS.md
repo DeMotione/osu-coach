@@ -1,4 +1,4 @@
-# osu-coach: where we stopped (2026-10-10)
+# osu-coach: where we stopped (2026-10-10, after the review)
 
 ## Current state
 
@@ -64,15 +64,74 @@ Streamlit UI), plus:
   head missed while the slider still scored is a "combo break"; slider breaks from the simulation. Found
   with it: Nikita's newest play (Harumachi Clover [Easy], 2026-10-10 12:42) has every click ~24 px right of
   the notes (other plays: under 1 px on average) — was the tablet area moved?
-- **Tests**: 200 pass (`.venv\Scripts\python -m pytest`). They never read the osu! installs of the computer
+- **Tests**: 231 pass (after review round 2) (`.venv\Scripts\python -m pytest`). They never read the osu! installs of the computer
   they run on (`OSU_COACH_NO_AUTODETECT=1` from `tests/conftest.py`).
 - **Windows**: `run.bat` checked on this PC from a clean copy (first run creates `.venv` with a real
   `python.exe`; the `py`/`python` app aliases can hang on this PC). The UI listens on localhost only. All
   pages were checked in Chrome with `dev_tools/dogfood.py` (no exceptions, no console errors).
 
+## Review round (2026-10-10, owner-approved list)
+
+- **Difficulty weighting** (`profile.replay_weight`, `detect_level`): level = comfort ★ of the replays of the last
+  30 days before the newest one (≥ 15 newest); weight 1 within ±0.5★, Gaussian σ 0.5★ outside (1★ off 0.61,
+  2★ 0.01, 3★ ≈ 0). Every statistic in `build_profile` is weighted (column `w` on objects / presses): miss
+  causes, skills (weighted miss model too), stamina, UR, stream speed, aim regression (WLS), tapping signals
+  for the setup tips, quadrant / direction / distance tables; map suggestions use the level. Overview shows
+  the level, the band and *Set my level by hand* (setting `level_override`, CLI `--level`). Progress stays
+  unweighted (`build_profile(..., weighted=False)`) so months compare.
+- **Speed-aim miss cause** (`profile.miss_causes`): aim misses in bursts/streams (3+ notes, any spacing) and
+  on jumps ≤ 125 ms apart. `aim.split` compares aim vs speed-aim with the misses the difficulty predicts.
+  Stream speed is judged on finger misses only (`tap_miss_rate`); stamina only on long streams up to the
+  clean stream speed + 10 BPM (`stamina_score`).
+- **Fall-behind analysis** (`profile.stream_fall_behind`): hinge fit of timing vs note number → where the
+  delay starts (notes, seconds at the typical BPM). Nikita: no clear onset — he rushes late in streams.
+- **Selection** (`selection.py`): date windows (last session = < 1 h between plays, 7 / 30 days, custom),
+  *Only these files* mode, *All / Best replays* (passed plays, best per beatmap + speed by score then
+  accuracy; setting `replay_set`, CLI `--best` / `--all-replays`, both remembered).
+- **UI**: renamed pages (Sliders & Reading, Tips & Setup, Map Suggestion, Skill Development), a subtext under
+  every title, no header link icons, Difficulty / Detail description columns, bulk download on Map Suggestion,
+  aim calibration box + tip on Tips & Setup. **Light/dark**: `osu-coach ui` passed `--theme.base dark` + fixed
+  colours, which removes System/Light/Dark from Streamlit's menu (checked); now only the accent is set per
+  theme and charts have no fixed plotly template.
+- Nikita, all 123 replays: level 6.08★; misses aim 38% / speed-aim 27% / lost 21% / no tap 11% (was aim 66%);
+  stream comfort 230 BPM (was 210: DT/spaced-stream aim misses counted as tapping); stamina 32 (on 3,696 notes
+  of reachable streams instead of 5,899). Last 7 days: stream comfort 210 (180 before) — that week has no
+  faster streams to measure, so his 240–250 can't be confirmed from the data yet.
+- `dev_tools/profile_numbers.py` prints these numbers (all / best, all time / 7 days) for before/after checks.
+
 **Nikita plays osu!lazer** (Mot1one). The project is at `C:\Users\Motion\osu-coach`.
 
+## Review round 2 (2026-10-10, ilikegirls' review v2)
+
+- **Tapping**: *Hit timing* bars stacked by 300 / 100 / 50 (+ log-scale toggle). *Stream speed* UR is now the
+  median of per-play URs per 10 BPM (`profile._play_urs`; `ur_pooled` keeps the old pooled number, which mixed
+  the offsets of different plays: two 100 UR plays 20 ms apart pool to ~141), `ur_best` = best play, a rising
+  weighted trend line refitted without outliers (`ur_trend`), bins ≥ 15% and ≥ 15 UR above it = `weak`.
+- **Stamina in long streams** (`stream_fall_behind`, rewritten): mean ABSOLUTE error by note number in streams of
+  16+ notes up to clean speed + 10 BPM, one chart line per length group (16–31 / 32–63 / 64+, 4-note bins),
+  hinge fit → `start_note` (needs ≥ 0.1 ms/note, ≥ 3 ms and ≥ 20% growth), `comfort_notes`, `practice_notes`;
+  map suggestions by longest stream (`pool.stream_length_maps`).
+- **Stamina skill v3** (`stamina_score`, `stream_loads`, `stream_rhythm`, on Xo's request): load = notes ×
+  (BPM/200)³ × quality; quality = kept part (≥ 90% pressed = 1, ≤ 60% = 0, linear) × steady (key presses of
+  16+ streams, 2-tap gaps, 2nd vs 1st half: > 3% slower costs 2.5×, rhythm spread growth > 0.05 costs 1×,
+  floor 0.3; still tapping ≥ 5% faster than the notes at the end = overstreaming = no cost). Three parts, top-5
+  each: streams 16+ (ref 32 notes), most load in any 30 s of a play (ref 140), finished-map total (ref 400);
+  refs at `stamina_ref_bpm(level)`; +25 per doubling; score = mean. `_skills` / `progress` pass the presses.
+  Nikita (123 replays): 74.6 (streams 71.5, 30 s 70.7, maps 81.5), steadiness 95%, 61 of 276 long streams
+  slowed down, 22 overstreamed. Was 76.6 with v2. The refs are still a first guess.
+- **Detailed Map Analysis** (renamed from Replay check): second metric row (BPM, UR, speed, AR/OD/CS/HP, length);
+  `check.map_plays` / `compare` list every play of the map (progress.sqlite + replay files on the computer, up to
+  50 analysed) and judge best only within the same `settings_key` (rate, CS/AR/OD/HP, HD/FL); the ±0.5★
+  comparison is gone. `check.practice_sections`: clusters widened by a measure before / half after, on whole
+  notes, with seconds and note count. progress.sqlite schema 2 adds `hp` and `path` (migrated on connect).
+- **UI**: no click-and-drag zoom anywhere (`app.plot`), the sidebar collapse button always visible (CSS on
+  `stSidebarCollapseButton`; not checked in a real browser this round).
+
 ## Next steps, in order
+
+0. **Check the weighting and speed-aim split against how Nikita feels he plays** after a week of new replays:
+   if 240–250 BPM streams show up, stream comfort should follow; tune `LEVEL_SIGMA` / `FAST_JUMP_MS` if the
+   split looks off. Consider a per-skill level (aim vs speed) for the weighting.
 
 1. **Try the lazer import folder in the game once.** Make a playlist folder, run lazer's setup wizard →
    Import with it, check that the collection shows up with all its maps. (Not clicked through yet.)

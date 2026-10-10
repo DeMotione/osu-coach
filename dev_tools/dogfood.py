@@ -23,8 +23,8 @@ def find_chrome() -> str | None:
 URL = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8501"
 OUT = Path(sys.argv[2] if len(sys.argv) > 2 else "dogfood")
 OUT.mkdir(parents=True, exist_ok=True)
-PAGES = ["Replays", "Replay check", "Overview", "Progress", "Aim", "Tapping", "Sliders & reading",
-         "Tips & setup", "Map suggestions", "Improve a skill"]
+PAGES = ["Replays", "Detailed Map Analysis", "Overview", "Progress", "Aim", "Tapping", "Sliders & Reading",
+         "Tips & Setup", "Map Suggestion", "Skill Development"]
 
 
 def settle(page, extra=1.5):

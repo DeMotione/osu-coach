@@ -135,8 +135,13 @@ def test_practice_plan_names_weakest_skill(base):
     assert any(label in step for step in plan)
 
 
+AREA = dict(area_w_mm=100.0, area_h_mm=56.25, area_x_mm=76.0, area_y_mm=47.0)
+
+
 def _aim_misses_in(base, pattern: str, spaced: bool = False, n: int = 200):
-    """The base profile with its misses replaced by n aim misses on notes of one pattern."""
+    """The base profile with its misses replaced by n aim misses on notes of one pattern (jumps at normal speed,
+    or streams — where they count as speed-aim misses)."""
+    from osu_coach.profile import miss_causes
     O = base.objects.copy()
     O["head_hit"] = True
     O["miss_reason"] = None
@@ -145,15 +150,18 @@ def _aim_misses_in(base, pattern: str, spaced: bool = False, n: int = 200):
     O.loc[idx, "miss_reason"] = "aim"
     O.loc[idx, "pattern"] = pattern
     O.loc[idx, "spaced_stream"] = spaced
-    return with_(base, objects=O, miss_breakdown={"aim": n, "lost": 5})
+    O.loc[idx, "run_len"] = 12 if pattern in ("stream", "burst") else 1
+    O.loc[idx, "dt_real"] = 60.0 if pattern in ("stream", "burst") else 300.0
+    O["miss_cause"] = miss_causes(O)
+    counts = O.loc[idx, "miss_cause"].value_counts().to_dict()
+    return with_(base, objects=O, miss_breakdown={**counts, "lost": 5})
 
 
-def test_aim_miss_tip_points_to_streams_when_they_miss_in_streams(base):
-    t = tip(make_tips(_aim_misses_in(base, "stream")), "Overview", "aim misses")
-    assert t is not None and "streams and bursts 100%" in t.actions[0]
-    assert "Tapping speed" in t.actions[1]
-    t = tip(make_tips(_aim_misses_in(base, "stream", spaced=True)), "Overview", "aim misses")
-    assert "Flow aim" in t.actions[1]
+def test_aim_misses_in_streams_are_speed_aim(base):
+    t = tip(make_tips(_aim_misses_in(base, "stream")), "Overview", "speed-aim misses")
+    assert t is not None and "streams, bursts or very fast jumps" in t.evidence
+    assert any("Flow aim (spaced streams)" in a for a in t.actions)
+    assert tip(make_tips(_aim_misses_in(base, "stream")), "Overview", "Most misses are aim misses") is None
 
 
 def test_aim_miss_tip_keeps_jump_advice_for_jumps(base):
@@ -162,8 +170,19 @@ def test_aim_miss_tip_keeps_jump_advice_for_jumps(base):
     assert any("Jump aim" in a for a in t.actions)
 
 
+def test_calibration_tip_is_always_in_the_setup_tips(base):
+    t = tip(make_tips(with_(base, regression={**REG, "scale_x": 1.0, "scale_y": 1.01}), Setup(**AREA)),
+            "Setup / aim calibration", "fits")
+    assert t is not None and "keep your tablet area" in " ".join(t.actions)
+    t = tip(make_tips(with_(base, regression={**REG, "scale_x": 1.08, "scale_y": 1.08}), Setup(**AREA)),
+            "Setup / aim calibration", "larger tablet area")
+    assert t is not None and t.actions[0] == "Now 100 × 56.25 mm → try 108.0 × 60.8 mm."
+    t = tip(make_tips(with_(base, regression={**REG, "scale_x": 0.9, "scale_y": 0.9}),
+                      Setup(device="mouse", mouse_dpi=800, ingame_sens=1.0)), "Setup / aim calibration", "higher")
+    assert t is not None and "raise your sensitivity" in " ".join(t.actions)
+
+
 # ---------------------------------------------------------------- tablet area position (X / Y)
-AREA = dict(area_w_mm=100.0, area_h_mm=56.25, area_x_mm=76.0, area_y_mm=47.0)
 
 
 def test_area_position_follows_a_sizeable_click_offset(base):

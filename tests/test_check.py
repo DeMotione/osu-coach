@@ -84,26 +84,83 @@ def test_summary_says_what_cost_the_play(nm, legit):
     assert any("Timing" in v for v in s["verdict"])
 
 
-def test_compare_with_the_same_map_and_similar_difficulty(tmp_path):
+def _play(key, date, misses, rate=1.0, ar=9.0, od=8.0, hp=5.0, mods="", acc=0.95):
+    p = _fake(key, date, md5="m" * 32, stars=5.5, misses=misses)
+    p.meta.update(rate=rate, ar=ar, od=od, hp=hp, mod_string=mods, accuracy=acc, source_path=f"C:/r/{key}.osr")
+    return p
+
+
+def test_compare_only_judges_plays_with_the_same_settings(tmp_path):
+    """A DT ×1.5 play (faster, higher AR/OD) and a ×1.26 play of the same map are listed, but best / not best
+    is only judged against plays with the same speed and settings."""
     conn = progress.connect(tmp_path)
-    md5 = "m" * 32
-    older = [_fake("p1", dt.datetime(2026, 9, 1), md5=md5, stars=5.5, misses=6),
-             _fake("p2", dt.datetime(2026, 9, 2), md5=md5, stars=5.5, misses=2)]
-    others = [_fake(f"o{i}", dt.datetime(2026, 9, 3 + i), md5=f"{i:032d}", stars=5.2 + i * 0.1, misses=i)
-              for i in range(6)]
-    progress.record(conn, older + others + [_fake("far", dt.datetime(2026, 9, 20), md5="f" * 32, stars=8.0)], UTC)
-    now = _fake("now", dt.datetime(2026, 10, 1), md5=md5, stars=5.5, misses=1)
-    c = check.compare(conn, now)
-    assert (c["map_plays"], c["map_best_misses"], c["map_best"]) == (2, 2, True)
-    assert c["similar_n"] == 8                       # ±0.5★, without the 8★ play
-    assert c["misses_better_than"] == pytest.approx(0.75)
-    progress.record(conn, [now], UTC)                # the play itself never counts as "before"
-    assert check.compare(conn, now)["map_plays"] == 2
+    nm1 = _play("nm1", dt.datetime(2026, 9, 1), 6)
+    nm2 = _play("nm2", dt.datetime(2026, 9, 2), 2)
+    dt15 = _play("dt", dt.datetime(2026, 9, 3), 0, rate=1.5, ar=10.33, od=9.44, mods="DT")
+    progress.record(conn, [nm1, nm2, dt15], UTC)
+    custom = _play("x126", dt.datetime(2026, 9, 4), 1, rate=1.26, ar=9.9, od=9.0, mods="DT")   # file only, not saved
+    now = _play("now", dt.datetime(2026, 10, 1), 1)
+    c = check.compare(conn, now, [custom])
+    assert (c["map_plays"], c["map_plays_all"], c["other_settings"]) == (2, 4, 2)
+    assert (c["map_best_misses"], c["map_best"]) == (2, True)
+    plays = c["plays"]
+    assert list(plays["key"]) == ["now", "x126", "dt", "nm2", "nm1"]                  # newest first
+    assert plays["this"].sum() == 1 and set(plays.loc[plays["same_settings"], "key"]) == {"now", "nm1", "nm2"}
+    assert plays.set_index("key").loc["nm1", "path"] == "C:/r/nm1.osr"               # can be opened again
+    # the DT play is compared with the DT play only
+    now_dt = _play("now_dt", dt.datetime(2026, 10, 2), 3, rate=1.5, ar=10.33, od=9.44, mods="DT")
+    c = check.compare(conn, now_dt, [custom])
+    assert (c["map_plays"], c["map_best_misses"], c["map_best"]) == (1, 0, False)
+    assert c["settings"] == "×1.5 · AR 10.3 · OD 9.4 · CS 4 · HP 5"
+
+
+def test_plays_saved_without_hp_still_match(tmp_path):
+    conn = progress.connect(tmp_path)
+    old = _play("old", dt.datetime(2026, 9, 1), 3)
+    old.meta["hp"] = None                                          # saved by a version that didn't keep HP
+    progress.record(conn, [old], UTC)
+    c = check.compare(conn, _play("now", dt.datetime(2026, 10, 1), 1))
+    assert c["map_plays"] == 1 and c["map_best"]
 
 
 def test_compare_without_history(tmp_path):
     c = check.compare(progress.connect(tmp_path), _fake("now", dt.datetime(2026, 10, 1)))
-    assert c["map_plays"] == 0 and c["similar_n"] == 0
+    assert c["map_plays"] == 0 and c["map_plays_all"] == 0 and len(c["plays"]) == 1
+
+
+def test_mods_label_spells_out_custom_speeds():
+    assert check.mods_label("DT", 1.5) == "DT" and check.mods_label("HDDT", 1.26) == "HDDT ×1.26"
+    assert check.mods_label("", 1.0) == "NM" and check.mods_label("", 0.85) == "NM ×0.85"
+
+
+def test_old_progress_databases_get_the_new_columns(tmp_path):
+    import sqlite3
+    db = sqlite3.connect(tmp_path / progress.DB_FILE)
+    db.execute("CREATE TABLE replays (key TEXT PRIMARY KEY, played_at TEXT, month TEXT NOT NULL, added_at TEXT, "
+               "player TEXT, beatmap_md5 TEXT)")
+    db.commit()
+    db.close()
+    conn = progress.connect(tmp_path)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(replays)")}
+    assert {"hp", "path", "ur", "rate"} <= cols
+    progress.record(conn, [_play("k", dt.datetime(2026, 9, 1), 0)], UTC)
+    assert conn.execute("SELECT hp, path FROM replays").fetchone() == (5.0, "C:/r/k.osr")
+
+
+def test_practice_sections_cover_the_misses_and_snap_to_notes(legit):
+    ev = check.events(legit)
+    secs = check.practice_sections(legit, ev)
+    assert secs
+    times = set(legit.objects["time"])
+    ends = set(legit.objects["end_time"].fillna(legit.objects["time"]))
+    rate = legit.meta.get("rate") or 1.0
+    for x in secs:
+        assert x["start"] <= x["first_event"] and x["end"] >= x["last_event"]
+        assert x["start"] in times and x["end"] in ends                               # whole notes
+        assert x["seconds"] == pytest.approx((x["end"] - x["start"]) / 1000 / rate)
+        inside = legit.objects[(legit.objects["time"] >= x["start"]) & (legit.objects["time"] <= x["end"])]
+        assert x["notes"] == len(inside)
+        assert x["first_event"] - x["start"] <= 4 * legit.objects["beat_len"].max() + 1   # about a measure before
 
 
 # ------------------------------------------------------------------ command line and app
@@ -122,7 +179,7 @@ def test_cli_checks_the_newest_replay(tmp_path, capsys):
     assert main(["check", "--no-auto", "--offline", "--folder", str(folder), "-q",
                  "--cache", str(tmp_path / "cache")]) == 0
     out = capsys.readouterr().out
-    assert "Replay check — Mot1one" in out and _title("mot1one__lazer_failed.osr") in out   # played last
+    assert "Detailed map analysis — Mot1one" in out and _title("mot1one__lazer_failed.osr") in out   # played last
     assert "Misses and combo breaks" in out and "failed" in out.lower()
 
 
@@ -139,7 +196,7 @@ def test_cli_checks_a_given_replay(tmp_path, capsys):
 def _page(tmp_path, monkeypatch, **state):
     monkeypatch.setenv("OSU_COACH_CACHE", str(tmp_path / "cache"))
     at = AppTest.from_file(APP, default_timeout=180)
-    at.session_state["page"] = "Replay check"
+    at.session_state["page"] = "Detailed Map Analysis"
     for k, v in state.items():
         at.session_state[k] = v
     return at.run()
@@ -152,6 +209,10 @@ def test_check_page_shows_the_newest_replay_and_others_on_request(tmp_path, monk
     assert not at.exception, [e.value for e in at.exception]
     assert _title("mot1one__lazer_failed.osr") in at.subheader[0].value
     assert any(s.value == "Misses and combo breaks" for s in at.subheader)
+    assert any(s.value == "All your plays of this map" for s in at.subheader)
+    labels = {m.label for m in at.metric}
+    assert {"BPM", "UR", "Speed", "AR", "OD", "CS", "HP", "Length"} <= labels
+    assert next(t for t in at.toggle if t.label == "Only plays of this map").value is False   # nothing opened yet
     pick = next(s for s in at.selectbox if s.label == "Replay")
     pick.set_value(2).run()                          # the oldest of the three
     assert not at.exception, [e.value for e in at.exception]
@@ -165,6 +226,9 @@ def test_check_page_opens_the_replay_chosen_on_the_replays_page(tmp_path, monkey
     at = _page(tmp_path, monkeypatch, lib=lib, check_path=str(folder / "mot1one__lazer_dthd_spinner.osr"))
     assert not at.exception, [e.value for e in at.exception]
     assert _title("mot1one__lazer_dthd_spinner.osr") in at.subheader[0].value
+    # opened from the Replays page: the list shows that map's plays only (here: this one play)
+    assert next(t for t in at.toggle if t.label == "Only plays of this map").value is True
+    assert len(next(s for s in at.selectbox if s.label == "Replay").options) == 1
 
 
 def test_check_page_without_replays_says_what_to_do(tmp_path, monkeypatch):

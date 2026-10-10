@@ -203,7 +203,9 @@ class Targets:
 
 def targets_from_profile(p) -> Targets:
     lv = getattr(p, "levels", {}) or {}
-    comfort = _f(lv.get("comfort_stars"))
+    comfort = _f(lv.get("level_stars", lv.get("comfort_stars")))   # detected (or chosen) level, else comfort
+    if math.isnan(comfort):
+        comfort = _f(lv.get("comfort_stars"))
     if math.isnan(comfort):
         comfort = _f((getattr(p, "overview", {}) or {}).get("avg_stars")) - 0.5
     if math.isnan(comfort):
@@ -331,6 +333,22 @@ def suggest(pool: pd.DataFrame, skill: str, targets: Targets, n: int = 10, offse
     return out.reset_index(drop=True)
 
 
+def stream_length_maps(pool: pd.DataFrame, targets: Targets, min_run: int, max_run: int, n: int = 6,
+                       offset: float = -0.3) -> pd.DataFrame:
+    """Maps whose longest stream is ``min_run``–``max_run`` notes, at a stream speed the player can tap
+    (``targets.stream_bpm``) and around his level: for practising streams of exactly that length."""
+    if pool is None or pool.empty or "max_run" not in pool:
+        return pd.DataFrame()
+    sub = pool[(pool["max_run"] >= min_run) & (pool["max_run"] <= max_run)]
+    if sub.empty:
+        return sub
+    out = suggest(sub, "stamina", targets, n=n, offset=offset, min_skill=0.0)
+    if not out.empty:
+        out["why"] = [f"longest stream {int(r['max_run'])} notes at ~{_f(r.get('stream_bpm'), _f(r.get('burst_bpm'), 0)):.0f}"
+                      f" BPM (1/4)" for _, r in out.iterrows()]
+    return out
+
+
 PLAYLIST_COLUMNS = ["stage", "goal", "stars", "artist", "title", "version", "creator", "why", "url", "md5",
                     "beatmap_id", "beatmapset_id", "bpm", "ar", "od", "drain_length"]
 
@@ -381,10 +399,9 @@ def why(r, skill: str, t: Targets) -> str:
         run = int(g("max_run", 0))
         kind = "streams" if run >= 9 else "bursts"
         if skill == "stamina":
-            m, s = divmod(int(g("drain_length", 0)), 60)
             long_runs = int(g("long_runs", 0))
             extra = f", {long_runs} streams of 16+ notes" if long_runs else f", longest {run} notes"
-            return f"{m}:{s:02d} long, {kind} at ~{bpm:.0f} BPM (1/4){extra}"
+            return f"{kind} at ~{bpm:.0f} BPM (1/4){extra}"
         return f"{kind} at ~{bpm:.0f} BPM (1/4), longest {run} notes"
     if skill == "accuracy":
         return f"OD {g('od'):g}, {g('circle_share'):.0%} circles"
@@ -394,8 +411,7 @@ def why(r, skill: str, t: Targets) -> str:
     if skill == "reading":
         return f"AR {g('ar'):g}, up to {g('density_p90', 0):.0f} notes on screen"
     if skill == "consistency":
-        m, s = divmod(int(g("drain_length", 0)), 60)
-        return f"{m}:{s:02d} long, evenly hard ({g('evenness', 0):.0%})"
+        return f"evenly hard from start to end ({g('evenness', 0):.0%})"
     if skill == "quadrant" and t.quadrant:
         return f"{g('q_' + t.quadrant.replace('-', '_')):.0%} of its jumps land {t.quadrant}"
     return f"{g('stars'):.2f}★, popular"

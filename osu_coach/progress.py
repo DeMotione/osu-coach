@@ -23,7 +23,7 @@ import pandas as pd
 from .profile import SKILL_LABELS, _played, _skills, build_profile, clean_pass, comfort_stars
 
 DB_FILE = "progress.sqlite"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2   # 2: hp, path
 # replays table column -> meta key
 COLUMNS = {
     "player": "player", "beatmap_md5": "beatmap_md5", "beatmap_id": "beatmap_id", "beatmapset_id": "beatmapset_id",
@@ -32,13 +32,13 @@ COLUMNS = {
     "length_s": "length_s", "ar": "ar", "od": "od", "cs": "cs", "accuracy": "accuracy", "n300": "n300",
     "n100": "n100", "n50": "n50", "nmiss": "nmiss", "head_misses": "head_misses", "n_objects": "n_objects",
     "n_played": "n_played", "completed": "completed", "max_combo": "max_combo", "map_max_combo": "map_max_combo",
-    "ur": "ur", "score": "score",
+    "ur": "ur", "score": "score", "hp": "hp", "path": "source_path",
 }
+TEXT_COLUMNS = ("player", "beatmap_md5", "artist", "title", "version", "creator", "mods", "client", "path")
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS replays (
     key TEXT PRIMARY KEY, played_at TEXT, month TEXT NOT NULL, added_at TEXT,
-    {", ".join(f"{c} {'TEXT' if c in ('player', 'beatmap_md5', 'artist', 'title', 'version', 'creator', 'mods', 'client') else 'REAL'}"
-               for c in COLUMNS)}
+    {", ".join(f"{c} {'TEXT' if c in TEXT_COLUMNS else 'REAL'}" for c in COLUMNS)}
 );
 CREATE INDEX IF NOT EXISTS replays_player_month ON replays (player, month);
 CREATE TABLE IF NOT EXISTS month_metrics (
@@ -59,6 +59,11 @@ def connect(cache_dir=None) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.executescript(SCHEMA)
+    have = {r[1] for r in conn.execute("PRAGMA table_info(replays)")}
+    with conn:   # databases from older versions: add the new columns (filled in when a replay is analysed again)
+        for c in COLUMNS:
+            if c not in have:
+                conn.execute(f"ALTER TABLE replays ADD COLUMN {c} {'TEXT' if c in TEXT_COLUMNS else 'REAL'}")
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     return conn
 
@@ -113,7 +118,7 @@ def rebuild_months(conn: sqlite3.Connection, player: str, analyses, tz=None) -> 
     if not analyses:
         return
     try:
-        full = build_profile(analyses)
+        full = build_profile(analyses, weighted=False)   # months stay comparable: no level weighting
     except Exception:  # noqa: BLE001 - too little data for a model
         return
     threshold = full.reading.get("dense_threshold")
@@ -127,11 +132,13 @@ def rebuild_months(conn: sqlite3.Connection, player: str, analyses, tz=None) -> 
                 conn.execute("DELETE FROM month_metrics WHERE player = ? AND month = ?", (player, month))
             continue
         try:
-            mp = build_profile(group)
+            mp = build_profile(group, weighted=False)
             reading = dict(mp.reading)
             if threshold is not None:
                 reading["dense_threshold"] = threshold
-            skills = _skills(_played(mp.objects), full.model, mp.tapping, mp.sliders, reading, mp.consistency)
+            skills = _skills(_played(mp.objects), full.model, mp.tapping, mp.sliders, reading, mp.consistency,
+                             level=full.levels.get("level_stars"),   # one stamina yardstick for all months
+                             presses=mp.presses)
         except Exception:  # noqa: BLE001 - a month with too little data keeps no skill numbers
             continue
         rows = [(f"skill_{k}", _value(v.get("score")), int(v.get("n") or 0)) for k, v in skills.items()]

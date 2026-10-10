@@ -129,12 +129,25 @@ class Library:
                 self.installed["stable"].update(m)
         self.save_index()
 
-    def add_folder(self, folder, source: str = "folder", latest: int | None = None, player: str | None = None):
+    def add_folder(self, folder, source: str = "folder", latest: int | None = None, player: str | None = None,
+                   maps_only: bool = False):
+        """Replays and beatmaps in a folder (``maps_only``: just the beatmaps)."""
         self.sources.append(str(folder))
         self._limits.append(latest or None)
         r, m = locate.scan_folder(Path(folder), self.index, latest or None, player, analysable)
-        self._add(r, m, source)
+        self._add([] if maps_only else r, m, source)
         self.save_index()
+
+    def add_map_source(self, inst: locate.Install):
+        """An install's beatmaps, looked up by MD5 only when needed (:meth:`find_maps`), without its replays:
+        for analysing only a few replay files."""
+        if inst.kind == "lazer" and inst.files_dir:
+            store = locate.LazerStore(inst.files_dir, self.index)
+            store.unread = sorted(locate.list_files(store.files_dir, lambda n: len(n) == 64), key=lambda f: f[1],
+                                  reverse=True)
+            self._unread_maps.append(("lazer", store))
+        elif inst.kind == "stable" and inst.songs:
+            self._unread_maps.append(("stable", locate.SongsFolder(inst.songs, self.index)))
 
     def add_files(self, paths, source: str = "upload"):
         reps, maps = [], {}

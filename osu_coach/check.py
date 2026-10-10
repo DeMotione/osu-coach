@@ -14,6 +14,7 @@ import sqlite3
 from collections import Counter
 
 import pandas as pd
+import numpy as np
 
 from .analysis import ReplayAnalysis
 
@@ -213,31 +214,133 @@ def summary(a: ReplayAnalysis, ev: pd.DataFrame | None = None) -> dict:
     return out
 
 
-def compare(conn: sqlite3.Connection, a: ReplayAnalysis, window: float = 0.5) -> dict:
-    """This play against the player's other saved plays: the same map before, and plays within
-    ``window`` stars (misses per 100 notes, accuracy, UR)."""
+def mods_label(mods, rate) -> str:
+    """'HDDT ×1.26', 'HR', 'NM ×0.85': the speed is spelled out when it isn't the mod's standard one."""
+    mods = mods if isinstance(mods, str) and mods else "NM"
+    rate = 1.0 if _nan(rate) else float(rate)
+    standard = {1.0, 1.5, 0.75}
+    return mods + (f" ×{rate:g}" if not any(abs(rate - s) < 1e-3 for s in standard) else "")
+
+
+def settings_key(m) -> tuple:
+    """What changes how hard a play of the same map is: speed (DT/HT/custom rate), the effective CS / AR / OD /
+    HP (HR, EZ, Difficulty Adjust, ...) and Hidden / Flashlight. Only plays with the same key are compared."""
+    def r(v, nd=1):
+        return None if _nan(v) else round(float(v), nd)
+    mods = m.get("mods") if isinstance(m.get("mods"), str) else (m.get("mod_string") or "")
+    return (r(m.get("rate") or 1.0, 2), r(m.get("cs")), r(m.get("ar")), r(m.get("od")), r(m.get("hp")),
+            "HD" in mods, "FL" in mods)
+
+
+def same_settings(k1: tuple, k2: tuple) -> bool:
+    """Same :func:`settings_key`; a value missing on one side (e.g. HP of plays saved by an older version)
+    doesn't make them differ."""
+    return all(x is None or y is None or x == y for x, y in zip(k1, k2))
+
+
+def settings_label(m) -> str:
+    """'×1.26 · AR 10.2 · OD 9.6 · CS 4 · HP 6': the play's speed and effective difficulty settings."""
+    rate = m.get("rate") or 1.0
+    parts = [f"×{float(rate):g}"] if abs(float(rate) - 1) > 1e-3 else []
+    for name in ("ar", "od", "cs", "hp"):
+        v = m.get(name)
+        if not _nan(v):
+            parts.append(f"{name.upper()} {float(v):.1f}".replace(".0", ""))
+    return " · ".join(parts)
+
+
+PLAY_COLUMNS = ["key", "date", "mods", "rate", "cs", "ar", "od", "hp", "bpm", "stars", "accuracy", "nmiss",
+                "max_combo", "map_max_combo", "ur", "completed", "head_misses", "path", "this", "same_settings"]
+
+
+def map_plays(conn: sqlite3.Connection | None, a: ReplayAnalysis, others=()) -> pd.DataFrame:
+    """Every play of this map by this player: the saved history (progress.sqlite) plus ``others`` (analyses of
+    the replay files of this map on the computer) and this play itself (``this``). ``same_settings`` = same speed,
+    CS / AR / OD / HP and HD / FL as this play (:func:`settings_key`). Newest first."""
     m = a.meta
-    df = pd.read_sql_query("SELECT key, beatmap_md5, stars, accuracy, head_misses, n_played, ur FROM replays "
-                           "WHERE player = ? AND key != ?", conn, params=(m.get("player") or "", a.key))
-    out = {"map_plays": 0, "similar_n": 0}
-    if df.empty:
-        return out
-    mine = (m.get("head_misses") or 0) / max(m.get("n_played") or 1, 1) * 100
-    same = df[df["beatmap_md5"] == m.get("beatmap_md5")]
+    rows = {}
+    if conn is not None:
+        df = pd.read_sql_query("SELECT * FROM replays WHERE player = ? AND beatmap_md5 = ?", conn,
+                               params=(m.get("player") or "", m.get("beatmap_md5")))
+        for r in df.to_dict("records"):
+            rows[r["key"]] = {**r, "date": r.get("played_at")}
+    for o in list(others) + [a]:
+        om = o.meta
+        if (om.get("beatmap_md5") != m.get("beatmap_md5")) or ((om.get("player") or "") != (m.get("player") or "")):
+            continue
+        rows[o.key] = {**{k: om.get(k) for k in ("rate", "cs", "ar", "od", "hp", "bpm", "stars", "accuracy", "nmiss",
+                                                  "max_combo", "map_max_combo", "ur", "completed", "head_misses")},
+                       "key": o.key, "date": om.get("date"), "mods": om.get("mod_string") or "",
+                       "path": str(om.get("source_path") or "")}
+    if not rows:
+        return pd.DataFrame(columns=PLAY_COLUMNS)
+    out = pd.DataFrame(list(rows.values()))
+    for c in PLAY_COLUMNS:
+        if c not in out:
+            out[c] = None
+    mine = settings_key(m)
+    out["this"] = out["key"] == a.key
+    out["same_settings"] = [same_settings(settings_key(r), mine) or r["key"] == a.key for r in out.to_dict("records")]
+    out["date"] = pd.to_datetime(out["date"], utc=True, errors="coerce", format="mixed")
+    return out.sort_values("date", ascending=False)[PLAY_COLUMNS].reset_index(drop=True)
+
+
+def compare(conn: sqlite3.Connection | None, a: ReplayAnalysis, others=()) -> dict:
+    """This play against the player's other plays of the same map (:func:`map_plays`). Best / not best is
+    only judged against plays with the same settings: a DT ×1.5 play (285 BPM) and a ×1.26 play (240 BPM)
+    of the same map are different challenges."""
+    m = a.meta
+    plays = map_plays(conn, a, others)
+    rest = plays[~plays["this"]]
+    same = rest[rest["same_settings"]]
+    out = {"plays": plays, "map_plays": int(len(same)), "map_plays_all": int(len(rest)),
+           "other_settings": int(len(rest) - len(same)), "settings": settings_label(m)}
     if len(same):
-        best = same.sort_values(["head_misses", "accuracy"], ascending=[True, False]).iloc[0]
+        sm = same.assign(_m=pd.to_numeric(same["head_misses"], errors="coerce").fillna(
+            pd.to_numeric(same["nmiss"], errors="coerce")), _a=pd.to_numeric(same["accuracy"], errors="coerce"))
+        best = sm.sort_values(["_m", "_a"], ascending=[True, False]).iloc[0]
         hm, acc = m.get("head_misses") or 0, m.get("accuracy") or 0
-        out.update(map_plays=len(same), map_best_misses=int(best["head_misses"]),
-                   map_best_accuracy=float(best["accuracy"]),
-                   map_best=bool(hm < best["head_misses"] or (hm == best["head_misses"] and acc > best["accuracy"])))
-    stars = m.get("stars")
-    if not _nan(stars):
-        sim = df[(df["stars"] - stars).abs() <= window]
-        if len(sim):
-            rate = sim["head_misses"] / sim["n_played"].clip(lower=1) * 100
-            out.update(similar_n=len(sim), similar_range=(stars - window, stars + window), misses_per_100=mine,
-                       misses_median=float(rate.median()), accuracy_median=float(sim["accuracy"].median()),
-                       ur_median=float(sim["ur"].median()) if sim["ur"].notna().any() else math.nan,
-                       misses_better_than=float((rate > mine).mean()),
-                       accuracy_better_than=float((sim["accuracy"] < (m.get("accuracy") or 0)).mean()))
+        out.update(map_best_misses=int(best["_m"]), map_best_accuracy=float(best["_a"]),
+                   map_best=bool(hm < best["_m"] or (hm == best["_m"] and acc > best["_a"])),
+                   map_best_date=best["date"])
+        urs = pd.to_numeric(same["ur"], errors="coerce").dropna()
+        if len(urs):
+            out["ur_median"] = float(urs.median())
+        out["accuracy_median"] = float(sm["_a"].median())
+        out["misses_median"] = float(sm["_m"].median())
+    return out
+
+
+# ------------------------------------------------------------------ practice sections
+LEAD_BEATS = 4      # a section starts one measure (4 beats) before the first miss ...
+TAIL_BEATS = 2      # ... and ends half a measure after the last one
+
+
+def practice_sections(a: ReplayAnalysis, ev: pd.DataFrame | None = None, gap_ms: float = 3000,
+                      min_events: int = 2) -> list[dict]:
+    """Parts of the map to cut out and practise on their own (e.g. a custom difficulty with just that part):
+    each cluster of misses / breaks (:func:`sections`) widened by a measure before and half a measure after,
+    snapped to the notes of the map. ``start`` / ``end`` = map time (ms) of its first / last note, ``seconds``
+    = length in real time (with the play's speed), ``notes`` = how many notes, plus the cluster itself."""
+    ev = events(a) if ev is None else ev
+    secs = [s for s in sections(ev, gap_ms) if s["count"] >= min_events]
+    if not secs:
+        return []
+    o = a.objects
+    times = o["time"].to_numpy(float)
+    ends = o["end_time"].fillna(o["time"]).to_numpy(float)
+    beat = o["beat_len"] if "beat_len" in o else pd.Series(500.0, index=o.index)
+    rate = float(a.meta.get("rate") or 1.0)
+    out = []
+    for s in secs:
+        i0 = int(np.searchsorted(times, s["start"], side="left"))
+        i1 = max(int(np.searchsorted(times, s["end"], side="right")) - 1, i0)
+        b0 = float(beat.iloc[min(i0, len(beat) - 1)]) if len(beat) else 500.0
+        b1 = float(beat.iloc[min(i1, len(beat) - 1)]) if len(beat) else 500.0
+        lo = int(np.searchsorted(times, s["start"] - LEAD_BEATS * b0, side="left"))
+        hi = int(np.searchsorted(times, s["end"] + TAIL_BEATS * b1, side="right")) - 1
+        lo, hi = max(0, min(lo, i0)), min(len(times) - 1, max(hi, i1))
+        start, end = float(times[lo]), float(ends[hi])
+        out.append({**s, "start": start, "end": end, "first_event": s["start"], "last_event": s["end"],
+                    "notes": hi - lo + 1, "seconds": (end - start) / 1000.0 / rate})
     return out

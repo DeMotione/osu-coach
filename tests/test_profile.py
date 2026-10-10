@@ -156,8 +156,27 @@ def test_profile_skill_scores_in_range(real_profile):
 
 
 def test_profile_miss_breakdown_sums(real_profile):
-    mb = real_profile.miss_breakdown
-    assert sum(mb.values()) == real_profile.overview["head_misses"]
+    raw = real_profile.miss_breakdown_raw
+    assert sum(raw.values()) == real_profile.overview["head_misses"]
+    # weighted: every miss counts with its replay's weight (≤ 1), same causes
+    assert set(real_profile.miss_breakdown) == set(raw)
+    assert sum(real_profile.miss_breakdown.values()) <= sum(raw.values()) + 1e-9
+
+
+def test_unweighted_profile_counts_every_miss(real_profile):
+    names = ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr",
+             "circlecore__low_frametime_old__replay-osu_24722_433541214.osr"]
+    p = build_profile([analyze_files(*replay_and_map(n)[:2]) for n in names], weighted=False)
+    assert sum(p.miss_breakdown.values()) == pytest.approx(p.overview["head_misses"])
+    assert (p.replays["weight"] == 1).all()
+
+
+def test_detected_level_sets_the_weights(real_profile):
+    from osu_coach.profile import replay_weight
+    stars = real_profile.replays["stars"].to_numpy()
+    assert real_profile.levels["level_stars"] == pytest.approx(real_profile.levels["level_detected"])
+    assert real_profile.replays["weight"].to_numpy() == pytest.approx(
+        replay_weight(stars, real_profile.levels["level_stars"]))
 
 
 def test_profile_survives_a_perfect_play_without_streams():
