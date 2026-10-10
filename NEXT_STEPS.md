@@ -56,7 +56,15 @@ Streamlit UI), plus:
   fixed depths; inside RT Upper..Lower Bound (or Full Stroke) RT Trigger/RT Release distances apply. With
   Nikita's values (Trigger 0.40, Release 0.35, RT 0.10/0.15, bounds 0.10–3.80) and tapping (2 double
   presses per 1000, 0.9 extra taps per 100 notes) the tip says they fit.
-- **Tests**: 186 pass (`.venv\Scripts\python -m pytest`). They never read the osu! installs of the computer
+- **Replay check** (`check.py`, page *Replay check*, `osu-coach check [file]`): one replay on its own —
+  misses/combo breaks with osu! editor timestamps (mm:ss:mmm), reason + detail + pattern, clusters, timing
+  chart, clicks, comparison with the same map before and plays at ±0.5★ (progress.sqlite). Opens on the
+  newest replay (quick scan of the newest 100 if nothing was scanned), any replay from the list, a dropped
+  .osr, or *Check this replay* on a row of the Replays page. "miss" = judged miss (results screen); a slider
+  head missed while the slider still scored is a "combo break"; slider breaks from the simulation. Found
+  with it: Nikita's newest play (Harumachi Clover [Easy], 2026-10-10 12:42) has every click ~24 px right of
+  the notes (other plays: under 1 px on average) — was the tablet area moved?
+- **Tests**: 200 pass (`.venv\Scripts\python -m pytest`). They never read the osu! installs of the computer
   they run on (`OSU_COACH_NO_AUTODETECT=1` from `tests/conftest.py`).
 - **Windows**: `run.bat` checked on this PC from a clean copy (first run creates `.venv` with a real
   `python.exe`; the `py`/`python` app aliases can hang on this PC). The UI listens on localhost only. All
@@ -88,7 +96,7 @@ Streamlit UI), plus:
 
 ## Layout
 
-- `osu_coach/`: `osr`, `beatmap`, `curves`, `judge` (stable rules, dispatches lazer replays),
+- `osu_coach/`: `osr`, `beatmap`, `curves`, `judge` (stable rules, dispatches lazer replays), `check`,
   `judge_lazer`, `features`, `analysis`, `difficulty`, `profile`, `advice`, `pool` (with
   `data/pool.json.gz`), `collection_db`, `lazer_import`, `locate`, `library`, `progress`, `sources`, `cli`,
   `webapp/app.py`.

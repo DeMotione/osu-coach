@@ -12,8 +12,8 @@ from osu_coach.profile import build_profile
 from tests.conftest import replay_and_map
 
 APP = str(Path(osu_coach.__file__).parent / "webapp" / "app.py")
-PAGES = ["Replays", "Overview", "Progress", "Aim", "Tapping", "Sliders & reading", "Tips & setup",
-         "Map suggestions", "Improve a skill"]
+PAGES = ["Replays", "Replay check", "Overview", "Progress", "Aim", "Tapping", "Sliders & reading",
+         "Tips & setup", "Map suggestions", "Improve a skill"]
 
 
 @pytest.fixture(scope="module")

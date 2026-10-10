@@ -71,6 +71,25 @@ lazer imports the maps first and the collection after them; re-importing the sam
 what's new. The folder can be deleted afterwards. *Folder without maps (.zip)* is the same folder with
 only the collection, for lazer on another computer.
 
+### Replay check (one replay on its own)
+
+The **Replay check** page shows a single play: it opens on your newest replay (no scan needed), any other
+can be picked from the list, a `.osr` file can be dropped in, and on the Replays page a row of *Analysed
+replays* opens with **Check this replay**. It shows:
+
+- the result and a few plain sentences on what cost the play (misses by reason and pattern, the part of
+  the map where most happened, timing);
+- every miss and combo break with its **time in the map in the osu! editor format** (`01:23:456`), why
+  it happened (aim — and how far off, overshot / fell short —, too early/late by how many ms, no tap,
+  notelock, slider break: cursor left the slider / key released) and on what pattern;
+- *Where they cluster*: the parts of the map worth practising;
+- your timing through the map (every hit, a running average, misses marked) and where your clicks landed;
+- **compared with your other plays**: earlier plays of the same map (is this your best?) and your plays
+  at a similar star rating (misses per 100 notes, accuracy, UR vs your usual).
+
+The check is saved in the progress history. Command line: `osu-coach check` (newest replay) or
+`osu-coach check path/to/replay.osr`.
+
 ### Progress by month
 
 Every analysis is also saved in `progress.sqlite` in the osu! coach data folder, one row per replay, so
@@ -101,6 +120,7 @@ osu-coach locate                                   # what was found
 osu-coach analyze [--folder DIR] [--player NAME]   # full report in the terminal (+ --json)
 osu-coach analyze --latest 500                     # only your newest 500 replays (read and analysed)
 osu-coach progress [--player NAME]                 # your progress by month (saved by every analysis)
+osu-coach check [REPLAY.osr]                       # one replay on its own (default: your newest)
 osu-coach playlist aim --lazer                     # playlist + lazer import folder (maps + collection)
 osu-coach playlist aim --merge                     # ... added to your osu!stable collections instead
 osu-coach playlist speed --comfort 3 --download ~/maps   # without replays: give your level

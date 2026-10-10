@@ -15,10 +15,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import lazer_import, locate, progress, sources
+from . import check, lazer_import, locate, progress, sources
 from .advice import Setup, make_tips, practice_plan
 from .collection_db import merge_into, write_collection_db
-from .library import Library, load_settings
+from .library import EXCLUDE_MODS, Library, load_settings, skip_reason
 from .pool import SKILLS, Targets, build_playlist, collection_name, load_pool, recommendations, skill_label, \
     targets_from_profile
 from .profile import MISS_LABELS, build_profile
@@ -289,6 +289,132 @@ def cmd_progress(args) -> int:
     return 0
 
 
+EVENTS_SHOWN = 40
+
+
+def _main_player(lib: Library, cache) -> str | None:
+    """Whose newest replay to check: the player saved in the settings or with the most saved plays."""
+    saved = load_settings(cache).get("player")
+    if saved and saved != "*":
+        return saved
+    conn = progress.connect(cache)
+    try:
+        names = progress.players(conn)
+    finally:
+        conn.close()
+    return names[0][0] if names else None
+
+
+def cmd_check(args) -> int:
+    log = _log(args.quiet)
+    lib = Library(args.cache)
+    path = Path(args.replay) if args.replay else None
+    if path is not None:
+        if not path.is_file():
+            raise SystemExit(f"File not found: {path}")
+        lib.add_files([path], source="file")
+    player = args.player or (None if path else _main_player(lib, args.cache))
+    latest = 1 if player or path else 20     # unknown player: read a few replays to see who plays here
+    if not args.no_auto:
+        for inst in locate.find_installs():
+            lib.add_install(inst, progress=log, latest=latest, player=player)
+    for f in args.folder or []:
+        lib.add_folder(f, latest=latest, player=player)
+    if path is not None:
+        ref = next((r for r in lib.replays if Path(r["path"]) == path), None)
+        if ref is None:
+            raise SystemExit(f"Not an osu! replay: {path}")
+    else:
+        players = lib.players()
+        if not players:
+            raise SystemExit("No osu!standard replays found. Give a replay file, or point --folder at your replays.")
+        player = player if player in dict(players) else players[0][0]
+        ref = lib.eligible(player, 1)[0]
+    if ref.get("mode") != 0:
+        raise SystemExit("Only osu!standard replays can be checked.")
+    if ref.get("mods", 0) & EXCLUDE_MODS:
+        raise SystemExit("Relax / autopilot / autoplay replays aren't checked.")
+    if skip_reason(ref):
+        raise SystemExit(f"Can't check this replay: {skip_reason(ref)}.")
+    missing = lib.missing_maps([ref], progress=log)
+    if missing and not args.offline:
+        log("downloading the beatmap…")
+        lib.fetch_missing(missing)
+    analyses, errors = lib.analyze([ref], workers=1)
+    if not analyses:
+        raise SystemExit(f"Can't check {Path(ref['path']).name}: {errors[0][1] if errors else 'unknown error'}")
+    a = analyses[0]
+    conn = progress.connect(lib.cache)
+    try:
+        cmp = check.compare(conn, a)
+        progress.record(conn, [a])
+    finally:
+        conn.close()
+    _print_check(a, cmp)
+    return 0
+
+
+def _print_check(a, cmp: dict) -> None:
+    ev = check.events(a)
+    s = check.summary(a, ev)
+    m = a.meta
+    length = s["length_s"] or 0
+    rate = s["rate"] or 1.0
+    mods = (s["mods"] or "NM") + (f" ×{rate:g}" if abs(rate - 1) > 1e-3 and abs(rate - 1.5) > 1e-3
+                                    and abs(rate - 0.75) > 1e-3 else "")
+    print(f"\nReplay check — {s['player'] or '(no name)'}, {check.local_time(s['date'])} (osu!{s['client']})")
+    print(f"{s['map']} · {mods} · {s['stars'] or 0:.2f}★ · {s['bpm'] or 0:.0f} BPM · "
+          f"{int(length // 60)}:{int(length % 60):02d}")
+    combo = f"{s['combo']}/{s['map_combo']:.0f}x" if not check._nan(s["map_combo"]) else f"{s['combo']}x"
+    n300, n100, n50, nmiss = s["counts"]
+    print(f"{s['accuracy']:.2%} · {combo} · 300/100/50/miss {n300}/{n100}/{n50}/{nmiss}"
+          + ("" if s["completed"] else " · FAILED"))
+    if m.get("beatmap_id"):
+        print(f"https://osu.ppy.sh/b/{m['beatmap_id']}")
+    print()
+    for v in s["verdict"]:
+        print(f"  {v}")
+    if not s["sim_exact"]:
+        print(f"  (The re-simulation differs a little from the result stored in the replay: "
+              f"{(s['sim_agreement'] or 0):.1%} agreement — times may be slightly off.)")
+    print("\nMisses and combo breaks")
+    if ev.empty:
+        print("  none")
+    for r in ev.head(EVENTS_SHOWN).to_dict("records"):
+        pat = check.pattern_label(r["pattern"], r["stream_bpm"])
+        print(f"  {r['timestamp']}  {r['what']:<12} {check.REASON_WORDS.get(r['reason'], r['reason']):<15} "
+              f"{r['detail']}{' · ' + pat if pat else ''}")
+    if len(ev) > EVENTS_SHOWN:
+        print(f"  … and {len(ev) - EVENTS_SHOWN} more")
+    secs = [x for x in check.sections(ev) if x["count"] >= 2]
+    if secs:
+        print("\nWhere they cluster")
+        for x in secs[:5]:
+            pat = check.PATTERN_WORDS.get(x["pattern"], x["pattern"] or "")
+            bpm = f" {x['bpm']:.0f} BPM" if x["bpm"] and x["pattern"] in ("stream", "burst") else ""
+            reasons = ", ".join(f"{n} {check.REASON_WORDS.get(k, k)}" for k, n in
+                                sorted(x["reasons"].items(), key=lambda kv: -kv[1]))
+            print(f"  {check.timestamp(x['start'])}–{check.timestamp(x['end'])}  {x['count']}: {reasons}"
+                  + (f" · {pat}{bpm}" if pat else ""))
+    print("\nCompared with your other plays")
+    if cmp["map_plays"]:
+        best = "this is your best play on it" if cmp["map_best"] else "not your best on it"
+        print(f"  This map: {cmp['map_plays']} earlier play(s), best {cmp['map_best_misses']} misses "
+              f"({cmp['map_best_accuracy']:.2%}) — {best}.")
+    else:
+        print("  This map: first play in your saved history.")
+    if cmp["similar_n"] >= 5:
+        lo, hi = cmp["similar_range"]
+        print(f"  At {lo:.1f}–{hi:.1f}★ ({cmp['similar_n']} plays): {cmp['misses_per_100']:.2f} misses per 100 notes vs "
+              f"usually {cmp['misses_median']:.2f} (fewer than in {cmp['misses_better_than']:.0%} of them); accuracy "
+              f"{s['accuracy']:.2%} vs {cmp['accuracy_median']:.2%}"
+              + (f"; UR {s['ur']:.0f} vs {cmp['ur_median']:.0f}" if not check._nan(s["ur"])
+                 and not check._nan(cmp.get("ur_median")) else "") + ".")
+    else:
+        print(f"  {'Only ' + str(cmp['similar_n']) if cmp['similar_n'] else 'No'} saved play(s) at a similar star "
+              "rating yet — run `osu-coach analyze` to compare with more.")
+
+
 def cmd_ui(args) -> int:
     app = Path(__file__).parent / "webapp" / "app.py"
     # localhost only: the app reads and writes local files, so it must not be reachable from the network
@@ -348,6 +474,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--merge", action="store_true", help="add the playlist to your osu!stable collections")
     p.add_argument("--download", help="download the maps (.osz) into this folder")
     p.set_defaults(func=cmd_playlist)
+    p = sub.add_parser("check", help="check one replay: misses with timestamps, sections, compared with usual")
+    p.add_argument("replay", nargs="?", help=".osr file (default: your newest replay)")
+    p.add_argument("--folder", action="append", help="extra folder with .osr/.osu files (repeatable)")
+    p.add_argument("--no-auto", action="store_true", help="don't look for osu! installs automatically")
+    p.add_argument("--player", help="whose newest replay (default: you — the player with most replays)")
+    p.add_argument("--offline", action="store_true", help="don't download a missing beatmap")
+    p.add_argument("--cache", help="data folder (default: per-user cache dir)")
+    p.add_argument("-q", "--quiet", action="store_true")
+    p.set_defaults(func=cmd_check)
     p = sub.add_parser("progress", help="your progress by month (every analysis is saved)")
     p.add_argument("--player", help="player name (default: the one with most saved plays)")
     p.add_argument("--cache", help="data folder (default: per-user cache dir)")

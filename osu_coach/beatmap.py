@@ -171,6 +171,27 @@ def _num(v: str, default: float) -> float:
         return default
 
 
+def read_metadata(path) -> dict:
+    """The [Metadata] section of an .osu file (Artist, Title, Version, Creator, BeatmapID, ...), read
+    without parsing the rest of the map. {} if the file can't be read."""
+    out: dict = {}
+    section = ""
+    try:
+        with open(path, encoding="utf-8-sig", errors="replace") as fh:
+            for line in fh:
+                s = line.strip()
+                if s.startswith("[") and s.endswith("]"):
+                    if section == "Metadata":
+                        break
+                    section = s[1:-1]
+                elif section == "Metadata" and ":" in s:
+                    k, v = _kv(s)
+                    out[k] = v
+    except (OSError, TypeError):
+        return {}
+    return out
+
+
 def parse_beatmap_file(path) -> Beatmap:
     data = Path(path).read_bytes()
     return parse_beatmap_bytes(data)

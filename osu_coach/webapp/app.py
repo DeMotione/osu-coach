@@ -13,17 +13,19 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from osu_coach import lazer_import, locate, progress, sources
+from osu_coach import check, lazer_import, locate, progress, sources
 from osu_coach.advice import Setup, make_tips, practice_plan, sayo_settings, suggest_tablet_area
 from osu_coach.collection_db import dumps as collection_bytes
 from osu_coach.collection_db import merge_into
-from osu_coach.library import Library, default_cache_dir, load_settings, save_settings
+from osu_coach.beatmap import read_metadata
+from osu_coach.library import (EXCLUDE_MODS, Library, analysable, default_cache_dir, load_settings, save_settings,
+                               skip_reason)
 from osu_coach.pool import (SKILLS, Targets, build_playlist, collection_name, load_pool, recommendations,
                             skill_label, targets_from_profile)
 from osu_coach.profile import MISS_LABELS, SKILL_LABELS, build_profile, click_points, click_summary
 
 ACCENT, GOOD, BAD, MUTED, INFO = "#ff66aa", "#5fd3a0", "#ff5c7a", "#8b8fa3", "#6fb7ff"
-PAGES = ["Replays", "Overview", "Progress", "Aim", "Tapping", "Sliders & reading", "Tips & setup",
+PAGES = ["Replays", "Replay check", "Overview", "Progress", "Aim", "Tapping", "Sliders & reading", "Tips & setup",
          "Map suggestions", "Improve a skill"]
 MISS_SHORT = {"aim": "Aim", "early": "Too early", "late": "Too late", "no_tap": "No tap", "lost": "Lost track",
               "notelock": "Notelock"}
@@ -232,9 +234,11 @@ def page_replays():
             "Played": pd.to_datetime(m["date"]).dt.strftime("%Y-%m-%d %H:%M"),
             "Map": m["map_name"], "Mods": m["mod_string"].replace("", "NM"), "★": m.get("stars"),
             "Accuracy": m["accuracy"] * 100, "Misses": m["nmiss"], "Combo": m["max_combo"],
-            "UR": m["ur"], "Check": m["sim_agreement"] * 100,
+            "UR": m["ur"], "Check": m["sim_agreement"] * 100, "path": m["source_path"],
         }).sort_values("Played", ascending=False)
-        st.dataframe(table, hide_index=True, column_config={
+        paths = list(table.pop("path"))
+        picked = st.dataframe(table, hide_index=True, on_select="rerun", selection_mode="single-row",
+                              key="analysed_table", column_config={
             "★": st.column_config.NumberColumn(format="%.2f"),
             "Accuracy": st.column_config.NumberColumn(format="%.2f%%"),
             "UR": st.column_config.NumberColumn(format="%.0f"),
@@ -242,6 +246,12 @@ def page_replays():
                 format="%.1f%%", help="How well the re-simulated judgements match the result stored in the "
                                       "replay (100% = identical)."),
         })
+        rows = picked.selection.rows if picked is not None else []
+        if rows:
+            st.button("Check this replay", icon=":material/manage_search:", type="primary", on_click=open_check,
+                      args=(paths[rows[0]],))
+        else:
+            st.caption("Click a row, then **Check this replay** to see that play on its own.")
         errors = st.session_state.get("errors") or []
         if errors:
             with st.expander(f"{len(errors)} replay(s) skipped"):
@@ -328,6 +338,235 @@ def run_analysis(lib: Library, player: str, refs: list[dict], online: bool):
     save_settings(sett)
     st.success(f"Analysed {len(analyses)} replays" + (f" ({len(errors)} skipped)" if errors else "") +
                ". Open **Overview** in the sidebar.")
+
+
+# ------------------------------------------------------------------ Replay check
+CHECK_LATEST = 100   # replays listed when nothing was scanned yet
+CHECK_LIST = 300
+REASON_COLORS = {"aim": "#ffb020", "early": INFO, "late": "#c792ea", "no_tap": BAD, "lost": MUTED,
+                 "notelock": "#4dd0e1", "spinner": "#a1887f", "follow": "#ff8c5a", "released": "#ff8c5a",
+                 "key_swap": "#ff8c5a"}
+RESULT_COLORS = {300: GOOD, 100: INFO, 50: "#ffb020"}
+
+
+def open_check(path: str):
+    st.session_state.update(page="Replay check", check_path=path)
+
+
+def same_file(a, b) -> bool:
+    try:
+        return Path(a) == Path(b)
+    except TypeError:
+        return False
+
+
+@st.cache_data(show_spinner=False, max_entries=5000)
+def map_title(path: str | None) -> str:
+    return check.map_label(read_metadata(path)) if path else check.NO_MAP
+
+
+def check_library() -> Library | None:
+    """The scan of the Replays page, else a quick one of the newest replays on this computer."""
+    lib = st.session_state.get("lib")
+    if lib is not None:
+        return lib
+    if st.session_state.get("check_lib") is None:
+        installs = installs_cached()
+        if not installs:
+            return None
+        with st.spinner("Looking for your newest replays…"):
+            lib = Library()
+            for inst in installs:
+                lib.add_install(inst, latest=CHECK_LATEST)
+        st.session_state.check_lib = lib
+    return st.session_state.check_lib
+
+
+def replay_label(r: dict, lib: Library) -> str:
+    mods = "".join(r.get("lazer_mods") or []) or r.get("mod_string") or "NM"
+    acc = r.get("accuracy")
+    return (f"{check.local_time(r['timestamp'])} · {r.get('player') or '(no name)'} · "
+            f"{map_title(lib.maps.get(r['beatmap_md5']))} · {mods}" + (f" · {acc:.2%}" if acc is not None else ""))
+
+
+def page_check():
+    st.title("Replay check")
+    st.caption("One play on its own: every miss and combo break with its time in the map (osu! editor format "
+               "mm:ss:mmm), where they cluster, your timing, and how the play compares with your other plays.")
+    lib = check_library()
+    up = st.file_uploader("Check a replay file", type=["osr"], key="check_upload",
+                          help="Any .osr — e.g. exported from lazer's results screen, or someone else's replay.")
+    if up is not None and st.session_state.get("check_upload_id") != up.file_id:
+        dest = default_cache_dir() / "uploads" / Path(up.name).name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(up.getbuffer())
+        if lib is None:
+            lib = st.session_state.check_lib = Library()
+        if not any(same_file(r["path"], dest) for r in lib.replays):
+            lib.add_files([dest])
+        st.session_state.update(check_upload_id=up.file_id, check_path=str(dest))
+    if lib is None:
+        st.info("No osu! installation was found automatically. Drop a replay file above, or scan a folder on the "
+                "**Replays** page.", icon=":material/info:")
+        return
+    refs = lib.eligible("*")[:CHECK_LIST]
+    want = st.session_state.get("check_path")
+    if want and not any(same_file(r["path"], want) for r in refs):
+        h = next((r for r in lib.replays if same_file(r["path"], want)), None) or locate.replay_header(Path(want))
+        if h:
+            refs = [h] + refs
+    if not refs:
+        st.info("No osu!standard replays found. Drop a replay file above, or scan on the **Replays** page.",
+                icon=":material/info:")
+        return
+    if lib.has_unread_maps():
+        with st.spinner("Looking for the maps of these replays…"):
+            lib.missing_maps(refs)
+    start = next((i for i, r in enumerate(refs) if want and same_file(r["path"], want)), 0)
+    i = st.selectbox("Replay", range(len(refs)), index=start, format_func=lambda k: replay_label(refs[k], lib),
+                     help="Newest first. Pick a row on the Replays page and press 'Check this replay' to open "
+                          "it here.")
+    ref = refs[i]
+    if not analysable(ref):
+        reason = (skip_reason(ref) or ("relax / autopilot / autoplay replays aren't checked"
+                                       if ref.get("mods", 0) & EXCLUDE_MODS else "only osu!standard is supported"))
+        st.warning(f"This replay can't be checked: {reason}.")
+        return
+    online = st.toggle("Download the map if it's missing", value=True, key="check_online")
+    with st.spinner("Checking the replay…"):
+        missing = lib.missing_maps([ref])
+        if missing and online:
+            lib.fetch_missing(missing)
+        analyses, errors = lib.analyze([ref], workers=1)
+    if not analyses:
+        st.error(f"Can't check this replay: {errors[0][1] if errors else 'unknown error'}")
+        return
+    a = analyses[0]
+    conn = progress.connect(lib.cache)
+    try:
+        cmp = check.compare(conn, a)
+        progress.record(conn, [a])
+    finally:
+        conn.close()
+    show_check(a, cmp)
+
+
+def show_check(a, cmp: dict):
+    ev = check.events(a)
+    s = check.summary(a, ev)
+    m = a.meta
+    st.subheader(s["map"])
+    link = f" · [beatmap page](https://osu.ppy.sh/b/{m['beatmap_id']})" if m.get("beatmap_id") else ""
+    rate = s["rate"] or 1.0
+    st.caption(f"{s['player'] or '(no name)'} · played {check.local_time(s['date'])} · osu!{s['client']} · "
+               f"mapped by {m.get('creator') or '?'}{link}")
+    c = st.columns(5)
+    c[0].metric("Accuracy", pct(s["accuracy"], 2))
+    c[1].metric("Combo", f"{s['combo']}/{s['map_combo']:.0f}" if not isnan(s["map_combo"]) else str(s["combo"]))
+    c[2].metric("Misses", s["misses"], help="Judged misses, as on the results screen.")
+    c[3].metric("Slider breaks", s["slider_breaks"])
+    c[4].metric("★", fmt(s["stars"], ".2f"), help=f"{(s['mods'] or 'NM')}" + (f" ×{rate:g}" if rate != 1 else ""))
+    st.markdown("\n".join(f"- {v}" for v in s["verdict"]) + ("" if s["completed"] else "\n- **Failed play.**"
+                if not any(v.startswith("Failed") for v in s["verdict"]) else ""))
+    if not s["sim_exact"]:
+        st.caption(f"The re-simulation differs a little from the result stored in the replay "
+                   f"({(s['sim_agreement'] or 0):.1%} agreement), so times may be slightly off.")
+    st.subheader("Misses and combo breaks")
+    if ev.empty:
+        st.success("No misses and no combo breaks in this play.")
+    else:
+        st.dataframe(pd.DataFrame({
+            "Time": ev["timestamp"], "What": ev["what"],
+            "Why": [check.REASON_WORDS.get(r, r) for r in ev["reason"]], "Details": ev["detail"],
+            "Pattern": [check.pattern_label(p, b) for p, b in zip(ev["pattern"], ev["stream_bpm"])],
+        }), hide_index=True, column_config={"Time": st.column_config.TextColumn(
+            help="Map time as the osu! editor shows it (mm:ss:mmm).")})
+        secs = [x for x in check.sections(ev) if x["count"] >= 2]
+        if secs:
+            st.markdown("**Where they cluster** — parts worth practising:")
+            st.markdown("\n".join(
+                f"- `{check.timestamp(x['start'])}`–`{check.timestamp(x['end'])}`: {x['count']} — "
+                + ", ".join(f"{n} {check.REASON_WORDS.get(k, k)}" for k, n in sorted(x["reasons"].items(),
+                                                                                     key=lambda kv: -kv[1]))
+                + (f" · {check.pattern_label(x['pattern'], x['bpm'])}" if x["pattern"] else "") for x in secs[:5]))
+    timing_chart(a, ev)
+    left, right = st.columns(2, gap="large")
+    with left:
+        prof = single_profile(a)
+        if prof is not None:
+            click_chart(prof)
+    with right:
+        compare_box(s, cmp)
+
+
+def single_profile(a):
+    try:
+        return build_profile([a])
+    except Exception:  # noqa: BLE001 - a very short play may be too little for a profile
+        return None
+
+
+def timing_chart(a, ev):
+    o = a.objects
+    H = o[o["played"] & o["head_hit"] & (o["kind"] != "spinner")].dropna(subset=["err_real"])
+    if len(H) < 5:
+        return
+    t = pd.to_datetime(H["time"], unit="ms")
+    fig = go.Figure()
+    for res, color in RESULT_COLORS.items():
+        sel = H["head_result"] == res
+        if sel.any():
+            fig.add_trace(go.Scattergl(x=t[sel], y=H.loc[sel, "err_real"], mode="markers", name=str(res),
+                                       marker=dict(size=4, color=color, opacity=0.6), hoverinfo="skip"))
+    trend = H["err_real"].rolling(25, center=True, min_periods=5).mean()
+    fig.add_trace(go.Scatter(x=t, y=trend, mode="lines", name="running average", line=dict(color=ACCENT, width=2.5),
+                             hoverinfo="skip"))
+    top = float(H["err_real"].abs().quantile(0.99) or 50) * 1.15
+    if not ev.empty:
+        for reason, g in ev.groupby("reason"):
+            fig.add_trace(go.Scatter(
+                x=pd.to_datetime(g["time"], unit="ms"), y=[top] * len(g), mode="markers",
+                name=check.REASON_WORDS.get(reason, reason), marker=dict(symbol="x", size=9,
+                                                                         color=REASON_COLORS.get(reason, BAD)),
+                hovertext=[f"{ts} {w}" for ts, w in zip(g["timestamp"], g["what"])], hoverinfo="text"))
+    od = a.meta.get("od")
+    if od is not None and not isnan(od):
+        w300 = 80 - 6 * od
+        for y in (w300, -w300):
+            fig.add_hline(y=y, line=dict(color=MUTED, dash="dot", width=1))
+    fig.update_xaxes(tickformat="%M:%S")
+    fig.update_yaxes(title="hit error, ms (− early, + late)", range=[-top * 1.08, top * 1.08])
+    st.plotly_chart(style(fig, 360, "Timing through the map — misses and breaks marked on top", legend=True),
+                    config={"displayModeBar": False})
+    st.caption("Map time along the bottom. Each dot is one hit; the pink line is your running average (above 0 = "
+               "late). Dotted lines: the 300 window.")
+
+
+def compare_box(s: dict, cmp: dict):
+    st.subheader("Compared with your other plays")
+    if cmp["map_plays"]:
+        best = "**your best play on it**" if cmp["map_best"] else "not your best on it"
+        st.markdown(f"**This map**: {cmp['map_plays']} earlier play(s); best {cmp['map_best_misses']} misses "
+                    f"({cmp['map_best_accuracy']:.2%}) — this is {best}.")
+    else:
+        st.markdown("**This map**: first play in your saved history.")
+    if cmp["similar_n"] >= 5:
+        lo, hi = cmp["similar_range"]
+        st.markdown(f"**At {lo:.1f}–{hi:.1f}★** ({cmp['similar_n']} plays saved):")
+        c = st.columns(3)
+        c[0].metric("Misses / 100 notes", f"{cmp['misses_per_100']:.2f}",
+                    f"{cmp['misses_per_100'] - cmp['misses_median']:+.2f} vs usual", delta_color="inverse")
+        c[1].metric("Accuracy", pct(s["accuracy"], 2),
+                    f"{(s['accuracy'] - cmp['accuracy_median']) * 100:+.2f} vs usual")
+        if not isnan(s["ur"]) and not isnan(cmp.get("ur_median", math.nan)):
+            c[2].metric("UR", f"{s['ur']:.0f}", f"{s['ur'] - cmp['ur_median']:+.0f} vs usual", delta_color="inverse")
+        st.caption(f"Fewer misses than in {cmp['misses_better_than']:.0%} of those plays. \"Usual\" = the median of "
+                   "your saved plays at that star rating.")
+    else:
+        have = (f"Only {cmp['similar_n']} saved play{'s' if cmp['similar_n'] != 1 else ''}" if cmp["similar_n"]
+                else "No saved plays")
+        st.caption(f"{have} at a similar star rating yet — analyse your replays on the **Replays** page to compare "
+                   "with more.")
 
 
 # ------------------------------------------------------------------ Overview
@@ -601,11 +840,12 @@ def click_chart(p):
     drawn = C.sample(CLICKS_DRAWN, random_state=0) if len(C) > CLICKS_DRAWN else C
     drawn = drawn[(drawn["x"].abs() < 2.4) & (drawn["y"].abs() < 2.4)]
     hits, misses = drawn[drawn["hit"]], drawn[~drawn["hit"]]
+    few = len(drawn) <= 300                      # one short play: bigger, stronger dots
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=hits["x"], y=hits["y"], mode="markers", name="hit", hoverinfo="skip",
-                             marker=dict(size=3, color=ACCENT, opacity=0.35)))
+                             marker=dict(size=7 if few else 3, color=ACCENT, opacity=0.75 if few else 0.35)))
     fig.add_trace(go.Scatter(x=misses["x"], y=misses["y"], mode="markers", name="aim miss", hoverinfo="skip",
-                             marker=dict(size=5, color=MISS_COLOR, opacity=0.9)))
+                             marker=dict(size=8 if few else 5, color=MISS_COLOR, opacity=0.9)))
     fig.add_shape(type="circle", x0=-1, y0=-1, x1=1, y1=1, line=dict(color=MUTED, width=2))
     fig.add_shape(type="circle", x0=-0.5, y0=-0.5, x1=0.5, y1=0.5, line=dict(color=MUTED, width=1, dash="dot"))
     mx, my = s["mean_r"]
@@ -624,8 +864,9 @@ def click_chart(p):
     if view == "screen":
         (ox, oy), r = s["mean_px"], s["radius"]
         where = f"{abs(ox):.1f} px {'left' if ox < 0 else 'right'} and {abs(oy):.1f} px {'above' if oy < 0 else 'below'}"
-        st.caption(f"Each dot is one click — {min(s['n'], CLICKS_DRAWN):,} picked at random from {s['n']:,}, so "
-                   f"the share of yellow dots is the real one. Average of all clicks: {where} the "
+        drawn_txt = (f"{s['n']:,} clicks" if s["n"] <= CLICKS_DRAWN else
+                     f"{CLICKS_DRAWN:,} picked at random from {s['n']:,}, so the share of yellow dots is the real one")
+        st.caption(f"Each dot is one click ({drawn_txt}). Average of all clicks: {where} the "
                    f"centre (± {s['ci_px']:.1f} px), {math.hypot(ox, oy) / r:.0%} of the circle radius ({r:.0f} px). "
                    f"Spread: {s['sd_px'][0]:.0f} px sideways, {s['sd_px'][1]:.0f} px up/down. Clicks by distance "
                    f"from the centre (radii): {bands}. A hit is always inside the circle, so only aim misses land "
@@ -1058,7 +1299,7 @@ with st.sidebar:
 {
     "Replays": page_replays, "Overview": page_overview, "Aim": page_aim, "Tapping": page_tapping,
     "Sliders & reading": page_sliders_reading, "Tips & setup": page_tips, "Map suggestions": page_maps,
-    "Progress": page_progress,
+    "Progress": page_progress, "Replay check": page_check,
     "Improve a skill": page_improve,
 }[page]()
 
