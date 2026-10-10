@@ -24,7 +24,18 @@ Streamlit UI), plus:
     0.9 per 100 notes; the tip threshold is now 3;
   - reading tips (AR, dense parts) compare misses with what the difficulty predicts, not raw miss rates;
   - logits in the miss model are clipped (no numpy overflow warnings).
-- **Tests**: 149 pass (`.venv\Scripts\python -m pytest`). They never read the osu! installs of the computer
+- **Latest N replays**: the Replays page has *Replays to read: Latest 100 / 500 / 1000 / All* (default 500,
+  remembered); CLI `analyze --latest N`. The scan reads replay files newest first (file time) and stops once
+  the newest N plays of the main player are certain (`locate.NewestReplays`: the N-th newest play must be
+  more than a day newer than the next unread file, since a replay file is written when it's played; the
+  day covers time-zone mix-ups). Maps the scan didn't reach are looked up on demand, newest files first
+  (`Library.find_maps`, `LazerStore.find`, `SongsFolder.find`). Replays with lazer mods the simulation
+  can't follow no longer count towards N (their mods are read from the replay header). Checked on this PC:
+  for N = 5…1000 the limited scan picks exactly the replays a full scan would. Files in lazer's store are
+  now classified from a 64-byte probe instead of a 64 KB read (same result on all 12,105 files here).
+  On this PC (146 replays, 12k store files) a first scan takes ~1 s either way; the gain is for big
+  installs and for the analysis (100 replays ≈ 10 s).
+- **Tests**: 159 pass (`.venv\Scripts\python -m pytest`). They never read the osu! installs of the computer
   they run on (`OSU_COACH_NO_AUTODETECT=1` from `tests/conftest.py`).
 - **Windows**: `run.bat` checked on this PC from a clean copy (first run creates `.venv` with a real
   `python.exe`; the `py`/`python` app aliases can hang on this PC). The UI listens on localhost only. All
@@ -46,6 +57,9 @@ Streamlit UI), plus:
    matches slightly better, but that is fitting to his update rate.
 5. **Small clean-ups**: `levels.aim_level` / `speed_level` use a different unit than comfort stars and are
    not shown anywhere; drop or rework them.
+6. **Faster map lookup for big stable installs.** A *Latest N* scan hashes `.osu` files newest first until
+   the replays' maps turn up; reading `osu!.db` (MD5 → file for every map) would make that instant. lazer's
+   equivalent is `client.realm` (Realm format, harder).
 
 ## Layout
 

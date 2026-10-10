@@ -58,12 +58,15 @@ def _setup_from(args) -> Setup:
 
 def _discover(args, log) -> Library:
     lib = Library(args.cache)
+    latest = args.limit or None
+    if latest:
+        log(f"reading only the newest {latest} replays" + (f" of {args.player}" if args.player else ""))
     if not args.no_auto:
         for inst in locate.find_installs():
             log(f"found {inst.label}")
-            lib.add_install(inst, progress=log)
+            lib.add_install(inst, progress=log, latest=latest, player=args.player)
     for f in args.folder or []:
-        lib.add_folder(f)
+        lib.add_folder(f, latest=latest, player=args.player)
     return lib
 
 
@@ -78,7 +81,7 @@ def _analyse(args, log):
     if not refs:
         raise SystemExit(f"No replays for player '{player}'. Players found: "
                          + ", ".join(f"{p} ({n})" for p, n in players))
-    missing = lib.missing_maps(refs)
+    missing = lib.missing_maps(refs, progress=log)
     if missing and not args.offline:
         log(f"downloading {len(missing)} missing beatmap(s)…")
         lib.fetch_missing(missing)
@@ -131,7 +134,8 @@ def cmd_analyze(args) -> int:
                "tips": [t.to_dict() for t in tips], "practice_plan": practice_plan(prof)}
         Path(args.json).write_text(json.dumps(out, indent=2, default=str), encoding="utf-8")
         print(f"wrote {args.json}")
-    print(f"\nosu-coach report — {player}: {ov['replays']} replays on {ov['maps']} maps, "
+    print(f"\nosu-coach report — {player}: {ov['replays']} {'newest ' if args.limit else ''}replays on "
+          f"{ov['maps']} maps, "
           f"{_num(ov['play_minutes'], '.0f')} min of play")
     print(f"Comfort level ≈ {_num(lv.get('comfort_stars'), '.1f')}★ | UR {_num(ov['ur'], '.0f')} | "
           f"{_num(ov['misses_per_100'], '.1f')} misses per 100 notes | accuracy {_num(ov['accuracy'] * 100, '.1f')}%")
@@ -170,6 +174,11 @@ def cmd_analyze(args) -> int:
     if errors:
         reasons = Counter(err.removeprefix("skipped: ") for _, err in errors)
         print(f"\n{len(errors)} replay(s) skipped: " + "; ".join(f"{n}× {r}" for r, n in reasons.most_common(4)))
+    refs = lib.eligible(player, args.limit) if args.limit else []
+    left = lib.left_out(player, since=refs[-1]["timestamp"] if refs else None)
+    if left:
+        print(("" if errors else "\n") + f"{sum(left.values())} replay(s) left out: "
+              + "; ".join(f"{n}× {r}" for r, n in left.most_common(4)))
     return 0
 
 
@@ -198,6 +207,8 @@ def cmd_playlist(args) -> int:
     hashes = list(pl["md5"])
     if args.lazer:
         dest = Path(args.lazer) if isinstance(args.lazer, str) else lazer_import.default_pack_dir(name)
+        if lib is not None and lib.has_unread_maps("lazer"):
+            lib.find_maps(set(hashes))       # which playlist maps lazer already has
         have = lib.installed["lazer"] if lib is not None else set()
         sets = [] if args.no_maps else lazer_import.sets_to_download(zip(pl["md5"], pl["beatmapset_id"]), have)
         log = _log(args.quiet)
@@ -254,7 +265,8 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--folder", action="append", help="extra folder with .osr/.osu files (repeatable)")
         p.add_argument("--no-auto", action="store_true", help="don't look for osu! installs automatically")
         p.add_argument("--player", help="player name (default: the one with most replays)")
-        p.add_argument("--limit", type=int, help="only the newest N replays")
+        p.add_argument("--limit", "--latest", type=int, metavar="N",
+                       help="only your newest N replays (e.g. 100, 500, 1000): only those are read and analysed")
         p.add_argument("--offline", action="store_true", help="don't download missing beatmaps")
         p.add_argument("--workers", type=int, help="parallel analysis processes")
         p.add_argument("--cache", help="cache folder (default: per-user cache dir)")

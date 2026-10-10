@@ -16,7 +16,7 @@ from osu_coach import lazer_import, locate, sources
 from osu_coach.advice import Setup, make_tips, practice_plan
 from osu_coach.collection_db import dumps as collection_bytes
 from osu_coach.collection_db import merge_into
-from osu_coach.library import Library, load_settings, save_settings
+from osu_coach.library import Library, default_cache_dir, load_settings, save_settings
 from osu_coach.pool import (SKILLS, Targets, build_playlist, collection_name, load_pool, recommendations,
                             skill_label, targets_from_profile)
 from osu_coach.profile import MISS_LABELS, build_profile
@@ -137,6 +137,13 @@ def preferred_client() -> str:
 
 
 # ------------------------------------------------------------------ Replays
+LATEST_CHOICES = [100, 500, 1000, 0]   # 0 = all replays
+
+
+def latest_label(n: int) -> str:
+    return f"Latest {n}" if n else "All"
+
+
 def page_replays():
     st.title("Your replays")
     st.caption("osu! coach reads your replay files (.osr), replays every note against the beatmap and measures how "
@@ -159,9 +166,22 @@ def page_replays():
                             "osu!stable keeps your replays in <osu!>/Data/r; in lazer use the Export button on the "
                             "results screen (files land in <lazer data>/exports).")
         uploads = st.file_uploader("…or drop replay files", type=["osr", "osu"], accept_multiple_files=True)
+        saved = sett.get("latest", 500)
+        latest = st.radio(
+            "Replays to read", LATEST_CHOICES, index=LATEST_CHOICES.index(saved) if saved in LATEST_CHOICES else 1,
+            format_func=latest_label, horizontal=True, key="latest",
+            help="Only your newest replays: the scan reads the newest files first and stops as soon as it has them, "
+                 "and only these are analysed. Fewer replays = faster, and closer to how you play now. "
+                 "All = every replay on this computer.")
+        if sett.get("latest") != latest:
+            sett["latest"] = latest
+            save_settings(sett)
         if st.button("Scan", type="primary", icon=":material/search:"):
-            scan(chosen, folders, uploads)
+            scan(chosen, folders, uploads, latest)
     lib = st.session_state.get("lib")
+    if lib is not None and needs_more(lib, latest) and st.session_state.get("scan_args"):
+        run_scan(st.session_state.scan_args, latest)     # same sources, further back
+        lib = st.session_state.get("lib")
     if lib is not None:
         with st.container(border=True):
             st.subheader("2 · Analyse")
@@ -174,17 +194,31 @@ def page_replays():
                 opts = names + (["*"] if len(names) > 1 else [])
                 default = sett.get("player") if sett.get("player") in opts else names[0]
                 player = st.selectbox("Player", opts, index=opts.index(default),
-                                      format_func=lambda n: "All players" if n == "*" else f"{n} ({counts[n]} replays)")
-                refs_all = lib.eligible(player)
-                limit = len(refs_all)
-                if len(refs_all) > 1:
-                    limit = st.slider("Newest replays to analyse", 1, len(refs_all), min(len(refs_all), 300))
+                                      format_func=lambda n: "All players" if n == "*" else
+                                      f"{n or '(no name)'} ({counts[n]} replays found)")
+                limit = latest or None
+                refs = lib.eligible(player, limit)
                 online = st.toggle("Download missing beatmaps from the internet", value=True,
                                    help="Looks the map up by its MD5 on osu.direct and downloads the .osu from "
                                         "osu.ppy.sh (verified against the replay).")
-                refs = refs_all[:limit]
+                if lib.has_unread_maps():
+                    with st.spinner("Looking for the beatmaps of these replays…"):
+                        lib.missing_maps(refs)
                 missing = lib.missing_maps(refs)
-                st.caption(f"{len(refs)} replays selected · {len(missing)} of their beatmaps are not on this computer")
+                who = "all players" if player == "*" else (player or "(no name)")
+                found = sum(counts.values()) if player == "*" else counts.get(player, 0)
+                text = (f"The newest {len(refs)} replays of {who} will be analysed" if limit and found > len(refs)
+                        else f"All {len(refs)} replays of {who} will be analysed")
+                text += f" · {len(missing)} of their beatmaps are not on this computer"
+                if online and missing:
+                    text += " (they will be downloaded)"
+                st.caption(text)
+                if lib.scan_limit and limit and player not in ("*", names[0]) and found < limit:
+                    st.caption(f"Only the newest files were read. Choose *All* to find older replays of {who}.")
+                left = lib.left_out(player, since=refs[-1]["timestamp"] if limit and refs else None)
+                if left:
+                    st.caption(f"{sum(left.values())} replay(s) left out: " +
+                               "; ".join(f"{n}× {reason}" for reason, n in left.most_common(3)) + ".")
                 if st.button("Analyse replays", type="primary", icon=":material/insights:"):
                     run_analysis(lib, player, refs, online)
     p = profile()
@@ -212,36 +246,55 @@ def page_replays():
                     st.write(f"`{Path(ref['path']).name}` — {err}")
 
 
-def scan(chosen, folders: str, uploads):
-    lib = Library()
-    with st.status("Scanning for replays…") as status:
-        for inst in chosen:
-            status.update(label=f"Scanning {inst.label}…")
-            lib.add_install(inst, progress=lambda m: status.update(label=str(m)))
-        for line in folders.splitlines():
-            f = line.strip().strip('"')
-            if not f:
-                continue
-            path = Path(f).expanduser()
-            if path.is_dir():
-                status.update(label=f"Scanning {path}…")
-                lib.add_folder(path)
-            else:
-                st.warning(f"Folder not found: {f}")
-        if uploads:
-            up = lib.cache / "uploads"
-            up.mkdir(parents=True, exist_ok=True)
-            paths = []
-            for u in uploads:
-                dest = up / Path(u.name).name
-                dest.write_bytes(u.getbuffer())
-                paths.append(dest)
-            lib.add_files(paths)
-        status.update(label=f"Found {len(lib.standard_replays())} osu!standard replays", state="complete")
-    st.session_state.lib = lib
+def needs_more(lib: Library, latest: int) -> bool:
+    """The last scan stopped earlier than the replay count chosen now asks for."""
+    return lib.scan_limit is not None and (not latest or latest > lib.scan_limit)
+
+
+def scan(chosen, folders: str, uploads, latest: int):
+    paths = []
+    if uploads:
+        up = default_cache_dir() / "uploads"
+        up.mkdir(parents=True, exist_ok=True)
+        for u in uploads:
+            dest = up / Path(u.name).name
+            dest.write_bytes(u.getbuffer())
+            paths.append(str(dest))
+    args = {"installs": list(chosen), "files": paths,
+            "folders": [f for f in (line.strip().strip('"') for line in folders.splitlines()) if f]}
+    st.session_state.scan_args = args
+    run_scan(args, latest)
     sett = settings()
     sett["folders"] = folders
     save_settings(sett)
+
+
+def run_scan(args: dict, latest: int):
+    limit = latest or None
+    lib = Library()
+    with st.status(f"Looking for your newest {limit} replays…" if limit else "Scanning for replays…") as status:
+        def note(msg):
+            status.update(label=str(msg))
+        for inst in args["installs"]:
+            note(f"Scanning {inst.label}…")
+            lib.add_install(inst, progress=note, latest=limit)
+        for f in args["folders"]:
+            path = Path(f).expanduser()
+            if path.is_dir():
+                note(f"Scanning {path}…")
+                lib.add_folder(path, latest=limit)
+            else:
+                st.warning(f"Folder not found: {f}")
+        if args["files"]:
+            lib.add_files(args["files"])
+        players = lib.players()
+        if players and lib.has_unread_maps():
+            note("Looking for the beatmaps of these replays…")
+            lib.missing_maps(lib.eligible(players[0][0], limit), progress=note)
+        n = len(lib.standard_replays())
+        status.update(label=(f"Read the newest replays: {n} osu!standard replays found" if limit
+                             else f"Found {n} osu!standard replays"), state="complete")
+    st.session_state.lib = lib
 
 
 def run_analysis(lib: Library, player: str, refs: list[dict], online: bool):
@@ -700,15 +753,25 @@ def lazer_import_ui(pl: pd.DataFrame, name: str, hashes: list[str]):
                 "takes maps *and* collections from any folder that looks like an osu!stable install. osu! coach "
                 "makes that folder for you in one click.")
     lib = st.session_state.get("lib")
-    have = getattr(lib, "installed", {}).get("lazer", set()) if lib is not None else set()
-    sets = lazer_import.sets_to_download(zip(pl["md5"], pl["beatmapset_id"]), have)
+    rows = list(zip(pl["md5"], pl["beatmapset_id"]))
+    have = lib.installed["lazer"] if lib is not None else set()
+    sets = lazer_import.sets_to_download(rows, have)
     n_sets = len(set(int(s) for s in pl["beatmapset_id"]))
     dest = lazer_import.default_pack_dir(name)
-    st.caption(f"{len(sets)} of {n_sets} beatmap sets will be downloaded"
-               + (" (you already have the others)" if len(sets) < n_sets else "") + f" · folder: `{dest}`")
+    if lib is not None and lib.has_unread_maps("lazer"):
+        # a "Latest N" scan didn't read all of lazer's files: checked when the folder is made
+        count = f"Up to {len(sets)} of {n_sets} beatmap sets will be downloaded (maps you already have are skipped)"
+    else:
+        count = (f"{len(sets)} of {n_sets} beatmap sets will be downloaded"
+                 + (" (you already have the others)" if len(sets) < n_sets else ""))
+    st.caption(f"{count} · folder: `{dest}`")
     c = st.columns(2)
     if c[0].button("Make lazer import folder", type="primary", icon=":material/create_new_folder:"):
         bar = st.progress(0.0, text="Preparing…")
+        if lib is not None and lib.has_unread_maps("lazer"):
+            bar.progress(0.0, text="Checking which of these maps you already have…")
+            lib.find_maps(set(hashes))
+            sets = lazer_import.sets_to_download(rows, lib.installed["lazer"])
         res = lazer_import.build_pack(dest, {name: hashes}, sets,
                                       progress=lambda i, n, msg: bar.progress(i / max(n, 1), text=msg))
         bar.empty()

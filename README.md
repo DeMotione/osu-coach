@@ -41,6 +41,12 @@ python -m venv .venv
   folder from `storage.ini`). Replays and beatmaps are recognised inside lazer's file store.
 - Any folder with `.osr` files, or drag and drop files into the app.
 
+**Replays to read** (above the Scan button): *Latest 100 / 500 / 1000* or *All*. With a limit, the scan
+reads replay files newest first and stops as soon as your newest N plays are certain, and only those are
+analysed: faster on big installs, and closer to how you play now. Beatmaps are then looked up only for
+those replays. "Your" replays = the player name with the most replays on the computer; if you pick another
+player and fewer than N turn up, choose *All*. The choice is remembered.
+
 You need **20 or more replays** for useful statistics, and the more the better. Relax, autopilot and
 autoplay replays are skipped, and so are lazer replays with mods the simulation can't follow (Wind Up/Down
 and Adaptive Speed change the speed mid-map; Random, Wiggle, Magnetised and similar move notes or the
@@ -70,6 +76,7 @@ only the collection, for lazer on another computer.
 ```
 osu-coach locate                                   # what was found
 osu-coach analyze [--folder DIR] [--player NAME]   # full report in the terminal (+ --json)
+osu-coach analyze --latest 500                     # only your newest 500 replays (read and analysed)
 osu-coach playlist aim --lazer                     # playlist + lazer import folder (maps + collection)
 osu-coach playlist aim --merge                     # ... added to your osu!stable collections instead
 osu-coach playlist speed --comfort 3 --download ~/maps   # without replays: give your level

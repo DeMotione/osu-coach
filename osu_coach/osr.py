@@ -268,6 +268,43 @@ def parse_replay_file(path) -> Replay:
     return parse_replay(p.read_bytes(), source_path=str(p))
 
 
+def lazer_info(data: bytes) -> dict | None:
+    """lazer's score info (mods with their settings, statistics, ...) from a whole .osr file,
+    without decoding the replay frames.  None for stable replays or if it can't be read."""
+    try:
+        r = _Reader(data)
+        r.byte()
+        version = r.int()
+        if version < 30000001:
+            return None
+        for _ in range(3):
+            r.string()
+        for _ in range(6):
+            r.short()
+        r.int(), r.short(), r.byte(), r.int()
+        r.string()  # life bar graph
+        r.long()    # timestamp
+        clen = r.int()
+        if clen > 0:
+            r._read(clen)
+        if r.remaining() >= 8:
+            r.long()  # online score id
+        if r.remaining() < 4:
+            return None
+        n = r.int()
+        if not 0 < n <= r.remaining():
+            return None
+        info = json.loads(_lzma_decode(r._read(n)))
+        return info if isinstance(info, dict) else None
+    except (ValueError, EOFError, struct.error, IndexError, OverflowError, lzma.LZMAError):
+        return None
+
+
+def lazer_mod_acronyms(info: dict | None) -> list[str]:
+    return [str(m.get("acronym", "")).upper() for m in (info or {}).get("mods", []) or []
+            if isinstance(m, dict) and m.get("acronym")]
+
+
 def peek_header(data: bytes) -> dict | None:
     """Cheap check whether bytes look like an .osr; returns basic header fields or None."""
     try:

@@ -14,11 +14,25 @@ from collections import Counter
 from pathlib import Path
 
 from . import locate, sources
-from .analysis import ANALYSIS_VERSION, ReplayAnalysis, UnsupportedReplay, analyze
+from .analysis import ANALYSIS_VERSION, UNSUPPORTED_LAZER_MODS, ReplayAnalysis, UnsupportedReplay, analyze
 from .osr import MOD_BITS, parse_replay
 
 # relax / autopilot / autoplay / cinema / target practice: not the player's own aim+tapping
 EXCLUDE_MODS = MOD_BITS["RX"] | MOD_BITS["AP"] | MOD_BITS["AT"] | (1 << 22) | (1 << 23)
+
+
+def skip_reason(h: dict) -> str | None:
+    """Why a replay can't be analysed, judging by its header (lazer mods the simulation can't
+    follow); None if it can."""
+    for m in h.get("lazer_mods") or ():
+        if m in UNSUPPORTED_LAZER_MODS:
+            return UNSUPPORTED_LAZER_MODS[m]
+    return None
+
+
+def analysable(h: dict) -> bool:
+    """osu!standard, played by the player themself, with mods the simulation can follow."""
+    return h.get("mode") == 0 and not (h.get("mods", 0) & EXCLUDE_MODS) and skip_reason(h) is None
 
 
 def default_cache_dir() -> Path:
@@ -51,13 +65,25 @@ class Library:
         self.maps: dict[str, str] = {}
         self.installed: dict[str, set[str]] = {"stable": set(), "lazer": set()}  # beatmap md5s in the game
         self.sources: list[str] = []
+        self._limits: list[int | None] = []                 # `latest` of every scanned source
+        self._unread_maps: list[tuple[str, object]] = []    # (kind, LazerStore/SongsFolder) not fully read
         self._index_path = self.cache / "index.json"
         try:
             self.index = json.loads(self._index_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             self.index = {}
+        if not isinstance(self.index, dict):
+            self.index = {}
+        locate.upgrade_index(self.index)
         for p in (self.cache / "maps").glob("*.osu"):
             self.maps.setdefault(p.stem, str(p))
+
+    @property
+    def scan_limit(self) -> int | None:
+        """How many of the newest replays (per player) every scanned source is certain to
+        include; None if all replays were read."""
+        limits = [n for n in self._limits if n]
+        return min(limits) if limits else None
 
     # -------------------------------------------------------------- discovery
     def save_index(self):
@@ -75,24 +101,38 @@ class Library:
         for md5, path in maps.items():
             self.maps.setdefault(md5, path)
 
-    def add_install(self, inst: locate.Install, progress=None, index_songs: bool = True):
+    def add_install(self, inst: locate.Install, progress=None, index_songs: bool = True,
+                    latest: int | None = None, player: str | None = None):
+        """Replays and beatmaps of an osu! install.  ``latest``: read only the newest ``latest``
+        replays of ``player`` (default: whoever has the most, normally you), newest files first,
+        and leave the beatmaps to :meth:`find_maps` instead of reading the whole install."""
+        latest = latest or None
         self.sources.append(inst.label)
+        self._limits.append(latest)
         if inst.kind == "lazer" and inst.files_dir:
-            r, m = locate.scan_lazer_store(inst.files_dir, self.index, progress)
+            store = locate.LazerStore(inst.files_dir, self.index)
+            r, m = store.scan(progress, latest, player, analysable)
             self._add(r, m, "lazer")
             self.installed["lazer"].update(m)
+            if not store.exhausted:
+                self._unread_maps.append(("lazer", store))
         for d in inst.replay_dirs:
-            r, m = locate.scan_folder(d, self.index)
+            r, m = locate.scan_folder(d, self.index, latest, player, analysable)
             self._add(r, m, inst.kind)
         if inst.kind == "stable" and inst.songs and index_songs:
-            m = locate.index_songs(inst.songs, self.index, progress)
-            self._add([], m, "stable")
-            self.installed["stable"].update(m)
+            songs = locate.SongsFolder(inst.songs, self.index)
+            if latest:
+                self._unread_maps.append(("stable", songs))
+            else:
+                m = songs.scan(progress)
+                self._add([], m, "stable")
+                self.installed["stable"].update(m)
         self.save_index()
 
-    def add_folder(self, folder, source: str = "folder"):
+    def add_folder(self, folder, source: str = "folder", latest: int | None = None, player: str | None = None):
         self.sources.append(str(folder))
-        r, m = locate.scan_folder(Path(folder), self.index)
+        self._limits.append(latest or None)
+        r, m = locate.scan_folder(Path(folder), self.index, latest or None, player, analysable)
         self._add(r, m, source)
         self.save_index()
 
@@ -109,7 +149,17 @@ class Library:
 
     # -------------------------------------------------------------- selection
     def standard_replays(self) -> list[dict]:
-        return [r for r in self.replays if r.get("mode") == 0 and not (r.get("mods", 0) & EXCLUDE_MODS)]
+        """Replays that can be analysed (see :func:`analysable`)."""
+        return [r for r in self.replays if analysable(r)]
+
+    def left_out(self, player: str | None = None, since: str | None = None) -> Counter:
+        """Reasons for osu!standard replays of ``player`` that can't be analysed (lazer mods the
+        simulation can't follow), counted.  ``since``: only replays played at or after this
+        timestamp (ISO, as in the headers)."""
+        refs = [r for r in self.replays if r.get("mode") == 0 and not (r.get("mods", 0) & EXCLUDE_MODS)
+                and (not player or player == "*" or r.get("player") == player)
+                and (not since or r.get("timestamp", "") >= since)]
+        return Counter(skip_reason(r) for r in self._dedupe(refs) if skip_reason(r))
 
     def players(self) -> list[tuple[str, int]]:
         return Counter(r.get("player", "") for r in self._dedupe(self.standard_replays())).most_common()
@@ -132,8 +182,40 @@ class Library:
         return refs[:limit] if limit else refs
 
     # -------------------------------------------------------------- beatmaps
-    def missing_maps(self, refs: list[dict]) -> list[str]:
-        return sorted({r["beatmap_md5"] for r in refs if r["beatmap_md5"] not in self.maps})
+    def has_unread_maps(self, kind: str | None = None) -> bool:
+        """A limited scan left parts of an install ("lazer" / "stable", default any) unread."""
+        return any(not src.exhausted for k, src in self._unread_maps if kind is None or k == kind)
+
+    def find_maps(self, md5s=None, progress=None) -> int:
+        """Look for beatmaps in the parts of the osu! installs a limited scan didn't read, newest
+        files first, stopping as soon as all are found.  ``md5s``: default = the beatmaps of all
+        found replays.  Returns how many of them were found."""
+        if md5s is None:
+            md5s = {r["beatmap_md5"] for r in self.standard_replays()}
+        want = {m for m in md5s if m not in self.maps}
+        found = 0
+        for kind, src in self._unread_maps:
+            if not want:
+                break
+            if src.exhausted:
+                continue
+            m = src.find(want, progress)
+            for md5, path in m.items():
+                self.maps.setdefault(md5, path)
+            self.installed[kind].update(m)
+            found += len(want & m.keys())
+            want -= m.keys()
+        self._unread_maps = [(k, s) for k, s in self._unread_maps if not s.exhausted]
+        self.save_index()
+        return found
+
+    def missing_maps(self, refs: list[dict], progress=None) -> list[str]:
+        """Beatmaps of these replays that aren't on this computer (after looking for them in the
+        parts of the installs a limited scan didn't read)."""
+        need = {r["beatmap_md5"] for r in refs}
+        if self._unread_maps and need - self.maps.keys():
+            self.find_maps(need, progress)
+        return sorted(m for m in need if m not in self.maps)
 
     def fetch_missing(self, md5s: list[str], progress=None) -> int:
         """Download missing .osu files by MD5 (osu.direct lookup + official file, MD5-verified)."""
