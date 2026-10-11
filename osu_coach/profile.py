@@ -78,12 +78,12 @@ SKILL_HELP = {
                 "maps weighted like osu! pp, against your level's typical value, +25 per doubling.",
                 "Play maps with long, curved and fast sliders and follow every one to its end; mix slow and fast "
                 "sliders. Many short sliders don't raise it."),
-    "reading": ("Reading: lower AR than usual for the map's difficulty (HD / FL count too), decent accuracy on "
-                "those maps, and BPM changes you read and hit accurately.",
-                "Score: per passed map 2^((usual AR \u2212 AR) / 3) \u00d7 (up to \u00d71.5 for BPM changes hit as 300s) "
-                "\u00d7 accuracy^8; maps weighted like osu! pp; 50 = usual AR at 95%, +25 per doubling.",
-                "Play maps a little below the AR you're used to (or with HD) and keep the accuracy up; maps with "
-                "BPM changes, hitting the first notes after each change on time."),
+    "reading": ("Reading: lower AR than usual for the map's difficulty on maps with many circles per second "
+                "(HD / FL count too), decent accuracy on those maps, and BPM changes you read and hit accurately.",
+                "Score: per passed map 2^((usual AR \u2212 AR) / 3 \u00d7 circles per second \u00f7 5) \u00d7 (up to "
+                "\u00d71.5 for BPM changes hit as 300s) \u00d7 accuracy^8; maps weighted like pp; 50 = usual AR at 95%.",
+                "Play busy maps a little below the AR you're used to (or with HD) and keep the accuracy up; maps "
+                "with BPM changes, hitting the first notes after each change on time."),
     "consistency": ("Consistency: does one miss make you miss more? The 10 notes after each miss are checked "
                     "(notelock is ignored).",
                     "Score: misses after a miss vs what the difficulty predicts there. A ratio of 2.0 (typical) "
@@ -1548,6 +1548,8 @@ def aim_score(P: pd.DataFrame, level: float | None = None, n_total: int | None =
 # ------------------------------------------------------------------ reading
 READ_AR_STEP = 3.0        # every 3 AR below what is usual for the map's star rating doubles the reading demand
 READ_AR_MIN = 0.6         # higher AR than usual lowers it, to at most 0.6
+READ_NPS = 5.0            # circles per second (during play, breaks left out) at which low AR counts fully ...
+READ_NPS_RANGE = (0.25, 2.0)  # ... the AR difference counts × circles per second ÷ 5 (0.25–2)
 READ_HD, READ_FL = 1.2, 1.6   # hidden / flashlight hide the notes: more to read
 READ_BPM_JUMP = 0.08      # a BPM change: the beat length changes by 8%+ from one note to the next
 READ_BPM_NOTES = 4        # the first 4 notes after a BPM change show whether you read it
@@ -1566,12 +1568,15 @@ def usual_ar(stars) -> np.ndarray:
 def reading_values(P: pd.DataFrame) -> pd.DataFrame:
     """Per passed play: reading demand × how well you played it.
 
-    * ``ar_factor`` = 2^((usual AR for the map's stars − its AR with mods) / 3): AR 3 lower than usual = ×2,
-      6 lower = ×4 (higher AR than usual: down to 0.6); × 1.2 with hidden, × 1.6 with flashlight;
+    * ``ar_factor`` = 2^((usual AR for the map's stars − its AR with mods) / 3 × ``busy``): AR 3 lower than
+      usual = ×2, 6 lower = ×4 on a map with 5 circles per second; ``busy`` = circles per second ÷ 5 (during
+      play, breaks of 5+ s left out; 0.25–2), so low AR on a slow map (3 per second: ×0.6 of the AR difference)
+      counts much less than on a busy one (higher AR than usual: down to 0.6); × 1.2 with hidden, × 1.6 with
+      flashlight;
     * ``bpm_factor`` = 1 + 0.5 × min(1, BPM changes ÷ 8) × your 300 share on the first 4 notes after each
       change (a miss = 0): read and hit the BPM changes accurately and a map full of them counts ×1.5;
     * ``value`` = ar_factor × bpm_factor × accuracy^8 (decent accuracy on those maps: 95% = 0.66)."""
-    cols = ["replay_key", "map", "ar", "ar_factor", "bpm_changes", "bpm_hit", "bpm_factor", "accuracy", "value"]
+    cols = ["replay_key", "map", "ar", "nps", "ar_factor", "bpm_changes", "bpm_hit", "bpm_factor", "accuracy", "value"]
     if P is None or P.empty or "map_ar" not in P or "accuracy" not in P:
         return pd.DataFrame(columns=cols)
     D = P[P["kind"] != "spinner"] if "kind" in P else P
@@ -1584,7 +1589,12 @@ def reading_values(P: pd.DataFrame) -> pd.DataFrame:
         if not (np.isfinite(ar) and np.isfinite(acc)) or len(d) < 30:
             continue
         stars = float(d["stars"].iloc[0]) if "stars" in d and np.isfinite(d["stars"].iloc[0]) else 6.0
-        f_ar = max(READ_AR_MIN, 2 ** ((float(usual_ar(stars)) - ar) / READ_AR_STEP))
+        tt = d["time"].astype(float).to_numpy() / (float(d["rate"].iloc[0]) if "rate" in d else 1.0) / 1000.0
+        gaps = np.diff(tt)
+        active = float(gaps[(gaps > 0) & (gaps <= 5.0)].sum())
+        nps = len(tt) / active if active > 0 else READ_NPS
+        busy = float(np.clip(nps / READ_NPS, *READ_NPS_RANGE))
+        f_ar = max(READ_AR_MIN, 2 ** ((float(usual_ar(stars)) - ar) / READ_AR_STEP * busy))
         if "hidden" in d and bool(d["hidden"].iloc[0]):
             f_ar *= READ_HD
         if "flashlight" in d and bool(d["flashlight"].iloc[0]):
@@ -1598,7 +1608,7 @@ def reading_values(P: pd.DataFrame) -> pd.DataFrame:
         res = d["head_result"].to_numpy() if "head_result" in d else np.where(d["head_hit"], 300, 0)
         hit = float((res[after] == 300).mean()) if after.any() else math.nan
         f_bpm = 1.0 + READ_BPM_BONUS * min(1.0, len(starts) / READ_BPM_FULL) * (hit if hit == hit else 0.0)
-        rows.append({"replay_key": k, "map": m, "ar": ar, "ar_factor": f_ar, "bpm_changes": int(len(starts)),
+        rows.append({"replay_key": k, "map": m, "ar": ar, "nps": nps, "ar_factor": f_ar, "bpm_changes": int(len(starts)),
                      "bpm_hit": hit, "bpm_factor": f_bpm, "accuracy": acc,
                      "value": f_ar * f_bpm * max(acc, 0.0) ** READ_ACC_POWER})
     return pd.DataFrame(rows, columns=cols)
