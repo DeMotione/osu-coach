@@ -78,10 +78,12 @@ SKILL_HELP = {
                 "maps weighted like osu! pp, against your level's typical value, +25 per doubling.",
                 "Play maps with long, curved and fast sliders and follow every one to its end; mix slow and fast "
                 "sliders. Many short sliders don't raise it."),
-    "reading": ("Reading: notes in the dense parts of your maps, where the most notes are on screen at once "
-                "(the busiest 20% of notes, at least 4 visible).", MISS_MODEL_SCORE,
-                "Maps that are a little denser or have a slightly higher AR than you usually play; HD on "
-                "easier maps also trains reading."),
+    "reading": ("Reading: lower AR than usual for the map's difficulty (HD / FL count too), decent accuracy on "
+                "those maps, and BPM changes you read and hit accurately.",
+                "Score: per passed map 2^((usual AR \u2212 AR) / 3) \u00d7 (up to \u00d71.5 for BPM changes hit as 300s) "
+                "\u00d7 accuracy^8; maps weighted like osu! pp; 50 = usual AR at 95%, +25 per doubling.",
+                "Play maps a little below the AR you're used to (or with HD) and keep the accuracy up; maps with "
+                "BPM changes, hitting the first notes after each change on time."),
     "consistency": ("Consistency: does one miss make you miss more? The 10 notes after each miss are checked "
                     "(notelock is ignored).",
                     "Score: misses after a miss vs what the difficulty predicts there. A ratio of 2.0 (typical) "
@@ -864,6 +866,8 @@ def build_profile(analyses: list[ReplayAnalysis], level: float | None = None, we
         o["rate"] = a.meta.get("rate", 1.0)
         o["date"] = a.meta.get("date")
         o["hidden"] = bool(a.meta.get("mods", 0) & 8)
+        o["flashlight"] = bool(a.meta.get("mods", 0) & 1024)
+        o["accuracy"] = a.meta.get("accuracy", np.nan)
         o["completed"] = bool(a.meta.get("completed", True))
         o["map_md5"] = a.meta.get("beatmap_md5")
         mc = a.meta.get("map_max_combo") or 0
@@ -1541,6 +1545,86 @@ def aim_score(P: pd.DataFrame, level: float | None = None, n_total: int | None =
     return out
 
 
+# ------------------------------------------------------------------ reading
+READ_AR_STEP = 3.0        # every 3 AR below what is usual for the map's star rating doubles the reading demand
+READ_AR_MIN = 0.6         # higher AR than usual lowers it, to at most 0.6
+READ_HD, READ_FL = 1.2, 1.6   # hidden / flashlight hide the notes: more to read
+READ_BPM_JUMP = 0.08      # a BPM change: the beat length changes by 8%+ from one note to the next
+READ_BPM_NOTES = 4        # the first 4 notes after a BPM change show whether you read it
+READ_BPM_FULL = 8         # 8+ BPM changes in a map = the full BPM-change bonus (×1.5 when you hit them as 300s)
+READ_BPM_BONUS = 0.5
+READ_ACC_POWER = 8.0      # × accuracy^8: 99% = 0.92, 95% = 0.66, 90% = 0.43, 85% = 0.27
+READ_REF = 0.95 ** 8      # 50 = usual AR for the map, 95% accuracy, no BPM changes
+READ_POINTS = 25.0        # points per doubling of the value
+
+
+def usual_ar(stars) -> np.ndarray:
+    """The approach rate maps of this star rating (with mods) usually have: 7.25 at 3*, 9.5 at 6*, 10.5 from 7.3*."""
+    return np.clip(5.0 + 0.75 * np.asarray(stars, dtype=float), 5.0, 10.5)
+
+
+def reading_values(P: pd.DataFrame) -> pd.DataFrame:
+    """Per passed play: reading demand × how well you played it.
+
+    * ``ar_factor`` = 2^((usual AR for the map's stars − its AR with mods) / 3): AR 3 lower than usual = ×2,
+      6 lower = ×4 (higher AR than usual: down to 0.6); × 1.2 with hidden, × 1.6 with flashlight;
+    * ``bpm_factor`` = 1 + 0.5 × min(1, BPM changes ÷ 8) × your 300 share on the first 4 notes after each
+      change (a miss = 0): read and hit the BPM changes accurately and a map full of them counts ×1.5;
+    * ``value`` = ar_factor × bpm_factor × accuracy^8 (decent accuracy on those maps: 95% = 0.66)."""
+    cols = ["replay_key", "map", "ar", "ar_factor", "bpm_changes", "bpm_hit", "bpm_factor", "accuracy", "value"]
+    if P is None or P.empty or "map_ar" not in P or "accuracy" not in P:
+        return pd.DataFrame(columns=cols)
+    D = P[P["kind"] != "spinner"] if "kind" in P else P
+    if "completed" in D:
+        D = D[D["completed"].astype(bool)]
+    rows = []
+    for (k, m), d in D.groupby([D["replay_key"], _map_key(D)], sort=False):
+        d = d.sort_values("time")
+        ar, acc = float(d["map_ar"].iloc[0]), float(d["accuracy"].iloc[0])
+        if not (np.isfinite(ar) and np.isfinite(acc)) or len(d) < 30:
+            continue
+        stars = float(d["stars"].iloc[0]) if "stars" in d and np.isfinite(d["stars"].iloc[0]) else 6.0
+        f_ar = max(READ_AR_MIN, 2 ** ((float(usual_ar(stars)) - ar) / READ_AR_STEP))
+        if "hidden" in d and bool(d["hidden"].iloc[0]):
+            f_ar *= READ_HD
+        if "flashlight" in d and bool(d["flashlight"].iloc[0]):
+            f_ar *= READ_FL
+        b = d["bpm_real"].astype(float).to_numpy() if "bpm_real" in d else np.full(len(d), np.nan)
+        jump = np.r_[False, np.abs(np.diff(b)) / np.maximum(b[:-1], 1e-6) > READ_BPM_JUMP]
+        starts = np.flatnonzero(jump)
+        after = np.zeros(len(d), dtype=bool)
+        for i in starts:
+            after[i:i + READ_BPM_NOTES] = True
+        res = d["head_result"].to_numpy() if "head_result" in d else np.where(d["head_hit"], 300, 0)
+        hit = float((res[after] == 300).mean()) if after.any() else math.nan
+        f_bpm = 1.0 + READ_BPM_BONUS * min(1.0, len(starts) / READ_BPM_FULL) * (hit if hit == hit else 0.0)
+        rows.append({"replay_key": k, "map": m, "ar": ar, "ar_factor": f_ar, "bpm_changes": int(len(starts)),
+                     "bpm_hit": hit, "bpm_factor": f_bpm, "accuracy": acc,
+                     "value": f_ar * f_bpm * max(acc, 0.0) ** READ_ACC_POWER})
+    return pd.DataFrame(rows, columns=cols)
+
+
+def reading_score(P: pd.DataFrame, n_total: int | None = None) -> dict:
+    """Reading: lower AR than usual (and HD / FL), decent accuracy on those maps, and BPM changes read and hit
+    accurately (:func:`reading_values`); one value per map (best pass), weighted like osu!'s pp
+    (:func:`ranked_mean`); 50 = the usual AR for the map at 95% accuracy, +25 per doubling."""
+    out = {"score": None, "n": 0, "value": math.nan, "maps": 0, "lowest_ar": math.nan, "bpm_maps": 0,
+           "bpm_hit": math.nan, "best": None}
+    V = reading_values(P)
+    if V.empty:
+        return out
+    B = V.sort_values("value", ascending=False).drop_duplicates("map")
+    N = n_total or _n_replays(P)
+    out.update(n=int(len(V)), maps=int(len(B)), value=ranked_mean(B["value"].to_numpy(), N),
+               lowest_ar=float(B["ar"].min()), bpm_maps=int((B["bpm_changes"] > 0).sum()),
+               bpm_hit=float(B["bpm_hit"].dropna().mean()) if B["bpm_hit"].notna().any() else math.nan)
+    b = B.iloc[0]
+    out["best"] = {"ar": float(b["ar"]), "accuracy": float(b["accuracy"]), "bpm_changes": int(b["bpm_changes"])}
+    if len(B) >= 3:
+        out["score"] = _clip(50 + READ_POINTS * math.log2(max(out["value"], 1e-6) / READ_REF))
+    return out
+
+
 # ------------------------------------------------------------------ tapping speed
 SPEED_FINGER = ("no_tap", "early", "late", "notelock")   # finger misses (aim / lost-track misses don't count)
 SPEED_TIMING = 0.8        # a clean run: no finger miss and 80%+ of its hit notes as 300s (mashing gives 100s)
@@ -1615,11 +1699,7 @@ def _skills(P, model, tapping, sliders, reading, consistency, level: float | Non
     s["accuracy"] = {"score": accuracy_score(r300) if not math.isnan(r300) and n_single >= 60 else None,
                      "n": n_single, "three_hundred_rate": r300, "ur": tapping.get("ur_single")}
     s["sliders"] = slider_score(P, level, n_total=N)
-    if "dense_threshold" in reading:
-        mask = P["density"] >= reading["dense_threshold"]
-        s["reading"] = _subset_score(_weighted(P, difficulty_weights(P, mask, "local_eq", N)), mask, model)
-    else:
-        s["reading"] = {"score": None, "n": 0}
+    s["reading"] = reading_score(P, N)
     Pc = _weighted(P, Wa)
     ratio = miss_chain_ratio(Pc) if len(P) else math.nan
     s["consistency"] = {"score": _clip(50 + 30 * math.log2(TYPICAL_CHAIN_RATIO / ratio))

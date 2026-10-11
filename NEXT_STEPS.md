@@ -184,6 +184,12 @@ Files in `reference_replays/` (ignored by git); `dev_tools/reference_analysis.py
   `aim_score`: pp-weighted per map vs `aim_ref` (16 at 6★, ×2 per 12★). Owner 61 → 51 (rarely holds full combo
   on his hardest maps); reference groups 58–92 (aim group 84). Monthly progress needs 3 passed maps per month.
 
+## Reading = low AR + accuracy + BPM changes (2026-10-11, owner's request)
+
+- `reading_values` / `reading_score` replace the dense-notes miss-model score. Owner 33 → 50 (best: Harumachi
+  Clover AR3 92.6%; mononoke 17 BPM changes, 98% 300s after them). Reference reading group (AR0 plays) 100,
+  marathons with FL / BPM changes 93, others 67–74.
+
 ## Next steps, in order
 
 0. **Check the weighting and speed-aim split against how Nikita feels he plays** after a week of new replays:
