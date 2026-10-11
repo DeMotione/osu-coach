@@ -963,8 +963,8 @@ def page_overview():
     c[5].metric("Accuracy", pct(ov["accuracy"]))
     left, right = st.columns([3, 2], gap="large")
     with left:
-        section("Skills", "One bar per skill, 0–100; 50 = typical for your level (aim, flow aim, reading: you miss as "
-                          "often as your own miss model expects for how hard those notes are). Like osu! pp, the "
+        section("Skills", "One bar per skill, 0–100; 50 = typical for your level (flow aim and consistency: you miss "
+                          "as often as your own miss model expects for those notes). Like osu! pp, the "
                           "hardest plays of each skill count most: 100%, then 1/(replays analysed) less per place. "
                           "Green ≥ 55, red ≤ 45, grey = not enough data, or too few misses to tell.")
         rows = [(k, v["label"], v.get("score"), v.get("n", 0), v.get("observed"), v.get("expected"))

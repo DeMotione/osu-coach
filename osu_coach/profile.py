@@ -36,7 +36,7 @@ SKILL_LABELS = {
     "stamina": "Stamina",
     "accuracy": "Accuracy (timing)",
     "sliders": "Slider control",
-    "reading": "Reading (dense parts / AR)",
+    "reading": "Reading (low AR / BPM changes)",
     "consistency": "Consistency",
 }
 # Shown when the cursor is on a skill bar (Overview): what the skill measures, how the score is worked out,
