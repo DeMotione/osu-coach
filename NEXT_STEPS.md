@@ -153,6 +153,19 @@ Files in `reference_replays/` (ignored by git); `dev_tools/reference_analysis.py
   old stream-based score, so marathons only lift it and never above 80 alone. Reference: The Unforgiving 0 → 50,
   LONG SEASON 24 → 62, marathon group 37 → 68 (stream group 84, unchanged).
 
+## Stamina and sliders rebuilt (2026-10-11, owner's request)
+
+- **Stamina** = tempo you keep up × for how long (`tempo_curve`, `stamina_score`): best kept tempo for 10 s / 30 s /
+  1 / 2 / 5 min (kept share ≥ 90% = full, ≤ 60% = 0), best 3 maps each, vs `stamina_ref_bpm` × `STAMINA_WINDOW_SHARE`,
+  75 points per doubling, averaged. Replaces the stream-load parts and the endurance part (removed). Stream
+  steadiness stays as information. Owner (6.08★): 75 → 62 (10 s 184, 30 s 162, 1 min 150, 2 min 135, 5 min 94).
+  Reference groups: stamina 60 (ENTANGLE NIGHT 272 / 270 / 259 / 216 BPM), the marathon The Unforgiving stays low
+  (100 / 77 / 60 / 48 / 43), so marathons can't beat controlled death streams.
+- **Sliders** = how hard the sliders are you hold (`slider_difficulty`, `slider_score`; new object columns
+  `slider_turn`, `slider_corners`, `slider_bends`, `slider_vel_change`, `slider_next_gap`; `ANALYSIS_VERSION` 7).
+  Owner 99 → 87; slider group 63 (AKAGE / Magic people / Euclid high, Burning Star has almost no hard sliders, so
+  it is a poor reference pick). Shares and weights are first guesses: check them on more players.
+
 ## Next steps, in order
 
 0. **Check the weighting and speed-aim split against how Nikita feels he plays** after a week of new replays:

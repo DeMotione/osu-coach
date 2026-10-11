@@ -107,54 +107,6 @@ def test_stream_speed_ignores_aim_misses():
     assert lim == {"comfort_bpm": 240, "limit_bpm": 260}
 
 
-def _stamina_runs(spec, completed=True, key="r"):
-    """spec: list of (notes, bpm, outcome per note fn(pos) -> (head_hit, miss_reason))."""
-    rows = []
-    for rid, (notes, bpm, outcome) in enumerate(spec):
-        for pos in range(notes):
-            hit, reason = outcome(pos)
-            rows.append({"run_id": rid, "run_len": notes, "run_pos": pos, "stream_bpm": float(bpm), "head_hit": hit,
-                         "miss_reason": reason, "replay_key": key, "completed": completed, "played": True,
-                         "kind": "circle"})
-    return rows
-
-
-CLEAN = lambda pos: (True, None)                                                    # noqa: E731
-SLOPPY = lambda pos: (pos < 20 or pos % 3 != 0, None if pos < 20 or pos % 3 else "late")   # noqa: E731
-GAVE_UP = lambda pos: (pos < 20, None if pos < 20 else "no_tap")                    # noqa: E731
-
-
-def test_stamina_counts_streams_you_keep_tapping_even_when_accuracy_drops():
-    sloppy = pd.DataFrame(_stamina_runs([(48, 240, SLOPPY)] * 5))
-    gave_up = pd.DataFrame(_stamina_runs([(48, 240, GAVE_UP)] * 5))
-    a, b = stamina_score(sloppy, level=6.0), stamina_score(gave_up, level=6.0)
-    assert a["streams_kept"] == 5 and b["streams_kept"] == 0
-    assert a["best_stream"] == {"notes": 48, "bpm": 240.0, "load": pytest.approx(48 * 1.2 ** 3), "steady": 1.0}
-    assert a["score"] is not None and a["score"] > 60
-    assert b["stream_score"] is None and (b["score"] is None or b["score"] < a["score"])
-
-
-def test_stamina_weighs_faster_streams_much_more():
-    slow = stamina_score(pd.DataFrame(_stamina_runs([(32, 200, CLEAN)] * 5)), level=6.0)
-    fast = stamina_score(pd.DataFrame(_stamina_runs([(32, 240, CLEAN)] * 5)), level=6.0)
-    assert fast["stream_score"] - slow["stream_score"] == pytest.approx(25 * math.log2(1.2 ** 3), abs=0.01)
-    assert stamina_ref_bpm(6.0) == 210 and stamina_ref_bpm(3.0) == 165
-    # 50 = 32-note streams at the speed typical for the level
-    assert stamina_score(pd.DataFrame(_stamina_runs([(32, 210, CLEAN)] * 5)), level=6.0)["stream_score"] == \
-        pytest.approx(50)
-
-
-def test_stamina_longer_finished_maps_load_more_failed_ones_dont_count():
-    short = _stamina_runs([(16, 220, CLEAN)] * 4, key="a")
-    long_ = _stamina_runs([(16, 220, CLEAN)] * 20, key="b")
-    failed = _stamina_runs([(16, 220, CLEAN)] * 60, key="c", completed=False)
-    s1 = stamina_score(pd.DataFrame(short), level=6.0)
-    s2 = stamina_score(pd.DataFrame(short + long_ + failed), level=6.0)
-    assert s2["best_play"]["replay_key"] == "b" and s2["best_play"]["stream_notes"] == 320
-    assert s2["map_score"] > s1["map_score"]
-    assert s2["stream_score"] == pytest.approx(s1["stream_score"])     # same streams, only the maps differ
-
-
 # ------------------------------------------------------------------ stamina inside streams (precision)
 def _long_streams(n_runs, length, err_fn, seed=3, bpm=200.0):
     rng = np.random.default_rng(seed)
@@ -313,6 +265,7 @@ def test_stamina_rhythm_steady_when_tapping_with_the_notes():
     O, Pr = _timed_streams([(48, 220, WITH_NOTES)] * 5)
     s = stamina_score(O, level=6.0, presses=Pr)
     assert s["steadiness"] == pytest.approx(1.0) and s["streams_slowed"] == 0
+    assert s["best_stream"] == {"notes": 48, "bpm": 220.0, "steady": 1.0}
 
 
 def test_stamina_overstreaming_is_not_bad_stamina():
@@ -320,7 +273,7 @@ def test_stamina_overstreaming_is_not_bad_stamina():
     steady = stamina_score(*_args(_timed_streams([(48, 220, WITH_NOTES)] * 5)))
     over = stamina_score(*_args(_timed_streams([(48, 220, OVERSTREAM)] * 5)))
     assert over["streams_overstreamed"] == 5 and over["streams_slowed"] == 0
-    assert over["score"] == pytest.approx(steady["score"])
+    assert over["steadiness"] == pytest.approx(1.0)
 
 
 def test_stamina_uneven_but_regular_alternation_is_steady():
@@ -328,25 +281,9 @@ def test_stamina_uneven_but_regular_alternation_is_steady():
     assert s["steadiness"] == pytest.approx(1.0)
 
 
-def test_stamina_slowing_down_in_the_second_half_costs_load():
-    steady = stamina_score(*_args(_timed_streams([(48, 220, WITH_NOTES)] * 5)))
+def test_stamina_slowing_down_in_the_second_half_shows_in_steadiness():
     tired = stamina_score(*_args(_timed_streams([(48, 220, SLOWS_DOWN)] * 5)))
     assert tired["streams_slowed"] == 5 and tired["steadiness"] < 0.7
-    assert tired["score"] < steady["score"] - 10
-
-
-def test_stamina_much_streaming_in_30_seconds_scores_higher_than_the_same_spread_out():
-    dense = stamina_score(*_args(_timed_streams([(32, 220, WITH_NOTES)] * 6, gap_s=1.0)))
-    spread = stamina_score(*_args(_timed_streams([(32, 220, WITH_NOTES)] * 6, gap_s=20.0)))
-    assert dense["window_load"] > 2 * spread["window_load"]
-    assert dense["map_load"] == pytest.approx(spread["map_load"])      # same streams, same map total
-    assert dense["score"] > spread["score"]
-
-
-def test_stamina_without_presses_still_scores_from_kept_streams():
-    O, _ = _timed_streams([(48, 220, WITH_NOTES)] * 5)
-    s = stamina_score(O, level=6.0)
-    assert s["score"] is not None and math.isnan(s["steadiness"])
 
 
 def _args(op):
@@ -354,52 +291,109 @@ def _args(op):
     return O, None, 6.0, Pr
 
 
-# ------------------------------------------------------------------ stamina: endurance (marathons)
-def _map(key, segments, completed=True):
-    """A play from (notes, ms between notes, stream?) segments, in order; stream segments are one run each."""
-    rows, t, rid = [], 1000.0, 0
-    for notes, gap, stream in segments:
-        for i in range(notes):
+# ------------------------------------------------------------------ stamina: tempo you keep up, and for how long
+def _map(key, segments, completed=True, start=1000.0):
+    """A play from (notes, ms between notes, outcome) segments, in order; outcome = None (hit) or a miss reason."""
+    rows, t = [], start
+    for notes, gap, miss in segments:
+        for _ in range(notes):
             t += gap
-            rows.append({"time": t, "dt_real": gap if rows else np.nan, "head_hit": True, "miss_reason": None,
-                         "kind": "circle", "completed": completed, "replay_key": key, "played": True, "rate": 1.0,
-                         "run_id": rid if stream else -1, "run_len": notes if stream else 1,
-                         "run_pos": i if stream else 0, "stream_bpm": 15000.0 / gap if stream else np.nan})
-        rid += int(stream)
+            rows.append({"time": t, "head_hit": miss is None, "miss_reason": miss, "kind": "circle",
+                         "completed": completed, "replay_key": key, "played": True, "rate": 1.0,
+                         "run_id": -1, "run_len": 1, "run_pos": 0, "stream_bpm": np.nan})
     return rows
 
 
-def test_endurance_ramp_steps_up_every_time_the_minutes_double():
-    from osu_coach.profile import endurance_ramp
-    assert list(endurance_ramp([0, 4.9, 5, 9.9, 10, 20, 39, 40, 80])) == [1, 1, 2, 2, 3, 4, 4, 5, 6]
+def _stream_for(seconds, bpm, miss=None):
+    gap = 15000.0 / bpm
+    return (int(seconds * 1000 / gap), gap, miss)
 
 
-def test_breaks_pause_the_endurance_clock_instead_of_resetting_it():
-    from osu_coach.profile import endurance_loads
-    half = (1200, 200.0, False)                                    # 4 min of 1/4 notes at 75 BPM each half
-    E = endurance_loads(pd.DataFrame(_map("m", [half, (1, 60000.0, False), half])))
-    assert E["minutes"].iloc[0] == pytest.approx(8.0, abs=0.01)     # the 1-minute break isn't play time
-    speed = 15000 / 200 / 200
-    # notes after 5 minutes of play (not 5 minutes of map time) count double
-    assert E["load"].iloc[0] == pytest.approx(speed * (1499 * 1 + 900 * 2), rel=0.01)
-    failed = endurance_loads(pd.DataFrame(_map("f", [half], completed=False)))
-    assert failed.empty                                             # only finished maps count
+def test_tempo_curve_is_the_fastest_tempo_kept_up_for_each_duration():
+    from osu_coach.profile import tempo_curve
+    C = tempo_curve(pd.DataFrame(_map("a", [_stream_for(150, 220)]))).set_index("window")
+    assert C.loc[[10, 30, 60, 120], "bpm"].tolist() == pytest.approx([220] * 4, rel=0.01)
+    assert 300 not in C.index                                         # the play is shorter than 5 minutes
+    # a 20-second burst at 260 BPM inside slower tapping: fast for 10 s, not for a minute
+    C = tempo_curve(pd.DataFrame(_map("b", [_stream_for(60, 150), _stream_for(20, 260),
+                                            _stream_for(60, 150)]))).set_index("window")
+    assert C.loc[10, "bpm"] == pytest.approx(260, rel=0.01)
+    assert C.loc[60, "bpm"] < 190
 
 
-def test_marathons_lift_stamina_but_never_above_controlled_death_streams():
-    """A 45-minute marathon of 1/2 notes, played clean, vs. short maps full of long 280 BPM streams kept steady."""
-    marathon = pd.DataFrame(_map("mar", [(16200, 166.7, False)]))             # 45 min at 180 BPM 1/2 notes
-    death = []
-    for k in range(5):
-        death += _map(f"d{k}", [(200, 333.0, False)] + [(128, 15000 / 280, True), (16, 333.0, False)] * 4)
-    death = pd.DataFrame(death)
+def test_undertapping_stops_the_tempo_but_sloppy_hits_and_overstreaming_count():
+    from osu_coach.profile import tempo_curve
+    clean = tempo_curve(pd.DataFrame(_map("c", [_stream_for(130, 220)]))).set_index("window")["bpm"]
+    # every 3rd note a 100 / an early miss where you tapped: your fingers kept going
+    rows = _map("s", [_stream_for(130, 220)])
+    for i, r in enumerate(rows):
+        if i % 3 == 0:
+            r["head_hit"], r["miss_reason"] = False, "early"
+    sloppy = tempo_curve(pd.DataFrame(rows)).set_index("window")["bpm"]
+    assert sloppy[120] == pytest.approx(clean[120])
+    # after 40 s the fingers give in: half the notes get no tap
+    rows = _map("u", [_stream_for(40, 220), _stream_for(90, 220)])
+    for i, r in enumerate(rows):
+        if r["time"] > 41000 and i % 2:
+            r["head_hit"], r["miss_reason"] = False, "no_tap"
+    tired = tempo_curve(pd.DataFrame(rows)).set_index("window")["bpm"]
+    assert tired[30] == pytest.approx(clean[30], rel=0.02)            # the first 40 s were fine
+    assert tired[120] < 0.5 * clean[120]                              # but not for 2 minutes
+
+
+def test_stamina_score_against_the_typical_tempo_for_the_level():
+    def maps(bpm):
+        return pd.DataFrame(sum((_map(f"m{k}", [_stream_for(130, bpm)]) for k in range(3)), []))
+    lvl = 6.0                                                         # typical stream speed 210 BPM
+    base, fast = stamina_score(maps(150), level=lvl), stamina_score(maps(170), level=lvl)
+    assert stamina_ref_bpm(6.0) == 210 and stamina_ref_bpm(3.0) == 165
+    assert fast["score"] - base["score"] == pytest.approx(75 * math.log2(170 / 150), abs=0.5)   # 13% faster = +13.5
+    assert set(base["parts"]) == {10, 30, 60, 120}
+    # one map played three times counts once: not enough maps for a score
+    again = pd.DataFrame(sum((_map(f"r{k}", [_stream_for(130, 240)]) for k in range(3)), []))
+    again["map_md5"] = "same"
+    assert stamina_score(again, level=lvl)["score"] is None
+
+
+def test_low_tempo_marathons_never_beat_controlled_death_streams():
+    """A 45-minute marathon of 1/2 notes at 180 BPM, played clean, vs. 3-minute maps of 280 BPM streams."""
+    marathon = pd.DataFrame(sum((_map(f"mar{k}", [(16200, 166.7, None)]) for k in range(3)), []))
+    death = pd.DataFrame(sum((_map(f"d{k}", [_stream_for(25, 280), (12, 333.0, None)] * 7)
+                              for k in range(3)), []))
     lvl = 8.0
     m, d = stamina_score(marathon, level=lvl), stamina_score(death, level=lvl)
-    assert m["stream_based_score"] is None and m["endurance_score"] == pytest.approx(100)
-    assert m["score"] == pytest.approx(50)                         # halfway from 0 towards 100
-    assert d["score"] > m["score"] and d["score"] > 80             # death streams win
-    both = stamina_score(pd.concat([death, marathon], ignore_index=True), level=lvl)
-    assert both["score"] >= d["score"]                             # endurance never lowers a score
-    # endurance alone can never reach past 80, however long the marathons
-    many = pd.concat([pd.DataFrame(_map(f"m{k}", [(30000, 166.7, False)])) for k in range(5)], ignore_index=True)
-    assert stamina_score(many, level=lvl)["score"] <= 80
+    assert m["curve"][300] == pytest.approx(90, rel=0.02)            # 1/2 notes at 180 BPM = 90 as stream BPM
+    assert d["score"] > m["score"] + 30
+
+
+# ------------------------------------------------------------------ sliders: how hard the sliders are you hold
+def _sliders(key, n, vel, length, turn=0.0, corners=0, bends=0, spans=1, broke=None, change=0.0, gap=1000.0):
+    return [{"kind": "slider", "head_hit": True, "broke": bool(broke and i < broke), "replay_key": key,
+             "radius": 32.0, "slider_vel_real": vel, "slider_len": length, "slider_spans": spans,
+             "slider_turn": turn, "slider_corners": corners, "slider_bends": bends, "slider_vel_change": change,
+             "slider_next_gap": gap, "played": True} for i in range(n)]
+
+
+def test_slider_difficulty_grows_with_speed_length_and_shape():
+    from osu_coach.profile import slider_difficulty
+    S = pd.DataFrame(_sliders("a", 1, 0.5, 60) + _sliders("b", 1, 0.5, 200) + _sliders("c", 1, 1.5, 200)
+                     + _sliders("d", 1, 1.5, 200, turn=2 * math.pi, corners=2, bends=2)
+                     + _sliders("e", 1, 1.5, 200, change=0.7) + _sliders("f", 1, 1.5, 200, gap=50))
+    d = slider_difficulty(S).tolist()
+    assert d[0] == 0                                  # shorter than what the follow circle covers: no movement
+    assert d[1] < d[2] < d[3]                         # longer < faster < curved with corners and bends
+    assert d[4] > d[2] and d[5] > d[2]                # speed change and a quick next note add to it
+
+
+def test_many_easy_sliders_dont_add_up_to_a_few_hard_ones():
+    from osu_coach.profile import slider_score
+    easy = pd.DataFrame(sum((_sliders(f"e{k}", 300, 0.4, 90) for k in range(5)), []))
+    hard = pd.DataFrame(sum((_sliders(f"h{k}", 30, 1.6, 260, turn=math.pi, corners=1) for k in range(5)), []))
+    e, h = slider_score(easy, level=6.0), slider_score(hard, level=6.0)
+    assert e["score"] < 50 < h["score"]
+    # breaking 3 of the 30 hardest sliders on every map costs about a quarter of the value
+    broken = pd.DataFrame(sum((_sliders(f"b{k}", 30, 1.6, 260, turn=math.pi, corners=1, broke=3)
+                               for k in range(5)), []))
+    b = slider_score(broken, level=6.0)
+    assert b["value"] == pytest.approx(h["value"] * 0.9 ** 3)
+    assert b["score"] < h["score"] - 8
