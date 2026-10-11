@@ -178,6 +178,12 @@ Files in `reference_replays/` (ignored by git); `dev_tools/reference_analysis.py
   Reference groups: stamina group stamina 97, slider group sliders 92, speed group speed 51 (its DT plays put its
   level at 10.75★, so "typical" is 281 BPM). Needs mid-level players' replays to set the yardsticks properly.
 
+## Jump aim = distance × speed × combo (2026-10-11, owner's request)
+
+- `aim_values`: per passed play, mean cursor speed (diameters/s) of the 30 fastest jumps × (combo ÷ max combo)^0.8;
+  `aim_score`: pp-weighted per map vs `aim_ref` (16 at 6★, ×2 per 12★). Owner 61 → 51 (rarely holds full combo
+  on his hardest maps); reference groups 58–92 (aim group 84). Monthly progress needs 3 passed maps per month.
+
 ## Next steps, in order
 
 0. **Check the weighting and speed-aim split against how Nikita feels he plays** after a week of new replays:

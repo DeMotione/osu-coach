@@ -883,6 +883,13 @@ def skill_facts(key: str, v: dict) -> list[str]:
     elif key == "consistency":
         r = _num(v.get("miss_after_miss_ratio"), ".2f")
         facts.append(f"{n:,} notes" + (f", miss-after-miss ratio {r}" if r else ""))
+    elif key == "aim":
+        val, ref = _num(v.get("value"), ".1f"), _num(v.get("ref"), ".1f")
+        inten, combo = _num(v.get("intensity"), ".0f"), _num(v.get("combo"), ".0%")
+        facts.append(f"{n:,} jumps on {v.get('maps', 0)} passed maps")
+        if val:
+            facts.append(f"cursor speed of your hardest jumps {inten} circles/s, combo held {combo} of the map; "
+                         f"value {val} (typical for your level {ref})")
     elif key == "speed":
         bpm, best, ref = _num(v.get("bpm")), _num(v.get("best_bpm")), _num(v.get("ref_bpm"))
         clean = _num(v.get("clean_share"), ".0%")
