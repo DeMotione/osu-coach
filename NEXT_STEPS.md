@@ -191,6 +191,14 @@ Files in `reference_replays/` (ignored by git); `dev_tools/reference_analysis.py
   marathons with FL / BPM changes 93, others 67–74.
 - Low AR now counts × circles per second ÷ 5 (`READ_NPS`): Harumachi Clover AR3 at 1.25 circles/s: ×2.06 → ×1.20.
 
+## Flow aim by cursor speed; skills vs top players (2026-10-11, owner's request)
+
+- `flow_values` / `flow_score`: per passed map the 50 fastest spaced-stream notes' cursor speed (spacing × BPM)
+  × (notes ÷ 100)^0.25 (0.6–1.5) × combo^0.8, pp-weighted; 50 = 10 at 6★, ×2 per 12★. Owner 47 → 49, flow group 78.
+- Overview has two charts: vs your level (as before) and vs top players (`top_comparison`, `TOP_PLAYERS` from
+  the reference groups; same points per doubling, 100 = top). Owner vs top: aim 59, flow 61, speed 67, stamina 30,
+  accuracy 83, sliders 37, reading 0 (AR0 plays at 98% are far off), consistency 52.
+
 ## Next steps, in order
 
 0. **Check the weighting and speed-aim split against how Nikita feels he plays** after a week of new replays:

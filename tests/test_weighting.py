@@ -505,3 +505,20 @@ def test_low_ar_on_a_slow_map_counts_less_than_on_a_busy_one():
     assert V.loc["slow", "ar_factor"] == pytest.approx(2 ** (2 * 0.6), rel=0.01)     # 6 AR lower, but slow
     assert V.loc["busy", "ar_factor"] == pytest.approx(2 ** (2 * 1.3), rel=0.01)
     assert V.loc["busy_usual", "ar_factor"] == pytest.approx(1.0)       # busy at the usual AR: no reading bonus
+
+
+# ------------------------------------------------------------------ compared with top players
+def test_top_comparison_puts_top_players_at_100():
+    from osu_coach.profile import TOP_PLAYERS, top_comparison
+    top = dict(TOP_PLAYERS)
+    skills = {"aim": {"value": top["aim"]}, "flow_aim": {"value": top["flow_aim"] / 2},
+              "speed": {"bpm": top["speed"]}, "stamina": {"curve": {10: top["stamina"][10], 30: top["stamina"][30]}},
+              "accuracy": {"three_hundred_rate": 0.5 + (top["accuracy"] - 0.5) / 2},
+              "sliders": {"value": math.nan}, "reading": {"value": top["reading"] * 4},
+              "consistency": {"miss_after_miss_ratio": 2.0}}
+    c = top_comparison(skills)
+    assert c["aim"]["score"] == 100 and c["speed"]["score"] == 100 and c["stamina"]["score"] == 100
+    assert c["flow_aim"]["score"] == pytest.approx(75)                # half the top value: −25
+    assert c["accuracy"]["score"] == pytest.approx(50)
+    assert c["sliders"]["score"] is None and c["reading"]["score"] == 100   # capped at 100
+    assert c["consistency"]["score"] == pytest.approx(70)

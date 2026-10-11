@@ -51,7 +51,10 @@ SKILL_HELP = {
             "Jump maps slightly above your comfort level until you can hold the combo; keep your tablet area / "
             "sensitivity fixed while you do."),
     "flow_aim": ("Spaced streams: bursts and streams (3+ notes in a row) whose notes are about a circle width or "
-                 "more apart, so the cursor has to keep moving while you tap.", MISS_MODEL_SCORE,
+                 "more apart, so the cursor has to keep moving while you tap: spacing × BPM × how much "
+                 "of the map flows × combo.",
+                 "Score: per passed map the 50 fastest notes' cursor speed × (notes ÷ 100)^0.25 × "
+                 "(combo ÷ max combo)^0.8; maps weighted like pp; 50 = typical for your level.",
                  "Spaced-stream maps at a BPM you can tap cleanly, then raise the BPM step by step. Move the arm "
                  "in one smooth motion instead of stopping on every note."),
     "speed": ("Tapping speed: how fast you tap bursts and streams (3+ notes) cleanly: no finger miss (no tap, "
@@ -1545,6 +1548,66 @@ def aim_score(P: pd.DataFrame, level: float | None = None, n_total: int | None =
     return out
 
 
+# ------------------------------------------------------------------ flow aim
+FLOW_TOP = 50             # per play: the 50 fastest spaced-stream notes set its cursor speed
+FLOW_AMOUNT = 100.0       # spaced-stream notes for the full amount: ×(notes / 100)^0.25, 0.6–1.5
+FLOW_AMOUNT_RANGE = (0.6, 1.5)
+FLOW_REF = 10.0           # 50 = this value at 6 stars, ×2 every 12 stars
+FLOW_REF_STEP = 12.0
+FLOW_POINTS = 25.0
+
+
+def flow_values(P: pd.DataFrame) -> pd.DataFrame:
+    """Per passed play, flow aim = speed × intensity × combo: ``speed`` = average cursor speed of its 50 fastest
+    spaced-stream notes (bursts / streams of notes 0.9+ circle widths apart: distance in circle widths ÷ the real
+    time to the next note, so wider spacing and a higher BPM both raise it); ``amount`` = (spaced-stream notes ÷
+    100)^0.25 (0.6–1.5: a map full of long flowing streams counts more than one short one); ``combo`` = your max
+    combo ÷ the map's, ^0.8 like pp. ``value`` = speed × amount × combo^0.8."""
+    cols = ["replay_key", "map", "speed", "amount", "combo", "value", "notes"]
+    need = {"spaced_stream", "velocity_real", "run_pos"}
+    if P is None or P.empty or not need <= set(P.columns):
+        return pd.DataFrame(columns=cols)
+    F = P[P["spaced_stream"].astype(bool) & (P["run_pos"] > 0)]
+    if "completed" in F:
+        F = F[F["completed"].astype(bool)]
+    if F.empty:
+        return pd.DataFrame(columns=cols)
+    diam = 2 * F["radius"].astype(float).clip(lower=1.0) if "radius" in F else 64.0
+    F = F.assign(v=F["velocity_real"].astype(float) * 1000.0 / diam, map=_map_key(F).to_numpy())
+    rows = []
+    for (k, m), d in F.groupby(["replay_key", "map"], sort=False):
+        v = d["v"].dropna()
+        if len(v) < 20:
+            continue
+        speed = float(v.nlargest(FLOW_TOP).mean())
+        amount = float(np.clip((len(v) / FLOW_AMOUNT) ** 0.25, *FLOW_AMOUNT_RANGE))
+        c = d["combo_ratio"].iloc[0] if "combo_ratio" in d else 1.0
+        c = 1.0 if c is None or not np.isfinite(c) else float(c)
+        rows.append({"replay_key": k, "map": m, "speed": speed, "amount": amount, "combo": c,
+                     "value": speed * amount * c ** AIM_COMBO_POWER, "notes": int(len(v))})
+    return pd.DataFrame(rows, columns=cols)
+
+
+def flow_score(P: pd.DataFrame, level: float | None = None, n_total: int | None = None) -> dict:
+    """Flow aim (:func:`flow_values`), one value per map (best pass), weighted like osu!'s pp; 50 = typical for
+    your level (10 at 6★, ×2 every 12★), +25 per doubling."""
+    lv = 6.0 if level is None or not np.isfinite(level) else float(level)
+    out = {"score": None, "n": 0, "value": math.nan, "ref": FLOW_REF * 2 ** ((lv - 6.0) / FLOW_REF_STEP),
+           "speed": math.nan, "combo": math.nan, "maps": 0}
+    V = flow_values(P)
+    if V.empty:
+        return out
+    B = V.sort_values("value", ascending=False).drop_duplicates("map")
+    N = n_total or _n_replays(P)
+    w = rank_weights(N, len(B))
+    out.update(n=int(V["notes"].sum()), maps=int(len(B)), value=ranked_mean(B["value"].to_numpy(), N),
+               speed=float((B["speed"].to_numpy() * w).sum() / w.sum()),
+               combo=float((B["combo"].to_numpy() * w).sum() / w.sum()))
+    if len(B) >= 3:
+        out["score"] = _clip(50 + FLOW_POINTS * math.log2(max(out["value"], 1e-6) / out["ref"]))
+    return out
+
+
 # ------------------------------------------------------------------ reading
 READ_AR_STEP = 3.0        # every 3 AR below what is usual for the map's star rating doubles the reading demand
 READ_AR_MIN = 0.6         # higher AR than usual lowers it, to at most 0.6
@@ -1690,14 +1753,68 @@ def speed_score(P: pd.DataFrame, level: float | None = None, n_total: int | None
     return out
 
 
+# ------------------------------------------------------------------ compared with top players
+# The skill values of the top players' reference plays (dev_tools/reference_replays.md, 38 plays, each skill from
+# its own group of 4-5 specialists, computed with these same formulas): 100 = as good as them.
+TOP_PLAYERS = {
+    "aim": 52.2,              # cursor speed x combo of the jump group (WhiteCat, mrekk)
+    "flow_aim": 28.6,         # flow group (cryshina, chocomint)
+    "speed": 282.7,           # clean burst / stream BPM of the speed group (MALISZEWSKI, aetrna, milosz)
+    "stamina": {10: 237.5, 30: 211.7, 60: 195.0, 120: 141.6, 300: 103.0},   # stamina group; 5 min: mrekk's Save Me
+    "accuracy": 0.988,        # single-note 300 share of the accuracy group
+    "sliders": 265.0,         # slider group (MALISZEWSKI AKAGE / Magic people, mrekk Euclid)
+    "reading": 16.4,          # reading group (AR0 plays, -GN / JGLF / reowl)
+    "consistency": 1.0,       # miss-after-miss ratio 1.0: a miss doesn't make you miss more (top players barely miss)
+}
+
+
+def top_comparison(skills: dict) -> dict:
+    """Each skill against the top players (:data:`TOP_PLAYERS`) on the same scale as the skill itself, but with
+    100 = the top players instead of 50 = your level: 100 + points per doubling × log2(you ÷ top), 0–100
+    (accuracy: your 300 share above 50% as a share of theirs; consistency: 100 + 30 × log2(1 ÷ your ratio))."""
+    out = {}
+
+    def row(key, you, top, points, unit):
+        if you is None or not np.isfinite(you) or you <= 0:
+            out[key] = {"score": None, "you": you, "top": top, "unit": unit}
+            return
+        out[key] = {"score": _clip(100 + points * math.log2(you / top)), "you": float(you), "top": top, "unit": unit}
+
+    g = lambda k, f: (skills.get(k) or {}).get(f, math.nan)  # noqa: E731
+    row("aim", g("aim", "value"), TOP_PLAYERS["aim"], AIM_POINTS, "cursor speed × combo")
+    row("flow_aim", g("flow_aim", "value"), TOP_PLAYERS["flow_aim"], FLOW_POINTS, "cursor speed × amount × combo")
+    row("speed", g("speed", "bpm"), TOP_PLAYERS["speed"], SPEED_POINTS, "BPM")
+    curve = g("stamina", "curve") or {}
+    if isinstance(curve, dict) and curve:
+        parts = [_clip(100 + STAMINA_POINTS * math.log2(v / TOP_PLAYERS["stamina"][W])) for W, v in curve.items()
+                 if W in TOP_PLAYERS["stamina"] and v > 0]
+        mean_you = float(np.mean(list(curve.values())))
+        mean_top = float(np.mean([TOP_PLAYERS["stamina"][W] for W in curve if W in TOP_PLAYERS["stamina"]]))
+        out["stamina"] = {"score": float(np.mean(parts)) if parts else None, "you": mean_you, "top": mean_top,
+                          "unit": "BPM kept up (average of 10 s … 5 min)"}
+    else:
+        out["stamina"] = {"score": None, "you": math.nan, "top": math.nan, "unit": "BPM"}
+    r = g("accuracy", "three_hundred_rate")
+    out["accuracy"] = {"score": _clip((r - 0.5) / (TOP_PLAYERS["accuracy"] - 0.5) * 100) if np.isfinite(r) else None,
+                       "you": r, "top": TOP_PLAYERS["accuracy"], "unit": "300s on single notes"}
+    row("sliders", g("sliders", "value"), TOP_PLAYERS["sliders"], SLIDER_POINTS, "hardest held sliders")
+    row("reading", g("reading", "value"), TOP_PLAYERS["reading"], READ_POINTS, "low AR × busy × accuracy")
+    ratio = g("consistency", "miss_after_miss_ratio")
+    out["consistency"] = {"score": _clip(100 + 30 * math.log2(TOP_PLAYERS["consistency"] / ratio))
+                          if ratio and np.isfinite(ratio) else None, "you": ratio,
+                          "top": TOP_PLAYERS["consistency"], "unit": "miss-after-miss ratio"}
+    for k in out:
+        out[k]["label"] = SKILL_LABELS.get(k, k)
+    return out
+
+
 def _skills(P, model, tapping, sliders, reading, consistency, level: float | None = None,
             presses: pd.DataFrame | None = None) -> dict:
     s = {}
     N = _n_replays(P)
     # every skill: its plays ranked hardest first, 100% / 99% / 98% ... (1/N steps), like osu!'s pp list
     s["aim"] = aim_score(P, level, N)
-    mask = P["spaced_stream"].astype(bool)
-    s["flow_aim"] = _subset_score(_weighted(P, difficulty_weights(P, mask, "aim_eq", N)), mask, model)
+    s["flow_aim"] = flow_score(P, level, N)
     s["speed"] = speed_score(P, level, N)
     s["stamina"] = stamina_score(P, tapping, level, presses=presses, n_total=N)
     single = P["run_len"] < 3

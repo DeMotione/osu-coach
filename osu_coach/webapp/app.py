@@ -23,7 +23,7 @@ from osu_coach.library import (EXCLUDE_MODS, Library, analysable, default_cache_
                                skip_reason)
 from osu_coach.pool import (SKILLS, Targets, build_playlist, collection_name, load_pool, recommendations,
                             skill_label, stream_length_maps, targets_from_profile)
-from osu_coach.profile import (LEVEL_BAND, MISS_LABELS, SKILL_HELP, SKILL_LABELS, build_profile, click_points,
+from osu_coach.profile import (LEVEL_BAND, MISS_LABELS, SKILL_HELP, SKILL_LABELS, build_profile, top_comparison, click_points,
                                click_summary, weight_table)
 
 ACCENT, GOOD, BAD, MUTED, INFO = "#ff66aa", "#5fd3a0", "#ff5c7a", "#8b8fa3", "#6fb7ff"
@@ -963,7 +963,7 @@ def page_overview():
     c[5].metric("Accuracy", pct(ov["accuracy"]))
     left, right = st.columns([3, 2], gap="large")
     with left:
-        section("Skills", "One bar per skill, 0–100; 50 = typical for your level (flow aim and consistency: you miss "
+        section("Skills vs players at your level", "One bar per skill, 0–100; 50 = typical for your level (flow aim and consistency: you miss "
                           "as often as your own miss model expects for those notes). Like osu! pp, the "
                           "hardest plays of each skill count most: 100%, then 1/(replays analysed) less per place. "
                           "Green ≥ 55, red ≤ 45, grey = not enough data, or too few misses to tell.")
@@ -981,6 +981,33 @@ def page_overview():
         # hovering anywhere on a skill's row (also an empty "not enough data" row) shows its explanation
         fig.update_layout(hovermode="y", hoverlabel=dict(align="left"))
         plot(style(fig, 420))
+        top = top_comparison(p.skills)
+        section("Skills vs top players", "The same skills against the best players' reference plays (WhiteCat, "
+                                         "mrekk, MALISZEWSKI, cryshina, -GN …): 100 = as good as them, every halving "
+                                         "of the gap counts like on the chart above. Shows how far each skill is "
+                                         "from the top.")
+        tk = [k for k in p.skills if k in top]
+        tsc = [top[k]["score"] for k in tk]
+        tcol = [MUTED if s is None else GOOD if s >= 70 else BAD if s <= 30 else INFO for s in tsc]
+
+        def _fmt(v, unit):
+            if v is None or not np.isfinite(v):
+                return "–"
+            return f"{v:.1%}" if "300s" in unit else f"{v:.2f}" if "ratio" in unit else f"{v:.0f}" \
+                if v >= 50 else f"{v:.1f}"
+        def _hover(k):
+            r = top[k]
+            sc = "not enough data" if r["score"] is None else f"{r['score']:.0f}"
+            return (f"<b>{r['label']}: {sc}</b><br>you {_fmt(r['you'], r['unit'])} · top players "
+                    f"{_fmt(r['top'], r['unit'])}<br>{r['unit']}")
+        thover = [_hover(k) for k in tk]
+        fig2 = go.Figure(go.Bar(x=[0 if s is None else s for s in tsc], y=[top[k]["label"] for k in tk],
+                                orientation="h", marker_color=tcol, hovertext=thover, hoverinfo="text",
+                                text=["–" if s is None else f"{s:.0f}" for s in tsc], textposition="outside"))
+        fig2.update_xaxes(range=[0, 112], title="100 = top players · higher is better")
+        fig2.update_yaxes(autorange="reversed")
+        fig2.update_layout(hovermode="y", hoverlabel=dict(align="left"))
+        plot(style(fig2, 380))
         stam = p.skills.get("stamina") or {}
         if stam.get("score") is not None and stam.get("curve"):
             ref = stam.get("ref_curve") or {}
