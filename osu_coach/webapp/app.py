@@ -883,6 +883,12 @@ def skill_facts(key: str, v: dict) -> list[str]:
     elif key == "consistency":
         r = _num(v.get("miss_after_miss_ratio"), ".2f")
         facts.append(f"{n:,} notes" + (f", miss-after-miss ratio {r}" if r else ""))
+    elif key == "speed":
+        bpm, best, ref = _num(v.get("bpm")), _num(v.get("best_bpm")), _num(v.get("ref_bpm"))
+        clean = _num(v.get("clean_share"), ".0%")
+        if bpm:
+            facts.append(f"clean burst / stream speed {bpm} BPM (typical for your level {ref}), fastest map {best}")
+        facts.append(f"{n:,} bursts and streams" + (f", {clean} clean" if clean else ""))
     elif key == "stamina":
         curve = v.get("curve") or {}
         if curve:
@@ -944,9 +950,10 @@ def page_overview():
     c[5].metric("Accuracy", pct(ov["accuracy"]))
     left, right = st.columns([3, 2], gap="large")
     with left:
-        section("Skills", "One bar per skill, 0–100. 50 = you miss as often as expected for how hard those notes are "
-                          "(your own miss model); higher = fewer misses than expected. Green ≥ 55, red ≤ 45, grey = "
-                          "not enough data, or too few misses to tell (you barely miss there).")
+        section("Skills", "One bar per skill, 0–100; 50 = typical for your level (aim, flow aim, reading: you miss as "
+                          "often as your own miss model expects for how hard those notes are). Like osu! pp, the "
+                          "hardest plays of each skill count most: 100%, then 1/(replays analysed) less per place. "
+                          "Green ≥ 55, red ≤ 45, grey = not enough data, or too few misses to tell.")
         rows = [(k, v["label"], v.get("score"), v.get("n", 0), v.get("observed"), v.get("expected"))
                 for k, v in p.skills.items()]
         df = pd.DataFrame(rows, columns=["key", "skill", "score", "n", "obs", "exp"])
@@ -956,7 +963,7 @@ def page_overview():
                                text=[score_text(p.skills[k]) for k in df["key"]],
                                textposition="outside", hovertext=hover, hoverinfo="text"))
         fig.add_vline(x=50, line_dash="dot", line_color=MUTED)
-        fig.update_xaxes(range=[0, 112], title="50 = as many misses as expected for the difficulty · higher is better")
+        fig.update_xaxes(range=[0, 112], title="50 = typical for your level · higher is better")
         fig.update_yaxes(autorange="reversed")
         # hovering anywhere on a skill's row (also an empty "not enough data" row) shows its explanation
         fig.update_layout(hovermode="y", hoverlabel=dict(align="left"))
@@ -969,8 +976,9 @@ def page_overview():
             st.caption("**Stamina** is not a miss count: it is how long you keep a high tempo. For 10 s, 30 s, "
                        "1, 2 and 5 minutes: the fastest tempo (notes per second as stream BPM) you kept up while "
                        "still pressing 90%+ of the notes — once your fingers give in and you start undertapping, "
-                       "it stops counting; overstreaming never counts against you. Each duration is your best "
-                       "3 maps against what is typical for your level; 10% faster ≈ +10 points. Your tempo: "
+                       "it stops counting; overstreaming never counts against you. Each duration: all your "
+                       "maps weighted like osu! pp (hardest 100%, then 1 / replays less each), against what is typical "
+                       "for your level; 10% faster ≈ +10 points. Your tempo: "
                        + rows + ".")
         sl = p.skills.get("sliders") or {}
         if sl.get("score") is not None:

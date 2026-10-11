@@ -345,9 +345,9 @@ def test_stamina_score_against_the_typical_tempo_for_the_level():
     def maps(bpm):
         return pd.DataFrame(sum((_map(f"m{k}", [_stream_for(130, bpm)]) for k in range(3)), []))
     lvl = 6.0                                                         # typical stream speed 210 BPM
-    base, fast = stamina_score(maps(150), level=lvl), stamina_score(maps(170), level=lvl)
+    base, fast = stamina_score(maps(100), level=lvl), stamina_score(maps(113), level=lvl)
     assert stamina_ref_bpm(6.0) == 210 and stamina_ref_bpm(3.0) == 165
-    assert fast["score"] - base["score"] == pytest.approx(75 * math.log2(170 / 150), abs=0.5)   # 13% faster = +13.5
+    assert fast["score"] - base["score"] == pytest.approx(75 * math.log2(113 / 100), abs=0.5)   # 13% faster = +13
     assert set(base["parts"]) == {10, 30, 60, 120}
     # one map played three times counts once: not enough maps for a score
     again = pd.DataFrame(sum((_map(f"r{k}", [_stream_for(130, 240)]) for k in range(3)), []))
@@ -397,3 +397,44 @@ def test_many_easy_sliders_dont_add_up_to_a_few_hard_ones():
     b = slider_score(broken, level=6.0)
     assert b["value"] == pytest.approx(h["value"] * 0.9 ** 3)
     assert b["score"] < h["score"] - 8
+
+
+# ------------------------------------------------------------------ pp-style weighting and tapping speed
+def test_rank_weights_step_by_one_over_the_replays_analysed():
+    from osu_coach.profile import rank_weights, ranked_mean
+    assert rank_weights(100, 4).tolist() == pytest.approx([1.0, 0.99, 0.98, 0.97])
+    assert rank_weights(20, 3).tolist() == pytest.approx([1.0, 0.95, 0.90])
+    # the best value counts most, whatever order the plays come in
+    assert ranked_mean([100, 300, 200], 3) == pytest.approx((300 * 1 + 200 * 2 / 3 + 100 * 1 / 3) / 2)
+
+
+def test_hardest_plays_of_a_skill_weigh_the_most():
+    from osu_coach.profile import difficulty_weights
+    P = pd.DataFrame({"replay_key": ["easy"] * 3 + ["hard"] * 3 + ["mid"] * 3,
+                      "aim_eq": [3, 3, 3, 8, 8, 8, 5, 5, 5], "stars": [3] * 3 + [8] * 3 + [5] * 3})
+    w = difficulty_weights(P, None, "aim_eq", 4).groupby(P["replay_key"]).first()
+    assert w.to_dict() == pytest.approx({"hard": 1.0, "mid": 0.75, "easy": 0.5})
+
+
+def _runs(key, bpm, n_runs, notes=8, miss=None, result=300):
+    rows = []
+    for r in range(n_runs):
+        for pos in range(notes):
+            bad = miss is not None and pos == 3
+            rows.append({"replay_key": key, "run_id": r, "run_len": notes, "run_pos": pos, "stream_bpm": float(bpm),
+                         "head_hit": not bad, "miss_reason": miss if bad else None,
+                         "head_result": 0 if bad else result, "kind": "circle", "played": True})
+    return rows
+
+
+def test_tapping_speed_is_the_bpm_you_tap_cleanly_and_ignores_cursor_misses():
+    from osu_coach.profile import speed_score, speed_values
+    clean = speed_values(pd.DataFrame(_runs("a", 240, 4))).iloc[0]
+    assert clean["bpm"] == 240 and clean["clean"] == 4
+    assert speed_values(pd.DataFrame(_runs("b", 240, 4, miss="aim"))).iloc[0]["bpm"] == 240      # cursor: fine
+    assert np.isnan(speed_values(pd.DataFrame(_runs("c", 240, 4, miss="no_tap"))).iloc[0]["bpm"])  # fingers
+    assert np.isnan(speed_values(pd.DataFrame(_runs("d", 240, 4, result=100))).iloc[0]["bpm"])     # mashing
+    maps = lambda bpm: pd.DataFrame(sum((_runs(f"m{k}", bpm, 3) for k in range(3)), []))         # noqa: E731
+    lvl = 6.0                                                         # typical: 210 BPM
+    assert speed_score(maps(210), lvl)["score"] == pytest.approx(50)
+    assert speed_score(maps(231), lvl)["score"] == pytest.approx(50 + 75 * math.log2(1.1))

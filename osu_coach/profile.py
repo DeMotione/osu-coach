@@ -41,9 +41,8 @@ SKILL_LABELS = {
 }
 # Shown when the cursor is on a skill bar (Overview): what the skill measures, how the score is worked out,
 # and what raises it. Keep in step with ``_skills`` / ``stamina_score``.
-MISS_MODEL_SCORE = ("Score: your misses on these notes vs the misses your own difficulty → miss model expects for "
-                    "how hard each note is. 50 = as many as expected; each halving of misses = +35, each doubling "
-                    "= −35. Needs 60+ notes.")
+MISS_MODEL_SCORE = ("Score: your misses here vs what your own miss model expects for each note's difficulty; "
+                    "hardest plays count most (pp-style). 50 = as expected; each halving of misses = +35.")
 SKILL_HELP = {
     "aim": ("Jumps and spaced single notes: notes at least 2 circle widths apart that are not part of a stream "
             "or burst.", MISS_MODEL_SCORE,
@@ -53,14 +52,17 @@ SKILL_HELP = {
                  "more apart, so the cursor has to keep moving while you tap.", MISS_MODEL_SCORE,
                  "Spaced-stream maps at a BPM you can tap cleanly, then raise the BPM step by step. Move the arm "
                  "in one smooth motion instead of stopping on every note."),
-    "speed": ("Tapping speed: bursts (3–8 notes) and streams (9+ notes) at their real BPM.", MISS_MODEL_SCORE,
+    "speed": ("Tapping speed: how fast you tap bursts and streams (3+ notes) cleanly: no finger miss (no tap, "
+              "too early or late, notelock; cursor misses don't count) and 80%+ of the notes as 300s.",
+              "Score: per map the 3rd fastest clean run; maps weighted like osu! pp (fastest 100%, then 1/(replays) "
+              "less each); 50 = the stream speed typical for your level, 10% faster ≈ +10.",
               "Stream and burst maps 10–20 BPM above the speed you tap cleanly, in short sets with relaxed "
               "fingers. See the Tapping page for your clean stream speed."),
     "stamina": ("Stamina: for how long you keep a high tempo before your fingers give in (you start "
                 "undertapping), not how accurate you stay.",
                 "Score: the fastest tempo you kept up for 10 s, 30 s, 1, 2 and 5 min while pressing 90%+ of the "
-                "notes (overstreaming is fine); best 3 maps each, against your level's typical tempo for that "
-                "long; 10% faster ≈ +10. Average of the durations.",
+                "notes (overstreaming is fine); maps weighted like osu! pp, against your level's typical tempo "
+                "for that long; 10% faster ≈ +10. Average of the durations.",
                 "Play stream-heavy maps that are a little longer than usual and keep tapping to the end, even "
                 "when accuracy drops; make the stretches longer first, then faster."),
     "accuracy": ("Hit timing on single notes (not in streams): how many of them you hit as 300s.",
@@ -71,7 +73,7 @@ SKILL_HELP = {
     "sliders": ("Slider control: how hard the sliders are that you follow to the end without a break: "
                 "speed, length, shape, speed changes and how soon the next note comes.",
                 "Score: per map your 30 hardest sliders (whose head you hit), average difficulty × share held³; "
-                "average of your best 5 maps against your level's typical value, +25 per doubling.",
+                "maps weighted like osu! pp, against your level's typical value, +25 per doubling.",
                 "Play maps with long, curved and fast sliders and follow every one to its end; mix slow and fast "
                 "sliders. Many short sliders don't raise it."),
     "reading": ("Reading: notes in the dense parts of your maps, where the most notes are on screen at once "
@@ -1119,8 +1121,9 @@ STAMINA_JITTER_COST = 1.0
 # stamina = the tempo you keep up for a given time (tempo-duration curve):
 STAMINA_WINDOWS = (10, 30, 60, 120, 300)      # seconds
 # 50 = this share of the stream speed typical for your level (stamina_ref_bpm), kept up for that long
-STAMINA_WINDOW_SHARE = {10: 0.85, 30: 0.72, 60: 0.62, 120: 0.55, 300: 0.38}
-STAMINA_PLAYS = 3             # each duration: the average of your best 3 maps (one lucky map doesn't decide it)
+# (set for the pp-style weighted average of all your maps, not your best few: a 6★ player's history and the 38
+# reference plays of ~10★ players give about 0.52 / 0.45 / 0.40 / 0.37 and 0.71 / 0.61 / 0.52 / 0.42 at 10 s … 2 min)
+STAMINA_WINDOW_SHARE = {10: 0.55, 30: 0.47, 60: 0.41, 120: 0.38, 300: 0.33}
 STAMINA_MIN_MAPS = 2          # a duration counts once 2+ maps were played that long
 STAMINA_POINTS = 75.0         # points per doubling of the tempo (≈ 10 points for 10% faster)
 PRESSED_REASONS = ("early", "late", "aim", "notelock")   # misses where a key was pressed
@@ -1278,7 +1281,7 @@ def tempo_curve(P: pd.DataFrame, windows=STAMINA_WINDOWS) -> pd.DataFrame:
 
 
 def stamina_score(P: pd.DataFrame, tapping: dict | None = None, level: float | None = None,
-                  presses: pd.DataFrame | None = None) -> dict:
+                  presses: pd.DataFrame | None = None, n_total: int | None = None) -> dict:
     """Stamina: for how long you keep a high tempo without your fingers giving in — not how accurate you stay.
 
     osu!standard has no stamina skill of its own: the star rating's speed strain decays to 30% per second
@@ -1286,11 +1289,11 @@ def stamina_score(P: pd.DataFrame, tapping: dict | None = None, level: float | N
     :func:`tempo_curve`: the fastest tempo you kept up (still pressing 90%+ of the notes) for 10 s, 30 s, 1 min,
     2 min and 5 min. Overstreaming — tapping faster than the notes — never counts against you.
 
-    * each duration: the average of your best 3 maps (repeats of one map count once); it counts once 2+ maps
-      were played that long;
-    * 50 = the tempo typical for your level for that long (``stamina_ref_bpm`` × 0.85 for 10 s, 0.72 for 30 s,
-      0.62 for 1 min, 0.55 for 2 min, 0.38 for 5 min: the longer, the more pauses and slower parts any map
-      has); 10% faster ≈ +10 points, twice as fast = +75;
+    * each duration: one value per map (your best play of it), ranked fastest first and weighted like osu!'s pp
+      (:func:`ranked_mean`: 100%, then 1/N less per place, N = replays analysed); it counts once 2+ maps were
+      played that long;
+    * 50 = the tempo typical for your level for that long (``stamina_ref_bpm`` × ``STAMINA_WINDOW_SHARE``: the
+      longer, the more pauses and slower parts any map has); 10% faster ≈ +10 points, twice as fast = +75;
     * the score = the average over the durations, so holding a tempo for minutes counts as much as a short
       burst of speed. Low-tempo marathons stay low (they don't show a high tempo), and death streams you can't
       keep up score low for the long durations.
@@ -1314,7 +1317,7 @@ def stamina_score(P: pd.DataFrame, tapping: dict | None = None, level: float | N
         out["maps"][W] = int(len(per_map))
         if len(per_map) < STAMINA_MIN_MAPS:
             continue
-        v = float(per_map.head(STAMINA_PLAYS).mean())
+        v = ranked_mean(per_map.to_numpy(), n_total or _n_replays(P))
         out["curve"][W] = v
         out["best"][W] = float(per_map.iloc[0])
         out["parts"][W] = _clip(50 + STAMINA_POINTS * math.log2(max(v, 1e-6) / out["ref_curve"][W]))
@@ -1352,7 +1355,6 @@ def _dur(W: float) -> str:
 SLIDER_FOLLOW_SLACK = 1.0   # circle diameters of slider path the follow circle covers without moving
 SLIDER_TOP = 30             # per play: the hardest 30 sliders whose head you hit
 SLIDER_MIN = 10             # ... a play needs 10+ such sliders
-SLIDER_PLAYS = 5            # the score: your best 5 maps
 SLIDER_MIN_MAPS = 3
 SLIDER_HOLD_POWER = 3.0     # breaking a few of your hardest sliders costs a lot: value × held share³
 SLIDER_REF = 40.0           # 50 = this value at 6★ ...
@@ -1387,14 +1389,14 @@ def slider_ref(level: float | None) -> float:
     return SLIDER_REF * 2 ** ((lv - 6.0) / SLIDER_REF_STEP)
 
 
-def slider_score(P: pd.DataFrame, level: float | None = None) -> dict:
+def slider_score(P: pd.DataFrame, level: float | None = None, n_total: int | None = None) -> dict:
     """Slider control: how hard the sliders are that you follow to the end — not how many easy ones.
 
     Every slider whose head you hit gets a difficulty (:func:`slider_difficulty`: speed, length, shape, speed
     changes, rush). Per play, the hardest 30 count: value = their average difficulty × (share you held without
     a break)³, so a play full of short, slow sliders stays low however clean, and breaking 1 of the 30 hardest
-    costs about 10%. The score is the average over your best 5 maps of 50 + 25 × log2(value ÷ the value typical
-    for your level), so a value twice the typical one = 75."""
+    costs about 25%. One value per map (your best play of it), weighted like osu!'s pp (:func:`ranked_mean`); the
+    score = 50 + 25 × log2(that ÷ the value typical for your level), so twice the typical value = 75."""
     out = {"score": None, "n": 0, "plays": 0, "value": math.nan, "ref": slider_ref(level), "break_rate": math.nan,
            "top_held": math.nan, "best": None}
     if P is None or P.empty or "kind" not in P:
@@ -1416,39 +1418,149 @@ def slider_score(P: pd.DataFrame, level: float | None = None) -> dict:
                      "diff": float(top["diff"].mean())})
     if not rows:
         return out
-    R = pd.DataFrame(rows).sort_values("value", ascending=False).drop_duplicates("map").head(SLIDER_PLAYS)
+    R = pd.DataFrame(rows).sort_values("value", ascending=False).drop_duplicates("map")
+    N = n_total or _n_replays(P)
+    w = rank_weights(N, len(R))
     out["plays"] = int(len(R))
-    out["value"] = float(R["value"].mean())
-    out["top_held"] = float(R["hold"].mean())
+    out["value"] = ranked_mean(R["value"].to_numpy(), N)
+    out["top_held"] = float((R["hold"].to_numpy() * w).sum() / w.sum()) if w.sum() > 0 else math.nan
     out["best"] = float(R["value"].iloc[0])
     if len(R) >= SLIDER_MIN_MAPS:
-        parts = [_clip(50 + SLIDER_POINTS * math.log2(max(v, 1e-6) / out["ref"])) for v in R["value"]]
-        out["score"] = float(np.mean(parts))
+        out["score"] = _clip(50 + SLIDER_POINTS * math.log2(max(out["value"], 1e-6) / out["ref"]))
+    return out
+
+
+# ------------------------------------------------------------------ pp-style weighting of the skills
+def rank_weights(n_total: int, count: int) -> np.ndarray:
+    """Weights of ``count`` plays sorted hardest / best first, like osu!'s pp list but linear: the first counts
+    100%, each next one 1/``n_total`` less (100 replays analysed: 100%, 99%, 98%, ...; 50 replays: 2% steps)."""
+    n_total = max(int(n_total), 1)
+    return np.clip(1.0 - np.arange(count) / n_total, 0.0, 1.0)
+
+
+def ranked_mean(values, n_total: int) -> float:
+    """Weighted average of per-play values, highest first, with :func:`rank_weights`."""
+    v = np.sort(np.asarray([x for x in values if x is not None and np.isfinite(x)], dtype=float))[::-1]
+    if not len(v):
+        return math.nan
+    w = rank_weights(n_total, len(v))
+    return float((v * w).sum() / w.sum()) if w.sum() > 0 else math.nan
+
+
+def _n_replays(P: pd.DataFrame) -> int:
+    return int(P["replay_key"].nunique()) if "replay_key" in P and len(P) else 1
+
+
+def difficulty_weights(P: pd.DataFrame, mask: pd.Series | None, col: str = "local_eq",
+                       n_total: int | None = None) -> pd.Series:
+    """Per-row weights for one skill: its plays ranked by how hard that skill's notes were in them (the 80th
+    percentile of ``col`` on the notes in ``mask``; plays without such notes by star rating), hardest = 100%,
+    then 1/n less per place (:func:`rank_weights`)."""
+    if P.empty:
+        return pd.Series(dtype=float)
+    key = P["replay_key"] if "replay_key" in P else pd.Series("all", index=P.index)
+    src = P[col] if col in P else P.get("local_eq", pd.Series(np.nan, index=P.index))
+    d = src.where(mask, np.nan) if mask is not None else src
+    hard = d.groupby(key).quantile(0.8)
+    if "stars" in P:
+        hard = hard.fillna(P["stars"].groupby(key).first())
+    hard = hard.fillna(0.0).sort_values(ascending=False)
+    w = dict(zip(hard.index, rank_weights(n_total or len(hard), len(hard))))
+    return key.map(w).astype(float).fillna(0.0)
+
+
+def _weighted(P: pd.DataFrame, weights: pd.Series) -> pd.DataFrame:
+    Q = P.copy()
+    Q["w"] = weights
+    return Q
+
+
+# ------------------------------------------------------------------ tapping speed
+SPEED_FINGER = ("no_tap", "early", "late", "notelock")   # finger misses (aim / lost-track misses don't count)
+SPEED_TIMING = 0.8        # a clean run: no finger miss and 80%+ of its hit notes as 300s (mashing gives 100s)
+SPEED_RUNS = 3            # a play's speed: the 3rd fastest clean burst / stream (one lucky burst doesn't decide)
+SPEED_POINTS = 75.0       # points per doubling of the BPM (10% faster ≈ +10), like stamina
+
+
+def speed_values(P: pd.DataFrame) -> pd.DataFrame:
+    """Per play: ``bpm`` = the speed you tap bursts and streams (3+ notes) cleanly — the 3rd fastest run with no
+    finger miss (no tap, too early / late, notelock; cursor misses don't count) and 80%+ of its hit notes as 300s.
+    Also ``runs`` (all) and ``clean`` (clean runs)."""
+    cols = ["replay_key", "map", "bpm", "runs", "clean"]
+    if P is None or P.empty or "run_id" not in P:
+        return pd.DataFrame(columns=cols)
+    R = P[(P["run_id"] >= 0) & (P["run_len"] >= 3)].dropna(subset=["stream_bpm"])
+    if R.empty:
+        return pd.DataFrame(columns=cols)
+    reason = R["miss_reason"] if "miss_reason" in R else pd.Series(None, index=R.index, dtype=object)
+    finger = (~R["head_hit"].astype(bool)) & reason.isin(SPEED_FINGER)
+    great = (R["head_result"] == 300) if "head_result" in R else R["head_hit"].astype(bool)
+    D = pd.DataFrame({"replay_key": R["replay_key"] if "replay_key" in R else "all", "map": _map_key(R),
+                      "run_id": R["run_id"], "bpm": R["stream_bpm"].astype(float), "finger": finger,
+                      "hit": R["head_hit"].astype(bool), "great": great & R["head_hit"].astype(bool)})
+    g = D.groupby(["replay_key", "map", "run_id"], sort=False).agg(bpm=("bpm", "first"), finger=("finger", "sum"),
+                                                                    hit=("hit", "sum"), great=("great", "sum"))
+    g["clean"] = (g["finger"] == 0) & (g["great"] >= SPEED_TIMING * g["hit"].clip(lower=1))
+    rows = []
+    for (k, m), d in g.groupby(level=[0, 1], sort=False):
+        c = d.loc[d["clean"], "bpm"].sort_values(ascending=False)
+        rows.append({"replay_key": k, "map": m, "bpm": float(c.iloc[SPEED_RUNS - 1]) if len(c) >= SPEED_RUNS
+                     else math.nan, "runs": int(len(d)), "clean": int(len(c))})
+    return pd.DataFrame(rows, columns=cols)
+
+
+def speed_score(P: pd.DataFrame, level: float | None = None, n_total: int | None = None) -> dict:
+    """Tapping speed: how fast you tap bursts and streams cleanly (:func:`speed_values`), one value per map (your
+    best play of it), ranked fastest first and weighted like osu!'s pp (:func:`ranked_mean`). 50 = the stream
+    speed typical for your level (``stamina_ref_bpm``), 10% faster ≈ +10."""
+    ref = stamina_ref_bpm(level)
+    out = {"score": None, "n": 0, "bpm": math.nan, "best_bpm": math.nan, "ref_bpm": ref, "maps": 0,
+           "clean_share": math.nan}
+    V = speed_values(P)
+    if V.empty:
+        return out
+    out["n"] = int(V["runs"].sum())
+    out["clean_share"] = float(V["clean"].sum() / max(V["runs"].sum(), 1))
+    per_map = V.dropna(subset=["bpm"]).groupby("map")["bpm"].max()
+    out["maps"] = int(len(per_map))
+    if len(per_map) >= 3:
+        out["bpm"] = ranked_mean(per_map.to_numpy(), n_total or _n_replays(P))
+        out["best_bpm"] = float(per_map.max())
+        out["score"] = _clip(50 + SPEED_POINTS * math.log2(out["bpm"] / ref))
     return out
 
 
 def _skills(P, model, tapping, sliders, reading, consistency, level: float | None = None,
             presses: pd.DataFrame | None = None) -> dict:
     s = {}
-    s["aim"] = _subset_score(P, P["pattern"].isin(["jump", "spaced"]), model)
-    s["flow_aim"] = _subset_score(P, P["spaced_stream"].astype(bool), model)
-    s["speed"] = _subset_score(P, P["pattern"].isin(["burst", "stream"]), model)
-    s["stamina"] = stamina_score(P, tapping, level, presses=presses)
-    r300 = tapping.get("three_hundred_rate_single", math.nan)
-    n_single = float(_w(P)[P["run_len"] < 3].sum())
+    N = _n_replays(P)
+    # every skill: its plays ranked hardest first, 100% / 99% / 98% ... (1/N steps), like osu!'s pp list
+    for key, mask, col in (("aim", P["pattern"].isin(["jump", "spaced"]), "aim_eq"),
+                           ("flow_aim", P["spaced_stream"].astype(bool), "aim_eq")):
+        s[key] = _subset_score(_weighted(P, difficulty_weights(P, mask, col, N)), mask, model)
+    s["speed"] = speed_score(P, level, N)
+    s["stamina"] = stamina_score(P, tapping, level, presses=presses, n_total=N)
+    single = P["run_len"] < 3
+    Wa = difficulty_weights(P, None, "stars", N)
+    sd = P[single & P["head_hit"].astype(bool)]
+    wa = Wa[sd.index]
+    r300 = float((wa * (sd["head_result"] == 300)).sum() / wa.sum()) if len(sd) and wa.sum() > 0 else math.nan
+    n_single = int(single.sum())
     s["accuracy"] = {"score": accuracy_score(r300) if not math.isnan(r300) and n_single >= 60 else None,
-                     "n": int(round(n_single)), "three_hundred_rate": r300, "ur": tapping.get("ur_single")}
-    s["sliders"] = slider_score(P, level)
+                     "n": n_single, "three_hundred_rate": r300, "ur": tapping.get("ur_single")}
+    s["sliders"] = slider_score(P, level, n_total=N)
     if "dense_threshold" in reading:
-        s["reading"] = _subset_score(P, P["density"] >= reading["dense_threshold"], model)
+        mask = P["density"] >= reading["dense_threshold"]
+        s["reading"] = _subset_score(_weighted(P, difficulty_weights(P, mask, "local_eq", N)), mask, model)
     else:
         s["reading"] = {"score": None, "n": 0}
-    ratio = consistency.get("miss_after_miss_ratio", math.nan)
+    Pc = _weighted(P, Wa)
+    ratio = miss_chain_ratio(Pc) if len(P) else math.nan
     s["consistency"] = {"score": _clip(50 + 30 * math.log2(TYPICAL_CHAIN_RATIO / ratio))
                         if ratio and not math.isnan(ratio) else None,
-                        "n": int(round(_n(P))), "miss_after_miss_ratio": ratio}
-    misses = float(((~P["head_hit"].astype(bool)) * _w(P)).sum()) if len(P) else 0.0
-    if s["consistency"]["score"] is None and _n(P) >= FEW_MISSES_NOTES and misses < FEW_MISSES:
+                        "n": int(len(P)), "miss_after_miss_ratio": ratio}
+    misses = float((~P["head_hit"].astype(bool)).sum()) if len(P) else 0.0
+    if s["consistency"]["score"] is None and len(P) >= FEW_MISSES_NOTES and misses < FEW_MISSES:
         s["consistency"]["too_few_misses"] = True        # nothing to chain: no misses to follow a miss
     for k, v in s.items():
         v["label"] = SKILL_LABELS[k]

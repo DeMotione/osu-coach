@@ -166,6 +166,18 @@ Files in `reference_replays/` (ignored by git); `dev_tools/reference_analysis.py
   Owner 99 → 87; slider group 63 (AKAGE / Magic people / Euclid high, Burning Star has almost no hard sliders, so
   it is a poor reference pick). Shares and weights are first guesses: check them on more players.
 
+## pp-style skill weighting and tapping speed by BPM (2026-10-11, owner's request)
+
+- Every skill ranks its plays (difficulty for aim / flow / reading / accuracy / consistency, value for speed /
+  stamina / sliders, one per map) and weights them 100%, then −1/N per place (`rank_weights`, `ranked_mean`,
+  `difficulty_weights`), N = replays analysed. Weighted *average*, so lots of easy plays lower a value a little.
+- Yardsticks re-set for the weighted average: `STAMINA_WINDOW_SHARE` 0.55 / 0.47 / 0.41 / 0.38 / 0.33 (owner 6★ ≈
+  0.52 / 0.45 / 0.40 / 0.37, reference ~10★ 0.71 / 0.61 / 0.52 / 0.42); sliders scored on the weighted value.
+- Tapping speed = clean burst / stream BPM (finger misses only, 80%+ 300s), vs `stamina_ref_bpm`.
+- Owner: aim 61, flow 47, speed 48 (208 BPM), stamina 50, accuracy 83, sliders 54, reading 33, consistency 32.
+  Reference groups: stamina group stamina 97, slider group sliders 92, speed group speed 51 (its DT plays put its
+  level at 10.75★, so "typical" is 281 BPM). Needs mid-level players' replays to set the yardsticks properly.
+
 ## Next steps, in order
 
 0. **Check the weighting and speed-aim split against how Nikita feels he plays** after a week of new replays:
