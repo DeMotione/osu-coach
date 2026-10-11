@@ -133,6 +133,16 @@ use these weights — miss causes, skill scores, stamina, UR, stream speed, the 
 sensitivity, rapid trigger) and the map suggestions. *Set my level by hand* overrides the detected level
 (remembered; CLI `--level 6.2`). The Progress page is not weighted, so months stay comparable.
 
+### Calibration on top players' replays
+
+`dev_tools/reference_analysis.py` scores 38 near-perfect plays of top players (WhiteCat, mrekk, chocomint,
+MALISZEWSKI, -GN, …; list in `dev_tools/reference_replays.md`, the .osr files go in `reference_replays/`, not in
+git) skill by skill. What it changed: **Accuracy** = (300s on single notes − 50%) ÷ 49%, so 100 = 99% 300s (was
+95%, which every top player passed: they now spread from ~87 to 99). Aim, flow aim, speed, reading and
+consistency compare your misses with what the difficulty predicts; a player who barely misses has nothing to
+compare, so those now say **too few misses to tell** instead of *not enough data*. Sliders: top players
+break none (100), so the scale's top end needed no change.
+
 ### Miss causes
 
 aim (jumps and single notes at normal speed), **speed-aim** (you tapped in time but the cursor couldn't keep
@@ -153,6 +163,13 @@ The score is the average of three parts, each your 5 hardest: **streams** (singl
 (the total load of a finished play: map length). 50 = a 32-note stream / 140 stream notes in 30 s / 400 in a
 map at the stream speed typical for your level (120 + 15 × level BPM, e.g. 210 at 6★); every doubling = +25.
 Difficulty weights don't apply here: a 9★ map played for fun shows what you can sustain.
+**Endurance (marathons)**: every note you kept pressing in a finished map counts, × its tapping speed (as 1/4-note
+BPM over 200, linear: a 1/2 note at 180 BPM = 0.45) × how long you'd been playing: ×1 for the first 5 minutes,
+×2 from 5, ×3 from 10, ×4 from 20, ×5 from 40 (+1 each time the minutes double). A gap of 5+ seconds is a break:
+the clock pauses there, it doesn't reset. 50 = a ~4-minute map at your level's speed, +25 per doubling. This
+part only ever *lifts* the score, halfway from the stream-based score towards its own, and never above 80 by
+itself, so passing marathons can't outrank controlled death streams. On the reference replays: Kingling's
+53-minute The Unforgiving went from 0 to 50, LONG SEASON from 24 to 62; stream maps kept their scores.
 *Stamina in long streams* (Tapping page) shows how precise your taps stay through streams of 16+ notes:
 the average **absolute** timing error (early and late alike — the plain average cancels them out to ~0) on
 notes 1–4, 5–8, … with one line per stream length (16–31, 32–63, 64+ notes). Where it starts to climb is

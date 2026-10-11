@@ -203,3 +203,25 @@ def test_overview_skill_bars_explain_each_skill_on_hover(prof, tmp_path, monkeyp
         assert text.startswith(f"<b>{label}: ")
         assert "Score:" in text and "You: " in text and "To raise it: " in text
         assert all(len(line) <= 80 for line in text.replace("<b>", "").replace("</b>", "").split("<br>"))
+
+
+def test_skill_hovers_fit_inside_the_skills_chart():
+    """A hover box taller than the chart gets cut off or isn't shown (that happened to Stamina): every skill's
+    hover, with all its facts filled in, stays at 18 lines or fewer."""
+    import math
+    import textwrap
+    from osu_coach.profile import SKILL_HELP, SKILL_LABELS
+    src = Path(APP).read_text(encoding="utf-8")
+    ns = {"math": math, "textwrap": textwrap, "SKILL_HELP": SKILL_HELP, "SKILL_LABELS": SKILL_LABELS}
+    exec(src[src.index("def _num("):src.index("def page_overview")], ns)
+    full = {"score": 64.0, "n": 12345, "observed": 12, "expected": 20, "three_hundred_rate": 0.95, "ur": 90,
+            "break_rate": 0.02, "miss_after_miss_ratio": 2.4, "streams_kept": 30, "streams_long": 34,
+            "best_stream": {"notes": 128, "bpm": 280.0}, "stream_score": 70, "window_score": 60, "map_score": 55,
+            "endurance_score": 80, "longest_minutes": 45, "steadiness": 0.97, "streams_slowed": 2,
+            "streams_overstreamed": 1}
+    for key, label in SKILL_LABELS.items():
+        cases = [full] + ([{**full, "score": None, "too_few_misses": True}]
+                          if key not in ("stamina", "accuracy", "sliders") else [])   # only miss-based skills
+        for v in cases:
+            lines = ns["skill_hover"](key, {**v, "label": label}).count("<br>") + 1
+            assert lines <= 18, (key, lines)
