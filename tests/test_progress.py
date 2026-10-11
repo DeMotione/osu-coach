@@ -97,7 +97,10 @@ def _copy(a, key, date, miss_share=0.0, seed=0):
         flip = np.random.default_rng(seed).choice(jumps, int(len(jumps) * miss_share), replace=False)
         o.loc[flip, "head_hit"] = False
         o.loc[flip, "miss_reason"] = "aim"
-    return ReplayAnalysis(key, dict(a.meta, key=key, date=date), o, a.presses.copy())
+    meta = dict(a.meta, key=key, date=date, beatmap_md5=f"{a.meta.get('beatmap_md5')}-{key}")   # one map each
+    if miss_share:                     # misses break the combo: jump aim counts distance x speed x combo
+        meta["max_combo"] = int((meta.get("map_max_combo") or 0) * max(0.05, 1 - 4 * miss_share))
+    return ReplayAnalysis(key, meta, o, a.presses.copy())
 
 
 def test_skills_by_month_show_improvement(tmp_path, nm):

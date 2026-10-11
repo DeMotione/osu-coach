@@ -44,10 +44,12 @@ SKILL_LABELS = {
 MISS_MODEL_SCORE = ("Score: your misses here vs what your own miss model expects for each note's difficulty; "
                     "hardest plays count most (pp-style). 50 = as expected; each halving of misses = +35.")
 SKILL_HELP = {
-    "aim": ("Jumps and spaced single notes: notes at least 2 circle widths apart that are not part of a stream "
-            "or burst.", MISS_MODEL_SCORE,
-            "Practise jump maps slightly above your comfort level, and keep your tablet area / sensitivity fixed "
-            "while you do."),
+    "aim": ("Jump aim: distance × speed × combo. Jumps and spaced notes (2+ circle widths apart, not "
+            "streams): how fast the cursor has to move (distance ÷ time), and whether you hold the combo.",
+            "Score: per passed map the 30 fastest jumps' cursor speed × (your combo ÷ max combo)^0.8, like pp; "
+            "maps weighted like osu! pp; 50 = typical for your level, +25 per doubling.",
+            "Jump maps slightly above your comfort level until you can hold the combo; keep your tablet area / "
+            "sensitivity fixed while you do."),
     "flow_aim": ("Spaced streams: bursts and streams (3+ notes in a row) whose notes are about a circle width or "
                  "more apart, so the cursor has to keep moving while you tap.", MISS_MODEL_SCORE,
                  "Spaced-stream maps at a BPM you can tap cleanly, then raise the BPM step by step. Move the arm "
@@ -864,6 +866,8 @@ def build_profile(analyses: list[ReplayAnalysis], level: float | None = None, we
         o["hidden"] = bool(a.meta.get("mods", 0) & 8)
         o["completed"] = bool(a.meta.get("completed", True))
         o["map_md5"] = a.meta.get("beatmap_md5")
+        mc = a.meta.get("map_max_combo") or 0
+        o["combo_ratio"] = min(1.0, (a.meta.get("max_combo") or 0) / mc) if mc else np.nan
         o["w"] = wmap.get(a.key, 1.0)
         objs.append(o)
         pr = a.presses.copy()
@@ -1475,6 +1479,68 @@ def _weighted(P: pd.DataFrame, weights: pd.Series) -> pd.DataFrame:
     return Q
 
 
+# ------------------------------------------------------------------ jump aim
+AIM_TOP = 30              # per play: the 30 fastest jumps (cursor speed needed) set its intensity
+AIM_COMBO_POWER = 0.8     # x (your max combo / the map's max combo)^0.8, like osu!'s pp
+AIM_REF = 16.0            # 50 = this value at 6 stars ...
+AIM_REF_STEP = 12.0       # ... x2 every 12 stars (the cursor speed of jumps grows slowly with star rating)
+AIM_POINTS = 25.0         # points per doubling of the value
+
+
+def aim_values(P: pd.DataFrame) -> pd.DataFrame:
+    """Per passed play: ``intensity`` = average cursor speed of its 30 fastest jumps (distance in circle diameters
+    / the time you have to move there, real seconds: distance x speed), ``combo`` = your max combo / the map's,
+    ``value`` = intensity x combo^0.8 (like osu!'s pp: a hard map only counts fully when you hold the combo)."""
+    cols = ["replay_key", "map", "intensity", "combo", "value", "jumps"]
+    if P is None or P.empty or "pattern" not in P or "velocity_real" not in P:
+        return pd.DataFrame(columns=cols)
+    J = P[P["pattern"].isin(["jump", "spaced"])]
+    if "completed" in J:
+        J = J[J["completed"].astype(bool)]
+    if J.empty:
+        return pd.DataFrame(columns=cols)
+    diam = 2 * J["radius"].astype(float).clip(lower=1.0) if "radius" in J else 64.0
+    J = J.assign(v=J["velocity_real"].astype(float) * 1000.0 / diam, map=_map_key(J).to_numpy())
+    rows = []
+    for (k, m), d in J.groupby(["replay_key", "map"], sort=False):
+        v = d["v"].dropna()
+        if len(v) < 10:
+            continue
+        inten = float(v.nlargest(AIM_TOP).mean())
+        c = d["combo_ratio"].iloc[0] if "combo_ratio" in d else 1.0
+        c = 1.0 if c is None or not np.isfinite(c) else float(c)
+        rows.append({"replay_key": k, "map": m, "intensity": inten, "combo": c,
+                     "value": inten * c ** AIM_COMBO_POWER, "jumps": int(len(v))})
+    return pd.DataFrame(rows, columns=cols)
+
+
+def aim_ref(level: float | None) -> float:
+    lv = 6.0 if level is None or not np.isfinite(level) else float(level)
+    return AIM_REF * 2 ** ((lv - 6.0) / AIM_REF_STEP)
+
+
+def aim_score(P: pd.DataFrame, level: float | None = None, n_total: int | None = None) -> dict:
+    """Jump aim: distance x speed x combo (:func:`aim_values`), one value per map (your best pass of it), weighted
+    like osu!'s pp (:func:`ranked_mean`); 50 = typical for your level, +25 per doubling."""
+    out = {"score": None, "n": 0, "value": math.nan, "ref": aim_ref(level), "intensity": math.nan,
+           "combo": math.nan, "maps": 0, "best": None}
+    V = aim_values(P)
+    if V.empty:
+        return out
+    out["n"] = int(V["jumps"].sum())
+    B = V.sort_values("value", ascending=False).drop_duplicates("map")
+    N = n_total or _n_replays(P)
+    w = rank_weights(N, len(B))
+    out["maps"] = int(len(B))
+    out["value"] = ranked_mean(B["value"].to_numpy(), N)
+    out["intensity"] = float((B["intensity"].to_numpy() * w).sum() / w.sum()) if w.sum() > 0 else math.nan
+    out["combo"] = float((B["combo"].to_numpy() * w).sum() / w.sum()) if w.sum() > 0 else math.nan
+    out["best"] = {"intensity": float(B["intensity"].iloc[0]), "combo": float(B["combo"].iloc[0])}
+    if len(B) >= 3:
+        out["score"] = _clip(50 + AIM_POINTS * math.log2(max(out["value"], 1e-6) / out["ref"]))
+    return out
+
+
 # ------------------------------------------------------------------ tapping speed
 SPEED_FINGER = ("no_tap", "early", "late", "notelock")   # finger misses (aim / lost-track misses don't count)
 SPEED_TIMING = 0.8        # a clean run: no finger miss and 80%+ of its hit notes as 300s (mashing gives 100s)
@@ -1535,9 +1601,9 @@ def _skills(P, model, tapping, sliders, reading, consistency, level: float | Non
     s = {}
     N = _n_replays(P)
     # every skill: its plays ranked hardest first, 100% / 99% / 98% ... (1/N steps), like osu!'s pp list
-    for key, mask, col in (("aim", P["pattern"].isin(["jump", "spaced"]), "aim_eq"),
-                           ("flow_aim", P["spaced_stream"].astype(bool), "aim_eq")):
-        s[key] = _subset_score(_weighted(P, difficulty_weights(P, mask, col, N)), mask, model)
+    s["aim"] = aim_score(P, level, N)
+    mask = P["spaced_stream"].astype(bool)
+    s["flow_aim"] = _subset_score(_weighted(P, difficulty_weights(P, mask, "aim_eq", N)), mask, model)
     s["speed"] = speed_score(P, level, N)
     s["stamina"] = stamina_score(P, tapping, level, presses=presses, n_total=N)
     single = P["run_len"] < 3

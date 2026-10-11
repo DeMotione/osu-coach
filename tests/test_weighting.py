@@ -438,3 +438,26 @@ def test_tapping_speed_is_the_bpm_you_tap_cleanly_and_ignores_cursor_misses():
     lvl = 6.0                                                         # typical: 210 BPM
     assert speed_score(maps(210), lvl)["score"] == pytest.approx(50)
     assert speed_score(maps(231), lvl)["score"] == pytest.approx(50 + 75 * math.log2(1.1))
+
+
+# ------------------------------------------------------------------ jump aim: distance x speed x combo
+def _jumps(key, n, dist, dt, combo=1.0, completed=True, md5=None):
+    return [{"replay_key": key, "pattern": "jump", "velocity_real": dist * 64.0 / dt, "radius": 32.0,
+             "combo_ratio": combo, "completed": completed, "played": True, "map_md5": md5 or key, "rate": 1.0,
+             "kind": "circle"} for _ in range(n)]
+
+
+def test_aim_is_distance_times_speed_times_combo():
+    from osu_coach.profile import aim_values, aim_score
+    V = aim_values(pd.DataFrame(_jumps("a", 40, 3.0, 200) + _jumps("b", 40, 3.0, 150)
+                                + _jumps("c", 40, 4.0, 200) + _jumps("d", 40, 4.0, 200, combo=0.5)
+                                + _jumps("e", 40, 9.0, 100, completed=False))).set_index("replay_key")
+    assert V.loc["a", "intensity"] == pytest.approx(15.0)             # 3 circles in 0.2 s = 15 circles/s
+    assert V.loc["b", "value"] > V.loc["a", "value"] and V.loc["c", "value"] > V.loc["a", "value"]
+    assert V.loc["d", "value"] == pytest.approx(V.loc["c", "value"] * 0.5 ** 0.8)   # half the combo
+    assert "e" not in V.index                                          # failed plays don't count
+    fc = aim_score(pd.DataFrame(sum((_jumps(f"f{k}", 40, 3.2, 200) for k in range(3)), [])), level=6.0)
+    assert fc["score"] == pytest.approx(50)                            # 16 circles/s, full combo = typical at 6*
+    choke = aim_score(pd.DataFrame(sum((_jumps(f"g{k}", 40, 3.2, 200, combo=0.5) for k in range(3)), [])),
+                      level=6.0)
+    assert choke["score"] == pytest.approx(50 - 25 * 0.8)

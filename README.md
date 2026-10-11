@@ -167,6 +167,10 @@ first half, from the key presses) is shown for information. Difficulty weights d
 aim, reading: the 80th percentile of the notes' difficulty; accuracy, consistency: star rating) or by the value
 reached (speed, stamina, sliders: one value per map, your best play of it); the first counts 100%, each next one
 1/N less, N = replays analysed (100 replays: 100%, 99%, 98% …). The other statistics keep the level weighting.
+**Jump aim** (`aim_values`, `aim_score`): distance × speed × combo. Per passed play, the average cursor speed
+of its 30 fastest jumps / spaced notes (distance in circle diameters ÷ the real time to get there) × (your max
+combo ÷ the map's max combo)^0.8, like osu!'s pp; pp-weighted over maps (best pass of each); 50 = 16 circles/s at
+full combo at 6★ (×2 every 12★), +25 per doubling. Flow aim and reading stay miss-model scores.
 **Tapping speed** (`speed_values`, `speed_score`): per play the 3rd fastest clean burst / stream (3+ notes; no
 finger miss — no tap, too early / late, notelock; cursor misses don't count — and 80%+ of its hit notes as 300s);
 pp-weighted over maps; 50 = `stamina_ref_bpm` of your level, 75 points per doubling.
