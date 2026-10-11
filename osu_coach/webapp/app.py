@@ -1605,7 +1605,7 @@ SAYO_HELP = {
     "Trigger": "Fixed press depth (actuation point).",
     "Release": "Fixed reset depth — must be above (smaller than) Trigger.",
     "RT Mode": "Rapid trigger on/off.",
-    "RT Trigger": "Inside the RT zone: press again after moving down this far.",
+    "RT Trigger": "Inside the RT zone: press again after moving down this far (≤ RT Release).",
     "RT Release": "Inside the RT zone: release after moving up this far.",
     "Full Stroke": "Rapid trigger over the whole stroke (ignores the bounds).",
     "RT Upper Bound": "Depth where rapid trigger starts working.",

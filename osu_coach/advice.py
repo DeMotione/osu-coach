@@ -728,6 +728,20 @@ def sayo_settings(p: Profile, s: Setup) -> dict:
         new["RT Mode"] = True
         reasons.append(f"you stream ~{sig['speed']} BPM → RT Mode on lets keys reset without a full lift")
     # settings that don't work together
+    # SayoDevice: RT Trigger must not be larger than RT Release (the device rejects / misbehaves otherwise)
+    if now["RT Trigger"] > now["RT Release"]:
+        checks.append(f"RT Trigger ({now['RT Trigger']:.2f} mm) must not be larger than RT Release "
+                      f"({now['RT Release']:.2f} mm)")
+    if new["RT Trigger"] > new["RT Release"]:
+        if new["RT Release"] < now["RT Release"]:
+            # Release was lowered on purpose (keys overlap): bring Trigger down with it
+            new["RT Trigger"] = new["RT Release"]
+            reasons.append(f"RT Trigger lowered to {new['RT Trigger']:.2f} mm too, since it can't be larger than "
+                           "RT Release")
+        else:
+            new["RT Release"] = new["RT Trigger"]
+            reasons.append(f"RT Release raised to {new['RT Release']:.2f} mm too, since RT Trigger can't be "
+                           "larger than it")
     if now["Release"] >= now["Trigger"]:
         new["Release"] = _mm(now["Trigger"] - SAYO_STEP)
         checks.append(f"Release ({now['Release']:.2f} mm) must be above Trigger ({now['Trigger']:.2f} mm), "

@@ -271,6 +271,20 @@ def test_sayo_impossible_settings_are_fixed(base):
     assert "Release" in text and "RT Lower Bound" in text
 
 
+def test_sayo_rt_trigger_never_above_rt_release(base):
+    # keys overlap -> RT Release lower; RT Trigger must follow it down
+    t = _sayo(_clean(base, overlap_in_streams=0.7), sayo_rt_trigger_mm=0.20, sayo_rt_release_mm=0.20)
+    assert t.settings["RT Release"] == 0.15 and t.settings["RT Trigger"] <= t.settings["RT Release"]
+    # falling behind -> RT Trigger lower stays valid; an entered Trigger > Release is fixed and reported
+    t = _sayo(_clean(base), sayo_rt_trigger_mm=0.30, sayo_rt_release_mm=0.20)
+    assert t.settings["RT Trigger"] <= t.settings["RT Release"]
+    assert "must not be larger than RT Release" in " ".join(t.actions)
+    for kw in ({}, {"slope_ms_per_note": 1.2}, {"overlap_in_streams": 0.9}, {"chatter_per_1000": 9.0}):
+        for trig, rel in ((0.1, 0.1), (0.3, 0.1), (0.1, 0.4), (0.25, 0.25)):
+            t = _sayo(_clean(base, **kw), sayo_rt_trigger_mm=trig, sayo_rt_release_mm=rel)
+            assert t.settings["RT Trigger"] <= t.settings["RT Release"], (kw, trig, rel)
+
+
 def test_sayo_without_values_gives_a_starting_point(base):
     t = tip(make_tips(_clean(base), Setup(keyboard="sayo")), "Keys / SayoDevice")
     assert t.settings["RT Mode"] is True and 0.1 <= t.settings["RT Trigger"] <= 0.3
