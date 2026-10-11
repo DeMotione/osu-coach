@@ -23,7 +23,7 @@ from osu_coach.library import (EXCLUDE_MODS, Library, analysable, default_cache_
                                skip_reason)
 from osu_coach.pool import (SKILLS, Targets, build_playlist, collection_name, load_pool, recommendations,
                             skill_label, stream_length_maps, targets_from_profile)
-from osu_coach.profile import (LEVEL_BAND, MISS_LABELS, SKILL_HELP, SKILL_LABELS, STAMINA_REF_NOTES, build_profile, click_points,
+from osu_coach.profile import (LEVEL_BAND, MISS_LABELS, SKILL_HELP, SKILL_LABELS, build_profile, click_points,
                                click_summary, weight_table)
 
 ACCENT, GOOD, BAD, MUTED, INFO = "#ff66aa", "#5fd3a0", "#ff5c7a", "#8b8fa3", "#6fb7ff"
@@ -860,6 +860,11 @@ def _num(v, spec: str = ".0f") -> str | None:
     return None if math.isnan(v) else format(v, spec)
 
 
+def _dur(W) -> str:
+    W = float(W)
+    return f"{W:.0f} s" if W < 60 else f"{W / 60:.0f} min"
+
+
 def skill_facts(key: str, v: dict) -> list[str]:
     """The player's own numbers behind a skill score, for its hover text."""
     facts = []
@@ -868,22 +873,25 @@ def skill_facts(key: str, v: dict) -> list[str]:
         r, ur = _num(v.get("three_hundred_rate"), ".0%"), _num(v.get("ur"))
         facts.append(f"{n:,} single notes" + (f", {r} hit as 300s" if r else "") + (f", UR {ur}" if ur else ""))
     elif key == "sliders":
-        br = _num(v.get("break_rate"), ".1%")
+        br, val, ref = _num(v.get("break_rate"), ".1%"), _num(v.get("value")), _num(v.get("ref"))
+        held = _num(v.get("top_held"), ".0%")
         facts.append(f"{n:,} sliders" + (f", {br} broken" if br else ""))
+        if val:
+            facts.append(f"your best {v.get('plays', 0)} maps: hardest sliders worth {val}"
+                         + (f" (typical for your level: {ref})" if ref else "")
+                         + (f", {held} of them held" if held else ""))
     elif key == "consistency":
         r = _num(v.get("miss_after_miss_ratio"), ".2f")
         facts.append(f"{n:,} notes" + (f", miss-after-miss ratio {r}" if r else ""))
     elif key == "stamina":
+        curve = v.get("curve") or {}
+        if curve:
+            facts.append("tempo you kept up: " + ", ".join(
+                f"{_dur(W)} {bpm:.0f} BPM" for W, bpm in curve.items()))
         bs, stead = v.get("best_stream") or {}, _num(v.get("steadiness"), ".0%")
-        facts.append(f"{v.get('streams_kept', 0)} of {v.get('streams_long', 0)} long streams kept"
-                     + (f", hardest {bs['notes']} notes at {bs['bpm']:.0f} BPM" if bs else "")
-                     + (f", steadiness {stead}" if stead else ""))
-        parts = [(n, _num(v.get(k))) for n, k in (("streams", "stream_score"), ("30 s", "window_score"),
-                                                   ("maps", "map_score"), ("endurance", "endurance_score"))]
-        mins = _num(v.get("longest_minutes"))
-        if any(sc for _, sc in parts):
-            facts.append("parts: " + ", ".join(f"{n} {sc}" for n, sc in parts if sc)
-                         + (f" (longest map {mins} min)" if mins else ""))
+        if bs or stead:
+            facts.append((f"hardest stream {bs['notes']} notes at {bs['bpm']:.0f} BPM" if bs else "")
+                         + (", " if bs and stead else "") + (f"steadiness {stead}" if stead else ""))
     else:
         o, x = _num(v.get("observed")), _num(v.get("expected"))
         facts.append(f"{n:,} notes" + (f", {o} misses vs {x} expected" if o and x else ""))
@@ -954,27 +962,22 @@ def page_overview():
         fig.update_layout(hovermode="y", hoverlabel=dict(align="left"))
         plot(style(fig, 420))
         stam = p.skills.get("stamina") or {}
-        if stam.get("score") is not None:
-            bs = stam.get("best_stream") or {}
-            mins = stam.get("longest_minutes")
-            st.caption("**Stamina** is not a miss count: it measures how long, how fast and how steadily you keep "
-                       "tapping. A stream's load = notes × (BPM/200)³ × quality: you pressed for 90%+ of its notes "
-                       "(100s, 50s and misses where you tapped count) and your taps didn't slow down or get uneven "
-                       "in its second half. Overstreaming (tapping faster than the notes) never counts against you. "
-                       "The score is the average of three parts, each your 5 hardest: single streams of 16+ notes, "
-                       "the most streaming inside 30 seconds, and the total of a finished map. 50 = "
-                       f"{STAMINA_REF_NOTES}-note streams at {stam['ref_bpm']:.0f} BPM, typical for your level; every "
-                       "doubling = +25. **Marathons**: every note you kept pressing in a finished map also counts "
-                       "(× tapping speed), ×2 after 5 minutes of play, ×3 after 10, ×4 after 20, ×5 after 40; breaks "
-                       "pause the clock. This endurance part only lifts the score, halfway towards its own, and by "
-                       "itself never above 80, so finishing marathons can't outrank controlled death streams."
-                       + (f" Your hardest stream: {bs['notes']} notes at {bs['bpm']:.0f} BPM." if bs else "")
-                       + (f" Longest finished map: {mins:.0f} min of play." if mins == mins and mins is not None
-                          else "")
-                       + (f" Steadiness {stam['steadiness']:.0%} ({stam.get('streams_slowed', 0)} streams slowed "
-                          f"down, {stam.get('streams_overstreamed', 0)} overstreamed: fine)."
-                          if stam.get("steadiness") == stam.get("steadiness")
-                          and stam.get("steadiness") is not None else ""))
+        if stam.get("score") is not None and stam.get("curve"):
+            ref = stam.get("ref_curve") or {}
+            rows = " · ".join(f"{_dur(W)}: **{bpm:.0f}** BPM (typical {ref.get(W, float('nan')):.0f})"
+                              for W, bpm in stam["curve"].items())
+            st.caption("**Stamina** is not a miss count: it is how long you keep a high tempo. For 10 s, 30 s, "
+                       "1, 2 and 5 minutes: the fastest tempo (notes per second as stream BPM) you kept up while "
+                       "still pressing 90%+ of the notes — once your fingers give in and you start undertapping, "
+                       "it stops counting; overstreaming never counts against you. Each duration is your best "
+                       "3 maps against what is typical for your level; 10% faster ≈ +10 points. Your tempo: "
+                       + rows + ".")
+        sl = p.skills.get("sliders") or {}
+        if sl.get("score") is not None:
+            st.caption("**Slider control** counts how hard the sliders are that you follow to the end: speed, "
+                       "length, shape (curves, corners, S-bends), speed changes and how soon the next note "
+                       "follows. Per map your 30 hardest sliders count, and breaking some of them costs a lot; "
+                       "many short, slow sliders don't add up to a few hard ones.")
     with right:
         section("Strengths & weaknesses", "Your three best skills (score ≥ 55) and up to three to work on (≤ 45).")
         strong = [p.skills[k]["label"] for k in p.strengths]

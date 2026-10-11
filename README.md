@@ -149,27 +149,27 @@ aim (jumps and single notes at normal speed), **speed-aim** (you tapped in time 
 up: aim misses in bursts / streams of 3+ notes — spaced or not — and on jumps ≤ 125 ms apart), too early / too
 late, no tap, lost, notelock. *Why you miss* also compares aim and speed-aim with what the difficulty of those
 notes predicts. **Stream speed** (Tapping page) is judged on finger misses only (no tap, early/late, notelock,
-lost); speed-aim misses are shown separately on the same chart. **Stamina** (skill score) measures how long,
-how fast and how steadily you keep tapping, not how accurate you stay. osu!standard has no stamina skill of its
-own — the star rating's speed strain decays to 30% per second (lazer `Speed.cs`) — so osu! coach measures it on
-you, from every stream / burst of 8+ notes. A stream's load = notes × (BPM / 200)³ × quality, so faster streams
-weigh much more (a 240 BPM note = 1.7 at 200, 300 BPM = 3.4). Quality = *kept* (you pressed for 90%+ of its
-notes — 100s, 50s and taps that missed are fine; below 60% it adds nothing, linear in between) × *steady*: on
-streams of 16+ notes the key presses are checked — tap gaps over two taps (so an uneven but regular left/right
-alternation is fine), second half vs first half. Slowing down by more than 3% costs 2.5% of the load per 1%,
-a less even rhythm costs too, down to 30%. **Overstreaming** (tapping faster than the notes) is never a loss.
-The score is the average of three parts, each your 5 hardest: **streams** (single streams of 16+ notes),
-**30 seconds** (the most stream load inside any 30 s of a play: much streaming in a short time) and **maps**
-(the total load of a finished play: map length). 50 = a 32-note stream / 140 stream notes in 30 s / 400 in a
-map at the stream speed typical for your level (120 + 15 × level BPM, e.g. 210 at 6★); every doubling = +25.
-Difficulty weights don't apply here: a 9★ map played for fun shows what you can sustain.
-**Endurance (marathons)**: every note you kept pressing in a finished map counts, × its tapping speed (as 1/4-note
-BPM over 200, linear: a 1/2 note at 180 BPM = 0.45) × how long you'd been playing: ×1 for the first 5 minutes,
-×2 from 5, ×3 from 10, ×4 from 20, ×5 from 40 (+1 each time the minutes double). A gap of 5+ seconds is a break:
-the clock pauses there, it doesn't reset. 50 = a ~4-minute map at your level's speed, +25 per doubling. This
-part only ever *lifts* the score, halfway from the stream-based score towards its own, and never above 80 by
-itself, so passing marathons can't outrank controlled death streams. On the reference replays: Kingling's
-53-minute The Unforgiving went from 0 to 50, LONG SEASON from 24 to 62; stream maps kept their scores.
+lost); speed-aim misses are shown separately on the same chart. **Stamina** (skill score) is how long you keep a high
+tempo before your fingers give in, not how accurate you stay. osu!standard has no stamina skill of its own — the
+star rating's speed strain decays to 30% per second (lazer `Speed.cs`) — so osu! coach measures it on you, as a
+**tempo-duration curve** (`tempo_curve`): for 10 s, 30 s, 1, 2 and 5 minutes, the fastest tempo you kept up in
+any stretch of a play that long. Tempo = notes you pressed a key for per second, as 1/4-note BPM (15 × notes per
+second, so a 220 BPM stream = 220); 100s, 50s and misses where you tapped count (also overstreaming — tapping
+faster than the notes is never a loss), notes without a tap don't. When you start **undertapping** (pressing for
+less than 90% of the notes in the stretch; 60% or less = 0, linear between) the tempo stops counting. Each
+duration: the average of your best 3 maps (repeats of a map count once; it counts once 2+ maps were that long);
+50 = the typical tempo for your level for that long (120 + 15 × level BPM, e.g. 210 at 6★, × 0.85 / 0.72 / 0.62
+/ 0.55 / 0.38 for 10 s … 5 min, since longer stretches always include slower parts); 10% faster ≈ +10 points
+(75 per doubling). The score is the average over the durations. Low-tempo marathons stay low and death streams
+you can't keep up score low for the long durations. How steady your taps stay in long streams (second half vs
+first half, from the key presses) is shown for information. Difficulty weights don't apply here.
+**Slider control** counts how hard the sliders are that you follow to the end (`slider_difficulty`): speed
+(circle diameters per second) × length (log2 of 1 + the path beyond what the follow circle covers; repeats add)
+× shape (+½ per half circle of turning up to 2 turns, +0.3 per sharp corner, +0.2 per left↔right bend, up to 4
+each) × speed change (vs the previous slider within 2 s, up to ×2) × rush (up to ×1.5 when the next note comes
+< 250 ms after the end). Per play the 30 hardest sliders whose head you hit count: their average × (share held)³;
+the score averages your best 5 maps: 50 + 25 × log2(value ÷ typical for your level; 40 at 6★, ×2 every 3★).
+
 *Stamina in long streams* (Tapping page) shows how precise your taps stay through streams of 16+ notes:
 the average **absolute** timing error (early and late alike — the plain average cancels them out to ~0) on
 notes 1–4, 5–8, … with one line per stream length (16–31, 32–63, 64+ notes). Where it starts to climb is

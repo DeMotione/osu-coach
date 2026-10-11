@@ -22,7 +22,7 @@ from .judge import simulate
 from .judge_lazer import lazer_mod_settings
 from .osr import MOD_BITS, Replay, parse_replay, mods_to_string
 
-ANALYSIS_VERSION = 6
+ANALYSIS_VERSION = 7
 
 # lazer mods whose effect the simulation can't reproduce (speed or note positions change during the
 # map, extra input rules): such replays are skipped with this reason

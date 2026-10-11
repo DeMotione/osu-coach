@@ -56,22 +56,24 @@ SKILL_HELP = {
     "speed": ("Tapping speed: bursts (3–8 notes) and streams (9+ notes) at their real BPM.", MISS_MODEL_SCORE,
               "Stream and burst maps 10–20 BPM above the speed you tap cleanly, in short sets with relaxed "
               "fingers. See the Tapping page for your clean stream speed."),
-    "stamina": ("Stamina: how long, how fast and how steadily you keep tapping, not how accurate you stay.",
-                "Score: load = notes × (BPM/200)³ × quality (kept 90%+ of the notes: 100s, 50s and misses where "
-                "you tapped count; steady taps). Average of your 5 hardest streams, 30 seconds and maps; 50 = "
-                "typical for your level, +25 per doubling. Long maps lift it (up to 80). Details under the chart.",
-                "Finish stream-heavy maps and keep tapping through long streams even when accuracy drops; "
-                "make streams longer first, then faster. Finishing long maps raises it too."),
+    "stamina": ("Stamina: for how long you keep a high tempo before your fingers give in (you start "
+                "undertapping), not how accurate you stay.",
+                "Score: the fastest tempo you kept up for 10 s, 30 s, 1, 2 and 5 min while pressing 90%+ of the "
+                "notes (overstreaming is fine); best 3 maps each, against your level's typical tempo for that "
+                "long; 10% faster ≈ +10. Average of the durations.",
+                "Play stream-heavy maps that are a little longer than usual and keep tapping to the end, even "
+                "when accuracy drops; make the stretches longer first, then faster."),
     "accuracy": ("Hit timing on single notes (not in streams): how many of them you hit as 300s.",
                  "Score: (300 share − 50%) ÷ 49% × 100, so 99% 300s = 100 and 50% = 0 (top players' plays on "
                  "single notes: 95–100%). Needs 60+ single notes.",
                  "Play maps you can full-combo and aim for 300s, not the combo. If your hits lean early or late "
                  "(Tapping page), fix your offset first."),
-    "sliders": ("Slider control: sliders whose head you hit but then broke, by losing the follow circle or "
-                "missing the slider end or a repeat.",
-                "Score: 100 − 400 × break rate, so 1% breaks = 96, 12.5% = 50, 25% = 0. Needs 30+ sliders.",
-                "Follow every slider to its end, especially fast, kick and repeat sliders; don't leave early "
-                "for the next note."),
+    "sliders": ("Slider control: how hard the sliders are that you follow to the end without a break: "
+                "speed, length, shape, speed changes and how soon the next note comes.",
+                "Score: per map your 30 hardest sliders (whose head you hit), average difficulty × share held³; "
+                "average of your best 5 maps against your level's typical value, +25 per doubling.",
+                "Play maps with long, curved and fast sliders and follow every one to its end; mix slow and fast "
+                "sliders. Many short sliders don't raise it."),
     "reading": ("Reading: notes in the dense parts of your maps, where the most notes are on screen at once "
                 "(the busiest 20% of notes, at least 4 visible).", MISS_MODEL_SCORE,
                 "Maps that are a little denser or have a slightly higher AR than you usually play; HD on "
@@ -859,6 +861,7 @@ def build_profile(analyses: list[ReplayAnalysis], level: float | None = None, we
         o["date"] = a.meta.get("date")
         o["hidden"] = bool(a.meta.get("mods", 0) & 8)
         o["completed"] = bool(a.meta.get("completed", True))
+        o["map_md5"] = a.meta.get("beatmap_md5")
         o["w"] = wmap.get(a.key, 1.0)
         objs.append(o)
         pr = a.presses.copy()
@@ -1107,27 +1110,19 @@ STAMINA_MAP_RUN = 8       # streams / bursts this long count towards a map's tap
 STAMINA_KEPT = 0.9        # share of a stream's notes you must have pressed for: "your fingers kept going"
 STAMINA_KEPT_ZERO = 0.6   # ... below this share a stream adds nothing; in between it counts partly
 STAMINA_BPM_POWER = 3.0   # a note at 240 BPM loads (240/200)^3 = 1.73x a note at 200 BPM
-STAMINA_TOP = 5           # the score uses your hardest few streams / plays, not one lucky one
-STAMINA_REF_NOTES = 32    # 50 = a 32-note stream at the stream speed typical for your level ...
-STAMINA_REF_WINDOW = 140  # ... or 140 stream notes at that speed inside 30 seconds ...
-STAMINA_REF_MAP = 400     # ... or 400 stream notes at that speed in one finished map
-STAMINA_WINDOW_S = 30.0   # seconds: "how much streaming in a short time"
-STAMINA_PER_DOUBLING = 25.0   # points per doubling of the load
-# steadiness of the tapping inside a long stream (from the key presses, not the hit timing):
-STAMINA_SLOW_FREE = 0.03      # the 2nd half's taps may be up to 3% slower than the 1st half's for free (noise)
-STAMINA_SLOW_COST = 2.5       # then each 1% slower costs 2.5% of the stream's load (10% slower = -17.5%)
-STAMINA_JITTER_FREE = 0.05    # the 2nd half's rhythm may get this much less even (spread / median) for free
-STAMINA_JITTER_COST = 1.0
 STAMINA_STEADY_MIN = 0.3      # a stream that falls apart still counts 30% (you kept pressing)
 STAMINA_OVERSTREAM = 0.95     # taps ≥ 5% faster than the notes = overstreaming: fine, never penalised
-# endurance (marathons): every note you kept pressing in a finished map, weighted by tapping speed (linear, gentler
-# than streams) and by how long you'd been playing without a break
-ENDURANCE_RAMP_START = 5.0    # minutes of play before notes start to count extra: ×2 from 5 min, ×3 from 10,
-                              # ×4 from 20, ×5 from 40, ... (+1 every time the minutes double)
-ENDURANCE_PAUSE_MS = 5000.0   # a gap this long between notes is a break: the clock pauses (doesn't reset)
-ENDURANCE_REF = 950.0         # 50 = this load at the stream speed typical for your level (≈ a 4-min map at 6★)
-ENDURANCE_SHARE = 0.5         # endurance can lift the stream-based score halfway towards its own score ...
-ENDURANCE_CAP = 80.0          # ... but never above 80 on its own: marathons don't beat controlled death streams
+STAMINA_SLOW_FREE = 0.03      # steadiness of a long stream (info): the 2nd half may be 3% slower for free ...
+STAMINA_SLOW_COST = 2.5       # ... then each 1% slower costs 2.5%
+STAMINA_JITTER_FREE = 0.05    # the 2nd half's rhythm may get this much less even (spread / median) for free
+STAMINA_JITTER_COST = 1.0
+# stamina = the tempo you keep up for a given time (tempo-duration curve):
+STAMINA_WINDOWS = (10, 30, 60, 120, 300)      # seconds
+# 50 = this share of the stream speed typical for your level (stamina_ref_bpm), kept up for that long
+STAMINA_WINDOW_SHARE = {10: 0.85, 30: 0.72, 60: 0.62, 120: 0.55, 300: 0.38}
+STAMINA_PLAYS = 3             # each duration: the average of your best 3 maps (one lucky map doesn't decide it)
+STAMINA_MIN_MAPS = 2          # a duration counts once 2+ maps were played that long
+STAMINA_POINTS = 75.0         # points per doubling of the tempo (≈ 10 points for 10% faster)
 PRESSED_REASONS = ("early", "late", "aim", "notelock")   # misses where a key was pressed
 
 
@@ -1227,173 +1222,208 @@ def stream_loads(P: pd.DataFrame, min_run: int = STAMINA_MAP_RUN, presses: pd.Da
     return g[cols]
 
 
-def endurance_ramp(minutes) -> np.ndarray:
-    """Weight of a note by how long you'd been playing: 1 for the first 5 minutes, then +1 every time the
-    minutes double (2 from 5 min, 3 from 10, 4 from 20, 5 from 40, ...)."""
-    m = np.asarray(minutes, dtype=float)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        steps = np.floor(np.log2(np.maximum(m, 1e-9) / ENDURANCE_RAMP_START)) + 2
-    return np.where(m < ENDURANCE_RAMP_START, 1.0, steps)
+def _map_key(P: pd.DataFrame) -> pd.Series:
+    """Beatmap (and rate) of each row, so repeated plays of one map count once; the replay when unknown."""
+    key = P["replay_key"].astype(str) if "replay_key" in P else pd.Series("all", index=P.index)
+    if "map_md5" in P:
+        rate = P["rate"].astype(float).fillna(1.0).round(3).astype(str) if "rate" in P else ""
+        return P["map_md5"].fillna(key).astype(str) + "@" + rate
+    return key
 
 
-def endurance_loads(P: pd.DataFrame) -> pd.DataFrame:
-    """Per finished play: ``minutes`` of play (breaks of 5+ s pause the clock), ``notes`` pressed and ``load`` =
-    Σ over the notes you pressed of speed × ramp. speed = (15000 / ms since the previous note) / 200, i.e. the
-    note's tapping rate as 1/4-note BPM over 200 (linear: a 1/2 note at 180 BPM = 0.45, a 280 BPM stream note = 1.4);
-    ramp = :func:`endurance_ramp` of the play time so far."""
-    cols = ["replay_key", "minutes", "notes", "load"]
-    need = {"time", "dt_real", "head_hit"}
-    if P is None or P.empty or not need <= set(P.columns):
+def tempo_curve(P: pd.DataFrame, windows=STAMINA_WINDOWS) -> pd.DataFrame:
+    """Stamina curve of every play: for each duration W (seconds), the fastest tempo you kept up for W seconds.
+
+    Every note you tap (circles and slider heads, not spinners) counts if you pressed a key for it — 300s, 100s,
+    50s and misses where you tapped (also too early: overstreaming); only notes you didn't press for (no tap,
+    lost, not reached) don't. In every W-second stretch of the play: tempo = pressed notes per second as 1/4-note
+    BPM (15 × notes per second, so a 220 BPM stream = 220), × the kept share (pressed 90%+ of the notes there =
+    1, 60% or less = 0, linear between): when your fingers start to give in (undertapping), the tempo stops
+    counting. ``bpm`` = the best stretch of the play. Only stretches inside what you played count (failed plays
+    up to where they ended), and a play shorter than W has no value for W."""
+    cols = ["replay_key", "map", "window", "bpm", "minutes"]
+    if P is None or P.empty or "time" not in P:
         return pd.DataFrame(columns=cols)
     D = P[P["kind"] != "spinner"] if "kind" in P else P
-    if "completed" in D:
-        D = D[D["completed"].astype(bool)]
     if D.empty:
         return pd.DataFrame(columns=cols)
     reason = D["miss_reason"] if "miss_reason" in D else pd.Series(None, index=D.index, dtype=object)
     pressed = (D["head_hit"].astype(bool) | reason.isin(PRESSED_REASONS)).to_numpy()
-    key = D["replay_key"] if "replay_key" in D else pd.Series("all", index=D.index)
+    rate = D["rate"].astype(float).fillna(1.0).to_numpy() if "rate" in D else np.ones(len(D))
+    t_all = D["time"].astype(float).to_numpy() / rate / 1000.0
+    keys = D["replay_key"].astype(str).to_numpy() if "replay_key" in D else np.full(len(D), "all")
+    maps = _map_key(D).to_numpy()
     rows = []
-    for k, idx in D.groupby(key, sort=False).groups.items():
-        d = D.loc[idx].sort_values("time")
-        dt = d["dt_real"].astype(float).fillna(0.0).to_numpy()
-        clock = np.cumsum(np.where((dt > 0) & (dt <= ENDURANCE_PAUSE_MS), dt, 0.0)) / 60000.0
-        speed = np.where(dt > 0, np.minimum(15000.0 / np.maximum(dt, 1.0), 400.0) / 200.0, 0.0)
-        pr = pressed[D.index.get_indexer(d.index)]
-        rows.append({"replay_key": k, "minutes": float(clock[-1]) if len(clock) else 0.0, "notes": int(pr.sum()),
-                     "load": float((speed * endurance_ramp(clock) * pr).sum())})
+    for k in pd.unique(keys):
+        m = keys == k
+        order = np.argsort(t_all[m])
+        t, pr = t_all[m][order], pressed[m][order]
+        if len(t) < 2:
+            continue
+        span = t[-1] - t[0]
+        cp = np.concatenate([[0], np.cumsum(pr)])
+        idx = np.arange(len(t))
+        for W in windows:
+            if span < W * 0.98:
+                continue
+            j = np.searchsorted(t, t + W, side="left")
+            n = j - idx
+            kept = cp[j] - cp[idx]
+            share = np.where(n > 0, kept / np.maximum(n, 1), 0.0)
+            q = np.clip((share - STAMINA_KEPT_ZERO) / (STAMINA_KEPT - STAMINA_KEPT_ZERO), 0, 1)
+            bpm = np.where(t + W <= t[-1] + 0.02 * W, kept / W * 15.0 * q, 0.0)
+            rows.append({"replay_key": k, "map": maps[m][0], "window": W, "bpm": float(bpm.max()),
+                         "minutes": span / 60.0})
     return pd.DataFrame(rows, columns=cols)
-
-
-def _window_load(L: pd.DataFrame, window_s: float = STAMINA_WINDOW_S) -> float:
-    """Most stream load inside any ``window_s`` seconds of one play (streams cut by the window count in
-    part, by their share of notes inside it)."""
-    if L.empty or not np.isfinite(L["start"]).all():
-        return float(L["load"].sum()) if len(L) else 0.0
-    best = 0.0
-    starts, ends, loads = L["start"].to_numpy(float), L["end"].to_numpy(float), L["load"].to_numpy(float)
-    for w0 in starts:
-        w1 = w0 + window_s
-        dur = np.maximum(ends - starts, 1e-3)
-        inside = np.clip((np.minimum(ends, w1) - np.maximum(starts, w0)) / dur, 0, 1)
-        inside[(ends - starts) < 1e-3] = ((starts >= w0) & (starts <= w1))[(ends - starts) < 1e-3]
-        best = max(best, float((loads * inside).sum()))
-    return best
-
-
-def _load_score(load: float, ref: float) -> float:
-    return _clip(50 + STAMINA_PER_DOUBLING * math.log2(max(load, 1e-6) / ref))
 
 
 def stamina_score(P: pd.DataFrame, tapping: dict | None = None, level: float | None = None,
                   presses: pd.DataFrame | None = None) -> dict:
-    """Stamina: how long, how fast and how steadily you keep tapping — not how accurate you stay.
+    """Stamina: for how long you keep a high tempo without your fingers giving in — not how accurate you stay.
 
     osu!standard has no stamina skill of its own: the star rating's speed strain decays to 30% per second
-    (osu!lazer ``Speed.cs``), so it only "remembers" the last second or two. This score measures stamina on
-    you, from every stream / burst of 8+ notes (``stream_loads``):
+    (osu!lazer ``Speed.cs``), so it only "remembers" the last second or two. This score uses
+    :func:`tempo_curve`: the fastest tempo you kept up (still pressing 90%+ of the notes) for 10 s, 30 s, 1 min,
+    2 min and 5 min. Overstreaming — tapping faster than the notes — never counts against you.
 
-    * **load** of a stream = notes × (BPM / 200)^3 — faster streams weigh much more — × its **quality**:
-      kept (you pressed for 90%+ of the notes; 100s, 50s and misses where you tapped are fine) × steady
-      (your taps didn't slow down or get uneven in its second half, measured on the key presses).
-      **Overstreaming** — tapping faster than the notes — is never counted against you;
-    * three parts, each the average of your 5 hardest (so one lucky play doesn't decide it):
-      **streams** — single streams of 16+ notes (how long you can stream in one go);
-      **30 seconds** — the most stream load inside any 30 s of a play (how much streaming in a short time);
-      **maps** — the total stream load of a finished play (map length: longer maps with more streams);
-    * each part is scored against what is typical for your level (``stamina_ref_bpm``: a 32-note stream /
-      140 stream notes in 30 s / 400 stream notes in a map, at that speed = 50; every doubling = +25) and
-      the score is their average.
+    * each duration: the average of your best 3 maps (repeats of one map count once); it counts once 2+ maps
+      were played that long;
+    * 50 = the tempo typical for your level for that long (``stamina_ref_bpm`` × 0.85 for 10 s, 0.72 for 30 s,
+      0.62 for 1 min, 0.55 for 2 min, 0.38 for 5 min: the longer, the more pauses and slower parts any map
+      has); 10% faster ≈ +10 points, twice as fast = +75;
+    * the score = the average over the durations, so holding a tempo for minutes counts as much as a short
+      burst of speed. Low-tempo marathons stay low (they don't show a high tempo), and death streams you can't
+      keep up score low for the long durations.
 
-    Difficulty weights are not used: the score asks what you *can* sustain, so a hard map played for fun
-    counts (warm-ups don't lower a top-5 anyway). ``steadiness`` = average steady factor of your long
-    streams; ``early_miss_rate`` / ``late_miss_rate`` are kept for information only."""
-    L = stream_loads(P, presses=presses)
+    The steadiness numbers (did your taps slow down or get uneven in the second half of long streams) are shown
+    for information. Difficulty weights are not used: the score asks what you *can* sustain."""
     ref_bpm = stamina_ref_bpm(level)
-    factor = (ref_bpm / 200.0) ** STAMINA_BPM_POWER
-    ref_stream, ref_window, ref_map = (STAMINA_REF_NOTES * factor, STAMINA_REF_WINDOW * factor,
-                                       STAMINA_REF_MAP * factor)
-    ref_endurance = ENDURANCE_REF * ref_bpm / 200.0
-    out = {"score": None, "n": 0, "ref_bpm": ref_bpm, "ref_stream_load": ref_stream, "ref_window_load": ref_window,
-           "ref_map_load": ref_map, "stream_load": math.nan, "window_load": math.nan, "map_load": math.nan,
-           "stream_score": None, "window_score": None, "map_score": None, "streams_kept": 0, "streams_long": 0,
-           "streams_slowed": 0, "streams_overstreamed": 0, "steadiness": math.nan, "best_stream": None,
-           "best_play": None, "ref_endurance_load": ref_endurance, "endurance_load": math.nan,
-           "endurance_score": None, "longest_minutes": math.nan, "stream_based_score": None}
-    E = endurance_loads(P)
-    if len(E) and E["load"].max() > 0:
-        top = E.nlargest(STAMINA_TOP, "load")
-        out["endurance_load"] = float(top["load"].mean())
-        out["endurance_score"] = _load_score(out["endurance_load"], ref_endurance)
-        out["longest_minutes"] = float(E["minutes"].max())
-    out = _stream_stamina(P, L, out, ref_stream, ref_window, ref_map)
-    S, En = out["stream_based_score"], out["endurance_score"]
-    # without stream data, endurance alone needs 3+ finished plays or one marathon (5+ min of play)
-    endurance_ok = En is not None and (S is not None or len(E) >= 3 or out["longest_minutes"] >= ENDURANCE_RAMP_START)
-    if endurance_ok:
-        base = S if S is not None else 0.0
-        # endurance only ever lifts the score, halfway towards its own, and never above ENDURANCE_CAP by itself
-        out["score"] = max(base, min(base + ENDURANCE_SHARE * (En - base), ENDURANCE_CAP)) if En > base else base
-        if S is None and out["score"] <= 0:
-            out["score"] = None
-    else:
-        out["score"] = S
-    bs, bp = out["best_stream"], out["best_play"]
-    bits = []
-    if bs:
+    out = {"score": None, "n": 0, "ref_bpm": ref_bpm, "curve": {}, "parts": {}, "maps": {}, "best": {},
+           "ref_curve": {W: ref_bpm * STAMINA_WINDOW_SHARE[W] for W in STAMINA_WINDOWS},
+           "streams_long": 0, "streams_kept": 0, "streams_slowed": 0, "streams_overstreamed": 0,
+           "steadiness": math.nan, "best_stream": None, "longest_minutes": math.nan}
+    C = tempo_curve(P)
+    if len(C):
+        out["longest_minutes"] = float(C["minutes"].max())
+        out["n"] = int(C["map"].nunique())
+    for W in STAMINA_WINDOWS:
+        c = C[C["window"] == W]
+        if c.empty:
+            continue
+        per_map = c.groupby("map")["bpm"].max().sort_values(ascending=False)
+        out["maps"][W] = int(len(per_map))
+        if len(per_map) < STAMINA_MIN_MAPS:
+            continue
+        v = float(per_map.head(STAMINA_PLAYS).mean())
+        out["curve"][W] = v
+        out["best"][W] = float(per_map.iloc[0])
+        out["parts"][W] = _clip(50 + STAMINA_POINTS * math.log2(max(v, 1e-6) / out["ref_curve"][W]))
+    if out["parts"] and out["n"] >= 3:
+        out["score"] = float(np.mean(list(out["parts"].values())))
+    # information: long streams and how steady your taps stayed in them
+    L = stream_loads(P, presses=presses)
+    long_all = L[L["notes"] >= STAMINA_RUN] if len(L) else L
+    if len(long_all):
+        measured = long_all[long_all["slow"].notna()]
+        out.update(streams_long=int(len(long_all)), streams_kept=int((long_all["kept"] >= STAMINA_KEPT).sum()),
+                   streams_slowed=int((measured["steady"] < 0.95).sum()),
+                   streams_overstreamed=int(measured["overstream"].sum()),
+                   steadiness=float(np.average(measured["steady"], weights=measured["raw_load"]))
+                   if len(measured) else math.nan)
+        kept = long_all[long_all["kept"] >= STAMINA_KEPT]
+        if len(kept):
+            b = kept.sort_values(["raw_load"], ascending=False).iloc[0]
+            out["best_stream"] = {"notes": int(b["notes"]), "bpm": float(b["bpm"]), "steady": float(b["steady"])}
+    bits = [f"{_dur(W)}: {v:.0f} BPM" for W, v in out["curve"].items()]
+    if out["best_stream"]:
+        bs = out["best_stream"]
         bits.append(f"hardest stream: {bs['notes']} notes at {bs['bpm']:.0f} BPM")
-    if bp:
-        bits.append(f"hardest finished map: {bp['stream_notes']} stream notes")
-    if not math.isnan(out["longest_minutes"]):
-        bits.append(f"longest finished map: {out['longest_minutes']:.0f} min of play")
     if not math.isnan(out["steadiness"]):
         bits.append(f"steadiness {out['steadiness']:.0%}")
-    bits.append(f"50 = {STAMINA_REF_NOTES}-note streams at {ref_bpm:.0f} BPM (typical for your level)")
     out["detail"] = "; ".join(bits)
     return out
 
 
-def _stream_stamina(P, L, out, ref_stream, ref_window, ref_map) -> dict:
-    """The stream-based part of :func:`stamina_score` (streams, 30 seconds, maps) → ``stream_based_score``."""
-    long_runs = P[P["run_len"] >= STAMINA_RUN] if "run_len" in P else P.iloc[0:0]
-    if len(long_runs) >= 80:
-        W = _w(long_runs)
-        late = long_runs["run_pos"] >= long_runs["run_len"] / 2
-        out["early_miss_rate"] = _rate(~long_runs.loc[~late, "head_hit"], W[~late])
-        out["late_miss_rate"] = _rate(~long_runs.loc[late, "head_hit"], W[late])
-    if L.empty:
+def _dur(W: float) -> str:
+    return f"{W:.0f} s" if W < 60 else f"{W / 60:.0f} min"
+
+
+# ------------------------------------------------------------------ sliders
+SLIDER_FOLLOW_SLACK = 1.0   # circle diameters of slider path the follow circle covers without moving
+SLIDER_TOP = 30             # per play: the hardest 30 sliders whose head you hit
+SLIDER_MIN = 10             # ... a play needs 10+ such sliders
+SLIDER_PLAYS = 5            # the score: your best 5 maps
+SLIDER_MIN_MAPS = 3
+SLIDER_HOLD_POWER = 3.0     # breaking a few of your hardest sliders costs a lot: value × held share³
+SLIDER_REF = 40.0           # 50 = this value at 6★ ...
+SLIDER_REF_STEP = 3.0       # ... ×2 every 3★ (slider difficulty grows much slower with star rating than aim)
+SLIDER_POINTS = 25.0        # points per doubling of the value
+
+
+def slider_difficulty(S: pd.DataFrame) -> pd.Series:
+    """Difficulty of following each slider (0 = the follow circle covers it without moving):
+
+    speed (circle diameters per second the ball moves, real time) × length (log2 of 1 + the path beyond what
+    the follow circle covers, in diameters; repeats add log2(repeats)) × shape (1 + half a point per half
+    circle of turning, up to 2 full turns, + 0.3 per sharp corner and + 0.2 per left↔right bend, up to 4 each)
+    × speed change (1 + |ln(speed / previous slider's speed)|, up to ×2: a slow slider right after a fast one or
+    the other way round) × rush (up to ×1.5 when the next note comes less than 250 ms after the slider end)."""
+    diam = 2 * S["radius"].astype(float).clip(lower=1.0)
+    speed = S["slider_vel_real"].astype(float).fillna(0) * 1000.0 / diam
+    eff = (S["slider_len"].astype(float).fillna(0) / diam - SLIDER_FOLLOW_SLACK).clip(lower=0)
+    spans = S["slider_spans"].astype(float).fillna(1).clip(lower=1)
+    length = np.log2(1 + eff * (1 + np.log2(spans)))
+    col = lambda c: S[c].astype(float).fillna(0) if c in S else pd.Series(0.0, index=S.index)  # noqa: E731
+    shape = 1 + 0.5 * (col("slider_turn") / math.pi).clip(upper=4) \
+        + 0.3 * col("slider_corners").clip(upper=4) + 0.2 * col("slider_bends").clip(upper=4)
+    change = 1 + col("slider_vel_change").clip(upper=1.0)
+    gap = S["slider_next_gap"].astype(float).fillna(1000.0) if "slider_next_gap" in S else 1000.0
+    rush = 1 + 0.5 * ((250.0 - gap) / 250.0).clip(0, 1)
+    return speed * length * shape * change * rush
+
+
+def slider_ref(level: float | None) -> float:
+    lv = 6.0 if level is None or not np.isfinite(level) else float(level)
+    return SLIDER_REF * 2 ** ((lv - 6.0) / SLIDER_REF_STEP)
+
+
+def slider_score(P: pd.DataFrame, level: float | None = None) -> dict:
+    """Slider control: how hard the sliders are that you follow to the end — not how many easy ones.
+
+    Every slider whose head you hit gets a difficulty (:func:`slider_difficulty`: speed, length, shape, speed
+    changes, rush). Per play, the hardest 30 count: value = their average difficulty × (share you held without
+    a break)³, so a play full of short, slow sliders stays low however clean, and breaking 1 of the 30 hardest
+    costs about 10%. The score is the average over your best 5 maps of 50 + 25 × log2(value ÷ the value typical
+    for your level), so a value twice the typical one = 75."""
+    out = {"score": None, "n": 0, "plays": 0, "value": math.nan, "ref": slider_ref(level), "break_rate": math.nan,
+           "top_held": math.nan, "best": None}
+    if P is None or P.empty or "kind" not in P:
         return out
-    long_all = L[L["notes"] >= STAMINA_RUN]
-    long_kept = long_all[long_all["kept"] >= STAMINA_KEPT]
-    measured = long_all[long_all["slow"].notna()]
-    out.update(n=int(L["notes"].sum()), streams_kept=int(len(long_kept)), streams_long=int(len(long_all)),
-               streams_slowed=int((measured["steady"] < 0.95).sum()),
-               streams_overstreamed=int(measured["overstream"].sum()),
-               steadiness=float(np.average(measured["steady"], weights=measured["raw_load"]))
-               if len(measured) else math.nan)
-    if len(long_all) and long_all["load"].max() > 0:
-        top = long_all.nlargest(STAMINA_TOP, "load")
-        out["stream_load"] = float(top["load"].mean())
-        out["stream_score"] = _load_score(out["stream_load"], ref_stream)
-        b = top.iloc[0]
-        out["best_stream"] = {"notes": int(b["notes"]), "bpm": float(b["bpm"]), "load": float(b["load"]),
-                              "steady": float(b["steady"])}
-    windows = pd.Series({k: _window_load(d) for k, d in L.groupby("replay_key", sort=False)}, dtype=float)
-    if len(windows) and windows.max() > 0:
-        out["window_load"] = float(windows.nlargest(STAMINA_TOP).mean())
-        out["window_score"] = _load_score(out["window_load"], ref_window)
-    plays = L[L["completed"]].groupby("replay_key").agg(load=("load", "sum"), notes=("notes", "sum"),
-                                                       streams=("notes", "size"))
-    if len(plays) and plays["load"].max() > 0:
-        top = plays.nlargest(STAMINA_TOP, "load")
-        out["map_load"] = float(top["load"].mean())
-        out["map_score"] = _load_score(out["map_load"], ref_map)
-        out["best_play"] = {"replay_key": str(top.index[0]), "load": float(top["load"].iloc[0]),
-                            "stream_notes": int(top["notes"].iloc[0]), "streams": int(top["streams"].iloc[0])}
-    parts = [s for s in (out["stream_score"], out["window_score"], out["map_score"]) if s is not None]
-    enough = len(long_all) >= 3 or len(plays) >= 3
-    if parts and enough:
-        out["stream_based_score"] = float(np.mean(parts))
+    S = P[(P["kind"] == "slider") & P["head_hit"].astype(bool)]
+    if "slider_vel_real" not in S or S.empty:
+        return out
+    S = S.assign(diff=slider_difficulty(S).to_numpy(), held=~S["broke"].fillna(False).astype(bool).to_numpy(),
+                 map=_map_key(S).to_numpy())
+    out["n"] = int(len(S))
+    out["break_rate"] = float(1 - S["held"].mean())
+    rows = []
+    for (k, m), d in S.groupby(["replay_key", "map"], sort=False):
+        if len(d) < SLIDER_MIN:
+            continue
+        top = d.nlargest(SLIDER_TOP, "diff")
+        hold = float(top["held"].mean())
+        rows.append({"map": m, "value": float(top["diff"].mean()) * hold ** SLIDER_HOLD_POWER, "hold": hold,
+                     "diff": float(top["diff"].mean())})
+    if not rows:
+        return out
+    R = pd.DataFrame(rows).sort_values("value", ascending=False).drop_duplicates("map").head(SLIDER_PLAYS)
+    out["plays"] = int(len(R))
+    out["value"] = float(R["value"].mean())
+    out["top_held"] = float(R["hold"].mean())
+    out["best"] = float(R["value"].iloc[0])
+    if len(R) >= SLIDER_MIN_MAPS:
+        parts = [_clip(50 + SLIDER_POINTS * math.log2(max(v, 1e-6) / out["ref"])) for v in R["value"]]
+        out["score"] = float(np.mean(parts))
     return out
 
 
@@ -1408,10 +1438,7 @@ def _skills(P, model, tapping, sliders, reading, consistency, level: float | Non
     n_single = float(_w(P)[P["run_len"] < 3].sum())
     s["accuracy"] = {"score": accuracy_score(r300) if not math.isnan(r300) and n_single >= 60 else None,
                      "n": int(round(n_single)), "three_hundred_rate": r300, "ur": tapping.get("ur_single")}
-    br = sliders.get("break_rate", math.nan)
-    n_sl = sliders.get("sliders", 0)
-    s["sliders"] = {"score": _clip(100 - br * 400) if n_sl >= 30 and not math.isnan(br) else None, "n": n_sl,
-                    "break_rate": br}
+    s["sliders"] = slider_score(P, level)
     if "dense_threshold" in reading:
         s["reading"] = _subset_score(P, P["density"] >= reading["dense_threshold"], model)
     else:

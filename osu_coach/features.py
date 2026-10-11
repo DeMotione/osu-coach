@@ -33,6 +33,33 @@ def _rhythm_label(snap: float) -> str:
     return "other" if snap < 2.2 else "break"
 
 
+SHAPE_STEP = 8.0         # osu!px between path samples for the slider shape
+SHAPE_SHARP = math.radians(40)   # a direction change this big between two samples = a corner (red anchor)
+
+
+def slider_shape(o) -> tuple[float, int, int]:
+    """Shape of a slider's path (one span): ``turn`` = total direction change in radians (a straight slider 0, a
+    half circle π, a full circle 2π, wiggles add up), ``corners`` = sharp corners (40°+ at once, e.g. red
+    anchors), ``bends`` = how often the path switches between turning left and right (S-shapes, zig-zags)."""
+    path = getattr(o, "path", None)
+    if path is None or path.length <= SHAPE_STEP:
+        return 0.0, 0, 0
+    n = max(2, int(path.length / SHAPE_STEP))
+    pts = np.array([path.position_at(i / n) for i in range(n + 1)], dtype=float)
+    d = np.diff(pts, axis=0)
+    keep = np.hypot(d[:, 0], d[:, 1]) > 1e-6
+    d = d[keep]
+    if len(d) < 2:
+        return 0.0, 0, 0
+    ang = np.arctan2(d[:, 1], d[:, 0])
+    da = (np.diff(ang) + np.pi) % (2 * np.pi) - np.pi
+    turn = float(np.abs(da).sum())
+    corners = int((np.abs(da) >= SHAPE_SHARP).sum())
+    sig = np.sign(da[np.abs(da) > math.radians(2)])
+    bends = int((np.diff(sig) != 0).sum()) if len(sig) > 1 else 0
+    return turn, corners, bends
+
+
 def object_features(pb: PlayableBeatmap) -> pd.DataFrame:
     bm = pb.beatmap
     objs = bm.objects
@@ -64,6 +91,10 @@ def object_features(pb: PlayableBeatmap) -> pd.DataFrame:
             "slider_spans": o.spans if o.is_slider else 0,
             "slider_vel_real": o.velocity * rate if o.is_slider else 0.0,
         }
+        if o.is_slider:
+            row["slider_turn"], row["slider_corners"], row["slider_bends"] = slider_shape(o)
+        else:
+            row["slider_turn"], row["slider_corners"], row["slider_bends"] = 0.0, 0, 0
         # objects visible at hit time (reading density)
         hi = np.searchsorted(times, o.time + pb.preempt, side="right")
         lo = np.searchsorted(times, o.time, side="left")
@@ -103,9 +134,38 @@ def object_features(pb: PlayableBeatmap) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     if df.empty:
         return df
+    _slider_context(df)
     _label_runs(df)
     _label_patterns(df)
     return df
+
+
+SLIDER_CHANGE_WINDOW = 2000.0   # ms (real): a slider this soon after the previous one is compared with it
+
+
+def _slider_context(df: pd.DataFrame):
+    """``slider_vel_change`` = |ln(speed / previous slider's speed)| when the previous slider ended at most 2 s
+    earlier (0.69 = twice or half as fast, 0 = same speed or no slider before); ``slider_next_gap`` = real ms
+    from the slider's end to the next object (short = you must leave the slider and move on quickly)."""
+    n = len(df)
+    change = np.zeros(n)
+    gap = np.full(n, np.nan)
+    kinds = df["kind"].to_numpy()
+    t = df["time"].to_numpy(float)
+    te = df["end_time"].to_numpy(float)
+    v = df["slider_vel_real"].to_numpy(float)
+    rate = float(df["bpm_real"].iloc[0] * df["beat_len"].iloc[0] / 60000.0) if n else 1.0
+    last = None
+    for i in range(n):
+        if kinds[i] != "slider":
+            continue
+        if last is not None and (t[i] - te[last]) / rate <= SLIDER_CHANGE_WINDOW and v[last] > 0 and v[i] > 0:
+            change[i] = abs(math.log(v[i] / v[last]))
+        if i + 1 < n:
+            gap[i] = max(0.0, (t[i + 1] - te[i]) / rate)
+        last = i
+    df["slider_vel_change"] = change
+    df["slider_next_gap"] = gap
 
 
 def _label_runs(df: pd.DataFrame):

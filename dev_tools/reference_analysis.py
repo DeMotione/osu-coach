@@ -11,7 +11,7 @@ Printed per skill group: every play (player, map, mods, accuracy, misses) and, f
 scores the current formulas give (``build_profile`` of the 5 plays, unweighted) plus the raw numbers behind
 the skill — misses vs expected, 300 share / UR, slider breaks, miss-after-miss ratio, stamina parts and
 steadiness. A near-perfect play of a skill should land near 100 on that skill; where it doesn't, the raw
-numbers show which yardstick (``_score_from_ratio`` scale, ``STAMINA_REF_*``, the 300-share or slider-break
+numbers show which yardstick (``_score_from_ratio`` scale, ``STAMINA_WINDOW_SHARE``, the 300-share or ``SLIDER_REF``
 scale, ``TYPICAL_CHAIN_RATIO``) needs moving. Use ``--out`` to keep the numbers for before/after checks.
 """
 from __future__ import annotations
