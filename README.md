@@ -157,18 +157,25 @@ any stretch of a play that long. Tempo = notes you pressed a key for per second,
 second, so a 220 BPM stream = 220); 100s, 50s and misses where you tapped count (also overstreaming — tapping
 faster than the notes is never a loss), notes without a tap don't. When you start **undertapping** (pressing for
 less than 90% of the notes in the stretch; 60% or less = 0, linear between) the tempo stops counting. Each
-duration: the average of your best 3 maps (repeats of a map count once; it counts once 2+ maps were that long);
-50 = the typical tempo for your level for that long (120 + 15 × level BPM, e.g. 210 at 6★, × 0.85 / 0.72 / 0.62
-/ 0.55 / 0.38 for 10 s … 5 min, since longer stretches always include slower parts); 10% faster ≈ +10 points
+duration: one value per map, pp-weighted (see above; it counts once 2+ maps were that long);
+50 = the typical tempo for your level for that long (120 + 15 × level BPM, e.g. 210 at 6★, × 0.55 / 0.47 / 0.41
+/ 0.38 / 0.33 for 10 s … 5 min, since longer stretches always include slower parts); 10% faster ≈ +10 points
 (75 per doubling). The score is the average over the durations. Low-tempo marathons stay low and death streams
 you can't keep up score low for the long durations. How steady your taps stay in long streams (second half vs
 first half, from the key presses) is shown for information. Difficulty weights don't apply here.
+**Skill weighting (like osu! pp)**: every skill ranks your plays by how hard they were for that skill (aim, flow
+aim, reading: the 80th percentile of the notes' difficulty; accuracy, consistency: star rating) or by the value
+reached (speed, stamina, sliders: one value per map, your best play of it); the first counts 100%, each next one
+1/N less, N = replays analysed (100 replays: 100%, 99%, 98% …). The other statistics keep the level weighting.
+**Tapping speed** (`speed_values`, `speed_score`): per play the 3rd fastest clean burst / stream (3+ notes; no
+finger miss — no tap, too early / late, notelock; cursor misses don't count — and 80%+ of its hit notes as 300s);
+pp-weighted over maps; 50 = `stamina_ref_bpm` of your level, 75 points per doubling.
 **Slider control** counts how hard the sliders are that you follow to the end (`slider_difficulty`): speed
 (circle diameters per second) × length (log2 of 1 + the path beyond what the follow circle covers; repeats add)
 × shape (+½ per half circle of turning up to 2 turns, +0.3 per sharp corner, +0.2 per left↔right bend, up to 4
 each) × speed change (vs the previous slider within 2 s, up to ×2) × rush (up to ×1.5 when the next note comes
 < 250 ms after the end). Per play the 30 hardest sliders whose head you hit count: their average × (share held)³;
-the score averages your best 5 maps: 50 + 25 × log2(value ÷ typical for your level; 40 at 6★, ×2 every 3★).
+pp-weighted over maps; score = 50 + 25 × log2(value ÷ typical for your level; 40 at 6★, ×2 every 3★).
 
 *Stamina in long streams* (Tapping page) shows how precise your taps stay through streams of 16+ notes:
 the average **absolute** timing error (early and late alike — the plain average cancels them out to ~0) on
