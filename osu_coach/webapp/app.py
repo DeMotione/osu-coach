@@ -982,31 +982,29 @@ def page_overview():
         fig.update_layout(hovermode="y", hoverlabel=dict(align="left"))
         plot(style(fig, 420))
         top = top_comparison(p.skills)
-        section("Skills vs top players", "The same skills against the best players' reference plays (WhiteCat, "
-                                         "mrekk, MALISZEWSKI, cryshina, -GN …): 100 = as good as them, every halving "
-                                         "of the gap counts like on the chart above. Shows how far each skill is "
-                                         "from the top.")
+        section("Skills vs top players", "The same skills measured against the top players' level (10★) instead of "
+                                         "yours: 50 = typical for a 10★ player. ◆ = the best players' reference "
+                                         "plays (WhiteCat, mrekk, MALISZEWSKI, roaz, -GN …). The gap between your "
+                                         "bar and the ◆ is how far that skill is from the top.")
         tk = [k for k in p.skills if k in top]
         tsc = [top[k]["score"] for k in tk]
-        tcol = [MUTED if s is None else GOOD if s >= 70 else BAD if s <= 30 else INFO for s in tsc]
-
-        def _fmt(v, unit):
-            if v is None or not np.isfinite(v):
-                return "–"
-            return f"{v:.1%}" if "300s" in unit else f"{v:.2f}" if "ratio" in unit else f"{v:.0f}" \
-                if v >= 50 else f"{v:.1f}"
-        def _hover(k):
-            r = top[k]
-            sc = "not enough data" if r["score"] is None else f"{r['score']:.0f}"
-            return (f"<b>{r['label']}: {sc}</b><br>you {_fmt(r['you'], r['unit'])} · top players "
-                    f"{_fmt(r['top'], r['unit'])}<br>{r['unit']}")
-        thover = [_hover(k) for k in tk]
-        fig2 = go.Figure(go.Bar(x=[0 if s is None else s for s in tsc], y=[top[k]["label"] for k in tk],
-                                orientation="h", marker_color=tcol, hovertext=thover, hoverinfo="text",
+        tcol = [MUTED if s is None else GOOD if s >= 55 else BAD if s <= 45 else INFO for s in tsc]
+        labels = [top[k]["label"] for k in tk]
+        fig2 = go.Figure(go.Bar(x=[0 if s is None else s for s in tsc], y=labels, orientation="h",
+                                marker_color=tcol, name="you", hoverinfo="skip",
                                 text=["–" if s is None else f"{s:.0f}" for s in tsc], textposition="outside"))
-        fig2.update_xaxes(range=[0, 112], title="100 = top players · higher is better")
+        fig2.add_trace(go.Scatter(x=[top[k]["top"] for k in tk], y=labels, mode="markers", name="top players",
+                                  marker=dict(symbol="diamond", size=12, color=MUTED), hoverinfo="skip"))
+        hov = []
+        for k in tk:
+            r = top[k]
+            you = "not enough data" if r["score"] is None else f"{r['score']:.0f}"
+            tp = "–" if r["top"] is None else f"{r['top']:.0f}"
+            hov.append(f"<b>{r['label']}</b><br>you {you} · top players {tp} (50 = typical 10★ player)")
+        fig2.data[0].hovertext, fig2.data[0].hoverinfo = hov, "text"
+        fig2.update_xaxes(range=[0, 112], title="50 = typical for a 10★ player · ◆ = top players")
         fig2.update_yaxes(autorange="reversed")
-        fig2.update_layout(hovermode="y", hoverlabel=dict(align="left"))
+        fig2.update_layout(hovermode="y", hoverlabel=dict(align="left"), showlegend=False)
         plot(style(fig2, 380))
         stam = p.skills.get("stamina") or {}
         if stam.get("score") is not None and stam.get("curve"):

@@ -508,17 +508,14 @@ def test_low_ar_on_a_slow_map_counts_less_than_on_a_busy_one():
 
 
 # ------------------------------------------------------------------ compared with top players
-def test_top_comparison_puts_top_players_at_100():
-    from osu_coach.profile import TOP_PLAYERS, top_comparison
-    top = dict(TOP_PLAYERS)
-    skills = {"aim": {"value": top["aim"]}, "flow_aim": {"value": top["flow_aim"] / 2},
-              "speed": {"bpm": top["speed"]}, "stamina": {"curve": {10: top["stamina"][10], 30: top["stamina"][30]}},
-              "accuracy": {"three_hundred_rate": 0.5 + (top["accuracy"] - 0.5) / 2},
-              "sliders": {"value": math.nan}, "reading": {"value": top["reading"] * 4},
-              "consistency": {"miss_after_miss_ratio": 2.0}}
-    c = top_comparison(skills)
-    assert c["aim"]["score"] == 100 and c["speed"]["score"] == 100 and c["stamina"]["score"] == 100
-    assert c["flow_aim"]["score"] == pytest.approx(75)                # half the top value: −25
-    assert c["accuracy"]["score"] == pytest.approx(50)
-    assert c["sliders"]["score"] is None and c["reading"]["score"] == 100   # capped at 100
-    assert c["consistency"]["score"] == pytest.approx(70)
+def test_against_the_top_players_level_never_scores_higher_than_against_your_own():
+    from osu_coach.profile import skills_at_level, top_comparison
+    skills = {"aim": {"value": 16.0}, "flow_aim": {"value": 10.0}, "speed": {"bpm": 210.0},
+              "stamina": {"curve": {10: 116.0, 30: 99.0}}, "sliders": {"value": 40.0},
+              "accuracy": {"score": 83.0}, "reading": {"score": 50.0}, "consistency": {"score": 32.0}}
+    own, top = skills_at_level(skills, 6.0), top_comparison(skills)
+    assert own["aim"] == pytest.approx(50) and own["speed"] == pytest.approx(50)
+    for k, v in own.items():
+        assert top[k]["score"] <= v + 1e-9, k
+        assert top[k]["top"] is None or top[k]["top"] >= top[k]["score"], k      # the top players are ahead
+    assert top["reading"]["score"] == 50 and top["accuracy"]["score"] == 83     # not level-relative

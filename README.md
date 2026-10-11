@@ -173,7 +173,8 @@ combo ÷ the map's max combo)^0.8, like osu!'s pp; pp-weighted over maps (best p
 full combo at 6★ (×2 every 12★), +25 per doubling. **Flow aim** (`flow_values`, `flow_score`): per passed play the 50 fastest spaced-stream notes' cursor speed
 (spacing in circle widths ÷ real time, so wider and faster both count) × (spaced-stream notes ÷ 100)^0.25
 (0.6–1.5) × combo^0.8; pp-weighted; 50 = 10 at 6★ (×2 every 12★). Overview also shows every skill **vs top
-players** (`top_comparison`): the same scale with 100 = the reference groups' values (`TOP_PLAYERS`).
+players** (`top_comparison`): the same formulas with 10★ as the yardstick (50 = typical 10★ player; never above
+your own-level score) plus ◆ markers for the reference groups' values (`TOP_PLAYERS`) on that scale.
 **Reading** (`reading_values`, `reading_score`): per passed play 2^((usual AR for its star rating − its AR with
 mods) / 3 × circles per second ÷ 5 (during play, breaks of 5+ s left out; 0.25–2): low AR on a slow map counts little) (usual AR = 5 + 0.75 × stars, 5–10.5; higher than usual down to 0.6) × 1.2 with HD × 1.6 with FL ×
 (1 + 0.5 × min(1, BPM changes ÷ 8) × your 300 share on the 4 notes after each change) × accuracy^8; pp-weighted

@@ -196,8 +196,10 @@ Files in `reference_replays/` (ignored by git); `dev_tools/reference_analysis.py
 - `flow_values` / `flow_score`: per passed map the 50 fastest spaced-stream notes' cursor speed (spacing × BPM)
   × (notes ÷ 100)^0.25 (0.6–1.5) × combo^0.8, pp-weighted; 50 = 10 at 6★, ×2 per 12★. Owner 47 → 49, flow group 78.
 - Overview has two charts: vs your level (as before) and vs top players (`top_comparison`, `TOP_PLAYERS` from
-  the reference groups; same points per doubling, 100 = top). Owner vs top: aim 59, flow 61, speed 67, stamina 30,
-  accuracy 83, sliders 37, reading 0 (AR0 plays at 98% are far off), consistency 52.
+  the reference groups). Fixed: the first version (100 = top on its own scale) put scores *above* the own-level
+  ones and reading at 0. Now `skills_at_level(skills, 10)`: 50 = typical 10★ player, ◆ = top players. Owner: aim
+  43 (top 84), flow 41 (80), speed 22 (55), stamina 23 (90), accuracy 83 (100), sliders 21 (85), reading 50 (100),
+  consistency 32 (80).
 
 ## Next steps, in order
 

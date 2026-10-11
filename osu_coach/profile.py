@@ -1768,44 +1768,54 @@ TOP_PLAYERS = {
 }
 
 
-def top_comparison(skills: dict) -> dict:
-    """Each skill against the top players (:data:`TOP_PLAYERS`) on the same scale as the skill itself, but with
-    100 = the top players instead of 50 = your level: 100 + points per doubling × log2(you ÷ top), 0–100
-    (accuracy: your 300 share above 50% as a share of theirs; consistency: 100 + 30 × log2(1 ÷ your ratio))."""
+TOP_LEVEL = 10.0          # the reference players' level (their plays average ~10 stars with mods)
+
+
+def skills_at_level(skills: dict, level: float) -> dict:
+    """The level-relative skill scores again, but with ``level`` as the yardstick instead of your own level (same
+    values, same formulas: only "typical for the level" changes). Accuracy, reading and consistency don't depend
+    on the level, so they stay as they are."""
+    g = lambda k, f: (skills.get(k) or {}).get(f, math.nan)  # noqa: E731
     out = {}
 
-    def row(key, you, top, points, unit):
-        if you is None or not np.isfinite(you) or you <= 0:
-            out[key] = {"score": None, "you": you, "top": top, "unit": unit}
-            return
-        out[key] = {"score": _clip(100 + points * math.log2(you / top)), "you": float(you), "top": top, "unit": unit}
-
-    g = lambda k, f: (skills.get(k) or {}).get(f, math.nan)  # noqa: E731
-    row("aim", g("aim", "value"), TOP_PLAYERS["aim"], AIM_POINTS, "cursor speed × combo")
-    row("flow_aim", g("flow_aim", "value"), TOP_PLAYERS["flow_aim"], FLOW_POINTS, "cursor speed × amount × combo")
-    row("speed", g("speed", "bpm"), TOP_PLAYERS["speed"], SPEED_POINTS, "BPM")
-    curve = g("stamina", "curve") or {}
+    def log_score(v, ref, points):
+        return _clip(50 + points * math.log2(v / ref)) if v is not None and np.isfinite(v) and v > 0 else None
+    out["aim"] = log_score(g("aim", "value"), aim_ref(level), AIM_POINTS)
+    out["flow_aim"] = log_score(g("flow_aim", "value"), FLOW_REF * 2 ** ((level - 6.0) / FLOW_REF_STEP),
+                                FLOW_POINTS)
+    out["speed"] = log_score(g("speed", "bpm"), stamina_ref_bpm(level), SPEED_POINTS)
+    curve = g("stamina", "curve")
     if isinstance(curve, dict) and curve:
-        parts = [_clip(100 + STAMINA_POINTS * math.log2(v / TOP_PLAYERS["stamina"][W])) for W, v in curve.items()
-                 if W in TOP_PLAYERS["stamina"] and v > 0]
-        mean_you = float(np.mean(list(curve.values())))
-        mean_top = float(np.mean([TOP_PLAYERS["stamina"][W] for W in curve if W in TOP_PLAYERS["stamina"]]))
-        out["stamina"] = {"score": float(np.mean(parts)) if parts else None, "you": mean_you, "top": mean_top,
-                          "unit": "BPM kept up (average of 10 s … 5 min)"}
+        parts = [log_score(v, stamina_ref_bpm(level) * STAMINA_WINDOW_SHARE[W], STAMINA_POINTS)
+                 for W, v in curve.items() if W in STAMINA_WINDOW_SHARE]
+        parts = [x for x in parts if x is not None]
+        out["stamina"] = float(np.mean(parts)) if parts else None
     else:
-        out["stamina"] = {"score": None, "you": math.nan, "top": math.nan, "unit": "BPM"}
-    r = g("accuracy", "three_hundred_rate")
-    out["accuracy"] = {"score": _clip((r - 0.5) / (TOP_PLAYERS["accuracy"] - 0.5) * 100) if np.isfinite(r) else None,
-                       "you": r, "top": TOP_PLAYERS["accuracy"], "unit": "300s on single notes"}
-    row("sliders", g("sliders", "value"), TOP_PLAYERS["sliders"], SLIDER_POINTS, "hardest held sliders")
-    row("reading", g("reading", "value"), TOP_PLAYERS["reading"], READ_POINTS, "low AR × busy × accuracy")
-    ratio = g("consistency", "miss_after_miss_ratio")
-    out["consistency"] = {"score": _clip(100 + 30 * math.log2(TOP_PLAYERS["consistency"] / ratio))
-                          if ratio and np.isfinite(ratio) else None, "you": ratio,
-                          "top": TOP_PLAYERS["consistency"], "unit": "miss-after-miss ratio"}
-    for k in out:
-        out[k]["label"] = SKILL_LABELS.get(k, k)
+        out["stamina"] = None
+    out["sliders"] = log_score(g("sliders", "value"), slider_ref(level), SLIDER_POINTS)
+    for k in ("accuracy", "reading", "consistency"):
+        out[k] = (skills.get(k) or {}).get("score")
     return out
+
+
+def _top_skills() -> dict:
+    """The top players' reference values (:data:`TOP_PLAYERS`) as a skills dict, scored like a player's."""
+    t = TOP_PLAYERS
+    r = t["accuracy"]
+    return {"aim": {"value": t["aim"]}, "flow_aim": {"value": t["flow_aim"]}, "speed": {"bpm": t["speed"]},
+            "stamina": {"curve": dict(t["stamina"])}, "sliders": {"value": t["sliders"]},
+            "accuracy": {"score": accuracy_score(r)},
+            "reading": {"score": _clip(50 + READ_POINTS * math.log2(t["reading"] / READ_REF))},
+            "consistency": {"score": _clip(50 + 30 * math.log2(TYPICAL_CHAIN_RATIO / t["consistency"]))}}
+
+
+def top_comparison(skills: dict, level: float = TOP_LEVEL) -> dict:
+    """Your skills measured against the top players' level instead of your own: ``score`` = the same formula with
+    ``level`` (10 stars) as the yardstick, so 50 = typical for a 10-star player and it is never above your score
+    against your own level; ``top`` = the top players' reference plays on the same scale (where you are headed)."""
+    you = skills_at_level(skills, level)
+    top = skills_at_level(_top_skills(), level)
+    return {k: {"score": you.get(k), "top": top.get(k), "label": SKILL_LABELS.get(k, k)} for k in SKILL_LABELS}
 
 
 def _skills(P, model, tapping, sliders, reading, consistency, level: float | None = None,
