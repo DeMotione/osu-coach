@@ -189,6 +189,7 @@ Files in `reference_replays/` (ignored by git); `dev_tools/reference_analysis.py
 - `reading_values` / `reading_score` replace the dense-notes miss-model score. Owner 33 → 50 (best: Harumachi
   Clover AR3 92.6%; mononoke 17 BPM changes, 98% 300s after them). Reference reading group (AR0 plays) 100,
   marathons with FL / BPM changes 93, others 67–74.
+- Low AR now counts × circles per second ÷ 5 (`READ_NPS`): Harumachi Clover AR3 at 1.25 circles/s: ×2.06 → ×1.20.
 
 ## Next steps, in order
 

@@ -464,13 +464,13 @@ def test_aim_is_distance_times_speed_times_combo():
 
 
 # ------------------------------------------------------------------ reading: low AR, accuracy, BPM changes
-def _read_play(key, ar, acc, stars=6.0, bpm_changes=0, hit_after=True, hidden=False, n=200):
+def _read_play(key, ar, acc, stars=6.0, bpm_changes=0, hit_after=True, hidden=False, n=200, gap=200.0):
     rows = []
     for i in range(n):
         seg = i * (bpm_changes + 1) // n                  # bpm_changes evenly spread changes
         bpm = 180.0 if seg % 2 == 0 else 240.0
         first = i > 0 and (i * (bpm_changes + 1) // n) != ((i - 1) * (bpm_changes + 1) // n)
-        rows.append({"replay_key": key, "map_md5": key, "rate": 1.0, "time": i * 300.0, "kind": "circle",
+        rows.append({"replay_key": key, "map_md5": key, "rate": 1.0, "time": i * gap, "kind": "circle",
                      "map_ar": ar, "accuracy": acc, "stars": stars, "hidden": hidden, "flashlight": False,
                      "completed": True, "played": True, "bpm_real": bpm, "head_hit": True,
                      "head_result": 300 if (hit_after or not first) else 100})
@@ -486,11 +486,22 @@ def test_reading_counts_low_ar_accuracy_and_bpm_changes():
                                     + _read_play("bpm_missed", 9.5, 0.95, bpm_changes=8, hit_after=False))
                        ).set_index("replay_key")
     assert V.loc["usual", "value"] == pytest.approx(0.95 ** 8)
-    assert V.loc["low", "ar_factor"] == pytest.approx(2.0)            # 3 AR lower than usual = twice the demand
+    assert V.loc["usual", "nps"] == pytest.approx(5.0, rel=0.01)       # a note every 200 ms
+    assert V.loc["low", "ar_factor"] == pytest.approx(2.0, rel=0.01)   # 3 AR lower than usual = twice the demand
     assert V.loc["low_hd", "value"] == pytest.approx(V.loc["low", "value"] * 1.2)
     assert V.loc["sloppy", "value"] < V.loc["low", "value"] / 2       # 85% accuracy: low AR alone isn't enough
     assert V.loc["bpm", "bpm_changes"] == 8 and V.loc["bpm", "bpm_factor"] == pytest.approx(1.5)
     assert V.loc["bpm_missed", "bpm_factor"] == pytest.approx(1 + 0.5 * 0.75)   # 1 of 4 notes after each change a 100
     maps = lambda ar: pd.DataFrame(sum((_read_play(f"{ar}-{k}", ar, 0.95) for k in range(3)), []))  # noqa: E731
     assert reading_score(maps(9.5))["score"] == pytest.approx(50)
-    assert reading_score(maps(6.5))["score"] == pytest.approx(75)
+    assert reading_score(maps(6.5))["score"] == pytest.approx(75, abs=0.5)
+
+
+def test_low_ar_on_a_slow_map_counts_less_than_on_a_busy_one():
+    from osu_coach.profile import reading_values
+    V = reading_values(pd.DataFrame(_read_play("slow", 3.5, 0.95, gap=333.3)          # 3 circles per second
+                                    + _read_play("busy", 3.5, 0.95, gap=153.8)        # 6.5 per second
+                                    + _read_play("busy_usual", 9.5, 0.95, gap=153.8))).set_index("replay_key")
+    assert V.loc["slow", "ar_factor"] == pytest.approx(2 ** (2 * 0.6), rel=0.01)     # 6 AR lower, but slow
+    assert V.loc["busy", "ar_factor"] == pytest.approx(2 ** (2 * 1.3), rel=0.01)
+    assert V.loc["busy_usual", "ar_factor"] == pytest.approx(1.0)       # busy at the usual AR: no reading bonus
