@@ -1,8 +1,9 @@
 """Practice map pool: per-difficulty pattern statistics + skill scores,
 map suggestions and staged "improve a skill" playlists.
 
-The bundled pool (``data/pool.json.gz``) holds ~2,700 popular ranked osu!standard
-difficulties between 0.8★ and 8.5★ (most-played per 0.25★ step), each analysed
+The bundled pool (``data/pool.json.gz``) holds ~5,000 popular ranked osu!standard
+difficulties, 9 in 10 of them between 2★ and 8★ (most-played per 0.25★ step, from the
+12,000 most-played ranked sets), each analysed
 with the same pattern detector used on the player's replays plus osu!'s own
 difficulty model (rosu-pp). Rebuild with ``dev_tools/build_pool.py``.
 """
