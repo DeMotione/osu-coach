@@ -15,11 +15,7 @@ Analyses your own osu!standard replays and tells you what to work on:
   mods such as DT/HR); every replay counts by how close its star rating is to it, so warm-ups on easy maps
   or a 9★ map played for fun don't distort the numbers (see below).
 - **Map Suggestion** from a bundled pool of ~2,700 popular ranked maps (0.8–8.5★), each analysed for
-  its patterns, with a one-click download of all suggested maps. Maps are ranked by a weighted sum
-  (55% skill fit, 25% closeness to your level, 20% popularity, + stream BPM fit for tapping skills), or
-  optionally by **COCOSO** (Yazdani et al. 2019): same criteria and weights, but it also multiplies them, so
-  a map poor on any one criterion falls back. The choice (saved, `--ranking` in the CLI) applies to every
-  map list; "Compare both rankings" shows them side by side. On the pool both agree on ~9 of 10 maps.
+  its patterns, with a one-click download of all suggested maps.
 - **Skill Development.** Builds a staged playlist (warm-up / core / push) for one skill and gets it into
   the game: for **lazer**, one click makes an import folder with the maps and the collection (see
   below); for **stable**, it adds the collection to your `collection.db` and downloads the maps (.osz).

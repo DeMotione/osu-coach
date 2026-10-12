@@ -22,7 +22,7 @@ from osu_coach.beatmap import read_metadata
 from osu_coach.library import (EXCLUDE_MODS, Library, analysable, default_cache_dir, load_settings, save_settings,
                                skip_reason)
 from osu_coach.pool import (SKILLS, Targets, build_playlist, collection_name, load_pool, recommendations,
-                            skill_label, stream_length_maps, targets_from_profile, RANKINGS)
+                            skill_label, stream_length_maps, targets_from_profile)
 from osu_coach.profile import (LEVEL_BAND, MISS_LABELS, SKILL_HELP, SKILL_LABELS, build_profile, top_comparison, click_points,
                                click_summary, weight_table)
 
@@ -1499,7 +1499,7 @@ def stream_length_suggestions(p, comfort: int, lo: int, hi: int):
     pool = pool_cached()
     if pool.empty:
         return
-    t = map_targets(p)
+    t = targets_from_profile(p)
     easy = stream_length_maps(pool, t, max(9, int(comfort * 0.6)), comfort, n=5)
     push = stream_length_maps(pool, t, lo, hi, n=5)
     tabs = st.tabs([f"Maps: comfortable ({max(9, int(comfort * 0.6))}–{comfort} notes)",
@@ -2038,53 +2038,6 @@ def page_tips():
 
 
 # ------------------------------------------------------------------ Maps
-def ranking_choice() -> str:
-    """How map lists are ordered (Map Suggestion, Skill Development, stream-length maps): saved in settings."""
-    r = settings().get("map_ranking", "weighted")
-    return r if r in RANKINGS else "weighted"
-
-
-def map_targets(p):
-    t = targets_from_profile(p)
-    t.ranking = ranking_choice()
-    return t
-
-
-def ranking_picker() -> str:
-    cur = ranking_choice()
-    keys = list(RANKINGS)
-    new = st.radio("Map ranking", keys, index=keys.index(cur), format_func=RANKINGS.get, horizontal=True,
-                   key="map_ranking_radio",
-                   help="Weighted sum: 55% skill fit + 25% closeness to your level + 20% popularity (+ stream BPM "
-                        "fit for tapping). COCOSO uses the same criteria and weights but also multiplies them, so "
-                        "a map that is poor on any one of them (e.g. far from your level) falls back: more "
-                        "balanced picks. Applies to every map list in the app.")
-    if new != cur:
-        remember("map_ranking", new)
-    return new
-
-
-def ranking_comparison(pool, p, t):
-    """Both rankings' suggestions next to each other, per skill section, maps in both marked."""
-    sides = {k: dict(recommendations(pool, p, per_skill=5, ranking=k)) for k in RANKINGS}
-    keys = list(dict.fromkeys(list(sides["weighted"]) + list(sides["cocoso"])))
-    for sk in keys:
-        name = "Level up" if sk == "general" else skill_label(sk, t)
-        a, b = (sides[k].get(sk, pd.DataFrame()) for k in RANKINGS)
-        both = set(a.get("md5", [])) & set(b.get("md5", []))
-        section(name, f"{len(both)} of the maps are in both lists.")
-        cols = st.columns(2)
-        for col, (k, df) in zip(cols, ((k, sides[k].get(sk, pd.DataFrame())) for k in RANKINGS)):
-            col.markdown(f"**{RANKINGS[k]}**")
-            if df.empty:
-                col.caption("no maps")
-                continue
-            for r in df.itertuples():
-                mark = "" if r.md5 in both else " ·  *only here*"
-                col.markdown(f"{r.stars:.2f}★ [{r.artist} – {r.title} [{r.version}]]({r.url}){mark}<br>"
-                             f"<span style='color:{MUTED}'>{r.why}</span>", unsafe_allow_html=True)
-
-
 def page_maps():
     p = need_profile()
     pool = pool_cached()
@@ -2100,11 +2053,7 @@ def page_maps():
     hidden = set(sett.get("hidden_maps") or [])
     if hidden:
         pool = pool[~pool["md5"].isin(hidden)]
-    ranking = ranking_picker()
-    recs = recommendations(pool, p, per_skill=5, ranking=ranking)
-    if st.toggle("Compare both rankings side by side", key="compare_rankings"):
-        ranking_comparison(pool, p, t)
-        return
+    recs = recommendations(pool, p, per_skill=5)
     for sk, df in recs:
         if sk == "general":
             name, why = "Level up", "Slightly above your level, popular maps."
@@ -2256,12 +2205,12 @@ def playlist_tab():
     p = profile()
     sett = settings()
     if p is not None:
-        t = map_targets(p)
+        t = targets_from_profile(p)
     else:
         st.info("No replays analysed yet — set your level by hand, or analyse replays for a personal playlist.")
         comfort = st.number_input("Star rating you can pass comfortably", 1.0, 8.0,
                                   float(sett.get("manual_comfort", 2.5)), step=0.1)
-        t = Targets(comfort=comfort, ranking=ranking_choice())
+        t = Targets(comfort=comfort)
     options = SKILLS + (["quadrant"] if t.quadrant else [])
     default = (p.weaknesses[0] if p is not None and p.weaknesses else "aim")
 
@@ -2272,7 +2221,6 @@ def playlist_tab():
     skill = c[0].selectbox("Skill", options, index=options.index(default) if default in options else 0,
                            format_func=label)
     n = c[1].slider("Maps", 6, 30, 15, step=3)
-    t.ranking = ranking_picker()
     pl = build_playlist(pool, skill, t, n=n)
     name = collection_name(skill, t)
     info = f"Your level ≈ **{t.comfort:.1f}★**"

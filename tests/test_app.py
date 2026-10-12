@@ -242,21 +242,3 @@ def test_skill_development_makes_a_plan_and_tracks_goals(prof, tmp_path, monkeyp
     saved = load_settings().get("goals") or []
     assert saved and all({"skill", "target", "deadline", "start"} <= set(g) for g in saved)
     assert any("of the way" in (p.text or "") for p in at.get("progress"))
-
-
-def test_map_ranking_choice_is_saved_and_the_comparison_renders(prof, tmp_path, monkeypatch):
-    monkeypatch.setenv("OSU_COACH_CACHE", str(tmp_path))
-    at = AppTest.from_file(APP, default_timeout=180)
-    at.session_state["profile"] = prof
-    at.session_state["page"] = "Map Suggestion"
-    at.run()
-    at.radio(key="map_ranking_radio").set_value("cocoso").run()
-    assert not at.exception, [e.value for e in at.exception]
-    at.toggle(key="compare_rankings").set_value(True).run()
-    assert not at.exception, [e.value for e in at.exception]
-    assert any("COCOSO" in m.value for m in at.markdown)
-    from osu_coach.library import load_settings
-    assert load_settings().get("map_ranking") == "cocoso"           # remembered for every map list
-    at.session_state["page"] = "Skill Development"
-    at.run()
-    assert not at.exception and at.radio(key="map_ranking_radio").value == "cocoso"

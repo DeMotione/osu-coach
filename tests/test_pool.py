@@ -190,37 +190,3 @@ def test_accuracy_maps_have_tight_hit_windows_for_the_level():
     pl = build_playlist(pool, "accuracy", Targets(comfort=4.0), n=9)
     level = pool[(pool["stars"] - pl["stars"].mean()).abs() < 0.5]
     assert pl["od"].mean() > level["od"].mean()
-
-
-# ------------------------------------------------------------------ COCOSO ranking (optional, Mark's request)
-def test_cocoso_matches_the_published_formula_on_a_small_example():
-    from osu_coach.pool import cocoso_scores
-    df = pd.DataFrame({"a": [1.0, 0.5, 0.0], "b": [0.0, 0.5, 1.0]})
-    k = cocoso_scores(df, {"a": 0.6, "b": 0.4})
-    r = {"a": np.array([1.0, 0.505, 0.01]), "b": np.array([0.01, 0.505, 1.0])}
-    S = 0.6 * r["a"] + 0.4 * r["b"]
-    P = r["a"] ** 0.6 + r["b"] ** 0.4
-    ka, kb = (S + P) / (S + P).sum(), S / S.min() + P / P.min()
-    kc = (0.5 * S + 0.5 * P) / (0.5 * S.max() + 0.5 * P.max())
-    assert np.allclose(k, (ka * kb * kc) ** (1 / 3) + (ka + kb + kc) / 3)
-
-
-def test_cocoso_prefers_balanced_maps_where_the_weighted_sum_ties():
-    """Same weighted sum, but one map is near 0 on one criterion: COCOSO's product part puts it lower."""
-    from osu_coach.pool import cocoso_scores
-    df = pd.DataFrame({"skill_fit": [1.0, 0.5, 0.0], "star_fit": [0.0, 0.5, 1.0]})
-    w = {"skill_fit": 0.5, "star_fit": 0.5}
-    k = cocoso_scores(df, w)
-    assert k[1] > k[0] and k[1] > k[2]          # the balanced map wins
-    assert len(set(np.round(0.5 * df["skill_fit"] + 0.5 * df["star_fit"], 9))) == 1   # weighted sum: a tie
-
-
-def test_ranking_option_reaches_suggestions_and_playlists():
-    pool = fake_pool()
-    a = suggest(pool, "aim", Targets(comfort=4.0), n=10)
-    b = suggest(pool, "aim", Targets(comfort=4.0, ranking="cocoso"), n=10)
-    assert len(a) == len(b) == 10 and b["beatmapset_id"].is_unique
-    assert b["stars"].between(3.0, 5.0).all()
-    pl = build_playlist(pool, "speed", Targets(comfort=4.0, stream_bpm=180.0, ranking="cocoso"), n=15)
-    assert list(pl["stage"].unique()) == ["Warm-up", "Core", "Push"] and len(pl) == 15
-    assert Targets(comfort=4.0).ranking == "weighted"                        # default unchanged

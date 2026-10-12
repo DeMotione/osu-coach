@@ -199,7 +199,6 @@ class Targets:
     quadrant: str | None = None             # weakest quadrant (if significant)
     ar_range: tuple[float, float] | None = None
     played: frozenset = field(default_factory=frozenset)
-    ranking: str = "weighted"               # how candidate maps are ordered: RANKINGS
 
 
 def targets_from_profile(p) -> Targets:
@@ -257,35 +256,6 @@ def _title_key(title) -> str:
     return re.sub(r"\s*[\(\[].*?[\)\]]", "", str(title or "").lower()).strip()
 
 
-RANKINGS = {"weighted": "Weighted sum (default)", "cocoso": "COCOSO (balanced)"}
-COCOSO_LAMBDA = 0.5
-
-
-def cocoso_scores(df: pd.DataFrame, criteria: dict[str, float]) -> pd.Series:
-    """COCOSO (Yazdani et al. 2019, combined compromise solution) over benefit criteria ``{column: weight}``.
-
-    Each criterion is min-max normalised to [0.01, 1] among the candidates; S = Σ w·r (weighted sum),
-    P = Σ r^w (power-weighted: a value near 0 costs a lot even with a small weight, so maps that are poor on
-    any one criterion fall back). Three appraisal scores — ka = (S+P)/Σ(S+P), kb = S/min S + P/min P,
-    kc = (λS + (1−λ)P)/(λ max S + (1−λ) max P), λ = 0.5 — combine to k = (ka·kb·kc)^(1/3) + (ka+kb+kc)/3."""
-    tot = sum(criteria.values())
-    S = pd.Series(0.0, index=df.index)
-    P = pd.Series(0.0, index=df.index)
-    for col, wt in criteria.items():
-        x = df[col].astype(float).fillna(0.0)
-        lo, hi = float(x.min()), float(x.max())
-        r = 0.01 + 0.99 * (x - lo) / (hi - lo) if hi > lo else pd.Series(1.0, index=df.index)
-        S += wt / tot * r
-        P += r ** (wt / tot)
-    if len(df) == 0:
-        return S
-    lam = COCOSO_LAMBDA
-    ka = (S + P) / float((S + P).sum())
-    kb = S / float(S.min()) + P / float(P.min())
-    kc = (lam * S + (1 - lam) * P) / (lam * float(S.max()) + (1 - lam) * float(P.max()))
-    return (ka * kb * kc) ** (1 / 3) + (ka + kb + kc) / 3
-
-
 def suggest(pool: pd.DataFrame, skill: str, targets: Targets, n: int = 10, offset: float | None = None,
             width: float = 0.5, exclude: set | frozenset = frozenset(), min_skill: float = 0.35,
             exclude_titles: set | frozenset = frozenset()) -> pd.DataFrame:
@@ -341,14 +311,8 @@ def suggest(pool: pd.DataFrame, skill: str, targets: Targets, n: int = 10, offse
     cand["popularity"] = pop.rank(pct=True)
     cand["star_fit"] = 1 - (cand["star_dist"] / w).clip(0, 1)
     bpm_w = 0.3 if tgt_bpm else 0.0
-    if getattr(targets, "ranking", "weighted") == "cocoso":
-        crit = {"skill_fit": 0.55, "star_fit": 0.25, "popularity": 0.20}
-        if tgt_bpm:
-            crit["bpm_fit"] = bpm_w
-        cand["score"] = cocoso_scores(cand, crit)
-    else:
-        cand["score"] = (0.55 * cand["skill_fit"] + 0.25 * cand["star_fit"] + 0.20 * cand["popularity"]
-                         + bpm_w * cand["bpm_fit"])
+    cand["score"] = (0.55 * cand["skill_fit"] + 0.25 * cand["star_fit"] + 0.20 * cand["popularity"]
+                     + bpm_w * cand["bpm_fit"])
     # maps above the skill threshold first; the rest only fill up a thin region
     cand["ok"] = cand["skill_fit"] >= thr
     cand = cand.sort_values(["ok", "score"], ascending=False).drop_duplicates("beatmapset_id")
@@ -460,11 +424,9 @@ def map_url(r) -> str:
     return f"https://osu.ppy.sh/b/{bid}" if bid else ""
 
 
-def recommendations(pool: pd.DataFrame, profile, per_skill: int = 4,
-                    ranking: str = "weighted") -> list[tuple[str, pd.DataFrame]]:
+def recommendations(pool: pd.DataFrame, profile, per_skill: int = 4) -> list[tuple[str, pd.DataFrame]]:
     """Map suggestions for the player's weaknesses (+ weak quadrant) and a level-up set."""
     t = targets_from_profile(profile)
-    t.ranking = ranking
     skills = list(getattr(profile, "weaknesses", []) or [])
     if t.quadrant:
         skills.append("quadrant")
