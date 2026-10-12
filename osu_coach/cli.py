@@ -249,7 +249,7 @@ def cmd_analyze(args) -> int:
     if not pool.empty:
         t = targets_from_profile(prof)
         print("\nMap Suggestion")
-        for sk, df in recommendations(pool, prof, per_skill=3):
+        for sk, df in recommendations(pool, prof, per_skill=3, ranking=getattr(args, "ranking", "weighted")):
             print(f"  {skill_label(sk, t)}:")
             for _, r in df.iterrows():
                 print(f"    {r['stars']:.2f}★  {r['artist']} - {r['title']} [{r['version']}]  · {r['why']}\n"
@@ -271,10 +271,11 @@ def cmd_playlist(args) -> int:
         raise SystemExit("Map pool is missing (osu_coach/data/pool.json.gz).")
     lib = None
     if args.comfort:
-        t = Targets(comfort=args.comfort, stream_bpm=args.stream_bpm)
+        t = Targets(comfort=args.comfort, stream_bpm=args.stream_bpm, ranking=args.ranking)
     else:
         lib, *_, prof = _analyse(args, _log(args.quiet))
         t = targets_from_profile(prof)
+        t.ranking = args.ranking
         if args.stream_bpm:
             t.stream_bpm = args.stream_bpm
     if args.skill == "quadrant" and not t.quadrant:
@@ -543,6 +544,8 @@ def build_parser() -> argparse.ArgumentParser:
     discovery(p)
     p.add_argument("--json", help="also write the full report as JSON")
     p.add_argument("--tips", type=int, default=8, help="number of tips to print")
+    p.add_argument("--ranking", choices=["weighted", "cocoso"], default="weighted",
+                   help="how suggested maps are ordered (cocoso = balanced across all criteria)")
     p.add_argument("--device", choices=["tablet", "mouse"])
     p.add_argument("--area", help="tablet area in mm, e.g. 100x56.25")
     p.add_argument("--dpi", type=int, help="mouse DPI")
@@ -554,6 +557,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--comfort", type=float, help="your comfortable star rating (skips replay analysis)")
     p.add_argument("--stream-bpm", type=float, help="stream speed to train at")
     p.add_argument("--maps", type=int, default=15)
+    p.add_argument("--ranking", choices=["weighted", "cocoso"], default="weighted",
+                   help="how maps are ordered (cocoso = balanced across all criteria)")
     p.add_argument("--lazer", nargs="?", const=True, metavar="DIR",
                    help="make a folder for lazer's 'import from previous version' with the maps and the collection "
                         "(default: Downloads/osu-coach lazer import/<playlist>)")
