@@ -1608,13 +1608,17 @@ def page_tapping():
         H = H[H["err_real"].abs() <= 150]
         edges = np.arange(-150, 153, 3)
         fig = go.Figure()
+        all_w = float(weights(H).sum()) or 1.0
         for res, name in ((300, "300"), (100, "100"), (50, "50")):
             sel = H["head_result"] == res
             counts, _ = np.histogram(H.loc[sel, "err_real"], bins=edges, weights=weights(H[sel]))
             fig.add_trace(go.Bar(x=(edges[:-1] + edges[1:]) / 2, y=counts, name=name, marker_color=RESULT_COLORS[res],
-                                 marker_line_width=0, hovertemplate=f"{name}: %{{y:.0f}} hits at %{{x:+.0f}} ms"
-                                                                    "<extra></extra>"))
-        fig.update_layout(bargap=0, barmode="stack")
+                                 marker_line_width=0, customdata=counts / all_w * 100,
+                                 hovertemplate=f"{name}: %{{y:.1f}} hits (%{{customdata:.2f}}% of all)<extra></extra>"))
+        # hover anywhere above a bin (not only on the bar): a line down the whole chart and all three values
+        fig.update_layout(bargap=0, barmode="stack", hovermode="x unified")
+        fig.update_xaxes(showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1,
+                         spikedash="solid", spikecolor=MUTED, hoverformat="+.0f", ticksuffix=" ms")
         fig.add_vline(x=0, line_color=MUTED)
         if len(H):
             fig.add_vline(x=float(np.average(H["err_real"], weights=weights(H))), line_color=ACCENT, line_dash="dot")
