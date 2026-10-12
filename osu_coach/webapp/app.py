@@ -812,7 +812,7 @@ def timing_chart(a, ev):
         for y in (w300, -w300):
             fig.add_hline(y=y, line=dict(color=MUTED, dash="dot", width=1))
     end_s = max(1, int(math.ceil(float(o["time"].max()) / 1000)))
-    lo, hi = st.slider("Show part of the map (m:ss)", 0, end_s, (0, end_s), step=1, key=f"zoom_{a.key}",
+    lo, hi = st.slider("Show part of the map (seconds)", 0, end_s, (0, end_s), step=1, key=f"zoom_{a.key}",
                        format="%d s", help="Pick a time range to zoom into a section. You can also drag a box on "
                                            "the chart to zoom, and double-click it to zoom out again.")
     zoomed = (lo, hi) != (0, end_s)
