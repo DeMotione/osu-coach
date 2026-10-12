@@ -14,7 +14,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from osu_coach import check, lazer_import, locate, progress, selection, sources
+from osu_coach import check, goals, lazer_import, locate, progress, selection, sources
 from osu_coach.advice import Setup, aim_calibration, make_tips, practice_plan, sayo_settings, suggest_tablet_area
 from osu_coach.collection_db import dumps as collection_bytes
 from osu_coach.collection_db import merge_into
@@ -43,6 +43,9 @@ st.html("<style>[data-testid='stHeaderActionElements'], .stMarkdown h1 a, .stMar
         ".stMarkdown h4 a {display: none !important;}"
         "[data-testid='stSidebarCollapseButton'] {visibility: visible !important;}</style>")
 
+
+MISS_RED = "#ff3b3b"
+WARN_COLOR = "#f5b041"
 
 # ------------------------------------------------------------------ helpers
 def settings() -> dict:
@@ -141,7 +144,7 @@ def style(fig: go.Figure, height: int = 320, title: str | None = None, legend: b
                       margin=dict(l=10, r=10, t=44 if title else 10, b=10), font=dict(size=13),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     if legend:
-        fig.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.12, x=0, bgcolor="rgba(0,0,0,0)"))
+        fig.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.24, x=0, bgcolor="rgba(0,0,0,0)"))
     return fig
 
 
@@ -795,22 +798,44 @@ def timing_chart(a, ev):
                              hoverinfo="skip"))
     top = float(H["err_real"].abs().quantile(0.99) or 50) * 1.15
     if not ev.empty:
-        for reason, g in ev.groupby("reason"):
+        for what, g in ev.groupby("what"):
+            miss = what == "miss"
             fig.add_trace(go.Scatter(
-                x=pd.to_datetime(g["time"], unit="ms"), y=[top] * len(g), mode="markers",
-                name=check.REASON_WORDS.get(reason, reason), marker=dict(symbol="x", size=9,
-                                                                         color=REASON_COLORS.get(reason, BAD)),
-                hovertext=[f"{ts} {w}" for ts, w in zip(g["timestamp"], g["what"])], hoverinfo="text"))
+                x=pd.to_datetime(g["time"], unit="ms"), y=[top] * len(g), mode="markers", name={"miss": "misses"}.get(what, f"{what}s"),
+                marker=dict(symbol="x" if miss else "triangle-down", size=11 if miss else 8,
+                            color=MISS_RED if miss else WARN_COLOR, line=dict(width=0)),
+                hovertext=[f"{ts} {w}: {check.REASON_WORDS.get(r, r)}"
+                           for ts, w, r in zip(g["timestamp"], g["what"], g["reason"])], hoverinfo="text"))
     od = a.meta.get("od")
     if od is not None and not isnan(od):
         w300 = 80 - 6 * od
         for y in (w300, -w300):
             fig.add_hline(y=y, line=dict(color=MUTED, dash="dot", width=1))
-    fig.update_xaxes(tickformat="%M:%S")
+    end_s = max(1, int(math.ceil(float(o["time"].max()) / 1000)))
+    lo, hi = st.slider("Show part of the map (m:ss)", 0, end_s, (0, end_s), step=1, key=f"zoom_{a.key}",
+                       format="%d s", help="Pick a time range to zoom into a section. You can also drag a box on "
+                                           "the chart to zoom, and double-click it to zoom out again.")
+    zoomed = (lo, hi) != (0, end_s)
+    if zoomed:
+        part = H[(H["time"] >= lo * 1000) & (H["time"] <= hi * 1000)]
+        if len(part) >= 3:
+            c = st.columns(4)
+            c[0].metric("Hits in range", f"{len(part)}")
+            c[1].metric("Average error", f"{part['err_real'].mean():+.1f} ms")
+            c[2].metric("Unstable rate", f"{part['err_real'].std() * 10:.0f}")
+            c[3].metric("Misses / breaks", f"{int(((ev['time'] >= lo * 1000) & (ev['time'] <= hi * 1000)).sum())}"
+                        if not ev.empty else "0")
+    fig.update_xaxes(tickformat="%M:%S", range=[pd.to_datetime(lo * 1000, unit="ms"),
+                                                 pd.to_datetime(hi * 1000, unit="ms")])
     fig.update_yaxes(title="hit error, ms (− early, + late)", range=[-top * 1.08, top * 1.08])
-    plot(style(fig, 360, "Timing through the map — misses and breaks marked on top", legend=True))
+    fig.update_layout(dragmode="zoom")
+    fig = style(fig, 360, "Timing through the map — misses (red ×) and breaks marked on top", legend=True)
+    fig.update_layout(dragmode="zoom")
+    fig.update_xaxes(fixedrange=False)
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "scrollZoom": False})
     st.caption("Map time along the bottom. Each dot is one hit; the pink line is your running average (above 0 = "
-               "late). Dotted lines: the 300 window.")
+               "late). Dotted lines: the 300 window. Red ×: misses, triangles: combo breaks without a miss. "
+               "Use the slider above (or drag a box on the chart) to zoom into a section.")
 
 
 # ------------------------------------------------------------------ Overview
@@ -883,12 +908,18 @@ def skill_facts(key: str, v: dict) -> list[str]:
     elif key == "consistency":
         r = _num(v.get("miss_after_miss_ratio"), ".2f")
         facts.append(f"{n:,} notes" + (f", miss-after-miss ratio {r}" if r else ""))
+        ch, sd, sp = _num(v.get("chain_score")), _num(v.get("steady_score")), _num(v.get("spread"), ".1f")
+        if ch or sd:
+            facts.append(f"miss chains {ch or '–'}, steadiness between plays {sd or '–'}"
+                         + (f" (spread {sp} misses / 100 notes)" if sp else ""))
     elif key == "reading":
         ar, hit = _num(v.get("lowest_ar"), ".1f"), _num(v.get("bpm_hit"), ".0%")
         facts.append(f"{v.get('maps', 0)} passed maps" + (f", lowest AR {ar}" if ar else ""))
         if v.get("bpm_maps"):
             facts.append(f"{v['bpm_maps']} maps with BPM changes" + (f", {hit} of the notes after them as 300s"
                                                                      if hit else ""))
+        lo, hi = _num(v.get("low_ar_score")), _num(v.get("high_ar_score"))
+        facts.append(f"AR <8: {lo or '–'}, AR 10+: {hi or '–'}")
     elif key == "aim":
         val, ref = _num(v.get("value"), ".1f"), _num(v.get("ref"), ".1f")
         inten, combo = _num(v.get("intensity"), ".0f"), _num(v.get("combo"), ".0%")
@@ -921,7 +952,7 @@ def score_text(v: dict) -> str:
     """A skill's score as shown, or why there is none."""
     s = _num(v.get("score"))
     if s:
-        return s
+        return s + (" · few data" if v.get("low_data") else "")
     return "too few misses to tell" if v.get("too_few_misses") else "not enough data"
 
 
@@ -981,6 +1012,13 @@ def page_overview():
         # hovering anywhere on a skill's row (also an empty "not enough data" row) shows its explanation
         fig.update_layout(hovermode="y", hoverlabel=dict(align="left"))
         plot(style(fig, 420))
+        rd = p.skills.get("reading") or {}
+        few = [v["label"].split(" (")[0] for v in p.skills.values() if v.get("low_data")]
+        st.caption(f"Reading split by AR: **low AR (<8)** {fmt(rd.get('low_ar_score'), '.0f')} "
+                   f"({rd.get('low_ar_maps', 0)} maps) · **high AR (10+)** {fmt(rd.get('high_ar_score'), '.0f')} "
+                   f"({rd.get('high_ar_maps', 0)} maps)."
+                   + (f" *Few data* ({', '.join(few)}): measured on few maps or notes — the score will move as you "
+                      "analyse more replays." if few else ""))
         top = top_comparison(p.skills)
         section("Skills vs top players", "The same skills measured against the top players' level (10★) instead of "
                                          "yours: 50 = typical for a 10★ player. ◆ = the best players' reference "
@@ -1094,7 +1132,20 @@ def page_progress():
         pref = settings().get("player")
         player = st.selectbox("Player", opts, index=opts.index(pref) if pref in opts else 0,
                               format_func=lambda n: f"{n or '(no name)'} ({counts[n]} plays saved)")
-        m = progress.monthly(conn, player)
+        c = st.columns([2, 3])
+        period = c[0].radio("Group by", progress.PERIODS, index=0, horizontal=True, key="progress_period",
+                            format_func=lambda k: {"month": "Month", "week": "Week", "day": "Day"}[k])
+        all_m = progress.by_period(conn, player, "day")
+        first = dt.date.fromisoformat(str(all_m["month"].iloc[0])) if len(all_m) else dt.date.today()
+        rng = c[1].date_input("From – to (both days included)", value=(first, dt.date.today()),
+                              key="progress_range", help="Only plays from these days. Pick Day above to see your "
+                                                         "progress day by day.")
+        since, until = (rng if isinstance(rng, (tuple, list)) and len(rng) == 2 else (None, None))
+        m = progress.by_period(conn, player, period, since=since, until=until)
+        if m.empty:
+            st.info("No plays saved in that range.", icon=":material/timeline:")
+            return
+        word = {"month": "month", "week": "week", "day": "day"}[period]
         months = list(m["month"])
         last = m.iloc[-1]
         prev = m.iloc[-2] if len(m) > 1 else None
@@ -1109,7 +1160,7 @@ def page_progress():
                     help="Maps played for the first time that month.")
         c[4].metric("Accuracy", pct(last["accuracy"], 2), _delta(last, prev, "accuracy", "+.2f", 100))
         st.caption(f"{last['month']}" + (f" compared with {prev['month']}." if prev is not None else ".")
-                   + (" Few plays that month — the numbers are rough." if last["few_plays"] else ""))
+                   + (f" Few plays that {word} — the numbers are rough." if last["few_plays"] else ""))
         x = m["month"]
         symbols = ["circle-open" if f else "circle" for f in m["few_plays"]]
         fig = go.Figure()
@@ -1120,10 +1171,10 @@ def page_progress():
                                      line=dict(color=color, width=width), marker=dict(symbol=symbols, size=8)))
         fig.update_xaxes(type="category")
         fig.update_yaxes(title="★")
-        chart(style(fig, 380, "Star rating by month", legend=True),
-              "One point per month. Comfort = the star rating 75% of your clean plays stay under; hardest clean "
+        chart(style(fig, 380, f"Star rating by {word}", legend=True),
+              f"One point per {word}. Comfort = the star rating 75% of your clean plays stay under; hardest clean "
               "pass / full combo = the hardest map finished with ≤ 5 misses per 100 notes / without a miss. Hollow "
-              "points: fewer than 5 plays that month.")
+              "points: fewer than 5 plays then.")
         skill_cols = [k for k in SKILL_LABELS if m[f"skill_{k}"].notna().sum() >= 1]
         if skill_cols:
             chosen = st.pills("Skills", skill_cols, selection_mode="multi", default=skill_cols,
@@ -1136,9 +1187,13 @@ def page_progress():
             fig.add_hline(y=50, line=dict(color=MUTED, dash="dot"))
             fig.update_xaxes(type="category")
             fig.update_yaxes(range=[0, 100], title="score")
-            chart(style(fig, 400, "Skills by month", legend=True),
-                  "50 = your all-time average at the same difficulty; higher = fewer misses than usual that month. "
-                  "Pick skills with the buttons above. Hollow points: fewer than 5 plays that month.")
+            chart(style(fig, 400, f"Skills by {word}", legend=True),
+                  f"50 = your all-time average at the same difficulty; higher = fewer misses than usual that {word}. "
+                  f"Pick skills with the buttons above. Hollow points: fewer than 5 plays that {word}."
+                  + (" Days and weeks get skill scores from analyses made with this version on." if period != "month"
+                     else ""))
+        elif period != "month":
+            st.caption("Skill scores per day / week are saved from now on, each time you analyse replays.")
         fig = go.Figure()
         fig.add_trace(go.Bar(x=x, y=m["plays"], name="plays", marker_color=ACCENT))
         fig.add_trace(go.Bar(x=x, y=m["new_maps"], name="new maps", marker_color=INFO))
@@ -1149,11 +1204,11 @@ def page_progress():
                                                        rangemode="tozero", tickformat=".0f"))
         fig.update_yaxes(rangemode="tozero")
         chart(style(fig, 340, "What you played", legend=True),
-              "Bars: plays and maps played for the first time each month (left axis); line: minutes played "
+              f"Bars: plays and maps played for the first time each {word} (left axis); line: minutes played "
               "(right axis).")
-        section("Plays of one month", "Every play saved for the month you pick: result, accuracy and misses.")
-        month = st.selectbox("Maps played in", list(reversed(months)), key="progress_month")
-        plays = progress.month_plays(conn, player, month)
+        section(f"Plays of one {word}", f"Every play saved for the {word} you pick: result, accuracy and misses.")
+        month = st.selectbox("Maps played in", list(reversed(months)), key=f"progress_month_{period}")
+        plays = progress.month_plays(conn, player, month, period)
     finally:
         conn.close()
     if plays.empty:
@@ -1366,7 +1421,37 @@ def fall_behind_chart(p):
         return
     section("Stamina in long streams", "How precise your taps stay from the first note of a long stream to the last. "
                                        "Tired fingers scatter: the error grows as the stream goes on.")
+    by = st.segmented_control("Compare", ["By stream length", "By stream speed"], default="By stream length",
+                              key="fb_by", help="By stream speed: the error as a share of the time between notes, "
+                                                "so faster streams are judged fairly.") or "By stream length"
     left, right = st.columns([3, 2], gap="large")
+    cb = fb.get("curves_bpm")
+    if by == "By stream speed" and cb is not None and len(cb) >= 3:
+        with left:
+            fig = go.Figure()
+            for i, (label, g) in enumerate(cb.groupby("group", sort=True)):
+                fig.add_trace(go.Scatter(
+                    x=g["pos"], y=g["rel_err"], mode="lines+markers", name=label,
+                    line=dict(color=SKILL_COLORS[i % len(SKILL_COLORS)], width=2.5), marker=dict(size=6),
+                    hovertext=[f"{label}, notes {int(x)}–{int(x) + 3}: {r:.0f}% of the note gap ({a:.1f} ms), "
+                               f"{m:.1%} missed, {int(n)} hits" for x, r, a, m, n in
+                               zip(g["pos"], g["rel_err"], g["abs_err"], g["miss_rate"], g["n"])], hoverinfo="text"))
+            fig.update_xaxes(title="note number inside the stream", rangemode="tozero")
+            fig.update_yaxes(title="error, % of the time between notes", rangemode="tozero")
+            chart(style(fig, 360, "Precision through long streams, by speed", legend=True),
+                  "One line per 30-BPM speed. Height = how far off your taps were, as a share of the time between "
+                  "two notes (15 ms is 20% at 200 BPM but 25% at 250) — so a fast stream isn't worse just because "
+                  "it's fast. A line that climbs = your stamina gives in at that speed.")
+        with right:
+            last = cb.sort_values("pos").groupby("group").agg(first=("rel_err", "first"), last=("rel_err", "last"),
+                                                             notes=("pos", "max"))
+            last["rise"] = last["last"] - last["first"]
+            worst = last["rise"].idxmax() if len(last) else None
+            st.markdown("\n".join(f"- **{g}**: {r['first']:.0f}% → {r['last']:.0f}% by note {int(r['notes'])}"
+                                   for g, r in last.iterrows()))
+            if worst is not None and last.loc[worst, "rise"] > 3:
+                st.markdown(f"Your stamina gives in most at **{worst}** — practise long streams at that speed.")
+        return
     with left:
         fig = go.Figure()
         for label, g in curves.groupby("group", sort=False):
@@ -1425,6 +1510,84 @@ def stream_length_suggestions(p, comfort: int, lo: int, hi: int):
         maps_table(push)
 
 
+STREAM_BAND = 20
+
+
+def stream_notes(p) -> pd.DataFrame:
+    """Stream / burst notes (7+ in a row) with the minute in the map, the minute in the session and a 20-BPM band."""
+    P = played(p)
+    S = P[P["pattern"].isin(["stream", "burst", "spaced"]) & P["stream_bpm"].notna() & (P["run_len"] >= 7)].copy()
+    if S.empty:
+        return S
+    S["map_min"] = S["time"] / 60000.0
+    dates = p.replays.set_index("key")["date"]
+    order = dates.sort_values()
+    start, last, sess = {}, None, None
+    for k, d in order.items():
+        if last is None or (d - last).total_seconds() > 3600:
+            sess = d
+        start[k], last = sess, d
+    S["session_min"] = [((dates[k] - start[k]).total_seconds() + t / 1000) / 60.0
+                        for k, t in zip(S["replay_key"], S["time"])]
+    S["band"] = (S["stream_bpm"] // STREAM_BAND * STREAM_BAND).astype(int)
+    return S
+
+
+def _stream_bins(S: pd.DataFrame, xcol: str, step: float) -> pd.DataFrame:
+    """Per time bin: weighted miss rate, UR (each play's own average taken out first) and notes."""
+    rows = []
+    S = S.assign(xb=(S[xcol] // step * step), err0=S["err_real"] - S.groupby("replay_key")["err_real"].transform("mean"))
+    for xb, g in S.groupby("xb"):
+        h = g["head_hit"].astype(bool) & g["err0"].notna()
+        if len(g) < 30:
+            continue
+        w = g["w"].to_numpy(float) if "w" in g else np.ones(len(g))
+        miss = float(np.average(~g["head_hit"].astype(bool), weights=w)) if w.sum() else math.nan
+        ur = float(np.sqrt(np.average(g.loc[h, "err0"] ** 2, weights=g.loc[h, "w"]))) * 10 if h.sum() >= 20 else math.nan
+        rows.append({"x": float(xb), "miss_rate": miss * 100, "ur": ur, "n": int(len(g))})
+    return pd.DataFrame(rows, columns=["x", "miss_rate", "ur", "n"])
+
+
+def stream_time_chart(p):
+    """Streams over time: miss rate and UR through the map or through the session, for chosen BPM bands and
+    all streams together, so you see when your streams start to fall apart."""
+    S = stream_notes(p)
+    if S.empty or len(S) < 100:
+        section("Streams over time", "Not enough streams (7+ notes in a row) in your replays yet.")
+        return
+    section("Streams over time", "When your streams start to fall apart: misses and timing spread (UR) as the map "
+                                 "or the session goes on.")
+    c = st.columns(2)
+    metric = c[0].segmented_control("Show", ["Miss rate", "UR"], default="Miss rate", key="stream_metric") or "Miss rate"
+    along = c[1].segmented_control("Along", ["Map", "Session"], default="Map", key="stream_along") or "Map"
+    counts = S["band"].value_counts()
+    bands = sorted(int(b) for b in counts.index if counts[b] >= 200)
+    opts = ["Overall"] + [f"{b}–{b + STREAM_BAND - 1}" for b in bands]
+    picked = st.pills("Stream speed (BPM)", opts, selection_mode="multi", default=["Overall"], key="stream_bands",
+                      help="Overall = all streams together. Pick BPM ranges to compare them with each other.") or []
+    xcol, step = ("map_min", 0.5) if along == "Map" else ("session_min", 5.0)
+    ycol = "miss_rate" if metric == "Miss rate" else "ur"
+    fig = go.Figure()
+    for i, name in enumerate(picked):
+        part = S if name == "Overall" else S[S["band"] == int(name.split("–")[0])]
+        B = _stream_bins(part, xcol, step)
+        if B.empty:
+            continue
+        fig.add_trace(go.Scatter(
+            x=B["x"] + step / 2, y=B[ycol], mode="lines+markers", name=name if name == "Overall" else f"{name} BPM",
+            line=dict(color=ACCENT if name == "Overall" else SKILL_COLORS[i % len(SKILL_COLORS)],
+                      width=3 if name == "Overall" else 2),
+            hovertext=[f"{name}: {y:.1f}{'%' if ycol == 'miss_rate' else ''} · {n} notes" for y, n in
+                       zip(B[ycol], B["n"])], hoverinfo="text"))
+    fig.update_xaxes(title="minute in the map" if along == "Map" else "minutes into the session", rangemode="tozero")
+    fig.update_yaxes(title="miss rate %" if ycol == "miss_rate" else "UR", rangemode="tozero")
+    chart(style(fig, 360, f"Streams: {metric.lower()} through the {along.lower()}", legend=True),
+          ("Each point = the stream notes in that " + ("half minute of the maps" if along == "Map" else
+           "5 minutes of a session (plays less than an hour apart)") + ". A line that rises = streams get worse the "
+           "longer you play. UR is measured with each play's own average taken out, so different plays don't "
+           "inflate it. Points need 30+ notes."))
+
+
 def page_tapping():
     p = need_profile()
     page_title("Tapping", "How you tap: timing spread and bias, how fast you can stream, whether you fall behind in "
@@ -1459,17 +1622,28 @@ def page_tapping():
         fig.update_yaxes(title="hits (weighted)")
         shares = {r: float(weights(H[H["head_result"] == r]).sum()) for r in (300, 100, 50)}
         tot = sum(shares.values()) or 1.0
-        if st.toggle("Log scale", key="timing_log", help="Makes the few 100s and 50s at the edges easier to see."):
+        ymode = st.segmented_control("Y axis", ["Normal", "Zoom in", "Log"], default="Normal", key="timing_y",
+                                     help="Zoom in / Log make the few 100s and 50s at the edges easier to see.")
+        if ymode == "Log":
             fig.update_yaxes(type="log", title="hits (weighted, log scale)")
-        chart(style(fig, 340, "Hit timing", legend=True),
+        elif ymode == "Zoom in":
+            peak = max((float(np.max(tr.y)) for tr in fig.data if len(tr.y)), default=1.0)
+            share = st.slider("Show up to (% of the highest bar)", 1, 100, 15, key="timing_y_max",
+                              help="Cuts the tall 300 peak so the small bars become readable.")
+            fig.update_yaxes(range=[0, peak * share / 100], title=f"hits (weighted, up to {share}% of the peak)")
+        fig = style(fig, 340, "Hit timing", legend=True)
+        fig.update_layout(legend=dict(y=-0.32), margin=dict(b=40))
+        chart(fig,
               "How early or late each hit was, coloured by what it scored: green = 300, blue = 100, orange = 50 "
               f"({shares[300] / tot:.0%} / {shares[100] / tot:.0%} / {shares[50] / tot:.1%} of hits). A narrow "
               "green peak = steady timing (low UR); the dotted line is your average — left of 0 = you tap early, "
               "right = late. The edges between the colours move with OD and speed mods, so they overlap a little.")
     with right:
-        sp = p.stream_profile
+        stream_time_chart(p)
+    sp = p.stream_profile
+    with st.expander("Misses and UR by stream speed (BPM)"):
         if sp is None or sp.empty:
-            section("Stream speed", "Not enough streams (7+ notes in a row) in your replays yet.")
+            st.caption("Not enough streams (7+ notes in a row) in your replays yet.")
         else:
             tap = sp["tap_miss_rate"] if "tap_miss_rate" in sp else sp["miss_rate"]
             aim = sp["speed_aim_rate"] if "speed_aim_rate" in sp else 0 * sp["miss_rate"]
@@ -1541,6 +1715,109 @@ def page_tapping():
 
 
 # ------------------------------------------------------------------ Sliders & Reading
+BREAK_WORDS = {
+    "follow": ("left the follow circle", "your cursor got off the ball: usually fast or curved sliders. Keep the "
+                                          "cursor on the ball the whole way, don't cut corners or leave early."),
+    "released": ("released the key too early", "you let go before the end. Hold until the slider end — on short "
+                                               "fast sliders too."),
+    "key_swap": ("switched keys", "you pressed the other key in the middle of a slider. Keep holding the same key "
+                                  "until it ends."),
+}
+SLIDER_LEN_BINS = [0, 1, 2, 4, 8, 1000]           # circle diameters of slider path
+SLIDER_SPEED_BINS = [0, 2, 4, 6, 9, 1000]         # circle diameters per second
+
+
+def _slider_rates(S: pd.DataFrame, col: str, bins: list, unit: str) -> pd.DataFrame:
+    cut = pd.cut(S[col], bins, right=False)
+    rows = []
+    for iv, g in S.groupby(cut, observed=True):
+        if len(g) < 20:
+            continue
+        w = g["w"].to_numpy(float)
+        head = ~g["head_hit"].astype(bool)
+        brk = g["broke"].fillna(False).astype(bool) & ~head
+        hi = "+" if iv.right >= 1000 else f"–{iv.right:g}"
+        rows.append({"bin": f"{iv.left:g}{hi} {unit}", "head": float(np.average(head, weights=w)) * 100,
+                     "broke": float(np.average(brk, weights=w)) * 100, "n": int(len(g))})
+    return pd.DataFrame(rows, columns=["bin", "head", "broke", "n"])
+
+
+def slider_shape_charts(p):
+    """Slider misses and breaks by slider length and by slider speed."""
+    P = played(p)
+    S = P[(P["kind"] == "slider") & P["slider_len"].notna()].copy()
+    if len(S) < 100:
+        return
+    d = (2 * S["radius"]).replace(0, np.nan)
+    S["len_d"] = S["slider_len"] / d
+    S["speed_d"] = S["slider_vel_real"] * 1000 / d
+    section("Which sliders go wrong", "Head misses and breaks (after hitting the head) by slider length and speed — "
+                                      "find the kind of slider to practise.")
+    c = st.columns(2, gap="large")
+    for col, (key, bins, unit, title, xt) in zip(c, (
+            ("len_d", SLIDER_LEN_BINS, "", "By slider length", "slider length (circle diameters)"),
+            ("speed_d", SLIDER_SPEED_BINS, "", "By slider speed", "slider speed (circle diameters per second)"))):
+        R = _slider_rates(S, key, bins, unit)
+        if R.empty:
+            continue
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=R["bin"], y=R["head"], name="head missed", marker_color=MISS_RED,
+                             hovertext=[f"{n} sliders" for n in R["n"]], hoverinfo="text+y"))
+        fig.add_trace(go.Bar(x=R["bin"], y=R["broke"], name="broke later", marker_color=WARN_COLOR,
+                             hovertext=[f"{n} sliders" for n in R["n"]], hoverinfo="text+y"))
+        fig.update_layout(barmode="stack")
+        fig.update_xaxes(title=xt, type="category")
+        fig.update_yaxes(title="% of these sliders")
+        big = R[R["n"] >= 50] if (R["n"] >= 50).any() else R
+        worst = big.assign(t=big["head"] + big["broke"]).sort_values("t").iloc[-1]
+        fig = style(fig, 300, title, legend=True)
+        fig.update_layout(legend=dict(y=-0.4), margin=dict(b=40))
+        with col:
+            chart(fig,
+                  f"Worst: **{worst['bin'].strip()}** — {worst['head'] + worst['broke']:.1f}% of those sliders "
+                  f"missed or broken ({worst['n']} played). Red = head missed, yellow = hit but broken later.")
+
+
+def reading_ar_chart(p):
+    """300s / 100s / 50s / misses by approach rate."""
+    P = played(p)
+    H = P[(P["kind"] != "spinner") & P["map_ar"].notna()].copy()
+    if len(H) < 200:
+        return
+    H["ar"] = np.floor(H["map_ar"].astype(float) * 2) / 2
+    rows = []
+    for ar, g in H.groupby("ar"):
+        if len(g) < 100:
+            continue
+        w = g["w"].to_numpy(float)
+        res = g["head_result"].where(g["head_hit"].astype(bool), 0)
+        row = {"ar": f"AR {ar:g}", "n": int(len(g)), "plays": int(g["replay_key"].nunique())}
+        for r, name in ((300, "300"), (100, "100"), (50, "50"), (0, "miss")):
+            row[name] = float(np.average(res == r, weights=w)) * 100
+        rows.append(row)
+    if not rows:
+        return
+    R = pd.DataFrame(rows)
+    section("Hits by approach rate", "300s, 100s, 50s and misses at each AR (with mods) — where your reading slips.")
+    left, right = st.columns([3, 2], gap="large")
+    with left:
+        fig = go.Figure()
+        for name, color in (("300", GOOD), ("100", INFO), ("50", "#ffb020"), ("miss", MISS_RED)):
+            fig.add_trace(go.Bar(x=R["ar"], y=R[name], name=name, marker_color=color,
+                                 hovertemplate=f"{name}: %{{y:.1f}}%<extra></extra>"))
+        fig.update_layout(barmode="stack")
+        fig.update_xaxes(type="category")
+        low = max(0.0, float(R["300"].min()) - 10)
+        fig.update_yaxes(title="% of notes", range=[low, 100])
+        chart(style(fig, 320, "Hit results by AR", legend=True),
+              "Each bar is all notes played at that AR (weighted by difficulty), split into 300 / 100 / 50 / miss. "
+              "The axis starts near your lowest 300 share so the small parts are readable.")
+    with right:
+        st.dataframe(R[["ar", "300", "100", "50", "miss", "plays"]].rename(columns={"ar": "AR", "plays": "Plays"}),
+                     hide_index=True, column_config={k: st.column_config.NumberColumn(format="%.1f%%")
+                                                     for k in ("300", "100", "50", "miss")})
+
+
 def page_sliders_reading():
     p = need_profile()
     page_title("Sliders & Reading", "Slider control (heads, breaks, ends) and reading: how approach rate and dense parts "
@@ -1555,12 +1832,14 @@ def page_sliders_reading():
     left, right = st.columns(2, gap="large")
     with left:
         if p.slider_breaks:
-            names = {"follow": "Left the follow circle", "released": "Released the key", "key_swap": "Switched keys"}
-            items = sorted(p.slider_breaks.items(), key=lambda kv: kv[1])
-            fig = go.Figure(go.Bar(x=[v for _, v in items], y=[names.get(k, k) for k, _ in items], orientation="h",
-                                   marker_color=ACCENT))
-            chart(style(fig, 240, "Why sliders break"),
-                  "Sliders you hit at the head but broke later, by reason (weighted count).")
+            tot = sum(p.slider_breaks.values()) or 1.0
+            items = sorted(p.slider_breaks.items(), key=lambda kv: -kv[1])
+            st.markdown("**Why your sliders break**")
+            for k, v in items:
+                name, fix = BREAK_WORDS.get(k, (k, ""))
+                st.markdown(f"- **{v / tot:.0%} {name}** — {fix}")
+            st.caption("Sliders hit at the head but broken later (weighted by difficulty). The charts below show "
+                       "which sliders break most.")
         else:
             st.caption("No slider breaks — nice.")
     with right:
@@ -1574,6 +1853,8 @@ def page_sliders_reading():
             chart(style(fig, 240, "Misses by approach rate"),
                   "Miss rate by AR (with mods; DT raises it). Higher AR maps are usually harder too — the Reading "
                   "tips compare with what the difficulty predicts.")
+    slider_shape_charts(p)
+    reading_ar_chart(p)
     section("Reading and consistency", "Miss rates in dense parts (many notes on screen) vs the rest, and whether "
                                        "misses cause more misses or pile up at the end of maps.")
     c = st.columns(4)
@@ -1764,6 +2045,10 @@ def page_maps():
     if pool.empty:
         st.error("The bundled map pool is missing.")
         return
+    sett = settings()
+    hidden = set(sett.get("hidden_maps") or [])
+    if hidden:
+        pool = pool[~pool["md5"].isin(hidden)]
     recs = recommendations(pool, p, per_skill=5)
     for sk, df in recs:
         if sk == "general":
@@ -1778,15 +2063,137 @@ def page_maps():
     if not recs:
         return
     pl = pd.concat([df.assign(stage=skill_label(sk, t)) for sk, df in recs], ignore_index=True)
+    section("Not for you?", "Maps you mark here are never suggested again (saved in your settings).")
+    names = {r.md5: f"{r.artist} – {r.title} [{r.version}]" for r in pl.itertuples()}
+    drop = st.multiselect("Hide these maps from suggestions", list(names), format_func=names.get, key="hide_maps")
+    c = st.columns([1, 3])
+    if c[0].button("Hide", disabled=not drop):
+        remember("hidden_maps", sorted(hidden | set(drop)))
+        st.rerun()
+    if hidden and c[1].button(f"Show the {len(hidden)} hidden maps again"):
+        remember("hidden_maps", [])
+        st.rerun()
     name = f"osu-coach: Map Suggestion ({t.comfort:.1f}★)"
     section("Get all these maps into osu!", f"All {len(pl)} suggested maps at once, as the collection “{name}”.")
     playlist_export(pl, name, "suggestions")
 
 
 # ------------------------------------------------------------------ Skill Development
+GOAL_STATES = {"done": ("✅", GOOD), "on track": ("🟢", GOOD), "behind": ("🟠", "#ffb020"),
+               "overdue": ("🔴", BAD), "no data": ("⚪", MUTED)}
+
+
+def goals_tab(p):
+    """Training plan: skill goals with a target and a deadline, how far along each one is, and the history."""
+    sett = settings()
+    scores = {k: v.get("score") for k, v in (p.skills.items() if p is not None else [])}
+    gl, changed = goals.update(sett.get("goals") or [], scores)
+    if changed:
+        remember("goals", gl)
+    open_ = [g for g in gl if not g.get("done")]
+    done = [g for g in gl if g.get("done")]
+    c = st.columns(3)
+    c[0].metric("Open goals", len(open_))
+    c[1].metric("Reached", len(done))
+    c[2].metric("Behind or overdue", sum(goals.status(g, scores.get(g["skill"]))["state"] in ("behind", "overdue")
+                                         for g in open_))
+    section("Your goals", "Each goal: a skill score to reach by a date. On track = you are at least as far as the "
+                          "time that has passed.")
+    if not open_:
+        st.caption("No open goals yet — add one below or make a plan from your weakest skills.")
+    for g in open_:
+        stt = goals.status(g, scores.get(g["skill"]))
+        icon, color = GOAL_STATES[stt["state"]]
+        label = SKILL_LABELS.get(g["skill"], g["skill"]).split(" (")[0]
+        with st.container(border=True):
+            a, b, cbtn = st.columns([4, 2, 1])
+            a.markdown(f"**{icon} {label}**: {fmt(g.get('start'), '.0f')} → **{g['target']:.0f}** by "
+                       f"{g['deadline']} · now **{fmt(stt['current'], '.0f')}**")
+            a.progress(stt["progress"], text=f"{stt['progress']:.0%} of the way · {stt['state']}")
+            dl = stt["days_left"]
+            b.markdown(f"{dl} days left" if dl >= 0 else f"{-dl} days overdue")
+            if stt["left"]:
+                b.caption(f"{stt['left']:.0f} points to go")
+            if cbtn.button("Remove", key=f"rm_{g['id']}"):
+                remember("goals", [x for x in gl if x["id"] != g["id"]])
+                st.rerun()
+    goal_history(p, open_ + done)
+    section("Add a goal")
+    if p is None:
+        st.caption("Analyse your replays first — goals follow your skill scores.")
+        return
+    have = [k for k in SKILL_LABELS if scores.get(k) is not None]
+    c = st.columns([3, 2, 2, 1])
+    sk = c[0].selectbox("Skill", have, format_func=lambda k: f"{SKILL_LABELS[k].split(' (')[0]} · now "
+                                                            f"{scores[k]:.0f}", key="goal_skill")
+    target = c[1].number_input("Target score", 1, 100, int(min(100, round((scores.get(sk) or 40) + 10))),
+                               key=f"goal_target_{sk}")
+    deadline = c[2].date_input("By", dt.date.today() + dt.timedelta(days=28), min_value=dt.date.today(),
+                               key="goal_deadline")
+    c[3].write("")
+    if c[3].button("Add", type="primary"):
+        remember("goals", gl + [goals.new_goal(sk, scores.get(sk), target, deadline)])
+        st.rerun()
+    plan = goals.suggested_targets(scores, 3)
+    if plan:
+        st.caption("Or: a 4-week plan for your 3 weakest skills — " + ", ".join(
+            f"{SKILL_LABELS[k].split(' (')[0]} {cur:.0f} → {tg:.0f}" for k, cur, tg in plan) + ".")
+        if st.button("Make this plan"):
+            dl = dt.date.today() + dt.timedelta(days=28)
+            have_open = {g["skill"] for g in open_}
+            remember("goals", gl + [goals.new_goal(k, cur, tg, dl) for k, cur, tg in plan if k not in have_open])
+            st.rerun()
+    if done:
+        section("Reached goals")
+        for g in done:
+            st.markdown(f"- ✅ **{SKILL_LABELS.get(g['skill'], g['skill']).split(' (')[0]}** "
+                        f"{fmt(g.get('start'), '.0f')} → {g['target']:.0f}, reached {g['done']} (set {g['created']})")
+    weak = [k for k, v in sorted(scores.items(), key=lambda kv: kv[1] if kv[1] is not None else 999)
+            if v is not None and v < 50 and k not in {g["skill"] for g in open_}]
+    if weak:
+        st.caption("Still below your level and without a goal: "
+                   + ", ".join(f"{SKILL_LABELS[k].split(' (')[0]} ({scores[k]:.0f})" for k in weak) + ".")
+
+
+def goal_history(p, gl: list[dict]):
+    """The goal skills day by day since the oldest goal (from the saved progress), with the targets."""
+    if not gl or p is None:
+        return
+    conn = progress.connect()
+    try:
+        player = settings().get("player") or (progress.players(conn) or [(None, 0)])[0][0]
+        since = min(dt.date.fromisoformat(g["created"]) for g in gl) - dt.timedelta(days=14)
+        m = progress.by_period(conn, player, "day", since=since)
+    finally:
+        conn.close()
+    fig = go.Figure()
+    for i, g in enumerate(gl):
+        col = f"skill_{g['skill']}"
+        color = SKILL_COLORS[i % len(SKILL_COLORS)]
+        name = SKILL_LABELS.get(g["skill"], g["skill"]).split(" (")[0]
+        if col in m and m[col].notna().any():
+            fig.add_trace(go.Scatter(x=m["month"], y=m[col], name=name, mode="lines+markers", connectgaps=True,
+                                     line=dict(color=color, width=2)))
+        fig.add_trace(go.Scatter(x=[g["created"], g["deadline"]], y=[g.get("start") or g["target"], g["target"]],
+                                 name=f"{name} target", mode="lines", line=dict(color=color, dash="dot", width=1)))
+    if len(fig.data):
+        fig.update_yaxes(range=[0, 100], title="score")
+        chart(style(fig, 320, "Goal skills day by day", legend=True),
+              "Solid lines: your score each day you analysed replays; dotted: the path from where you started to "
+              "the target by the deadline. Above the dotted line = ahead of plan.")
+
+
 def page_improve():
-    page_title("Skill Development", "A staged playlist (warm-up / core / push) for one skill at your level, and one "
-                                    "click to get it into osu!.")
+    page_title("Skill Development", "Set goals for your skills and follow them, and get a staged playlist (warm-up / "
+                                    "core / push) for any skill.")
+    tabs = st.tabs(["Training plan & goals", "Playlist for a skill"])
+    with tabs[0]:
+        goals_tab(profile())
+    with tabs[1]:
+        playlist_tab()
+
+
+def playlist_tab():
     pool = pool_cached()
     if pool.empty:
         st.error("The bundled map pool is missing.")

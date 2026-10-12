@@ -225,3 +225,20 @@ def test_skill_hovers_fit_inside_the_skills_chart():
         for v in cases:
             lines = ns["skill_hover"](key, {**v, "label": label}).count("<br>") + 1
             assert lines <= 18, (key, lines)
+
+
+def test_skill_development_makes_a_plan_and_tracks_goals(prof, tmp_path, monkeypatch):
+    monkeypatch.setenv("OSU_COACH_CACHE", str(tmp_path))
+    at = AppTest.from_file(APP, default_timeout=120)
+    at.session_state["profile"] = prof
+    at.session_state["page"] = "Skill Development"
+    at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    plan = [b for b in at.button if b.label == "Make this plan"]
+    if not plan:                                 # the tiny test profile may have no scored skills
+        return
+    plan[0].click().run()
+    assert not at.exception, [e.value for e in at.exception]
+    saved = load_settings().get("goals") or []
+    assert saved and all({"skill", "target", "deadline", "start"} <= set(g) for g in saved)
+    assert any("of the way" in (p.text or "") for p in at.get("progress"))

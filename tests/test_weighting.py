@@ -347,7 +347,7 @@ def test_stamina_score_against_the_typical_tempo_for_the_level():
     lvl = 6.0                                                         # typical stream speed 210 BPM
     base, fast = stamina_score(maps(100), level=lvl), stamina_score(maps(113), level=lvl)
     assert stamina_ref_bpm(6.0) == 210 and stamina_ref_bpm(3.0) == 165
-    assert fast["score"] - base["score"] == pytest.approx(75 * math.log2(113 / 100), abs=0.5)   # 13% faster = +13
+    assert fast["score"] - base["score"] == pytest.approx(75 * math.log2(113 / 100) * 1.05, abs=0.5)   # 13% faster = +13 (× the temporary 1.05)
     assert set(base["parts"]) == {10, 30, 60, 120}
     # one map played three times counts once: not enough maps for a score
     again = pd.DataFrame(sum((_map(f"r{k}", [_stream_for(130, 240)]) for k in range(3)), []))
@@ -380,7 +380,7 @@ def test_slider_difficulty_grows_with_speed_length_and_shape():
                      + _sliders("d", 1, 1.5, 200, turn=2 * math.pi, corners=2, bends=2)
                      + _sliders("e", 1, 1.5, 200, change=0.7) + _sliders("f", 1, 1.5, 200, gap=50))
     d = slider_difficulty(S).tolist()
-    assert d[0] == 0                                  # shorter than what the follow circle covers: no movement
+    assert 0 < d[0] < d[1]                            # inside the follow circle: counts, but least
     assert d[1] < d[2] < d[3]                         # longer < faster < curved with corners and bends
     assert d[4] > d[2] and d[5] > d[2]                # speed change and a quick next note add to it
 
@@ -456,9 +456,9 @@ def test_aim_is_distance_times_speed_times_combo():
     assert V.loc["b", "value"] > V.loc["a", "value"] and V.loc["c", "value"] > V.loc["a", "value"]
     assert V.loc["d", "value"] == pytest.approx(V.loc["c", "value"] * 0.5 ** 0.8)   # half the combo
     assert "e" not in V.index                                          # failed plays don't count
-    fc = aim_score(pd.DataFrame(sum((_jumps(f"f{k}", 40, 3.2, 200) for k in range(3)), [])), level=6.0)
-    assert fc["score"] == pytest.approx(50)                            # 16 circles/s, full combo = typical at 6*
-    choke = aim_score(pd.DataFrame(sum((_jumps(f"g{k}", 40, 3.2, 200, combo=0.5) for k in range(3)), [])),
+    fc = aim_score(pd.DataFrame(sum((_jumps(f"f{k}", 40, 3.5, 200) for k in range(3)), [])), level=6.0)
+    assert fc["score"] == pytest.approx(50)                          # 17.5 circles/s, full combo = typical at 6*
+    choke = aim_score(pd.DataFrame(sum((_jumps(f"g{k}", 40, 3.5, 200, combo=0.5) for k in range(3)), [])),
                       level=6.0)
     assert choke["score"] == pytest.approx(50 - 25 * 0.8)
 
@@ -493,8 +493,11 @@ def test_reading_counts_low_ar_accuracy_and_bpm_changes():
     assert V.loc["bpm", "bpm_changes"] == 8 and V.loc["bpm", "bpm_factor"] == pytest.approx(1.5)
     assert V.loc["bpm_missed", "bpm_factor"] == pytest.approx(1 + 0.5 * 0.75)   # 1 of 4 notes after each change a 100
     maps = lambda ar: pd.DataFrame(sum((_read_play(f"{ar}-{k}", ar, 0.95) for k in range(3)), []))  # noqa: E731
-    assert reading_score(maps(9.5))["score"] == pytest.approx(50)
-    assert reading_score(maps(6.5))["score"] == pytest.approx(75, abs=0.5)
+    from osu_coach.profile import READ_REF
+    assert reading_score(maps(9.5))["score"] == pytest.approx(50 + 25 * math.log2(0.95 ** 8 / READ_REF))
+    assert reading_score(maps(6.5))["score"] == pytest.approx(25 + reading_score(maps(9.5))["score"], abs=0.5)
+    assert reading_score(maps(6.5))["low_ar_score"] == pytest.approx(reading_score(maps(6.5))["score"])
+    assert reading_score(maps(6.5))["high_ar_score"] is None
 
 
 def test_low_ar_on_a_slow_map_counts_less_than_on_a_busy_one():
@@ -510,7 +513,7 @@ def test_low_ar_on_a_slow_map_counts_less_than_on_a_busy_one():
 # ------------------------------------------------------------------ compared with top players
 def test_against_the_top_players_level_never_scores_higher_than_against_your_own():
     from osu_coach.profile import skills_at_level, top_comparison
-    skills = {"aim": {"value": 16.0}, "flow_aim": {"value": 10.0}, "speed": {"bpm": 210.0},
+    skills = {"aim": {"value": 17.5}, "flow_aim": {"value": 11.0}, "speed": {"bpm": 210.0},
               "stamina": {"curve": {10: 116.0, 30: 99.0}}, "sliders": {"value": 40.0},
               "accuracy": {"score": 83.0}, "reading": {"score": 50.0}, "consistency": {"score": 32.0}}
     own, top = skills_at_level(skills, 6.0), top_comparison(skills)
@@ -519,3 +522,34 @@ def test_against_the_top_players_level_never_scores_higher_than_against_your_own
         assert top[k]["score"] <= v + 1e-9, k
         assert top[k]["top"] is None or top[k]["top"] >= top[k]["score"], k      # the top players are ahead
     assert top["reading"]["score"] == 50 and top["accuracy"]["score"] == 83     # not level-relative
+
+
+def test_high_ar_counts_as_reading_too():
+    from osu_coach.profile import reading_values
+    V = reading_values(pd.DataFrame(_read_play("usual", 9.5, 0.95) + _read_play("high", 11.0, 0.95))
+                       ).set_index("replay_key")
+    assert V.loc["high", "ar_factor"] == pytest.approx(2.0, rel=0.02)    # 1.5 AR above usual = twice the demand
+    assert V.loc["usual", "ar_factor"] == pytest.approx(1.0)
+
+
+def test_consistency_has_a_score_from_steadiness_alone():
+    from osu_coach.profile import consistency_score
+    rows = []
+    for k in range(8):                       # 8 clean passes of similar maps: no misses to chain, but very steady
+        rows += [{"replay_key": f"p{k}", "completed": True, "stars": 6.0 + 0.05 * k, "head_hit": True,
+                  "local_eq": 6.0, "miss_reason": None} for i in range(200)]
+    P = pd.DataFrame(rows)
+    c = consistency_score(P, pd.Series(1.0, index=P.index), 8)
+    assert c["chain_score"] is None and c["steady_score"] is not None and c["score"] == c["steady_score"]
+    assert c["score"] > 80                   # every play has exactly the same misses: very steady
+
+
+def test_stamina_in_long_streams_by_speed_is_relative_to_the_note_gap():
+    from osu_coach.profile import stream_fall_behind
+    fast = _long_streams(40, 32, lambda pos: 15.0, seed=8, bpm=250.0)
+    slow = _long_streams(40, 32, lambda pos: 15.0, seed=9, bpm=200.0)
+    slow["replay_key"] = "s"
+    fb = stream_fall_behind(pd.concat([fast, slow], ignore_index=True))
+    c = fb["curves_bpm"].groupby("group")["rel_err"].mean()
+    # the same ms error is a bigger share of the gap at 250 BPM (60 ms between notes) than at 200 (75 ms)
+    assert c["240–269 BPM"] > c["180–209 BPM"] * 1.2

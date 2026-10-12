@@ -36,7 +36,7 @@ SKILL_LABELS = {
     "stamina": "Stamina",
     "accuracy": "Accuracy (timing)",
     "sliders": "Slider control",
-    "reading": "Reading (low AR / BPM changes)",
+    "reading": "Reading (AR / BPM changes)",
     "consistency": "Consistency",
 }
 # Shown when the cursor is on a skill bar (Overview): what the skill measures, how the score is worked out,
@@ -618,6 +618,37 @@ STREAM_LENGTH_GROUPS = [(16, 31, "16–31 notes"), (32, 63, "32–63 notes"), (6
 STREAM_BIN = 4                    # notes per point on the chart
 
 
+FALL_BEHIND_MIN_START = 12   # stamina can't give in before note 12 of a 16+ note stream
+SPEED_BAND = 30          # BPM per band in "stamina in long streams" by speed
+
+
+def _fall_behind_by_speed(L: pd.DataFrame, Lw: pd.Series, min_notes: int) -> pd.DataFrame:
+    """Like the length curves of :func:`stream_fall_behind`, but per 30-BPM stream speed band, with the error as a
+    share of the time between notes (``rel_err``, %): 15 ms off is 20% of the gap at 200 BPM but 25% at 250, so
+    faster streams aren't simply "worse"; the line's rise shows stamina at that speed."""
+    cols = ["group", "pos", "rel_err", "abs_err", "miss_rate", "n"]
+    if L.empty or "stream_bpm" not in L:
+        return pd.DataFrame(columns=cols)
+    bpm = L["stream_bpm"].astype(float)
+    band = (bpm // SPEED_BAND * SPEED_BAND).astype("Int64")
+    gap = 15000.0 / bpm.clip(lower=60)
+    rows = []
+    for b in sorted(band.dropna().unique()):
+        sel = band == b
+        G, Gw, Gg = L[sel], Lw[sel], gap[sel]
+        pos_bin = G["run_pos"] // STREAM_BIN * STREAM_BIN
+        for pb, idx in G.groupby(pos_bin).groups.items():
+            d, dw, dg = G.loc[idx], Gw.loc[idx], Gg.loc[idx]
+            h = d["head_hit"].astype(bool) & d["err_real"].notna()
+            if h.sum() < min_notes:
+                continue
+            rows.append({"group": f"{int(b)}–{int(b) + SPEED_BAND - 1} BPM", "pos": int(pb) + 1,
+                         "rel_err": _wmean(d.loc[h, "err_real"].abs() / dg[h] * 100, dw[h]),
+                         "abs_err": _wmean(d.loc[h, "err_real"].abs(), dw[h]),
+                         "miss_rate": _rate(~d["head_hit"], dw), "n": int(h.sum())})
+    return pd.DataFrame(rows, columns=cols)
+
+
 def stream_fall_behind(O: pd.DataFrame, min_run: int = FALL_BEHIND_MIN_RUN, min_notes: int = 10,
                        reach_bpm: float | None = None) -> dict:
     """Where your precision in long streams starts to fall apart (stamina inside a stream).
@@ -640,7 +671,8 @@ def stream_fall_behind(O: pd.DataFrame, min_run: int = FALL_BEHIND_MIN_RUN, min_
            "curve": pd.DataFrame(columns=["pos", "abs_err", "err", "n"]), "start_note": None,
            "start_seconds": None, "bpm": None, "slope_after": math.nan, "growth_ms": math.nan,
            "base_ms": math.nan, "streams": 0, "longest": 0, "comfort_notes": None, "practice_notes": None,
-           "reach_bpm": reach_bpm}
+           "reach_bpm": reach_bpm,
+           "curves_bpm": pd.DataFrame(columns=["group", "pos", "rel_err", "abs_err", "miss_rate", "n"])}
     if O is None or O.empty or "run_len" not in O:
         return out
     P = _played(O)
@@ -677,6 +709,7 @@ def stream_fall_behind(O: pd.DataFrame, min_run: int = FALL_BEHIND_MIN_RUN, min_
                          "n": int(h.sum())})
     if rows:
         out["curves"] = pd.DataFrame(rows)
+    out["curves_bpm"] = _fall_behind_by_speed(L, Lw, min_notes)
     if len(g) < 6:
         return out
     curve = pd.DataFrame({"pos": g.index.to_numpy() + 1, "abs_err": (g["sa"] / g["sw"]).to_numpy(),
@@ -688,6 +721,8 @@ def stream_fall_behind(O: pd.DataFrame, min_run: int = FALL_BEHIND_MIN_RUN, min_
     sw = np.sqrt(cw)
     best = None
     for k in x[2:-3]:
+        if k < FALL_BEHIND_MIN_START:     # the first notes of a stream are not stamina
+            continue
         h = np.maximum(0.0, x - k)
         X = np.column_stack([np.ones_like(x), h])
         coef, *_ = np.linalg.lstsq(X * sw[:, None], y * sw, rcond=None)
@@ -1107,6 +1142,9 @@ def _subset_score(P: pd.DataFrame, mask: pd.Series, model, min_n: int = 60) -> d
     return out
 
 
+LOW_DATA_REPLAYS = 30      # fewer replays than this: every skill is marked "few data"
+LOW_DATA_MAPS = 10         # ... or a skill measured on fewer maps
+LOW_DATA_NOTES = 2000      # accuracy: single notes
 FEW_MISSES = 3            # fewer misses than this (and expected) can't be compared: "too few misses to tell"
 FEW_MISSES_NOTES = 500    # ... for consistency, on at least this many notes
 ACCURACY_ZERO = 0.50      # accuracy score: 0 at 50% 300s on single notes ...
@@ -1136,6 +1174,7 @@ STAMINA_WINDOWS = (10, 30, 60, 120, 300)      # seconds
 # reference plays of ~10★ players give about 0.52 / 0.45 / 0.40 / 0.37 and 0.71 / 0.61 / 0.52 / 0.42 at 10 s … 2 min)
 STAMINA_WINDOW_SHARE = {10: 0.55, 30: 0.47, 60: 0.41, 120: 0.38, 300: 0.33}
 STAMINA_MIN_MAPS = 2          # a duration counts once 2+ maps were played that long
+STAMINA_BOOST = 1.05          # temporary +5% (review) until more players' data sets the yardstick
 STAMINA_POINTS = 75.0         # points per doubling of the tempo (≈ 10 points for 10% faster)
 PRESSED_REASONS = ("early", "late", "aim", "notelock")   # misses where a key was pressed
 
@@ -1333,7 +1372,7 @@ def stamina_score(P: pd.DataFrame, tapping: dict | None = None, level: float | N
         out["best"][W] = float(per_map.iloc[0])
         out["parts"][W] = _clip(50 + STAMINA_POINTS * math.log2(max(v, 1e-6) / out["ref_curve"][W]))
     if out["parts"] and out["n"] >= 3:
-        out["score"] = float(np.mean(list(out["parts"].values())))
+        out["score"] = min(100.0, float(np.mean(list(out["parts"].values()))) * STAMINA_BOOST)
     # information: long streams and how steady your taps stayed in them
     L = stream_loads(P, presses=presses)
     long_all = L[L["notes"] >= STAMINA_RUN] if len(L) else L
@@ -1364,6 +1403,7 @@ def _dur(W: float) -> str:
 
 # ------------------------------------------------------------------ sliders
 SLIDER_FOLLOW_SLACK = 1.0   # circle diameters of slider path the follow circle covers without moving
+SLIDER_SHORT = 0.5          # ... short sliders still count as half a diameter of movement (holding them)
 SLIDER_TOP = 30             # per play: the hardest 30 sliders whose head you hit
 SLIDER_MIN = 10             # ... a play needs 10+ such sliders
 SLIDER_MIN_MAPS = 3
@@ -1385,7 +1425,7 @@ def slider_difficulty(S: pd.DataFrame) -> pd.Series:
     speed = S["slider_vel_real"].astype(float).fillna(0) * 1000.0 / diam
     eff = (S["slider_len"].astype(float).fillna(0) / diam - SLIDER_FOLLOW_SLACK).clip(lower=0)
     spans = S["slider_spans"].astype(float).fillna(1).clip(lower=1)
-    length = np.log2(1 + eff * (1 + np.log2(spans)))
+    length = np.log2(1 + (eff + SLIDER_SHORT) * (1 + np.log2(spans)))
     col = lambda c: S[c].astype(float).fillna(0) if c in S else pd.Series(0.0, index=S.index)  # noqa: E731
     shape = 1 + 0.5 * (col("slider_turn") / math.pi).clip(upper=4) \
         + 0.3 * col("slider_corners").clip(upper=4) + 0.2 * col("slider_bends").clip(upper=4)
@@ -1489,7 +1529,7 @@ def _weighted(P: pd.DataFrame, weights: pd.Series) -> pd.DataFrame:
 # ------------------------------------------------------------------ jump aim
 AIM_TOP = 30              # per play: the 30 fastest jumps (cursor speed needed) set its intensity
 AIM_COMBO_POWER = 0.8     # x (your max combo / the map's max combo)^0.8, like osu!'s pp
-AIM_REF = 16.0            # 50 = this value at 6 stars ...
+AIM_REF = 17.5            # 50 = this value at 6 stars (16 → 17.5 after review: aim read a little high) ...
 AIM_REF_STEP = 12.0       # ... x2 every 12 stars (the cursor speed of jumps grows slowly with star rating)
 AIM_POINTS = 25.0         # points per doubling of the value
 
@@ -1552,7 +1592,7 @@ def aim_score(P: pd.DataFrame, level: float | None = None, n_total: int | None =
 FLOW_TOP = 50             # per play: the 50 fastest spaced-stream notes set its cursor speed
 FLOW_AMOUNT = 100.0       # spaced-stream notes for the full amount: ×(notes / 100)^0.25, 0.6–1.5
 FLOW_AMOUNT_RANGE = (0.6, 1.5)
-FLOW_REF = 10.0           # 50 = this value at 6 stars, ×2 every 12 stars
+FLOW_REF = 11.0           # 50 = this value at 6 stars, ×2 every 12 stars (10 → 11 after review)
 FLOW_REF_STEP = 12.0
 FLOW_POINTS = 25.0
 
@@ -1610,7 +1650,9 @@ def flow_score(P: pd.DataFrame, level: float | None = None, n_total: int | None 
 
 # ------------------------------------------------------------------ reading
 READ_AR_STEP = 3.0        # every 3 AR below what is usual for the map's star rating doubles the reading demand
-READ_AR_MIN = 0.6         # higher AR than usual lowers it, to at most 0.6
+READ_AR_MIN = 1.0         # the AR factor never lowers the value
+READ_AR_HIGH_STEP = 1.5   # every 1.5 AR above the usual AR doubles it too (reaction to fast approach)
+READ_LOW_AR, READ_HIGH_AR = 8.0, 10.0   # sub-scores: maps below AR 8 / from AR 10
 READ_NPS = 5.0            # circles per second (during play, breaks left out) at which low AR counts fully ...
 READ_NPS_RANGE = (0.25, 2.0)  # ... the AR difference counts × circles per second ÷ 5 (0.25–2)
 READ_HD, READ_FL = 1.2, 1.6   # hidden / flashlight hide the notes: more to read
@@ -1619,7 +1661,7 @@ READ_BPM_NOTES = 4        # the first 4 notes after a BPM change show whether yo
 READ_BPM_FULL = 8         # 8+ BPM changes in a map = the full BPM-change bonus (×1.5 when you hit them as 300s)
 READ_BPM_BONUS = 0.5
 READ_ACC_POWER = 8.0      # × accuracy^8: 99% = 0.92, 95% = 0.66, 90% = 0.43, 85% = 0.27
-READ_REF = 0.95 ** 8      # 50 = usual AR for the map, 95% accuracy, no BPM changes
+READ_REF = 0.95 ** 8 * 1.3   # 50 = a little above the usual AR for the map at 95% (×1.3 after review)
 READ_POINTS = 25.0        # points per doubling of the value
 
 
@@ -1657,7 +1699,8 @@ def reading_values(P: pd.DataFrame) -> pd.DataFrame:
         active = float(gaps[(gaps > 0) & (gaps <= 5.0)].sum())
         nps = len(tt) / active if active > 0 else READ_NPS
         busy = float(np.clip(nps / READ_NPS, *READ_NPS_RANGE))
-        f_ar = max(READ_AR_MIN, 2 ** ((float(usual_ar(stars)) - ar) / READ_AR_STEP * busy))
+        diff = float(usual_ar(stars)) - ar
+        f_ar = max(READ_AR_MIN, 2 ** (diff / READ_AR_STEP * busy), 2 ** (-diff / READ_AR_HIGH_STEP * busy))
         if "hidden" in d and bool(d["hidden"].iloc[0]):
             f_ar *= READ_HD
         if "flashlight" in d and bool(d["flashlight"].iloc[0]):
@@ -1682,7 +1725,8 @@ def reading_score(P: pd.DataFrame, n_total: int | None = None) -> dict:
     accurately (:func:`reading_values`); one value per map (best pass), weighted like osu!'s pp
     (:func:`ranked_mean`); 50 = the usual AR for the map at 95% accuracy, +25 per doubling."""
     out = {"score": None, "n": 0, "value": math.nan, "maps": 0, "lowest_ar": math.nan, "bpm_maps": 0,
-           "bpm_hit": math.nan, "best": None}
+           "bpm_hit": math.nan, "best": None, "low_ar_score": None, "high_ar_score": None, "low_ar_maps": 0,
+           "high_ar_maps": 0}
     V = reading_values(P)
     if V.empty:
         return out
@@ -1695,6 +1739,12 @@ def reading_score(P: pd.DataFrame, n_total: int | None = None) -> dict:
     out["best"] = {"ar": float(b["ar"]), "accuracy": float(b["accuracy"]), "bpm_changes": int(b["bpm_changes"])}
     if len(B) >= 3:
         out["score"] = _clip(50 + READ_POINTS * math.log2(max(out["value"], 1e-6) / READ_REF))
+    # the same, only on low-AR maps (below AR 8) and only on high-AR maps (AR 10+)
+    for name, sel in (("low_ar", B["ar"] < READ_LOW_AR), ("high_ar", B["ar"] >= READ_HIGH_AR)):
+        part = B[sel]
+        out[f"{name}_maps"] = int(len(part))
+        out[f"{name}_score"] = (_clip(50 + READ_POINTS * math.log2(max(ranked_mean(part["value"].to_numpy(), N), 1e-6)
+                                                                   / READ_REF)) if len(part) >= 3 else None)
     return out
 
 
@@ -1753,6 +1803,66 @@ def speed_score(P: pd.DataFrame, level: float | None = None, n_total: int | None
     return out
 
 
+# ------------------------------------------------------------------ consistency
+STEADY_TYPICAL = 2.0      # misses / 100 notes: typical spread between plays of the same difficulty (std) ...
+STEADY_POINTS = 30.0      # ... half the spread = +30, like the miss-chain part
+STEADY_MIN_PLAYS = 5
+
+
+def play_steadiness(P: pd.DataFrame) -> dict:
+    """How steady your plays are from one to the next: per passed play, misses per 100 notes minus what your
+    other plays of a similar star rating (±0.5*) average; ``spread`` = the standard deviation of that (misses /
+    100 notes). A steady player stays close to their usual result on every map; an unsteady one has great
+    and terrible plays at the same difficulty."""
+    out = {"spread": math.nan, "plays": 0}
+    if P is None or P.empty or "replay_key" not in P:
+        return out
+    D = P[P["completed"].astype(bool)] if "completed" in P else P
+    g = D.groupby("replay_key").agg(miss=("head_hit", lambda h: float((~h.astype(bool)).mean() * 100)),
+                                    stars=("stars", "first") if "stars" in D else ("head_hit", "size"))
+    g = g.dropna()
+    if len(g) < STEADY_MIN_PLAYS:
+        return out
+    st_ = g["stars"].to_numpy(float)
+    m = g["miss"].to_numpy(float)
+    dev = []
+    for i in range(len(g)):
+        near = (np.abs(st_ - st_[i]) <= 0.5) & (np.arange(len(g)) != i)
+        if near.sum() >= 2:
+            dev.append(m[i] - m[near].mean())
+    if len(dev) < STEADY_MIN_PLAYS:
+        return out
+    out["spread"] = float(np.std(dev))
+    out["plays"] = int(len(dev))
+    return out
+
+
+def consistency_score(P: pd.DataFrame, weights: pd.Series, n_total: int) -> dict:
+    """Consistency = the average of what can be measured of: **miss chains** (does one miss make you miss more?
+    :func:`miss_chain_ratio`, 50 = typical 2×, half = +30) and **steadiness** (:func:`play_steadiness`: how much
+    your plays of the same difficulty differ, 50 = a spread of 2 misses / 100 notes, half = +30). Either part
+    alone is enough, so the score exists as soon as there are 5+ passed plays."""
+    out = {"score": None, "n": int(len(P)), "miss_after_miss_ratio": math.nan, "chain_score": None,
+           "steady_score": None, "spread": math.nan}
+    if P is None or P.empty:
+        return out
+    ratio = miss_chain_ratio(_weighted(P, weights))
+    out["miss_after_miss_ratio"] = ratio
+    if ratio and not math.isnan(ratio):
+        out["chain_score"] = _clip(50 + 30 * math.log2(TYPICAL_CHAIN_RATIO / ratio))
+    sd = play_steadiness(P)
+    out["spread"], out["steady_plays"] = sd["spread"], sd["plays"]
+    if np.isfinite(sd["spread"]):
+        out["steady_score"] = _clip(50 + STEADY_POINTS * math.log2(STEADY_TYPICAL / max(sd["spread"], 0.05)))
+    parts = [x for x in (out["chain_score"], out["steady_score"]) if x is not None]
+    if parts:
+        out["score"] = float(np.mean(parts))
+    misses = float((~P["head_hit"].astype(bool)).sum())
+    if out["score"] is None and len(P) >= FEW_MISSES_NOTES and misses < FEW_MISSES:
+        out["too_few_misses"] = True        # nothing to chain: no misses to follow a miss
+    return out
+
+
 # ------------------------------------------------------------------ compared with top players
 # The skill values of the top players' reference plays (dev_tools/reference_replays.md, 38 plays, each skill from
 # its own group of 4-5 specialists, computed with these same formulas): 100 = as good as them.
@@ -1762,7 +1872,7 @@ TOP_PLAYERS = {
     "speed": 282.7,           # clean burst / stream BPM of the speed group (MALISZEWSKI, aetrna, milosz)
     "stamina": {10: 237.5, 30: 211.7, 60: 195.0, 120: 141.6, 300: 103.0},   # stamina group; 5 min: mrekk's Save Me
     "accuracy": 0.988,        # single-note 300 share of the accuracy group
-    "sliders": 265.0,         # slider group (MALISZEWSKI AKAGE / Magic people, mrekk Euclid)
+    "sliders": 277.7,         # slider group (MALISZEWSKI AKAGE / Magic people, mrekk Euclid)
     "reading": 16.4,          # reading group (AR0 plays, -GN / JGLF / reowl)
     "consistency": 1.0,       # miss-after-miss ratio 1.0: a miss doesn't make you miss more (top players barely miss)
 }
@@ -1837,16 +1947,14 @@ def _skills(P, model, tapping, sliders, reading, consistency, level: float | Non
                      "n": n_single, "three_hundred_rate": r300, "ur": tapping.get("ur_single")}
     s["sliders"] = slider_score(P, level, n_total=N)
     s["reading"] = reading_score(P, N)
-    Pc = _weighted(P, Wa)
-    ratio = miss_chain_ratio(Pc) if len(P) else math.nan
-    s["consistency"] = {"score": _clip(50 + 30 * math.log2(TYPICAL_CHAIN_RATIO / ratio))
-                        if ratio and not math.isnan(ratio) else None,
-                        "n": int(len(P)), "miss_after_miss_ratio": ratio}
-    misses = float((~P["head_hit"].astype(bool)).sum()) if len(P) else 0.0
-    if s["consistency"]["score"] is None and len(P) >= FEW_MISSES_NOTES and misses < FEW_MISSES:
-        s["consistency"]["too_few_misses"] = True        # nothing to chain: no misses to follow a miss
+    s["consistency"] = consistency_score(P, Wa, N)
     for k, v in s.items():
         v["label"] = SKILL_LABELS[k]
+        maps = v.get("maps") if v.get("maps") is not None else (v.get("plays") or 0)
+        if isinstance(maps, dict):           # stamina: maps per duration
+            maps = max(maps.values(), default=0)
+        v["low_data"] = bool(v.get("score") is not None and (N < LOW_DATA_REPLAYS or (
+            k in ("accuracy",) and (v.get("n") or 0) < LOW_DATA_NOTES) or (0 < maps < LOW_DATA_MAPS)))
     return s
 
 

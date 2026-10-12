@@ -79,6 +79,25 @@ def month_of(date, tz=None) -> str:
     return _utc(date).astimezone(tz).strftime("%Y-%m")
 
 
+PERIODS = ("month", "week", "day")
+
+
+def period_of(date, period: str = "month", tz=None) -> str:
+    """The period a replay date falls in, in ``tz``: 'YYYY-MM' (month), 'YYYY-Www' (ISO week) or 'YYYY-MM-DD'."""
+    d = _utc(date).astimezone(tz)
+    if period == "day":
+        return d.strftime("%Y-%m-%d")
+    if period == "week":
+        y, w, _ = d.isocalendar()
+        return f"{y}-W{w:02d}"
+    return d.strftime("%Y-%m")
+
+
+def _metric_key(period: str, key: str) -> str:
+    """month_metrics keeps months as they are (older databases) and days / weeks as 'day:…' / 'week:…'."""
+    return key if period == "month" else f"{period}:{key}"
+
+
 def _value(v):
     if v is None or isinstance(v, (str, int)):
         return v
@@ -124,7 +143,8 @@ def rebuild_months(conn: sqlite3.Connection, player: str, analyses, tz=None) -> 
     threshold = full.reading.get("dense_threshold")
     by_month = defaultdict(list)
     for a in analyses:
-        by_month[month_of(a.meta["date"], tz)].append(a)
+        for period in PERIODS:      # months, ISO weeks and days, each kept under its own key
+            by_month[_metric_key(period, period_of(a.meta["date"], period, tz))].append(a)
     now = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     for month, group in by_month.items():
         if len(group) < FEW_PLAYS:   # a play or two say little about a month's skill
@@ -175,9 +195,26 @@ def _fc(df: pd.DataFrame) -> pd.Series:
 
 def monthly(conn: sqlite3.Connection, player: str) -> pd.DataFrame:
     """One row per month with plays: counts, star rating, accuracy, skills (``skill_<name>``) etc."""
+    return by_period(conn, player, "month")
+
+
+def by_period(conn: sqlite3.Connection, player: str, period: str = "month", since: dt.date | None = None,
+              until: dt.date | None = None, tz=None) -> pd.DataFrame:
+    """Like :func:`monthly`, per ``period`` ("month", "week" or "day"; the ``month`` column holds the period's
+    key), only plays from ``since`` to ``until`` (dates in ``tz``, both included)."""
     df = pd.read_sql_query("SELECT * FROM replays WHERE player = ?", conn, params=(player,))
     if df.empty:
         return pd.DataFrame(columns=["month", "plays"])
+    local = pd.to_datetime(df["played_at"], utc=True, format="ISO8601").dt.tz_convert(
+        tz or dt.datetime.now().astimezone().tzinfo)
+    if since is not None:
+        df, local = df[local.dt.date >= since], local[local.dt.date >= since]
+    if until is not None:
+        df, local = df[local.dt.date <= until], local[local.dt.date <= until]
+    if df.empty:
+        return pd.DataFrame(columns=["month", "plays"])
+    if period != "month":
+        df = df.assign(month=[period_of(t.to_pydatetime(), period, tz) for t in local])
     df["completed"] = df["completed"].fillna(0).astype(bool)
     first = df.groupby("beatmap_md5")["month"].min()
     g = df.groupby("month")
@@ -195,6 +232,11 @@ def monthly(conn: sqlite3.Connection, player: str) -> pd.DataFrame:
     out["ur"] = g["ur"].median()
     mm = pd.read_sql_query("SELECT month, name, value FROM month_metrics WHERE player = ?", conn,
                            params=(player,))
+    if period != "month":
+        prefix = f"{period}:"
+        mm = mm[mm["month"].str.startswith(prefix)].assign(month=lambda d: d["month"].str[len(prefix):])
+    else:
+        mm = mm[~mm["month"].str.contains(":")]
     for name in [f"skill_{k}" for k in SKILL_LABELS] + ["stream_bpm", "ur_single", "aim_err"]:
         vals = mm[mm["name"] == name].set_index("month")["value"]
         out[name] = vals.reindex(out.index).astype(float)
@@ -202,10 +244,15 @@ def monthly(conn: sqlite3.Connection, player: str) -> pd.DataFrame:
     return out.sort_index().reset_index().rename(columns={"index": "month"})
 
 
-def month_plays(conn: sqlite3.Connection, player: str, month: str) -> pd.DataFrame:
-    """The plays of one month, newest first."""
-    df = pd.read_sql_query("SELECT * FROM replays WHERE player = ? AND month = ? ORDER BY played_at DESC", conn,
-                           params=(player, month))
+def month_plays(conn: sqlite3.Connection, player: str, month: str, period: str = "month", tz=None) -> pd.DataFrame:
+    """The plays of one month (or of one week / day: ``period`` and its key), newest first."""
+    if period == "month":
+        df = pd.read_sql_query("SELECT * FROM replays WHERE player = ? AND month = ? ORDER BY played_at DESC",
+                               conn, params=(player, month))
+    else:
+        df = pd.read_sql_query("SELECT * FROM replays WHERE player = ? ORDER BY played_at DESC", conn,
+                               params=(player,))
+        df = df[[period_of(t, period, tz) == month for t in df["played_at"]]]
     df["completed"] = df["completed"].fillna(0).astype(bool)
     df["fc"] = _fc(df)
     return df

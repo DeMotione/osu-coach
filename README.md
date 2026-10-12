@@ -112,11 +112,11 @@ replays* opens with **Detailed map analysis**. It shows:
 The check is saved in the progress history. Command line: `osu-coach check` (newest replay) or
 `osu-coach check path/to/replay.osr`.
 
-### Progress by month
+### Progress by month, week or day
 
 Every analysis is also saved in `progress.sqlite` in the osu! coach data folder, one row per replay, so
 the history stays even after replays are deleted. The **Progress** page (or `osu-coach progress`) shows,
-per month: plays, maps and maps played for the first time, play time, star rating (comfortable level,
+per month, ISO week or day (*Group by*), for any date range you pick: plays, maps and maps played for the first time, play time, star rating (comfortable level,
 average, hardest clean pass = finished with at most 5 misses per 100 notes, hardest full combo),
 accuracy, UR, stream speed and the skills. Monthly skill scores are measured against one miss model
 fitted on all your replays — 50 = your all-time average at the same difficulty, higher = fewer misses
@@ -169,16 +169,17 @@ reached (speed, stamina, sliders: one value per map, your best play of it); the 
 1/N less, N = replays analysed (100 replays: 100%, 99%, 98% …). The other statistics keep the level weighting.
 **Jump aim** (`aim_values`, `aim_score`): distance × speed × combo. Per passed play, the average cursor speed
 of its 30 fastest jumps / spaced notes (distance in circle diameters ÷ the real time to get there) × (your max
-combo ÷ the map's max combo)^0.8, like osu!'s pp; pp-weighted over maps (best pass of each); 50 = 16 circles/s at
+combo ÷ the map's max combo)^0.8, like osu!'s pp; pp-weighted over maps (best pass of each); 50 = 17.5 circles/s at
 full combo at 6★ (×2 every 12★), +25 per doubling. **Flow aim** (`flow_values`, `flow_score`): per passed play the 50 fastest spaced-stream notes' cursor speed
 (spacing in circle widths ÷ real time, so wider and faster both count) × (spaced-stream notes ÷ 100)^0.25
-(0.6–1.5) × combo^0.8; pp-weighted; 50 = 10 at 6★ (×2 every 12★). Overview also shows every skill **vs top
+(0.6–1.5) × combo^0.8; pp-weighted; 50 = 11 at 6★ (×2 every 12★). Overview also shows every skill **vs top
 players** (`top_comparison`): the same formulas with 10★ as the yardstick (50 = typical 10★ player; never above
 your own-level score) plus ◆ markers for the reference groups' values (`TOP_PLAYERS`) on that scale.
 **Reading** (`reading_values`, `reading_score`): per passed play 2^((usual AR for its star rating − its AR with
-mods) / 3 × circles per second ÷ 5 (during play, breaks of 5+ s left out; 0.25–2): low AR on a slow map counts little) (usual AR = 5 + 0.75 × stars, 5–10.5; higher than usual down to 0.6) × 1.2 with HD × 1.6 with FL ×
+mods) / 3 × circles per second ÷ 5 (during play, breaks of 5+ s left out; 0.25–2): low AR on a slow map counts little) (usual AR = 5 + 0.75 × stars, 5–10.5; higher than usual counts too: ×2 per 1.5 AR above it — reaction) × 1.2 with HD × 1.6 with FL ×
 (1 + 0.5 × min(1, BPM changes ÷ 8) × your 300 share on the 4 notes after each change) × accuracy^8; pp-weighted
-over maps; 50 = usual AR at 95% accuracy, +25 per doubling.
+over maps; 50 = 1.3 × usual AR at 95% accuracy, +25 per doubling. Overview also shows the same score on maps
+below AR 8 only (*low AR*) and AR 10+ only (*high AR*), 3+ maps each.
 **Tapping speed** (`speed_values`, `speed_score`): per play the 3rd fastest clean burst / stream (3+ notes; no
 finger miss — no tap, too early / late, notelock; cursor misses don't count — and 80%+ of its hit notes as 300s);
 pp-weighted over maps; 50 = `stamina_ref_bpm` of your level, 75 points per doubling.
@@ -186,8 +187,14 @@ pp-weighted over maps; 50 = `stamina_ref_bpm` of your level, 75 points per doubl
 (circle diameters per second) × length (log2 of 1 + the path beyond what the follow circle covers; repeats add)
 × shape (+½ per half circle of turning up to 2 turns, +0.3 per sharp corner, +0.2 per left↔right bend, up to 4
 each) × speed change (vs the previous slider within 2 s, up to ×2) × rush (up to ×1.5 when the next note comes
-< 250 ms after the end). Per play the 30 hardest sliders whose head you hit count: their average × (share held)³;
-pp-weighted over maps; score = 50 + 25 × log2(value ÷ typical for your level; 40 at 6★, ×2 every 3★).
+< 250 ms after the end). Per play the 30 hardest sliders whose head you hit count: their average × (share held)³ (short sliders count as ½ circle diameter of path more, so
+holding many short ones counts too); pp-weighted over maps; score = 50 + 25 × log2(value ÷ typical for your level; 40 at 6★, ×2 every 3★).
+
+**Stamina** (score) is ×1.05 for now, until more players' data sets its yardstick. **Consistency**
+(`consistency_score`) = the average of *miss chains* (misses in the 10 notes after a miss vs the miss model, 50 =
+typical 2×, half = +30) and *steadiness* (how much your passed plays of a similar star rating, ±0.5★, differ in
+misses per 100 notes: 50 = a spread of 2, half = +30); either part alone gives a score, from 5 passed plays on.
+Skills measured on fewer than 30 replays, 10 maps (accuracy: 2,000 single notes) are marked *few data*.
 
 *Stamina in long streams* (Tapping page) shows how precise your taps stay through streams of 16+ notes:
 the average **absolute** timing error (early and late alike — the plain average cancels them out to ~0) on

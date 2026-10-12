@@ -84,6 +84,21 @@ def test_month_plays_lists_the_maps_of_a_month(tmp_path):
     assert list(plays["played_at"]) == sorted(plays["played_at"], reverse=True)
 
 
+def test_progress_by_day_and_week_in_a_date_range(tmp_path):
+    conn = _two_months(tmp_path)
+    days = progress.by_period(conn, "P", "day", tz=UTC)
+    assert len(days) >= 4 and all(len(k) == 10 for k in days["month"])          # YYYY-MM-DD
+    assert days["plays"].sum() == progress.monthly(conn, "P")["plays"].sum()
+    weeks = progress.by_period(conn, "P", "week", tz=UTC)
+    assert all("-W" in k for k in weeks["month"])
+    sep = progress.by_period(conn, "P", "day", since=dt.date(2026, 9, 1), until=dt.date(2026, 9, 30), tz=UTC)
+    assert sep["plays"].sum() == 3 and all(k.startswith("2026-09") for k in sep["month"])
+    first = sep["month"].iloc[0]
+    assert len(progress.month_plays(conn, "P", first, "day", tz=UTC)) == sep["plays"].iloc[0]
+    assert progress.period_of(dt.datetime(2026, 10, 12, 22, 30), "day", EEST) == "2026-10-13"
+    assert progress.period_of(dt.datetime(2026, 10, 12, 12), "week", UTC) == "2026-W42"
+
+
 # ------------------------------------------------------------------ skills by month (needs real analyses)
 @pytest.fixture(scope="module")
 def nm():
