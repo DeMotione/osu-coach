@@ -11,9 +11,22 @@ interface Props {
   build: (theme: ChartTheme) => Option;
   /** Minimum height (px); the chart also grows to fill its card. */
   height?: number;
+  /** A square card whose plot area is square too (axes equal), leaving room for labels and the legend. */
   square?: boolean;
   label: string;
   events?: Record<string, Handler>;
+}
+
+// Room around a square plot area: y labels | x labels, axis name and legend.
+const PAD = { left: 40, right: 10, top: 10, bottom: 72 };
+
+function squarePlot(c: echarts.ECharts) {
+  const w = c.getWidth() - PAD.left - PAD.right;
+  const h = c.getHeight() - PAD.top - PAD.bottom;
+  const side = Math.max(0, Math.min(w, h));
+  c.setOption({
+    grid: { left: PAD.left + (w - side) / 2, top: PAD.top, width: side, height: side, outerBoundsMode: "none" },
+  });
 }
 
 /**
@@ -30,18 +43,24 @@ export function Chart({ build, height = 320, square = false, label, events }: Pr
     if (!node) return;
     const c = echarts.init(node, undefined, { renderer: "canvas" });
     chart.current = c;
-    const ro = new ResizeObserver(() => c.resize());
+    const ro = new ResizeObserver(() => {
+      c.resize();
+      if (square) squarePlot(c);
+    });
     ro.observe(node);
     return () => {
       ro.disconnect();
       c.dispose();
       chart.current = null;
     };
-  }, []);
+  }, [square]);
 
   useEffect(() => {
-    chart.current?.setOption(build(chartTheme(dark)), { notMerge: true, lazyUpdate: true });
-  }, [build, dark]);
+    const c = chart.current;
+    if (!c) return;
+    c.setOption(build(chartTheme(dark)), { notMerge: true });
+    if (square) squarePlot(c);
+  }, [build, dark, square]);
 
   useEffect(() => {
     const c = chart.current;
@@ -56,11 +75,12 @@ export function Chart({ build, height = 320, square = false, label, events }: Pr
 
   return (
     <div
-      ref={el}
       className={square ? "chart chart--square" : "chart"}
       style={{ ["--chart-h" as string]: `${height}px` }}
       role="img"
       aria-label={label}
-    />
+    >
+      <div ref={el} className="chart__canvas" />
+    </div>
   );
 }

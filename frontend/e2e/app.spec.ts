@@ -93,6 +93,10 @@ test("scan, analyse and read every page", async ({ page }) => {
       await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
       await expect(page.locator(".skeleton")).toHaveCount(0, { timeout: 60_000 });
       await page.waitForTimeout(400);       // charts lay out after their card has its size
+      const chartHeights = () => page.locator(".chart").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+      const before = await chartHeights();
+      await page.waitForTimeout(1000);
+      expect(await chartHeights(), `charts grew on ${url} at ${width}px`).toEqual(before);
       expect(await layoutProblems(page), `${url} at ${width}px`).toEqual([]);
     }
   }

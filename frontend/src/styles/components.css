@@ -874,6 +874,12 @@ input[type="range"] {
   width: 100%;
 }
 
+/* The canvas is out of flow: its size must never feed back into the card's height. */
+.chart__canvas {
+  position: absolute;
+  inset: 0;
+}
+
 .chart--square {
   flex: none;
   width: min(100%, 540px);
