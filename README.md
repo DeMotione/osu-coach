@@ -27,75 +27,27 @@ osu.direct and osu.ppy.sh (verified), and downloading playlist maps from public 
 ## Install (Windows)
 
 Download `osu-coach-<version>-setup.exe` from the latest release on GitHub (**Releases**) and run it. No
-Python, no Node.js and no admin rights needed: it installs for your user, adds a Start menu (and optional desktop)
+Python and no admin rights needed: it installs for your user, adds a Start menu (and optional desktop)
 shortcut, and opens the app in your browser. A small window stays open while osu! coach runs; close it to
 quit. Updating = installing a newer setup over it; your settings, replays cache and progress are kept.
 The installed `osu-coach.exe` also runs the command line, e.g. `osu-coach.exe analyze --latest 100`.
 
-The app is a progressive web app: in Chrome or Edge, *Install osu! coach* in the address bar gives it its own
-window and Start menu entry. Its pages open even while osu! coach isn't running and say so until you start it.
+Building the installer yourself: `pip install pyinstaller`, then `python packaging/make_icon.py`,
+`python -m PyInstaller packaging/osu-coach.spec --noconfirm` and (Inno Setup 6)
+`ISCC.exe /DAppVersion=1.6.1 packaging/installer.iss` → `dist/osu-coach-1.6.1-setup.exe`.
 
 ## Run from source
 
-Windows: double-click `run.bat`. Linux/macOS: `./run.sh`. Both need Python 3.11+, and Node.js 22.12+ to build
-the web app once. The first run installs the Python packages into `.venv` and builds the web app, then the app opens
-in your browser at http://localhost:8501.
+Windows: double-click `run.bat`. Linux/macOS: `./run.sh`. Both need Python 3.11+. The first run
+installs the dependencies into `.venv`, then the app opens in your browser.
 
 Or manually:
 
 ```
 python -m venv .venv
-.venv/bin/pip install -c constraints.txt -e ./core -e ./api     # Windows: .venv\Scripts\pip ...
-cd frontend && npm ci && npm run build && cd ..
+.venv/bin/pip install -e .          # Windows: .venv\Scripts\pip install -e .
 .venv/bin/osu-coach ui
 ```
-
-## How the project is built
-
-```
-core/       osu-coach        the domain: replay parsing, judgement re-simulation, skill profile, tips, map pool,
-                             progress history, playlists — and the `osu-coach` command line (Python)
-api/        osu-coach-api    the HTTP API over the domain (FastAPI), API reference with Scalar at /docs;
-                             also serves the built web app
-frontend/   osu-coach-web    the web app: React + TypeScript progressive web app (Vite, TanStack Query, ECharts)
-packaging/                   Windows installer (PyInstaller + Inno Setup) and the app icons
-```
-
-```
- browser (PWA)  ──HTTP /api──►  osu-coach-api (FastAPI)  ──Python──►  osu-coach (domain)
-   frontend/                       api/                               core/
-                                   localhost only                     replays, beatmaps, settings.json,
-                                   background jobs                    analysis cache, progress.sqlite
-```
-
-* **core** knows nothing about the web. `osu_coach.insights` holds the chart aggregations, so the API only translates.
-* **api** keeps the state of the session (scanned library, analysed replays, the profile built from them) in one
-  process — osu! coach is a single-user app on your own computer. Slow work (scanning, analysing, downloading) runs
-  as background jobs the web app follows. It only answers to `localhost` and refuses requests that change something
-  when they come from another web site. Every request and response has a schema; the OpenAPI document is at
-  `/api/openapi.json` and the readable reference (Scalar) at http://localhost:8501/docs.
-* **frontend** gets its TypeScript types generated from that OpenAPI document, so an API change that breaks the web
-  app is a compile error. Layout rule: every page is a column of full-width cards, rows of two equal-height cards
-  and grids of equal tiles that always fill their rows (see `frontend/README.md`).
-
-### Development
-
-```
-make install        # Python packages (editable) + web app dependencies
-make api            # API on :8501           (osu-coach-api)
-make web            # web app on :5173, forwarding /api and /docs to :8501
-make test lint      # pytest (core, api), vitest; ruff, tsc, eslint
-make e2e            # build, then drive the app in Chromium against the real API
-make openapi        # after changing an API schema: regenerate the web app's types
-```
-
-The same commands without `make` are in the `Makefile`; CI (`.github/workflows/ci.yml`) runs all of them, also on
-Python 3.11. `constraints.txt` pins the versions everything is tested with.
-
-Building the Windows installer: build the web app (`cd frontend && npm ci && npm run build`), then
-`pip install pyinstaller pillow`, `python packaging/make_icon.py`, `python -m PyInstaller packaging/osu-coach.spec
---noconfirm` and (Inno Setup 6) `ISCC.exe /DAppVersion=2.0.0 packaging/installer.iss` →
-`dist/osu-coach-2.0.0-setup.exe`.
 
 ### Where the replays come from
 
@@ -148,8 +100,8 @@ sensitivity, rapid trigger) and the map suggestions. *Set my level by hand* over
 
 ### Calibration on top players' replays
 
-`core/dev_tools/reference_analysis.py` scores 38 near-perfect plays of top players (WhiteCat, mrekk, chocomint,
-MALISZEWSKI, -GN, …; list in `core/dev_tools/reference_replays.md`, the .osr files go in `core/reference_replays/`, not in
+`dev_tools/reference_analysis.py` scores 38 near-perfect plays of top players (WhiteCat, mrekk, chocomint,
+MALISZEWSKI, -GN, …; list in `dev_tools/reference_replays.md`, the .osr files go in `reference_replays/`, not in
 git) skill by skill. What it changed: **Accuracy** = (300s on single notes − 50%) ÷ 49%, so 100 = 99% 300s (was
 95%, which every top player passed: they now spread from ~87 to 99). Aim, flow aim, speed, reading and
 consistency compare your misses with what the difficulty predicts; a player who barely misses has nothing to
@@ -218,9 +170,9 @@ Skills: `aim flow_aim speed stamina accuracy sliders reading consistency quadran
      A hit is always inside the circle, so only aim misses land outside it.
    - The quadrant result uses a significance test, so noise isn't reported as a weakness.
 5. **Tips and maps** are built from those numbers. Every tip shows the evidence it is based on.
-6. **The app** shows all of this on ten pages (Replays, Detailed Map Analysis, Overview, Progress, Aim, Tapping,
-   Sliders & Reading, Tips & Setup, Map Suggestion, Skill Development). Light and dark mode follow your system or
-   the switch at the bottom of the sidebar, and the charts follow them; pointing at a chart shows its values.
+6. **Light and dark mode** follow Streamlit's Settings → theme (or your system); the charts follow it too.
+   Charts can't be zoomed by click-and-drag (hover still shows the values), and the sidebar's collapse
+   button is always visible.
 
 Limitations: lazer replays only record left/right, not which key or mouse button was used, so the
 keyboard-vs-mouse-button tip uses stable replays only. Replays from much older lazer clients (e.g. 2022)
