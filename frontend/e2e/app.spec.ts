@@ -5,7 +5,7 @@ import path from "node:path";
 
 /** The sample replays of the core tests, with their beatmaps, copied into a folder to scan. */
 function playsFolder(): string {
-  const res = path.resolve("..", "core", "tests", "resources");
+  const res = path.resolve("..", "backend", "tests", "resources");
   const index = JSON.parse(fs.readFileSync(path.join(res, "index.json"), "utf-8")) as { replay: string; md5: string }[];
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "osu-coach-plays-"));
   for (const r of index) {
