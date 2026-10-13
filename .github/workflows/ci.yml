@@ -35,6 +35,9 @@ jobs:
       - name: Lint
         working-directory: backend
         run: ruff check .
+      - name: Import layering
+        working-directory: backend
+        run: lint-imports
       - name: Test
         working-directory: backend
         run: pytest
