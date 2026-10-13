@@ -212,7 +212,7 @@ def cmd_analyze(args) -> int:
           f"{_num(ov['misses_per_100'], '.1f')} misses per 100 notes | accuracy {_num(ov['accuracy'] * 100, '.1f')}%")
     print(f"Judgement check: re-simulated results match the replay exactly on {ov['sim_exact_share']:.0%} of "
           f"replays ({ov['sim_agreement']:.1%} of judgements)")
-    print("\nSkills (50 = as many misses as expected for the difficulty; higher is better)")
+    print("\nSkills (0-100, 50 = typical for your level; higher is better)")
     for k, s in prof.skills.items():
         score = s.get("score")
         note = f"{_num(score, '.0f'):>3}" if score is not None else "  ?"
@@ -502,6 +502,12 @@ def cmd_ui(args) -> int:
     # Streamlit's theme into one custom theme, and its Settings → light / dark switch stops working.
     if args.no_browser:
         cmd += ["--server.headless", "true"]
+    if getattr(sys, "frozen", False):
+        # the installed .exe has no separate Python to start: run Streamlit in this process
+        from streamlit.web import cli as stcli
+        print("osu! coach is running in your browser. Close this window to quit.", flush=True)
+        sys.argv = ["streamlit"] + cmd[3:] + ["--global.developmentMode", "false", "--logger.level", "error"]
+        return stcli.main()
     return subprocess.call(cmd)
 
 

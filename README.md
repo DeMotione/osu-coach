@@ -23,7 +23,19 @@ Analyses your own osu!standard replays and tells you what to work on:
 Everything runs locally. The only network use is downloading beatmaps you don't have, by MD5 from
 osu.direct and osu.ppy.sh (verified), and downloading playlist maps from public mirrors.
 
-## Run it
+## Install (Windows)
+
+Download `osu-coach-<version>-setup.exe` from the latest release on GitHub (**Releases**) and run it. No
+Python and no admin rights needed: it installs for your user, adds a Start menu (and optional desktop)
+shortcut, and opens the app in your browser. A small window stays open while osu! coach runs; close it to
+quit. Updating = installing a newer setup over it; your settings, replays cache and progress are kept.
+The installed `osu-coach.exe` also runs the command line, e.g. `osu-coach.exe analyze --latest 100`.
+
+Building the installer yourself: `pip install pyinstaller`, then `python packaging/make_icon.py`,
+`python -m PyInstaller packaging/osu-coach.spec --noconfirm` and (Inno Setup 6)
+`ISCC.exe /DAppVersion=1.6.1 packaging/installer.iss` → `dist/osu-coach-1.6.1-setup.exe`.
+
+## Run from source
 
 Windows: double-click `run.bat`. Linux/macOS: `./run.sh`. Both need Python 3.11+. The first run
 installs the dependencies into `.venv`, then the app opens in your browser.
