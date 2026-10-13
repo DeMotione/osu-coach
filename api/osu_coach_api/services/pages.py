@@ -249,9 +249,9 @@ def clicks(objects: pd.DataFrame, view: str) -> S.Clicks:
     drawn = insights.click_sample(C)
     labels = [label for _, _, label in CLICK_BANDS]
     summary_out = S.ClickSummary(
-        n=int(s["n"]), mean_px=(num(s["mean_px"][0]), num(s["mean_px"][1])),
-        mean_r=(num(s["mean_r"][0]), num(s["mean_r"][1])), ci_px=num(s["ci_px"]),
-        sd_px=(num(s["sd_px"][0]), num(s["sd_px"][1])), radius=num(s["radius"]),
+        n=int(s["n"]), mean_px=[num(s["mean_px"][0]), num(s["mean_px"][1])],
+        mean_r=[num(s["mean_r"][0]), num(s["mean_r"][1])], ci_px=num(s["ci_px"]),
+        sd_px=[num(s["sd_px"][0]), num(s["sd_px"][1])], radius=num(s["radius"]),
         bands=[S.ClickBand(label=k, share=num(s["bands"].get(k))) for k in labels])
     return S.Clicks(view=view, enough=True, n=len(C), drawn=len(drawn),
                     x=[round(float(v), 4) for v in drawn["x"]], y=[round(float(v), 4) for v in drawn["y"]],
@@ -315,7 +315,7 @@ def _fall_behind(ws: Workspace, p: Profile) -> S.FallBehind:
         available=available, start_note=integer(fb.get("start_note")), start_seconds=num(fb.get("start_seconds")),
         bpm=num(fb.get("bpm")), base_ms=num(fb.get("base_ms")), growth_ms=num(fb.get("growth_ms")),
         last_note=int(curve["pos"].max()) if curve is not None and len(curve) else None, comfort_notes=comfort,
-        practice_notes=(int(lo), int(hi)) if lo is not None and hi is not None else None,
+        practice_notes=[int(lo), int(hi)] if lo is not None and hi is not None else None,
         streams=int(fb.get("streams") or 0), curves=pts, by_speed=by_speed,
         by_speed_groups=[S.FallBehindSpeedGroup(**g) for g in speed["groups"]], worst_speed=speed["worst"],
         comfortable_maps=comfortable_maps, practice_maps=practice_maps)

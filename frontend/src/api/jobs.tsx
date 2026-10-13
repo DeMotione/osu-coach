@@ -1,0 +1,133 @@
+/* eslint-disable react-refresh/only-export-components -- the provider and its hook belong together */
+import { useQueryClient } from "@tanstack/react-query";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+
+import { ApiError, api, unwrap, type Job } from "./client";
+import { invalidateLibrary, invalidateResults } from "./queries";
+
+/** One slot per kind of background work: starting a new job replaces the slot's last one. */
+export type JobKind = Job["kind"];
+type Slots = Partial<Record<JobKind, Job>>;
+
+interface JobsContext {
+  jobs: Slots;
+  /** Start a job (the request that answers with it) and follow it until it has finished. */
+  start: (request: Promise<Job>) => Promise<Job>;
+  dismiss: (kind: JobKind) => void;
+}
+
+const Ctx = createContext<JobsContext | null>(null);
+const POLL_MS = 450;
+
+export function JobsProvider({ children }: { children: ReactNode }) {
+  const qc = useQueryClient();
+  const [jobs, setJobs] = useState<Slots>({});
+  const polling = useRef(new Set<string>());
+
+  const finished = useCallback(
+    (job: Job) => {
+      if (job.status !== "succeeded") return;
+      if (job.kind === "scan") void invalidateLibrary(qc);
+      if (job.kind === "analysis") void invalidateResults(qc);
+    },
+    [qc],
+  );
+
+  const follow = useCallback(
+    (job: Job) => {
+      setJobs((s) => ({ ...s, [job.kind]: job }));
+      if (job.status !== "running") {
+        finished(job);
+        return;
+      }
+      if (polling.current.has(job.id)) return;
+      polling.current.add(job.id);
+      const tick = async () => {
+        let next: Job;
+        try {
+          next = await unwrap(api.GET("/api/jobs/{job_id}", { params: { path: { job_id: job.id } } }));
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 404) {
+            // the server restarted: the job is gone
+            polling.current.delete(job.id);
+            setJobs((s) => ({ ...s, [job.kind]: { ...job, status: "failed", error: "The app was restarted." } }));
+            return;
+          }
+          window.setTimeout(tick, POLL_MS * 4);
+          return;
+        }
+        setJobs((s) => (s[next.kind]?.id === next.id || !s[next.kind] ? { ...s, [next.kind]: next } : s));
+        if (next.status === "running") {
+          window.setTimeout(tick, POLL_MS);
+        } else {
+          polling.current.delete(job.id);
+          finished(next);
+        }
+      };
+      window.setTimeout(tick, POLL_MS);
+    },
+    [finished],
+  );
+
+  // after a reload: follow the jobs still running on the server
+  useEffect(() => {
+    unwrap(api.GET("/api/jobs"))
+      .then((running) => running.forEach(follow))
+      .catch(() => undefined);
+  }, [follow]);
+
+  const start = useCallback(
+    async (request: Promise<Job>) => {
+      const job = await request;
+      follow(job);
+      return job;
+    },
+    [follow],
+  );
+
+  const dismiss = useCallback((kind: JobKind) => {
+    setJobs((s) => {
+      const next = { ...s };
+      if (next[kind]?.status !== "running") delete next[kind];
+      return next;
+    });
+  }, []);
+
+  const value = useMemo(() => ({ jobs, start, dismiss }), [jobs, start, dismiss]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function useJobs(): JobsContext {
+  const ctx = useContext(Ctx);
+  if (!ctx) throw new Error("useJobs outside JobsProvider");
+  return ctx;
+}
+
+/** The slot's job and a function to start a new one; ``error`` = why the start was refused. */
+export function useJob(kind: JobKind) {
+  const { jobs, start, dismiss } = useJobs();
+  const [error, setError] = useState<ApiError | null>(null);
+  const job = jobs[kind];
+  const run = useCallback(
+    async (request: () => Promise<Job>) => {
+      setError(null);
+      try {
+        return await start(request());
+      } catch (e) {
+        setError(e instanceof ApiError ? e : new ApiError(0, "error", String(e)));
+        return null;
+      }
+    },
+    [start],
+  );
+  return {
+    job,
+    running: job?.status === "running",
+    error,
+    run,
+    dismiss: () => {
+      setError(null);
+      dismiss(kind);
+    },
+  };
+}

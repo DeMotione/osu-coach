@@ -8,6 +8,14 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 from .errors import NotFound
 
+# Content types of the web app's files, fixed here: Python guesses them from the system (the Windows registry
+# often maps .js to text/plain, and browsers then refuse to run the app's module scripts).
+MEDIA_TYPES = {
+    ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8", ".json": "application/json", ".webmanifest": "application/manifest+json",
+    ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".woff2": "font/woff2", ".woff": "font/woff",
+    ".txt": "text/plain; charset=utf-8", ".map": "application/json",
+}
 IMMUTABLE = {"Cache-Control": "public, max-age=31536000, immutable"}   # hashed file names (assets/)
 REVALIDATE = {"Cache-Control": "no-cache"}                              # index.html, service worker, manifest
 
@@ -34,5 +42,6 @@ def mount(app: FastAPI, web_dir: Path | None) -> None:
         if path:
             f = (root / path).resolve()
             if f.is_file() and root in f.parents:
-                return FileResponse(f, headers=IMMUTABLE if f.parent.name == "assets" else REVALIDATE)
-        return FileResponse(root / "index.html", headers=REVALIDATE)
+                return FileResponse(f, media_type=MEDIA_TYPES.get(f.suffix.lower()),
+                                    headers=IMMUTABLE if f.parent.name == "assets" else REVALIDATE)
+        return FileResponse(root / "index.html", media_type=MEDIA_TYPES[".html"], headers=REVALIDATE)

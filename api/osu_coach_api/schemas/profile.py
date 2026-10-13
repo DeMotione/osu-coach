@@ -223,10 +223,10 @@ class ClickBand(BaseModel):
 
 class ClickSummary(BaseModel):
     n: int
-    mean_px: tuple[float | None, float | None]
-    mean_r: tuple[float | None, float | None]
+    mean_px: list[float | None] = Field(min_length=2, max_length=2, description="[x, y], osu!px.")
+    mean_r: list[float | None] = Field(min_length=2, max_length=2, description="[x, y], circle radii.")
     ci_px: float | None
-    sd_px: tuple[float | None, float | None]
+    sd_px: list[float | None] = Field(min_length=2, max_length=2, description="[sideways, up/down], osu!px.")
     radius: float | None
     bands: list[ClickBand]
 
@@ -349,7 +349,7 @@ class FallBehind(BaseModel):
     growth_ms: float | None
     last_note: int | None
     comfort_notes: int | None
-    practice_notes: tuple[int, int] | None
+    practice_notes: list[int] | None = Field(min_length=2, max_length=2, description="[from, to] notes.")
     streams: int
     curves: list[FallBehindPoint]
     by_speed: list[FallBehindSpeedPoint]

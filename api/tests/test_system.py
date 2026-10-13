@@ -61,6 +61,11 @@ def test_serves_the_web_app_with_client_side_routes(tmp_path):
         asset = c.get("/assets/app-1234.js")
         assert asset.text == "console.log(1)" and "immutable" in asset.headers["cache-control"]
         assert c.get("/sw.js").headers["cache-control"] == "no-cache"
+        # fixed content types, not the system's guess (Windows often says text/plain for .js)
+        assert asset.headers["content-type"].startswith("text/javascript")
+        (web / "manifest.webmanifest").write_text("{}")
+        assert c.get("/manifest.webmanifest").headers["content-type"] == "application/manifest+json"
+        assert index.headers["content-type"].startswith("text/html")
         leak = c.get("/..%2Fsecret.txt")
         assert "secret" not in leak.text
 
