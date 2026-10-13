@@ -25,7 +25,7 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `"${python}" -m osu_coach_api --port ${port}`,
+    command: `"${python}" -m osu_coach --port ${port}`,
     url: `http://localhost:${port}/api/health`,
     reuseExistingServer: false,
     timeout: 60_000,

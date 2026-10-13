@@ -1,4 +1,4 @@
-# The versions osu! coach is tested with (pip install -c constraints.txt -e ./core -e ./api). The packages' own
+# The versions osu! coach is tested with (pip install -c constraints.txt -e .). The packages' own
 # requirements stay loose; this file makes installs and CI reproducible. Update it together with a test run.
 annotated-types==0.8.0
 anyio==4.15.1

@@ -3,11 +3,11 @@
 # then opens the app. Needs Python 3.11+ and, for the first build of the web app, Node.js 22.12+.
 set -e
 cd "$(dirname "$0")"
-if [ ! -x .venv/bin/osu-coach-api ]; then
+if ! .venv/bin/python -c "import osu_coach.main" 2>/dev/null; then
   echo "First run: setting up (this takes a minute)..."
   python3 -m venv .venv
   .venv/bin/python -m pip install --quiet --upgrade pip
-  .venv/bin/python -m pip install --quiet -c constraints.txt -e ./core -e ./api
+  .venv/bin/python -m pip install --quiet -c constraints.txt -e ./backend
 fi
 # (re)build the web app when it is missing or older than its sources (e.g. after a git pull)
 if [ ! -f frontend/dist/index.html ] || \

@@ -2,7 +2,7 @@
 rem osu! coach launcher (Windows): sets up the Python packages and builds the web app on the first run, then opens
 rem the app. Needs Python 3.11+ and, for the first build of the web app, Node.js 22.12+.
 cd /d "%~dp0"
-if exist ".venv\Scripts\osu-coach-api.exe" goto web
+if exist ".venv\Scripts\python.exe" ".venv\Scripts\python.exe" -c "import osu_coach.main" 2>nul && goto web
 
 echo First run: setting up ^(this takes a minute^)...
 if exist ".venv" rmdir /s /q ".venv"
@@ -20,7 +20,7 @@ if defined PY (
 if not exist ".venv\Scripts\python.exe" goto nopython
 ".venv\Scripts\python.exe" -c "import sys; sys.exit(sys.version_info < (3, 11))" || goto oldpython
 ".venv\Scripts\python.exe" -m pip install --quiet --upgrade pip
-".venv\Scripts\python.exe" -m pip install --quiet -c constraints.txt -e .\core -e .\api || goto pipfail
+".venv\Scripts\python.exe" -m pip install --quiet -c constraints.txt -e backend || goto pipfail
 
 :web
 if exist "frontend\dist\index.html" goto run
