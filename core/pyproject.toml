@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "osu-coach"
+version = "2.0.0"
+description = "osu! coach domain: replay parsing, judgement re-simulation, skill profile, tips, map pool and playlists."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "requests>=2.31",
+    "rosu-pp-py>=4,<5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "osrparse>=7", "ruff>=0.6"]
+
+[project.scripts]
+osu-coach = "osu_coach.cli:main"
+
+[tool.setuptools]
+packages = ["osu_coach"]
+
+[tool.setuptools.package-data]
+osu_coach = ["data/*.json.gz"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["dev_tools"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]
+ignore = ["E501", "E731", "B905", "B007", "B023", "E741", "I001"]
+
+[tool.ruff.lint.per-file-ignores]
+# unused locals that predate the linter; left as they are so the analysis code stays untouched
+"osu_coach/analysis.py" = ["F841"]
+"osu_coach/features.py" = ["F841"]
+"tests/test_weighting.py" = ["F841"]

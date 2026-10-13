@@ -5,14 +5,12 @@ import shutil
 import numpy as np
 import pandas as pd
 import pytest
-from streamlit.testing.v1 import AppTest
 
 from osu_coach import progress
 from osu_coach.analysis import ReplayAnalysis, analyze_files
 from osu_coach.cli import main
 from osu_coach.library import Library
 from tests.conftest import replay_and_map
-from tests.test_app import APP
 
 UTC = dt.timezone.utc
 EEST = dt.timezone(dt.timedelta(hours=3))     # Tallinn in summer
@@ -178,17 +176,3 @@ def test_cli_saves_progress_and_prints_it(tmp_path, capsys):
     assert main(["progress", "--cache", cache]) == 0
     out = capsys.readouterr().out
     assert "Mot1one" in out and "2026-09" in out and "comfort" in out.lower()
-
-
-def test_progress_page(tmp_path, monkeypatch):
-    monkeypatch.setenv("OSU_COACH_CACHE", str(tmp_path))
-    at = AppTest.from_file(APP, default_timeout=120)
-    at.session_state["page"] = "Progress"
-    at.run()
-    assert not at.exception and at.info                  # nothing stored yet: says how to fill it
-    _two_months(tmp_path).close()
-    at = AppTest.from_file(APP, default_timeout=120)
-    at.session_state["page"] = "Progress"
-    at.run()
-    assert not at.exception, [e.value for e in at.exception]
-    assert any(t.value["Map"].str.contains("Map cccc").any() for t in at.dataframe if "Map" in t.value)

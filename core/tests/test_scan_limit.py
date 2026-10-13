@@ -6,17 +6,14 @@ import os
 import shutil
 from pathlib import Path
 
-from streamlit.testing.v1 import AppTest
 
-import osu_coach
 from osu_coach import locate
 from osu_coach.analysis import UNSUPPORTED_LAZER_MODS
 from osu_coach.cli import main
-from osu_coach.library import Library, analysable, load_settings, skip_reason
+from osu_coach.library import Library, analysable, skip_reason
 from osu_coach.osr import lazer_info, lazer_mod_acronyms, parse_header
 from tests.conftest import replay_and_map
 
-APP = str(Path(osu_coach.__file__).parent / "webapp" / "app.py")
 MINE = ["mot1one__lazer_nm.osr", "mot1one__lazer_dthd_spinner.osr", "mot1one__lazer_failed.osr"]  # old -> new
 OTHERS = ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr",
           "circlecore__legit__legit_snaps-22.osr"]
@@ -203,30 +200,3 @@ def test_cli_latest_reads_and_analyses_only_the_newest(tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "osu-coach report — Mot1one: 1 newest replays" in out
-
-
-def test_app_scan_follows_the_replay_count_choice(tmp_path, monkeypatch):
-    monkeypatch.setenv("OSU_COACH_CACHE", str(tmp_path / "cache"))
-    folder = tmp_path / "plays"
-    folder.mkdir()
-    for n in OTHERS[:2]:
-        rp, mp, _ = replay_and_map(n)
-        shutil.copy(rp, folder / n)
-        shutil.copy(mp, folder / f"{n}.osu")
-    at = AppTest.from_file(APP, default_timeout=180)
-    at.run()
-
-    def choice():
-        return next(r for r in at.radio if r.label == "Replays to read")
-    assert choice().value == 500
-    choice().set_value(100).run()
-    at.text_area[0].set_value(str(folder)).run()
-    next(b for b in at.button if b.label == "Scan").click().run()
-    assert not at.exception, [e.value for e in at.exception]
-    assert at.session_state["lib"].scan_limit == 100
-    choice().set_value(0).run()          # "All": the same sources are scanned again, completely
-    assert not at.exception, [e.value for e in at.exception]
-    assert at.session_state["lib"].scan_limit is None
-    assert load_settings(tmp_path / "cache")["latest"] == 0
-    next(b for b in at.button if b.label == "Analyse replays").click().run()
-    assert not at.exception, [e.value for e in at.exception]

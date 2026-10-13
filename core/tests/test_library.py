@@ -1,7 +1,6 @@
 import hashlib
 import shutil
 
-import pytest
 
 from osu_coach import library as libmod
 from osu_coach import locate

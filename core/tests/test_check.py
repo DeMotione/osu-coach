@@ -5,15 +5,12 @@ import shutil
 
 import pandas as pd
 import pytest
-from streamlit.testing.v1 import AppTest
 
 from osu_coach import check, progress
 from osu_coach.analysis import analyze_files
 from osu_coach.beatmap import read_metadata
 from osu_coach.cli import main
-from osu_coach.library import Library
 from tests.conftest import replay_and_map
-from tests.test_app import APP
 from tests.test_progress import MINE, _fake
 
 UTC = dt.timezone.utc
@@ -191,46 +188,3 @@ def test_cli_checks_a_given_replay(tmp_path, capsys):
     assert _title("mot1one__lazer_nm.osr") in out and "2 misses" in out
     # the check is saved in the history like any analysis
     assert progress.players(progress.connect(tmp_path / "cache")) == [("Mot1one", 1)]
-
-
-def _page(tmp_path, monkeypatch, **state):
-    monkeypatch.setenv("OSU_COACH_CACHE", str(tmp_path / "cache"))
-    at = AppTest.from_file(APP, default_timeout=180)
-    at.session_state["page"] = "Detailed Map Analysis"
-    for k, v in state.items():
-        at.session_state[k] = v
-    return at.run()
-
-
-def test_check_page_shows_the_newest_replay_and_others_on_request(tmp_path, monkeypatch):
-    lib = Library(tmp_path / "cache")
-    lib.add_folder(_plays(tmp_path))
-    at = _page(tmp_path, monkeypatch, lib=lib)
-    assert not at.exception, [e.value for e in at.exception]
-    assert _title("mot1one__lazer_failed.osr") in at.subheader[0].value
-    assert any(s.value == "Misses and combo breaks" for s in at.subheader)
-    assert any(s.value == "All your plays of this map" for s in at.subheader)
-    labels = {m.label for m in at.metric}
-    assert {"BPM", "UR", "Speed", "AR", "OD", "CS", "HP", "Length"} <= labels
-    assert next(t for t in at.toggle if t.label == "Only plays of this map").value is False   # nothing opened yet
-    pick = next(s for s in at.selectbox if s.label == "Replay")
-    pick.set_value(2).run()                          # the oldest of the three
-    assert not at.exception, [e.value for e in at.exception]
-    assert _title("mot1one__lazer_nm.osr") in at.subheader[0].value
-
-
-def test_check_page_opens_the_replay_chosen_on_the_replays_page(tmp_path, monkeypatch):
-    lib = Library(tmp_path / "cache")
-    folder = _plays(tmp_path)
-    lib.add_folder(folder)
-    at = _page(tmp_path, monkeypatch, lib=lib, check_path=str(folder / "mot1one__lazer_dthd_spinner.osr"))
-    assert not at.exception, [e.value for e in at.exception]
-    assert _title("mot1one__lazer_dthd_spinner.osr") in at.subheader[0].value
-    # opened from the Replays page: the list shows that map's plays only (here: this one play)
-    assert next(t for t in at.toggle if t.label == "Only plays of this map").value is True
-    assert len(next(s for s in at.selectbox if s.label == "Replay").options) == 1
-
-
-def test_check_page_without_replays_says_what_to_do(tmp_path, monkeypatch):
-    at = _page(tmp_path, monkeypatch)
-    assert not at.exception and at.info

@@ -11,7 +11,6 @@ import argparse
 import json
 from collections import Counter
 import math
-import subprocess
 import sys
 from pathlib import Path
 
@@ -491,24 +490,14 @@ def _print_check(a, cmp: dict) -> None:
 
 
 def cmd_ui(args) -> int:
-    app = Path(__file__).parent / "webapp" / "app.py"
-    # localhost only: the app reads and writes local files, so it must not be reachable from the network
-    # (also avoids the Windows firewall prompt on first start)
-    cmd = [sys.executable, "-m", "streamlit", "run", str(app), "--server.port", str(args.port),
-           "--server.address", "localhost",
-           "--browser.gatherUsageStats", "false", "--client.toolbarMode", "viewer",
-           "--theme.light.primaryColor", "#e0408a", "--theme.dark.primaryColor", "#ff66aa"]
-    # only the accent colour, separately for light and dark: a fixed base / background / text colour turns
-    # Streamlit's theme into one custom theme, and its Settings → light / dark switch stops working.
-    if args.no_browser:
-        cmd += ["--server.headless", "true"]
-    if getattr(sys, "frozen", False):
-        # the installed .exe has no separate Python to start: run Streamlit in this process
-        from streamlit.web import cli as stcli
-        print("osu! coach is running in your browser. Close this window to quit.", flush=True)
-        sys.argv = ["streamlit"] + cmd[3:] + ["--global.developmentMode", "false", "--logger.level", "error"]
-        return stcli.main()
-    return subprocess.call(cmd)
+    """The app: the HTTP API (``osu-coach-api`` package) serving the web frontend. Imported lazily, so the
+    domain package doesn't depend on the web layer; without it only the command line is available."""
+    try:
+        from osu_coach_api.server import serve
+    except ImportError:
+        raise SystemExit("The app needs the osu-coach-api package (pip install -e api). "
+                         "The command line works without it: osu-coach analyze --help") from None
+    return serve(port=args.port, open_browser=not args.no_browser)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -539,9 +528,9 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--cache", help="cache folder (default: per-user cache dir)")
         p.add_argument("-q", "--quiet", action="store_true")
 
-    p = sub.add_parser("ui", help="open the app")
+    p = sub.add_parser("ui", help="open the app (needs the osu-coach-api package)")
     p.add_argument("--port", type=int, default=8501)
-    p.add_argument("--no-browser", action="store_true")
+    p.add_argument("--no-browser", action="store_true", help="only start the server")
     p.set_defaults(func=cmd_ui)
     p = sub.add_parser("locate", help="show detected osu! installs")
     p.set_defaults(func=cmd_locate)
