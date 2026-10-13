@@ -241,4 +241,6 @@ Files in `reference_replays/` (ignored by git); `dev_tools/reference_analysis.py
     (or set `CHROME=`).
 - `dev_data/` is not in git or in the archive. Recreate it with:
   `python dev_tools/fetch_test_data.py dev_data` and
-  `python dev_tools/fetch_pool_raw.py dev_data/pool_raw 40 100`.
+  `python dev_tools/fetch_pool_raw.py dev_data/pool_raw 120 5000 0.85` (12,000 most-played sets → 5,000
+  difficulties, 85%+ at 2–8★; maps no mirror has are replaced from the same 0.25★ step), then
+  `python dev_tools/build_pool.py dev_data/pool_raw`. 2026-10: 4,968 maps / 2,514 sets (was 2,682), 4,511 at 2–8★.

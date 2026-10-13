@@ -165,7 +165,8 @@ def test_targets_fallback_for_a_new_player():
 @pytest.mark.skipif(not POOL_PATH.exists(), reason="bundled pool not built")
 def test_bundled_pool_covers_beginner_to_advanced():
     pool = load_pool()
-    assert len(pool) >= 2000
+    assert len(pool) >= 4500
+    assert pool["stars"].between(2, 8, inclusive="left").mean() > 0.8      # most of it is 2-8 stars
     assert pool["md5"].is_unique
     assert pool["stars"].min() < 1.5 and pool["stars"].max() > 7.5
     assert {"s_" + s for s in SKILLS} <= set(pool.columns)

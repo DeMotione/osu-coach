@@ -14,7 +14,8 @@ Analyses your own osu!standard replays and tells you what to work on:
 - **Difficulty weighting.** Your level is detected from your recent replays (comfort star rating, with
   mods such as DT/HR); every replay counts by how close its star rating is to it, so warm-ups on easy maps
   or a 9★ map played for fun don't distort the numbers (see below).
-- **Map Suggestion** from a bundled pool of ~2,700 popular ranked maps (0.8–8.5★), each analysed for
+- **Map Suggestion** from a bundled pool of ~5,000 popular ranked maps (1–8.8★, 9 in 10 of them 2–8★,
+  the most played per 0.25★ step), each analysed for
   its patterns, with a one-click download of all suggested maps.
 - **Skill Development.** Builds a staged playlist (warm-up / core / push) for one skill and gets it into
   the game: for **lazer**, one click makes an import folder with the maps and the collection (see
