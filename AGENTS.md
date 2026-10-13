@@ -59,7 +59,7 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs Python 3.11 and 3
 ## Dependencies and versions
 
 - Python dependencies are pinned in [constraints.txt](constraints.txt); install with `-c constraints.txt`.
-- Keep the version (currently 2.0.0) in sync between `backend/pyproject.toml` and `frontend/package.json`.
+- Keep the version (currently 0.9.0) in sync between `backend/pyproject.toml` and `frontend/package.json`.
 
 ## Packaging (Windows)
 

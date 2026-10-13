@@ -95,8 +95,8 @@ Python 3.11. `constraints.txt` pins the versions everything is tested with.
 
 Building the Windows installer: build the web app (`cd frontend && npm ci && npm run build`), then
 `pip install pyinstaller pillow`, `python packaging/make_icon.py`, `python -m PyInstaller packaging/osu-coach.spec
---noconfirm` and (Inno Setup 6) `ISCC.exe /DAppVersion=2.0.0 packaging/installer.iss` →
-`dist/osu-coach-2.0.0-setup.exe`.
+--noconfirm` and (Inno Setup 6) `ISCC.exe /DAppVersion=0.9.0 packaging/installer.iss` →
+`dist/osu-coach-0.9.0-setup.exe`.
 
 ### Where the replays come from
 
