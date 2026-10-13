@@ -18,8 +18,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Version from tag
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          $v = "${{ github.ref_name }}".TrimStart("v")
+          $v = ($env:REF_NAME).TrimStart("v")
           $found = [ordered]@{
             'backend/pyproject.toml' = (Select-String -Path backend/pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
             'backend/src/osu_coach/__init__.py' = (Select-String -Path backend/src/osu_coach/__init__.py -Pattern '^__version__ = "(.+)"').Matches[0].Groups[1].Value
@@ -29,7 +31,7 @@ jobs:
             'desktop/package-lock.json' = (Get-Content desktop/package-lock.json -Raw | ConvertFrom-Json).version
             'desktop/src-tauri/tauri.conf.json' = (Get-Content desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
             'desktop/src-tauri/Cargo.toml' = (Select-String -Path desktop/src-tauri/Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
-            'desktop/src-tauri/Cargo.lock' = (Select-String -Path desktop/src-tauri/Cargo.lock -Pattern '(?m)^name = "osu-coach-desktop"\r?\nversion = "(.+)"').Matches[0].Groups[1].Value
+            'desktop/src-tauri/Cargo.lock' = (Get-Content desktop/src-tauri/Cargo.lock -Raw | Select-String -Pattern '(?m)^name = "osu-coach-desktop"\r?\nversion = "(.+)"').Matches[0].Groups[1].Value
           }
           $bad = $found.GetEnumerator() | Where-Object { $_.Value -ne $v }
           if ($bad) { throw "Tag $v does not match: $(($bad | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ', ')" }
