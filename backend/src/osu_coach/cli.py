@@ -20,9 +20,12 @@ from osu_coach.infrastructure.database import progress
 from osu_coach.infrastructure.http import sources
 from osu_coach.domain.advice import Setup, make_tips, practice_plan
 from osu_coach.infrastructure.filesystem.collection_db import merge_into, write_collection_db
-from osu_coach.infrastructure.filesystem.library import EXCLUDE_MODS, Library, load_settings, save_settings, skip_reason
-from osu_coach.infrastructure.filesystem.pool import SKILLS, Targets, build_playlist, collection_name, load_pool, recommendations, skill_label, \
+from osu_coach.domain.collection_policy import sets_to_download
+from osu_coach.domain.replay_selection import EXCLUDE_MODS, skip_reason
+from osu_coach.infrastructure.filesystem.library import Library, load_settings, save_settings
+from osu_coach.domain.map_recommendations import SKILLS, Targets, build_playlist, collection_name, recommendations, skill_label, \
     targets_from_profile
+from osu_coach.infrastructure.filesystem.map_pool import load_pool
 from osu_coach.domain.profile import MISS_LABELS, build_profile
 
 SEVERITY = {3: "HIGH", 2: "MED ", 1: "LOW "}
@@ -295,7 +298,7 @@ def cmd_playlist(args) -> int:
         if lib is not None and lib.has_unread_maps("lazer"):
             lib.find_maps(set(hashes))       # which playlist maps lazer already has
         have = lib.installed["lazer"] if lib is not None else set()
-        sets = [] if args.no_maps else lazer_import.sets_to_download(zip(pl["md5"], pl["beatmapset_id"]), have)
+        sets = [] if args.no_maps else sets_to_download(zip(pl["md5"], pl["beatmapset_id"]), have)
         log = _log(args.quiet)
         res = lazer_import.build_pack(dest, {name: hashes}, sets, progress=lambda i, n, msg: log(msg))
         print(f"\nlazer import folder: {res['path']}  ({len(res['maps'])} map set(s) + the collection)")

@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from osu_coach.infrastructure.database import progress
+from osu_coach.domain import progress as domain_progress
 from osu_coach.domain.analysis import ReplayAnalysis
 from osu_coach.infrastructure.filesystem.library import analyze_files
 from osu_coach.cli import main
@@ -28,13 +29,6 @@ def _fake(key, date, md5="a" * 32, stars=5.0, misses=0, n=500, completed=True, c
             "n_played": n if completed else n // 2, "completed": completed, "max_combo": combo if not misses else 100,
             "map_max_combo": 700, "ur": 150.0, "score": 1}
     return ReplayAnalysis(key, meta, pd.DataFrame(), pd.DataFrame())
-
-
-def test_month_follows_the_computers_time_zone():
-    late = dt.datetime(2026, 8, 31, 22, 30)            # replay dates are UTC
-    assert progress.month_of(late, UTC) == "2026-08"
-    assert progress.month_of(late, EEST) == "2026-09"
-    assert progress.month_of("2026-08-31T22:30:00", EEST) == "2026-09"
 
 
 def test_plays_are_stored_once_and_kept(tmp_path):
@@ -94,8 +88,6 @@ def test_progress_by_day_and_week_in_a_date_range(tmp_path):
     assert sep["plays"].sum() == 3 and all(k.startswith("2026-09") for k in sep["month"])
     first = sep["month"].iloc[0]
     assert len(progress.month_plays(conn, "P", first, "day", tz=UTC)) == sep["plays"].iloc[0]
-    assert progress.period_of(dt.datetime(2026, 10, 12, 22, 30), "day", EEST) == "2026-10-13"
-    assert progress.period_of(dt.datetime(2026, 10, 12, 12), "week", UTC) == "2026-W42"
 
 
 # ------------------------------------------------------------------ skills by month (needs real analyses)
@@ -153,7 +145,7 @@ def _plays_folder(tmp_path):
 
 
 def test_update_uses_earlier_analyses_from_the_cache(tmp_path, monkeypatch):
-    monkeypatch.setattr(progress, "FEW_PLAYS", 3)        # the three fixture plays make one "full" month
+    monkeypatch.setattr(domain_progress, "FEW_PLAYS", 3)        # the three fixture plays make one "full" month
     lib = Library(tmp_path / "cache")
     lib.add_folder(_plays_folder(tmp_path))
     analyses, _ = lib.analyze(lib.eligible("Mot1one"), workers=1)

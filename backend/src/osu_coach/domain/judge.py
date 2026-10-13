@@ -408,7 +408,7 @@ def simulate(pb: PlayableBeatmap, replay: Replay, rules: str | None = None) -> S
 
     for st in states:
         if st.res.result != -1:
-            _classify_miss(st, pb, replay)
+            classify_miss_reason(st, pb, replay)
 
     counts = {300: 0, 100: 0, 50: 0, 0: 0}
     for r in results:
@@ -473,7 +473,7 @@ def _cursor_at(replay: Replay, t: float) -> tuple[float, float]:
     return float(replay.x[i]), float(replay.y[i])
 
 
-def _classify_miss(st: _ObjState, pb: PlayableBeatmap, replay: Replay):
+def classify_miss_reason(st: _ObjState, pb: PlayableBeatmap, replay: Replay):
     o, r = st.obj, st.res
     if o.is_spinner or r.head_hit or r.miss_reason == "early":
         return

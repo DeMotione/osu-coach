@@ -9,8 +9,9 @@ import pandas as pd
 from osu_coach.infrastructure.filesystem import lazer_import, locate
 from osu_coach.infrastructure.http import sources
 from osu_coach.infrastructure.filesystem.collection_db import dumps as collection_bytes
+from osu_coach.domain.collection_policy import sets_to_download
 from osu_coach.infrastructure.filesystem.collection_db import merge_into
-from osu_coach.infrastructure.filesystem.pool import (
+from osu_coach.domain.map_recommendations import (
     SKILLS,
     Targets,
     build_playlist,
@@ -121,7 +122,7 @@ def _stable_installs(ws: Workspace) -> list[locate.Install]:
 def export_preview(ws: Workspace, req: ExportRequest) -> ExportPreview:
     lib = ws.library
     have = lib.installed["lazer"] if lib is not None else set()
-    sets = lazer_import.sets_to_download(_set_rows(req), have)
+    sets = sets_to_download(_set_rows(req), have)
     stable = _stable_installs(ws)
     osz = stable[0].songs if stable and stable[0].songs else \
         Path.home() / "osu-coach-maps" / lazer_import.safe_name(req.name)
@@ -147,7 +148,7 @@ def build_lazer_pack(ws: Workspace, req: ExportRequest, report: Reporter) -> Laz
     if lib is not None and lib.has_unread_maps("lazer"):
         report.note("Checking which of these maps you already have…")
         lib.find_maps(set(hashes))
-    sets = lazer_import.sets_to_download(rows, lib.installed["lazer"] if lib is not None else set())
+    sets = sets_to_download(rows, lib.installed["lazer"] if lib is not None else set())
     res = lazer_import.build_pack(lazer_import.default_pack_dir(req.name), {req.name: hashes}, sets, progress=report)
     if ws.config.reveal_folders:
         lazer_import.reveal(res["path"])

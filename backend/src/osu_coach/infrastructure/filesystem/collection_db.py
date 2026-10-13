@@ -15,6 +15,8 @@ import shutil
 import struct
 from pathlib import Path
 
+from osu_coach.domain.collection_policy import merge_collections
+
 DEFAULT_VERSION = 20150203   # same version osu-collect / osu-db write
 
 
@@ -140,18 +142,7 @@ def merge_into(path, new_collections, backup: bool = True) -> dict:
             stamp = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
             backup_path = path.with_name(f"{path.name}.osu-coach-backup-{stamp}")
             shutil.copy2(path, backup_path)
-    new = _normalise(new_collections)
-    new_names = {n for n, _ in new}
-    replaced = [n for n, _ in existing if n in new_names]
-    merged = []
-    pending = dict(new)
-    for name, hashes in existing:
-        if name in pending:
-            merged.append((name, pending.pop(name)))
-        else:
-            merged.append((name, hashes))
-    added = list(pending)
-    merged.extend(pending.items())
+    merged, replaced, added = merge_collections(existing, _normalise(new_collections))
     write_collection_db(path, merged, version)
     return {"path": str(path), "backup": str(backup_path) if backup_path else None, "replaced": replaced,
             "added": added, "collections": len(merged)}

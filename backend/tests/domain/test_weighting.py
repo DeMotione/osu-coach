@@ -12,7 +12,8 @@ from osu_coach.infrastructure.filesystem.library import analyze_files
 from osu_coach.domain.profile import (build_profile, detect_level, miss_causes, replay_weight, stamina_score,
                                stream_fall_behind, stream_limits, stream_speed_profile)
 from tests.conftest import replay_and_map
-from osu_coach.infrastructure.filesystem.pool import Targets, load_pool, stream_length_maps
+from osu_coach.domain.map_recommendations import Targets, stream_length_maps
+from osu_coach.infrastructure.filesystem.map_pool import load_pool
 from osu_coach.domain.profile import stamina_ref_bpm
 
 

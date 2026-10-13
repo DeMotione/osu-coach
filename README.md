@@ -53,18 +53,19 @@ cd frontend && npm ci && npm run build && cd ..
 ## How the project is built
 
 ```
-core/       osu-coach        the domain: replay parsing, judgement re-simulation, skill profile, tips, map pool,
-                             progress history, playlists — and the `osu-coach` command line (Python)
-api/        osu-coach-api    the HTTP API over the domain (FastAPI), API reference with Scalar at /docs;
-                             also serves the built web app
+backend/    osu-coach        Python package, in three layers:
+              domain/          pure analysis: judgement re-simulation, skill profile, tips, map recommendations,
+                               progress, playlists
+              infrastructure/  I/O only: replay and beatmap files, collection.db, HTTP sources, SQLite
+              api/             the HTTP API (FastAPI), API reference with Scalar at /docs; also serves the built
+                               web app. The `osu-coach` command line is `cli.py`
 frontend/   osu-coach-web    the web app: React + TypeScript progressive web app (Vite, TanStack Query, ECharts)
 packaging/                   Windows installer (PyInstaller + Inno Setup) and the app icons
 ```
 
 ```
- browser (PWA)  ──HTTP /api──►  osu-coach-api (FastAPI)  ──Python──►  osu-coach (domain)
-   frontend/                       api/                               core/
-                                   localhost only                     replays, beatmaps, settings.json,
+ browser (PWA)  ──HTTP /api──►  backend/…/api (FastAPI)  ──Python──►  domain/ + infrastructure/
+   frontend/                       localhost only                     replays, beatmaps, settings.json,
                                    background jobs                    analysis cache, progress.sqlite
 ```
 
@@ -148,8 +149,8 @@ sensitivity, rapid trigger) and the map suggestions. *Set my level by hand* over
 
 ### Calibration on top players' replays
 
-`core/dev_tools/reference_analysis.py` scores 38 near-perfect plays of top players (WhiteCat, mrekk, chocomint,
-MALISZEWSKI, -GN, …; list in `core/dev_tools/reference_replays.md`, the .osr files go in `core/reference_replays/`, not in
+`backend/tools/reference_analysis.py` scores 38 near-perfect plays of top players (WhiteCat, mrekk, chocomint,
+MALISZEWSKI, -GN, …; list in `backend/tools/reference_replays.md`, the .osr files go in `backend/tools/reference_replays/`, not in
 git) skill by skill. What it changed: **Accuracy** = (300s on single notes − 50%) ÷ 49%, so 100 = 99% 300s (was
 95%, which every top player passed: they now spread from ~87 to 99). Aim, flow aim, speed, reading and
 consistency compare your misses with what the difficulty predicts; a player who barely misses has nothing to

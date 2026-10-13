@@ -12,7 +12,8 @@ from osu_coach.domain import check, insights
 from osu_coach.infrastructure.filesystem import locate
 from osu_coach.infrastructure.database import progress
 from osu_coach.infrastructure.filesystem.beatmap import read_metadata
-from osu_coach.infrastructure.filesystem.library import EXCLUDE_MODS, Library, analysable, skip_reason
+from osu_coach.domain.replay_selection import EXCLUDE_MODS, analysable, skip_reason
+from osu_coach.infrastructure.filesystem.library import Library
 from osu_coach.domain.profile import build_profile
 
 from osu_coach.api.convert import flag, integer, iso, num, text

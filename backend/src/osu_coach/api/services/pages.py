@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from osu_coach.domain import insights
 from osu_coach.domain.advice import Setup, Tip, aim_calibration, make_tips, practice_plan, sayo_settings, suggest_tablet_area
-from osu_coach.infrastructure.filesystem.pool import stream_length_maps, targets_from_profile
+from osu_coach.domain.map_recommendations import stream_length_maps, targets_from_profile
 from osu_coach.domain.profile import (
     CLICK_BANDS,
     SKILL_LABELS,

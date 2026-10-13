@@ -18,7 +18,7 @@ from osu_coach.domain import selection
 from osu_coach.domain.advice import Setup
 from osu_coach.domain.analysis import ReplayAnalysis
 from osu_coach.infrastructure.filesystem.library import Library, default_cache_dir, load_settings, save_settings
-from osu_coach.infrastructure.filesystem.pool import load_pool
+from osu_coach.infrastructure.filesystem.map_pool import load_pool
 from osu_coach.domain.profile import Profile, build_profile
 
 from osu_coach.config import Settings

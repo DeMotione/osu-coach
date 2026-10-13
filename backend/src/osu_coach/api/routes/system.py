@@ -3,9 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from osu_coach.infrastructure.filesystem import lazer_import
-from osu_coach.infrastructure.database import progress
 from osu_coach.domain import selection
-from osu_coach.infrastructure.filesystem.pool import SKILLS, skill_label
+from osu_coach.domain.progress import PERIODS
+from osu_coach.domain.map_recommendations import SKILLS, skill_label
 from osu_coach.domain.profile import LEVEL_BAND, LEVEL_SIGMA, MISS_LABELS, SKILL_HELP, SKILL_LABELS
 
 from osu_coach import __version__
@@ -34,5 +34,5 @@ def meta(request: Request) -> Meta:
         miss_causes=[MissCauseMeta(key=k, description=v) for k, v in MISS_LABELS.items()],
         date_choices=[Choice(key=k, label=selection.DATE_LABELS[k]) for k in selection.DATE_CHOICES],
         replay_sets=[Choice(key=k, label=selection.REPLAY_SET_LABELS[k]) for k in selection.REPLAY_SETS],
-        best_definition=selection.BEST_DEFINITION, latest_choices=LATEST_CHOICES, periods=list(progress.PERIODS),
+        best_definition=selection.BEST_DEFINITION, latest_choices=LATEST_CHOICES, periods=list(PERIODS),
         lazer_instructions=list(lazer_import.INSTRUCTIONS), level_band=LEVEL_BAND, level_sigma=LEVEL_SIGMA)

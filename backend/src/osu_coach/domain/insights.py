@@ -15,15 +15,14 @@ import numpy as np
 import pandas as pd
 
 from osu_coach.domain.analysis import ReplayAnalysis
-from osu_coach.domain.profile import Profile
+from osu_coach.domain.profile import Profile, played_notes
 
 # ------------------------------------------------------------------ helpers
 
 
 def played(p: Profile) -> pd.DataFrame:
     """Notes that were reached in the play, without spinners."""
-    O = p.objects
-    return O[O["played"] & (O["kind"] != "spinner")]
+    return played_notes(p.objects)
 
 
 def weights(df: pd.DataFrame) -> np.ndarray:

@@ -10,7 +10,8 @@ from pathlib import Path
 from osu_coach.infrastructure.filesystem import locate
 from osu_coach.domain.analysis import UNSUPPORTED_LAZER_MODS
 from osu_coach.cli import main
-from osu_coach.infrastructure.filesystem.library import Library, analysable, skip_reason
+from osu_coach.domain.replay_selection import analysable, skip_reason
+from osu_coach.infrastructure.filesystem.library import Library
 from osu_coach.infrastructure.filesystem.osr import lazer_info, lazer_mod_acronyms, parse_header
 from tests.conftest import replay_and_map
 

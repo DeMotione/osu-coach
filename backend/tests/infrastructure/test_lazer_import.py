@@ -3,6 +3,7 @@ import io
 import zipfile
 from pathlib import Path
 
+from osu_coach.domain.collection_policy import sets_to_download
 from osu_coach.infrastructure.filesystem import lazer_import
 from osu_coach.cli import main
 from osu_coach.infrastructure.filesystem.collection_db import loads, read_collection_db
@@ -63,8 +64,8 @@ def test_zip_contains_the_folder_without_maps():
 
 def test_only_sets_with_missing_difficulties_are_downloaded():
     rows = [("a" * 32, 10), ("b" * 32, 10), ("c" * 32, 11), ("d" * 32, 12)]
-    assert lazer_import.sets_to_download(rows, {"a" * 32, "c" * 32}) == [10, 12]
-    assert lazer_import.sets_to_download(rows, set()) == [10, 11, 12]
+    assert sets_to_download(rows, {"a" * 32, "c" * 32}) == [10, 12]
+    assert sets_to_download(rows, set()) == [10, 11, 12]
 
 
 def test_cli_makes_the_lazer_folder(tmp_path, capsys):

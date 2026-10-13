@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from osu_coach.infrastructure.filesystem.pool import POOL_PATH, map_stats, save_pool
+from osu_coach.infrastructure.filesystem.map_pool import POOL_PATH, save_pool, stats_from_osu
 
 META_KEYS = ("beatmap_id", "beatmapset_id", "status", "playcount", "passcount", "favourites", "set_playcount",
              "ranked_date")
@@ -20,7 +20,7 @@ def work(args):
     p = Path(raw) / "osu" / f"{d['beatmap_id']}.osu"
     if not p.exists():
         return None
-    s = map_stats(p.read_bytes())
+    s = stats_from_osu(p.read_bytes())
     if not s:
         return None
     for k in META_KEYS:

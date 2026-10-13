@@ -9,7 +9,8 @@ from tests.api.conftest import wait, workspace
 from osu_coach.infrastructure.filesystem import lazer_import
 from osu_coach.infrastructure.http import sources
 from osu_coach.infrastructure.filesystem.collection_db import loads
-from osu_coach.infrastructure.filesystem.pool import POOL_PATH, SKILLS
+from osu_coach.domain.map_recommendations import SKILLS
+from osu_coach.infrastructure.filesystem.map_pool import POOL_PATH
 
 pytestmark = pytest.mark.skipif(not POOL_PATH.exists(), reason="bundled pool not built")
 

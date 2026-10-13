@@ -146,7 +146,7 @@ class Profile:
 
 
 # ------------------------------------------------------------------ helpers
-def _played(O: pd.DataFrame) -> pd.DataFrame:
+def played_notes(O: pd.DataFrame) -> pd.DataFrame:
     return O[(O["played"]) & (O["kind"] != "spinner")]
 
 
@@ -303,7 +303,7 @@ def miss_causes(O: pd.DataFrame) -> pd.Series:
 
 # ------------------------------------------------------------------ aim
 def quadrant_stats(O: pd.DataFrame) -> pd.DataFrame:
-    P = _played(O)
+    P = played_notes(O)
     rows = []
     for q in QUADRANTS:
         d = P[P["quadrant"] == q]
@@ -346,7 +346,7 @@ def worst_quadrant(q: pd.DataFrame) -> dict | None:
 
 
 def grid_stats(O: pd.DataFrame) -> pd.DataFrame:
-    P = _played(O)
+    P = played_notes(O)
     P = P.assign(_w=_w(P), _m=(~P["head_hit"]).astype(float) * _w(P))
     g = P.groupby("grid").agg(objects=("_w", "sum"), misses=("_m", "sum"))
     g["miss_rate"] = g["misses"] / g["objects"]
@@ -354,7 +354,7 @@ def grid_stats(O: pd.DataFrame) -> pd.DataFrame:
 
 
 def direction_stats(O: pd.DataFrame) -> pd.DataFrame:
-    P = _played(O)
+    P = played_notes(O)
     P = P[P["dist_norm"] >= 1.0]
     rows = []
     for d in DIR8:
@@ -384,7 +384,7 @@ def _wgroup(P: pd.DataFrame, by: str, aim_err: bool = False) -> pd.DataFrame:
 
 
 def distance_stats(O: pd.DataFrame) -> pd.DataFrame:
-    P = _played(O).dropna(subset=["dist_norm"])
+    P = played_notes(O).dropna(subset=["dist_norm"])
     bins = [0, 0.5, 1, 1.5, 2, 3, 4, 100]
     labels = ["<0.5", "0.5-1", "1-1.5", "1.5-2", "2-3", "3-4", "4+"]
     P = P.assign(dbin=pd.cut(P["dist_norm"], bins=bins, labels=labels, right=False))
@@ -392,7 +392,7 @@ def distance_stats(O: pd.DataFrame) -> pd.DataFrame:
 
 
 def angle_stats(O: pd.DataFrame) -> pd.DataFrame:
-    P = _played(O).dropna(subset=["angle"])
+    P = played_notes(O).dropna(subset=["angle"])
     P = P[P["dist_norm"] >= 1.0]
     P = P.assign(abin=pd.cut(P["angle"], bins=[0, 60, 120, 181], labels=["sharp (<60°)", "medium", "wide (>120°)"],
                              right=False))
@@ -406,7 +406,7 @@ def aim_regression(O: pd.DataFrame, min_dist_norm: float = 1.5) -> dict | None:
     scale_x/scale_y > 1 = moving too far (overaim) horizontally/vertically,
     rotation_deg > 0 = clockwise on screen; b = constant offset (px).
     ``n`` = weighted number of jumps."""
-    P = _played(O)
+    P = played_notes(O)
     usable = P["head_hit"] | (P["miss_reason"] == "aim")
     d = P[usable & (P["dist_norm"] >= min_dist_norm)].dropna(subset=["start_x", "start_y", "err_dx", "err_dy"])
     w = _w(d).to_numpy(float)
@@ -450,7 +450,7 @@ def click_points(O: pd.DataFrame, frame: str = "screen") -> pd.DataFrame:
     ``frame="screen"``: x right, y down, as on screen — every hit note. ``"movement"``: jumps only,
     rotated so each jump goes right (x = overshoot, y = clockwise side); a constant offset averages
     out in this frame, so it can only be seen on screen. ``w`` = replay weight."""
-    P = _played(O)
+    P = played_notes(O)
     S = P[P["head_hit"] | (P["miss_reason"] == "aim")]
     if frame == "movement":
         S = S[S["dist_norm"] >= 1]
@@ -538,7 +538,7 @@ def stream_speed_profile(O: pd.DataFrame, min_objects: int = 20, min_run: int = 
     there), ``ur_best`` = the lowest of them, ``ur_plays`` = how many plays; ``ur_pooled`` = all hits
     thrown together (the old number, inflated by differences between plays). ``ur_trend`` = the UR the
     other speeds predict (:func:`ur_trend`), ``weak`` = UR clearly above it."""
-    P = _played(O)
+    P = played_notes(O)
     S = P[(P["run_len"] >= min_run) & (P["run_pos"] >= 1)].dropna(subset=["stream_bpm"])
     S = S[np.isfinite(S["stream_bpm"].astype(float))]
     if S.empty:
@@ -597,7 +597,7 @@ def stream_limits(prof: pd.DataFrame, base_ur: float) -> dict:
 
 def stream_drift(O: pd.DataFrame) -> dict:
     """Timing error vs position inside long runs: +ms per note = falling behind."""
-    P = _played(O)
+    P = played_notes(O)
     S = P[(P["run_len"] >= 8) & P["head_hit"]].dropna(subset=["err_real"])
     w = _w(S)
     if len(S) < 60 or w.sum() < 60:
@@ -675,7 +675,7 @@ def stream_fall_behind(O: pd.DataFrame, min_run: int = FALL_BEHIND_MIN_RUN, min_
            "curves_bpm": pd.DataFrame(columns=["group", "pos", "rel_err", "abs_err", "miss_rate", "n"])}
     if O is None or O.empty or "run_len" not in O:
         return out
-    P = _played(O)
+    P = played_notes(O)
     L = P[(P["run_len"] >= min_run) & (P["run_pos"] < FALL_BEHIND_MAX_POS)]
     if reach_bpm and "stream_bpm" in L:
         L = L[L["stream_bpm"] < reach_bpm + 10]          # 10 BPM bins, as in stamina_score
@@ -747,7 +747,7 @@ def stream_fall_behind(O: pd.DataFrame, min_run: int = FALL_BEHIND_MIN_RUN, min_
 
 
 def tapping_metrics(O: pd.DataFrame, Pr: pd.DataFrame, rates: dict) -> dict:
-    P = _played(O)
+    P = played_notes(O)
     hits = P[P["head_hit"]]
     hw = _w(hits)
     single = hits[hits["run_len"] < 3]
@@ -920,7 +920,7 @@ def build_profile(analyses: list[ReplayAnalysis], level: float | None = None, we
     rates = {a.key: a.meta.get("rate", 1.0) for a in analyses}
     O["local_eq"] = _local_eq(O)
     O["miss_cause"] = miss_causes(O)
-    P = _played(O)
+    P = played_notes(O)
     W = _w(P)
     misses = P[~P["head_hit"]]
     mw = _w(misses)
@@ -987,7 +987,7 @@ def build_profile(analyses: list[ReplayAnalysis], level: float | None = None, we
     consistency = _consistency_metrics(P, metas)
     model = fit_miss_model(P)
     reading.update(_reading_ratios(P, model))
-    skills = _skills(P, model, tapping, slider_metrics, reading, consistency, level=used, presses=Pr)
+    skills = compute_skills(P, model, tapping, slider_metrics, reading, consistency, level=used, presses=Pr)
     aim.update(aim_split(P, model))
     strengths, weaknesses = _rank_skills(skills)
     levels = _levels(metas, P, model)
@@ -1928,7 +1928,7 @@ def top_comparison(skills: dict, level: float = TOP_LEVEL) -> dict:
     return {k: {"score": you.get(k), "top": top.get(k), "label": SKILL_LABELS.get(k, k)} for k in SKILL_LABELS}
 
 
-def _skills(P, model, tapping, sliders, reading, consistency, level: float | None = None,
+def compute_skills(P, model, tapping, sliders, reading, consistency, level: float | None = None,
             presses: pd.DataFrame | None = None) -> dict:
     s = {}
     N = _n_replays(P)

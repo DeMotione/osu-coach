@@ -15,12 +15,11 @@ from __future__ import annotations
 import datetime as dt
 import math
 import sqlite3
-from collections import defaultdict
 from pathlib import Path
 
 import pandas as pd
 
-from osu_coach.domain.profile import SKILL_LABELS, _played, _skills, build_profile, clean_pass, comfort_stars
+from osu_coach.domain.progress import mark_full_combos, month_of, period_metrics, period_of, summarize_periods, utc
 
 DB_FILE = "progress.sqlite"
 SCHEMA_VERSION = 2   # 2: hp, path
@@ -46,8 +45,6 @@ CREATE TABLE IF NOT EXISTS month_metrics (
     PRIMARY KEY (player, month, name)
 );
 """
-FEW_PLAYS = 5   # months with fewer plays are shown, but marked as uncertain
-
 
 def db_path(cache_dir=None) -> Path:
     from osu_coach.infrastructure.filesystem.library import default_cache_dir
@@ -66,36 +63,6 @@ def connect(cache_dir=None) -> sqlite3.Connection:
                 conn.execute(f"ALTER TABLE replays ADD COLUMN {c} {'TEXT' if c in TEXT_COLUMNS else 'REAL'}")
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     return conn
-
-
-def _utc(date) -> dt.datetime:
-    if isinstance(date, str):
-        date = dt.datetime.fromisoformat(date)
-    return date.replace(tzinfo=dt.UTC) if date.tzinfo is None else date
-
-
-def month_of(date, tz=None) -> str:
-    """'YYYY-MM' of a replay date (stored in UTC) in ``tz`` — default: this computer's time zone."""
-    return _utc(date).astimezone(tz).strftime("%Y-%m")
-
-
-PERIODS = ("month", "week", "day")
-
-
-def period_of(date, period: str = "month", tz=None) -> str:
-    """The period a replay date falls in, in ``tz``: 'YYYY-MM' (month), 'YYYY-Www' (ISO week) or 'YYYY-MM-DD'."""
-    d = _utc(date).astimezone(tz)
-    if period == "day":
-        return d.strftime("%Y-%m-%d")
-    if period == "week":
-        y, w, _ = d.isocalendar()
-        return f"{y}-W{w:02d}"
-    return d.strftime("%Y-%m")
-
-
-def _metric_key(period: str, key: str) -> str:
-    """month_metrics keeps months as they are (older databases) and days / weeks as 'day:…' / 'week:…'."""
-    return key if period == "month" else f"{period}:{key}"
 
 
 def _value(v):
@@ -119,7 +86,7 @@ def record(conn: sqlite3.Connection, analyses, tz=None) -> int:
     rows = []
     for a in analyses:
         m = a.meta
-        rows.append([a.key, _utc(m["date"]).isoformat(), month_of(m["date"], tz), now]
+        rows.append([a.key, utc(m["date"]).isoformat(), month_of(m["date"], tz), now]
                     + [_value(m.get(COLUMNS[c])) for c in cols])
     with conn:
         conn.executemany(sql, rows)
@@ -140,41 +107,13 @@ def players(conn: sqlite3.Connection) -> list[tuple[str, int]]:
 def rebuild_months(conn: sqlite3.Connection, player: str, analyses, tz=None) -> None:
     """Skill scores (against one model fitted on all of ``analyses``) and stream speed per month."""
     analyses = [a for a in analyses if (a.meta.get("player") or "") == (player or "")]
-    if not analyses:
-        return
-    try:
-        full = build_profile(analyses, weighted=False)   # months stay comparable: no level weighting
-    except Exception:  # noqa: BLE001 - too little data for a model
-        return
-    threshold = full.reading.get("dense_threshold")
-    by_month = defaultdict(list)
-    for a in analyses:
-        for period in PERIODS:      # months, ISO weeks and days, each kept under its own key
-            by_month[_metric_key(period, period_of(a.meta["date"], period, tz))].append(a)
     now = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
-    for month, group in by_month.items():
-        if len(group) < FEW_PLAYS:   # a play or two say little about a month's skill
-            with conn:
-                conn.execute("DELETE FROM month_metrics WHERE player = ? AND month = ?", (player, month))
-            continue
-        try:
-            mp = build_profile(group, weighted=False)
-            reading = dict(mp.reading)
-            if threshold is not None:
-                reading["dense_threshold"] = threshold
-            skills = _skills(_played(mp.objects), full.model, mp.tapping, mp.sliders, reading, mp.consistency,
-                             level=full.levels.get("level_stars"),   # one stamina yardstick for all months
-                             presses=mp.presses)
-        except Exception:  # noqa: BLE001 - a month with too little data keeps no skill numbers
-            continue
-        rows = [(f"skill_{k}", _value(v.get("score")), int(v.get("n") or 0)) for k, v in skills.items()]
-        rows += [("stream_bpm", _value(mp.tapping.get("comfort_bpm")), int(mp.tapping.get("n") or 0)),
-                 ("ur_single", _value(mp.tapping.get("ur_single")), 0),
-                 ("aim_err", _value(mp.aim.get("aim_err_median")), 0)]
+    for month, rows in period_metrics(analyses, tz).items():
         with conn:
             conn.execute("DELETE FROM month_metrics WHERE player = ? AND month = ?", (player, month))
-            conn.executemany("INSERT INTO month_metrics VALUES (?, ?, ?, ?, ?, ?)",
-                             [(player, month, name, value, n, now) for name, value, n in rows])
+            if rows:
+                conn.executemany("INSERT INTO month_metrics VALUES (?, ?, ?, ?, ?, ?)",
+                                 [(player, month, name, _value(value), n, now) for name, value, n in rows])
 
 
 def update(cache_dir, analyses, load_cached=None, tz=None) -> list[str]:
@@ -194,11 +133,6 @@ def update(cache_dir, analyses, load_cached=None, tz=None) -> list[str]:
         conn.close()
 
 
-def _fc(df: pd.DataFrame) -> pd.Series:
-    full = df["map_max_combo"].isna() | (df["max_combo"] >= 0.99 * df["map_max_combo"])
-    return df["completed"].astype(bool) & (df["nmiss"] == 0) & full
-
-
 def monthly(conn: sqlite3.Connection, player: str) -> pd.DataFrame:
     """One row per month with plays: counts, star rating, accuracy, skills (``skill_<name>``) etc."""
     return by_period(conn, player, "month")
@@ -209,45 +143,9 @@ def by_period(conn: sqlite3.Connection, player: str, period: str = "month", sinc
     """Like :func:`monthly`, per ``period`` ("month", "week" or "day"; the ``month`` column holds the period's
     key), only plays from ``since`` to ``until`` (dates in ``tz``, both included)."""
     df = pd.read_sql_query("SELECT * FROM replays WHERE player = ?", conn, params=(player,))
-    if df.empty:
-        return pd.DataFrame(columns=["month", "plays"])
-    local = pd.to_datetime(df["played_at"], utc=True, format="ISO8601").dt.tz_convert(
-        tz or dt.datetime.now().astimezone().tzinfo)
-    if since is not None:
-        df, local = df[local.dt.date >= since], local[local.dt.date >= since]
-    if until is not None:
-        df, local = df[local.dt.date <= until], local[local.dt.date <= until]
-    if df.empty:
-        return pd.DataFrame(columns=["month", "plays"])
-    if period != "month":
-        df = df.assign(month=[period_of(t.to_pydatetime(), period, tz) for t in local])
-    df["completed"] = df["completed"].fillna(0).astype(bool)
-    first = df.groupby("beatmap_md5")["month"].min()
-    g = df.groupby("month")
-    out = pd.DataFrame({"plays": g.size(), "maps": g["beatmap_md5"].nunique()})
-    out["new_maps"] = first.value_counts().reindex(out.index, fill_value=0)
-    out["minutes"] = g["length_s"].sum() / 60
-    out["notes"] = g["n_played"].sum()
-    out["avg_stars"] = g.apply(lambda d: (d["stars"] * d["n_objects"]).sum() / max(d["n_objects"].sum(), 1),
-                               include_groups=False)
-    out["comfort_stars"] = g.apply(comfort_stars, include_groups=False)
-    out["max_stars_passed"] = df[clean_pass(df)].groupby("month")["stars"].max()
-    out["max_stars_fc"] = df[_fc(df)].groupby("month")["stars"].max()
-    out["accuracy"] = g["accuracy"].mean()
-    out["misses_per_100"] = g["head_misses"].sum() / g["n_played"].sum().clip(lower=1) * 100
-    out["ur"] = g["ur"].median()
     mm = pd.read_sql_query("SELECT month, name, value FROM month_metrics WHERE player = ?", conn,
                            params=(player,))
-    if period != "month":
-        prefix = f"{period}:"
-        mm = mm[mm["month"].str.startswith(prefix)].assign(month=lambda d: d["month"].str[len(prefix):])
-    else:
-        mm = mm[~mm["month"].str.contains(":")]
-    for name in [f"skill_{k}" for k in SKILL_LABELS] + ["stream_bpm", "ur_single", "aim_err"]:
-        vals = mm[mm["name"] == name].set_index("month")["value"]
-        out[name] = vals.reindex(out.index).astype(float)
-    out["few_plays"] = out["plays"] < FEW_PLAYS
-    return out.sort_index().reset_index().rename(columns={"index": "month"})
+    return summarize_periods(df, mm, period, since, until, tz)
 
 
 def month_plays(conn: sqlite3.Connection, player: str, month: str, period: str = "month", tz=None) -> pd.DataFrame:
@@ -259,6 +157,4 @@ def month_plays(conn: sqlite3.Connection, player: str, month: str, period: str =
         df = pd.read_sql_query("SELECT * FROM replays WHERE player = ? ORDER BY played_at DESC", conn,
                                params=(player,))
         df = df[[period_of(t, period, tz) == month for t in df["played_at"]]]
-    df["completed"] = df["completed"].fillna(0).astype(bool)
-    df["fc"] = _fc(df)
-    return df
+    return mark_full_combos(df)

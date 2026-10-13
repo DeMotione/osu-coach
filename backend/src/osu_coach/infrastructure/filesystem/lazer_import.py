@@ -117,16 +117,6 @@ def pack_zip(collections: dict, name: str) -> bytes:
     return buf.getvalue()
 
 
-def sets_to_download(playlist_rows, have_md5) -> list[int]:
-    """Beatmap sets of the playlist with at least one difficulty that isn't installed."""
-    have = set(have_md5 or ())
-    out = []
-    for md5, sid in playlist_rows:
-        if str(md5) not in have and int(sid) not in out:
-            out.append(int(sid))
-    return out
-
-
 def reveal(path) -> bool:
     """Show the folder in the file manager (selected, where supported). Best effort."""
     path = Path(path)

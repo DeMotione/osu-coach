@@ -1,32 +1,20 @@
-"""Practice map pool: per-difficulty pattern statistics + skill scores,
-map suggestions and staged "improve a skill" playlists.
-
-The bundled pool (``data/pool.json.gz``) holds ~5,000 popular ranked osu!standard
-difficulties, 9 in 10 of them between 2★ and 8★ (most-played per 0.25★ step, from the
-12,000 most-played ranked sets), each analysed
-with the same pattern detector used on the player's replays plus osu!'s own
-difficulty model (rosu-pp). Rebuild with ``dev_tools/build_pool.py``.
-"""
+"""Practice map pool logic: per-difficulty pattern statistics + skill scores,
+map suggestions and staged "improve a skill" playlists. Loading the pool file lives in
+``infrastructure.filesystem.map_pool``."""
 from __future__ import annotations
 
-import gzip
 import hashlib
-import json
 import math
 import re
 from dataclasses import dataclass, field
-from functools import lru_cache
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from osu_coach.domain import difficulty
-from osu_coach.domain.beatmap import PlayableBeatmap
-from osu_coach.infrastructure.filesystem.beatmap import parse_beatmap_bytes
+from osu_coach.domain.beatmap import Beatmap, PlayableBeatmap
 from osu_coach.domain.features import object_features
 
-POOL_PATH = Path(__file__).parent.parent / "data" / "pool.json.gz"
 QUADRANTS = ["top-left", "top-right", "bottom-left", "bottom-right"]
 SKILLS = ["aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading", "consistency"]
 
@@ -62,12 +50,8 @@ def _c(v, lo: float, hi: float) -> float:
 
 
 # ------------------------------------------------------------------ per-map statistics
-def map_stats(osu_bytes: bytes) -> dict | None:
-    """Pattern + difficulty statistics of one .osu file (NoMod)."""
-    try:
-        bm = parse_beatmap_bytes(osu_bytes)
-    except Exception:  # noqa: BLE001 - broken files are skipped
-        return None
+def map_stats(bm: Beatmap, osu_bytes: bytes) -> dict | None:
+    """Pattern + difficulty statistics of one parsed .osu file (NoMod); ``osu_bytes`` feeds the difficulty model."""
     if bm.mode != 0 or len(bm.objects) < 30:
         return None
     pb = PlayableBeatmap(bm, 0)
@@ -156,41 +140,6 @@ def skill_scores(s: dict) -> dict:
         "s_reading": 0.6 * _c(s.get("density_p90"), 4, 10) + 0.4 * _c(s.get("odd_rhythm_share"), 0.0, 0.15),
         "s_consistency": 0.5 * _c(s.get("drain_length"), 90, 270) + 0.5 * _c(s.get("evenness"), 0.3, 0.7),
     }
-
-
-# ------------------------------------------------------------------ pool loading
-@lru_cache(maxsize=2)
-def _load_cached(path: str, mtime: float) -> pd.DataFrame:
-    with gzip.open(path, "rt", encoding="utf-8") as fh:
-        rows = json.load(fh)
-    df = pd.DataFrame(rows)
-    for col in df.columns:
-        if df[col].dtype == object and col not in ("md5", "title", "artist", "version", "creator", "status",
-                                                    "ranked_date"):
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-    return df
-
-
-def load_pool(path: Path | str | None = None) -> pd.DataFrame:
-    p = Path(path or POOL_PATH)
-    if not p.exists():
-        return pd.DataFrame()
-    return _load_cached(str(p), p.stat().st_mtime).copy()
-
-
-def save_pool(rows: list[dict], path: Path | str = POOL_PATH) -> Path:
-    def clean(v):
-        if isinstance(v, (np.floating, float)):
-            v = float(v)
-            return None if math.isnan(v) or math.isinf(v) else round(v, 4)
-        if isinstance(v, np.integer):
-            return int(v)
-        return v
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with gzip.open(p, "wt", encoding="utf-8") as fh:
-        json.dump([{k: clean(v) for k, v in r.items()} for r in rows], fh, separators=(",", ":"))
-    return p
 
 
 # ------------------------------------------------------------------ targets & suggestions

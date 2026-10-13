@@ -32,7 +32,7 @@ import re
 import numpy as np
 
 from osu_coach.domain.beatmap import HitObject, PlayableBeatmap
-from osu_coach.domain.judge import CLICK, HITTABLE_RANGE, IGNORED, SHAKE, ClickSeen, ObjResult, Press, SimResult, _classify_miss
+from osu_coach.domain.judge import CLICK, HITTABLE_RANGE, IGNORED, SHAKE, ClickSeen, ObjResult, Press, SimResult, classify_miss_reason
 from osu_coach.domain.replay import KEY_K1, KEY_K2, KEY_M1, KEY_M2, MOD_BITS, Replay
 
 LEFT, RIGHT = 1, 2
@@ -689,7 +689,7 @@ def simulate_lazer(pb: PlayableBeatmap, replay: Replay, *, classic_slider: bool 
 
     for s in states:
         if s.res.result != -1:
-            _classify_miss(s, pb, replay)
+            classify_miss_reason(s, pb, replay)
 
     counts = {GREAT: stats["great"], OK: stats["ok"], MEH: stats["meh"], MISS: stats["miss"]}
     return SimResult(results, presses, counts, max_combo, radius, (pb.hit300, pb.hit100, pb.hit50), "lazer",
