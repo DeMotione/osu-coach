@@ -57,29 +57,6 @@ python -m venv .venv
   folder from `storage.ini`). Replays and beatmaps are recognised inside lazer's file store.
 - Any folder with `.osr` files, or drag and drop files into the app.
 
-**Replays to read** (above the Scan button): *Latest 100 / 500 / 1000* or *All*. With a limit, the scan
-reads replay files newest first and stops as soon as your newest N plays are certain, and only those are
-analysed: faster on big installs, and closer to how you play now. Beatmaps are then looked up only for
-those replays. "Your" replays = the player name with the most replays on the computer; if you pick another
-player and fewer than N turn up, choose *All*. The choice is remembered.
-
-**Played** (next to it): *All time / Last session / Last 7 days / Last 30 days / Custom range* — your recent
-form. *Last session* = your newest replay and the ones before it with less than an hour between plays. The
-time filter picks the replays before they are analysed; together with *Latest N* the newest N of that time
-are used.
-
-**All replays / Best replays** (step 2, remembered; CLI `--best` / `--all-replays`): *Best replays* = only
-passed plays (every note reached, no fail), and for each beatmap + speed mod (NM, DT/NC, HT, custom rate) only
-your single best play: highest score, ties broken by accuracy. Retries and fails then don't count.
-
-**Only these files**: switch *Analyse* to *Only these files* and drop `.osr` files: only those are analysed,
-the rest of your library is ignored (CLI: `--only FILE.osr`, repeatable).
-
-You need **20 or more replays** for useful statistics, and the more the better. Relax, autopilot and
-autoplay replays are skipped, and so are lazer replays with mods the simulation can't follow (Wind Up/Down
-and Adaptive Speed change the speed mid-map; Random, Wiggle, Magnetised and similar move notes or the
-cursor). The app lists every skipped replay with the reason.
-
 ### Playlists in osu!lazer
 
 lazer can't open a `collection.db` by itself, but *Settings → General → Run setup wizard → Import*
@@ -99,31 +76,6 @@ lazer imports the maps first and the collection after them; re-importing the sam
 what's new. The folder can be deleted afterwards. *Folder without maps (.zip)* is the same folder with
 only the collection, for lazer on another computer.
 
-### Detailed Map Analysis (one replay on its own)
-
-The **Detailed Map Analysis** page shows a single play: it opens on your newest replay (no scan needed), any other
-can be picked from the list, a `.osr` file can be dropped in, and on the Replays page a row of *Analysed
-replays* opens with **Detailed map analysis**. It shows:
-
-- the result, and the map **as it was played**: BPM, UR, speed (DT/HT or a custom lazer rate such as ×1.26),
-  AR / OD / CS / HP with the mods (HR, EZ, Difficulty Adjust, …) and length, plus a few plain sentences on
-  what cost the play (misses by reason and pattern, the part of the map where most happened, timing);
-- every miss and combo break with its **time in the map in the osu! editor format** (`01:23:456`), why
-  it happened (aim — and how far off, overshot / fell short —, too early/late by how many ms, no tap,
-  notelock, slider break: cursor left the slider / key released) and on what pattern;
-- *Where they cluster — parts to practise*: each cluster of misses as a part of the map to cut out, from a
-  measure before the first miss to just after the last one, on whole notes, with its length in seconds and
-  notes. Copy those notes into a difficulty of their own in the editor, play it until it's clean, then play
-  the whole map again and open the new replay here;
-- your timing through the map (every hit, a running average, misses marked) and where your clicks landed;
-- **all your plays of this map**: every play in your history and every replay of the map on the computer,
-  newest first (pick a row → *Open this play*). Best / not best is judged only against plays with the same
-  speed and settings (rate, AR/OD/CS/HP, HD/FL): a DT ×1.5 play at 285 BPM and a ×1.26 play at 240 BPM of
-  the same map are different challenges. A replay dropped in or opened from the Replays page switches the
-  list to *Only plays of this map*.
-
-The check is saved in the progress history. Command line: `osu-coach check` (newest replay) or
-`osu-coach check path/to/replay.osr`.
 
 ### Progress by month, week or day
 
@@ -154,70 +106,6 @@ git) skill by skill. What it changed: **Accuracy** = (300s on single notes − 5
 95%, which every top player passed: they now spread from ~87 to 99). Aim, flow aim, speed, reading and
 consistency compare your misses with what the difficulty predicts; a player who barely misses has nothing to
 compare, so those now say **too few misses to tell** instead of *not enough data*. Sliders: top players
-break none (100), so the scale's top end needed no change.
-
-### Miss causes
-
-aim (jumps and single notes at normal speed), **speed-aim** (you tapped in time but the cursor couldn't keep
-up: aim misses in bursts / streams of 3+ notes — spaced or not — and on jumps ≤ 125 ms apart), too early / too
-late, no tap, lost, notelock. *Why you miss* also compares aim and speed-aim with what the difficulty of those
-notes predicts. **Stream speed** (Tapping page) is judged on finger misses only (no tap, early/late, notelock,
-lost); speed-aim misses are shown separately on the same chart. **Stamina** (skill score) is how long you keep a high
-tempo before your fingers give in, not how accurate you stay. osu!standard has no stamina skill of its own — the
-star rating's speed strain decays to 30% per second (lazer `Speed.cs`) — so osu! coach measures it on you, as a
-**tempo-duration curve** (`tempo_curve`): for 10 s, 30 s, 1, 2 and 5 minutes, the fastest tempo you kept up in
-any stretch of a play that long. Tempo = notes you pressed a key for per second, as 1/4-note BPM (15 × notes per
-second, so a 220 BPM stream = 220); 100s, 50s and misses where you tapped count (also overstreaming — tapping
-faster than the notes is never a loss), notes without a tap don't. When you start **undertapping** (pressing for
-less than 90% of the notes in the stretch; 60% or less = 0, linear between) the tempo stops counting. Each
-duration: one value per map, pp-weighted (see above; it counts once 2+ maps were that long);
-50 = the typical tempo for your level for that long (120 + 15 × level BPM, e.g. 210 at 6★, × 0.55 / 0.47 / 0.41
-/ 0.38 / 0.33 for 10 s … 5 min, since longer stretches always include slower parts); 10% faster ≈ +10 points
-(75 per doubling). The score is the average over the durations. Low-tempo marathons stay low and death streams
-you can't keep up score low for the long durations. How steady your taps stay in long streams (second half vs
-first half, from the key presses) is shown for information. Difficulty weights don't apply here.
-**Skill weighting (like osu! pp)**: every skill ranks your plays by how hard they were for that skill (aim, flow
-aim, reading: the 80th percentile of the notes' difficulty; accuracy, consistency: star rating) or by the value
-reached (speed, stamina, sliders: one value per map, your best play of it); the first counts 100%, each next one
-1/N less, N = replays analysed (100 replays: 100%, 99%, 98% …). The other statistics keep the level weighting.
-**Jump aim** (`aim_values`, `aim_score`): distance × speed × combo. Per passed play, the average cursor speed
-of its 30 fastest jumps / spaced notes (distance in circle diameters ÷ the real time to get there) × (your max
-combo ÷ the map's max combo)^0.8, like osu!'s pp; pp-weighted over maps (best pass of each); 50 = 17.5 circles/s at
-full combo at 6★ (×2 every 12★), +25 per doubling. **Flow aim** (`flow_values`, `flow_score`): per passed play the 50 fastest spaced-stream notes' cursor speed
-(spacing in circle widths ÷ real time, so wider and faster both count) × (spaced-stream notes ÷ 100)^0.25
-(0.6–1.5) × combo^0.8; pp-weighted; 50 = 11 at 6★ (×2 every 12★). Overview also shows every skill **vs top
-players** (`top_comparison`): the same formulas with 10★ as the yardstick (50 = typical 10★ player; never above
-your own-level score) plus ◆ markers for the reference groups' values (`TOP_PLAYERS`) on that scale.
-**Reading** (`reading_values`, `reading_score`): per passed play 2^((usual AR for its star rating − its AR with
-mods) / 3 × circles per second ÷ 5 (during play, breaks of 5+ s left out; 0.25–2): low AR on a slow map counts little) (usual AR = 5 + 0.75 × stars, 5–10.5; higher than usual counts too: ×2 per 1.5 AR above it — reaction) × 1.2 with HD × 1.6 with FL ×
-(1 + 0.5 × min(1, BPM changes ÷ 8) × your 300 share on the 4 notes after each change) × accuracy^8; pp-weighted
-over maps; 50 = 1.3 × usual AR at 95% accuracy, +25 per doubling. Overview also shows the same score on maps
-below AR 8 only (*low AR*) and AR 10+ only (*high AR*), 3+ maps each.
-**Tapping speed** (`speed_values`, `speed_score`): per play the 3rd fastest clean burst / stream (3+ notes; no
-finger miss — no tap, too early / late, notelock; cursor misses don't count — and 80%+ of its hit notes as 300s);
-pp-weighted over maps; 50 = `stamina_ref_bpm` of your level, 75 points per doubling.
-**Slider control** counts how hard the sliders are that you follow to the end (`slider_difficulty`): speed
-(circle diameters per second) × length (log2 of 1 + the path beyond what the follow circle covers; repeats add)
-× shape (+½ per half circle of turning up to 2 turns, +0.3 per sharp corner, +0.2 per left↔right bend, up to 4
-each) × speed change (vs the previous slider within 2 s, up to ×2) × rush (up to ×1.5 when the next note comes
-< 250 ms after the end). Per play the 30 hardest sliders whose head you hit count: their average × (share held)³ (short sliders count as ½ circle diameter of path more, so
-holding many short ones counts too); pp-weighted over maps; score = 50 + 25 × log2(value ÷ typical for your level; 40 at 6★, ×2 every 3★).
-
-**Stamina** (score) is ×1.05 for now, until more players' data sets its yardstick. **Consistency**
-(`consistency_score`) = the average of *miss chains* (misses in the 10 notes after a miss vs the miss model, 50 =
-typical 2×, half = +30) and *steadiness* (how much your passed plays of a similar star rating, ±0.5★, differ in
-misses per 100 notes: 50 = a spread of 2, half = +30); either part alone gives a score, from 5 passed plays on.
-Skills measured on fewer than 30 replays, 10 maps (accuracy: 2,000 single notes) are marked *few data*.
-
-*Stamina in long streams* (Tapping page) shows how precise your taps stay through streams of 16+ notes:
-the average **absolute** timing error (early and late alike — the plain average cancels them out to ~0) on
-notes 1–4, 5–8, … with one line per stream length (16–31, 32–63, 64+ notes). Where it starts to climb is
-where your stamina gives in (in notes and seconds at the typical BPM); up to there is your comfortable
-stream length, and the page suggests maps whose longest stream is in the comfortable range and in the range
-just past it (stamina practice). **Stream speed UR** is measured in each play on its own (the middle play
-per 10 BPM, plus your best play): throwing the hits of different plays together mixes their offsets and
-gave a higher, misleading UR. A dashed trend line shows the UR your other speeds predict; BPMs clearly
-above it are marked as weak spots. *Hit timing* colours each hit by what it scored (300 / 100 / 50).
 
 ### Setup (Tips & Setup page)
 
@@ -285,20 +173,6 @@ Skills: `aim flow_aim speed stamina accuracy sliders reading consistency quadran
 6. **Light and dark mode** follow Streamlit's Settings → theme (or your system); the charts follow it too.
    Charts can't be zoomed by click-and-drag (hover still shows the values), and the sidebar's collapse
    button is always visible.
-
-## Development
-
-```
-.venv/bin/pip install -e .[dev]
-.venv/bin/python -m pytest                     # tests use real replays in tests/resources
-python dev_tools/fetch_pool_raw.py RAW 40 100  # refresh map pool sources (osu.direct)
-python dev_tools/build_pool.py RAW             # rebuild osu_coach/data/pool.json.gz
-```
-
-Caches, settings and downloaded beatmaps live in the per-user cache folder (`~/.cache/osu-coach`,
-`%LOCALAPPDATA%\osu-coach`). Set `OSU_COACH_CACHE` to override. `OSU_COACH_NO_AUTODETECT=1` turns off
-the automatic osu! search (the tests set it, so they never read the osu! installs of the computer they
-run on).
 
 Limitations: lazer replays only record left/right, not which key or mouse button was used, so the
 keyboard-vs-mouse-button tip uses stable replays only. Replays from much older lazer clients (e.g. 2022)
