@@ -96,7 +96,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
@@ -156,7 +156,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
@@ -203,11 +203,11 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -248,7 +248,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
@@ -289,7 +289,7 @@
             }
           },
           "404": {
-            "description": "Not Found",
+            "description": "Not found; `code` says what is missing.",
             "content": {
               "application/json": {
                 "schema": {
@@ -299,7 +299,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -309,7 +309,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
@@ -351,7 +351,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -361,11 +361,11 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -491,24 +491,24 @@
             }
           },
           "409": {
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Conflict"
+            }
           },
           "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           }
         }
       }
@@ -561,7 +561,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -571,7 +571,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
@@ -683,21 +683,21 @@
             }
           },
           "404": {
+            "description": "Not found; `code` says what is missing.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -724,7 +724,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -759,7 +759,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -790,7 +790,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -821,7 +821,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -869,21 +869,21 @@
             }
           },
           "409": {
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Conflict"
+            }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -910,7 +910,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -941,7 +941,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -972,7 +972,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1032,34 +1032,34 @@
             }
           },
           "404": {
+            "description": "Not found; `code` says what is missing.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "409": {
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Conflict"
+            }
           },
           "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           }
         }
       }
@@ -1094,7 +1094,7 @@
             }
           },
           "404": {
-            "description": "Not Found",
+            "description": "Not found; `code` says what is missing.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1104,7 +1104,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1114,7 +1114,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1238,24 +1238,24 @@
             }
           },
           "404": {
+            "description": "Not found; `code` says what is missing.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           }
         }
       }
@@ -1325,21 +1325,21 @@
             }
           },
           "404": {
+            "description": "Not found; `code` says what is missing.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -1395,7 +1395,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1405,7 +1405,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1436,7 +1436,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1478,21 +1478,21 @@
             }
           },
           "404": {
+            "description": "Not found; `code` says what is missing.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -1520,7 +1520,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1563,7 +1563,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1663,24 +1663,24 @@
             }
           },
           "409": {
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Conflict"
+            }
           },
           "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           }
         }
       }
@@ -1714,11 +1714,11 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -1751,11 +1751,11 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -1789,11 +1789,11 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -1831,7 +1831,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1841,11 +1841,11 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -1883,7 +1883,7 @@
             }
           },
           "404": {
-            "description": "Not Found",
+            "description": "Not found; `code` says what is missing.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1893,7 +1893,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1903,11 +1903,11 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -1944,7 +1944,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4297,19 +4297,6 @@
           "history"
         ],
         "title": "GoalsOut"
-      },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "title": "HTTPValidationError"
       },
       "Health": {
         "properties": {
@@ -8992,46 +8979,6 @@
           "size"
         ],
         "title": "UploadedFile"
-      },
-      "ValidationError": {
-        "properties": {
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Location"
-          },
-          "msg": {
-            "type": "string",
-            "title": "Message"
-          },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
-          }
-        },
-        "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError"
       },
       "WorstQuadrant": {
         "properties": {

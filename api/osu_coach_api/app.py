@@ -60,6 +60,12 @@ def create_app(config: ApiConfig | None = None) -> FastAPI:
     app.add_middleware(LocalOnlyMiddleware, allowed_hosts=config.allowed_hosts)
     for module in (system, settings, library, jobs, profile, check, progress, maps, exports):
         app.include_router(module.router, prefix=API_PREFIX)
+    build_openapi = app.openapi
+
+    def openapi() -> dict:
+        return errors.document_validation_errors(build_openapi())     # idempotent; FastAPI caches the document
+
+    app.openapi = openapi                                                  # type: ignore[method-assign]
 
     @app.get("/docs", include_in_schema=False)
     def docs() -> HTMLResponse:

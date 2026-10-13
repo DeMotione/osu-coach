@@ -1478,11 +1478,6 @@ export interface components {
             /** History */
             history: components["schemas"]["GoalHistory"][];
         };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
         /** Health */
         Health: {
             /**
@@ -2965,19 +2960,6 @@ export interface components {
             /** Size */
             size: number;
         };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
-        };
         /** WorstQuadrant */
         WorstQuadrant: {
             /** Quadrant */
@@ -3082,7 +3064,7 @@ export interface operations {
                     "application/json": components["schemas"]["AppSettings"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3135,7 +3117,7 @@ export interface operations {
                     "application/json": components["schemas"]["SetupModel"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3166,13 +3148,13 @@ export interface operations {
                     "application/json": components["schemas"]["InstallOut"][];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -3199,7 +3181,7 @@ export interface operations {
                     "application/json": components["schemas"]["UploadedFile"][];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3232,7 +3214,7 @@ export interface operations {
                     "application/json": components["schemas"]["ScanJob"];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found; `code` says what is missing. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3241,7 +3223,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3250,7 +3232,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3283,7 +3265,7 @@ export interface operations {
                     "application/json": components["schemas"]["ScanJob"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3292,13 +3274,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -3347,7 +3329,7 @@ export interface operations {
                     "application/json": components["schemas"]["SelectionOut"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3356,7 +3338,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3409,7 +3391,7 @@ export interface operations {
                     "application/json": components["schemas"]["AnalysisJob"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3418,7 +3400,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3469,7 +3451,7 @@ export interface operations {
                     "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found; `code` says what is missing. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3478,13 +3460,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -3507,7 +3489,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProfileSummary"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3536,7 +3518,7 @@ export interface operations {
                     "application/json": components["schemas"]["AnalysedReplay"][];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3565,7 +3547,7 @@ export interface operations {
                     "application/json": components["schemas"]["Overview"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3594,7 +3576,7 @@ export interface operations {
                     "application/json": components["schemas"]["AimPage"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3625,7 +3607,7 @@ export interface operations {
                     "application/json": components["schemas"]["Clicks"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3634,13 +3616,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -3663,7 +3645,7 @@ export interface operations {
                     "application/json": components["schemas"]["TappingPage"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3692,7 +3674,7 @@ export interface operations {
                     "application/json": components["schemas"]["SlidersReadingPage"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3721,7 +3703,7 @@ export interface operations {
                     "application/json": components["schemas"]["TipsPage"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3753,7 +3735,7 @@ export interface operations {
                     "application/json": components["schemas"]["CheckList"];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found; `code` says what is missing. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3762,7 +3744,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3771,7 +3753,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3804,7 +3786,7 @@ export interface operations {
                     "application/json": components["schemas"]["CheckReport"];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found; `code` says what is missing. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3813,7 +3795,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3822,7 +3804,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3876,7 +3858,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProgressOut"];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found; `code` says what is missing. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3885,7 +3867,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3918,7 +3900,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProgressPlay"][];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found; `code` says what is missing. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3927,13 +3909,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -3980,7 +3962,7 @@ export interface operations {
                     "application/json": components["schemas"]["GoalsOut"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3989,7 +3971,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4018,7 +4000,7 @@ export interface operations {
                     "application/json": components["schemas"]["GoalsOut"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4049,7 +4031,7 @@ export interface operations {
                     "application/json": components["schemas"]["GoalsOut"];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found; `code` says what is missing. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -4058,13 +4040,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -4087,7 +4069,7 @@ export interface operations {
                     "application/json": components["schemas"]["Suggestions"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4120,7 +4102,7 @@ export interface operations {
                     "application/json": number;
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4173,7 +4155,7 @@ export interface operations {
                     "application/json": components["schemas"]["Playlist"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4182,7 +4164,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4215,13 +4197,13 @@ export interface operations {
                     "application/json": components["schemas"]["ExportPreview"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -4248,13 +4230,13 @@ export interface operations {
                     "application/octet-stream": unknown;
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -4281,13 +4263,13 @@ export interface operations {
                     "application/zip": unknown;
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -4314,7 +4296,7 @@ export interface operations {
                     "application/json": components["schemas"]["LazerPackJob"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4323,13 +4305,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -4356,7 +4338,7 @@ export interface operations {
                     "application/json": components["schemas"]["StableMergeResult"];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found; `code` says what is missing. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -4365,7 +4347,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Conflict */
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4374,13 +4356,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -4407,7 +4389,7 @@ export interface operations {
                     "application/json": components["schemas"]["OszJob"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
                 headers: {
                     [name: string]: unknown;

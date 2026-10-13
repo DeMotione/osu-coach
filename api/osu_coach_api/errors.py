@@ -42,9 +42,35 @@ class Invalid(ApiError):
         super().__init__(422, code, message)
 
 
+# spelled out: FastAPI's default is the standard library's reason phrase, which changes between Python versions
+# (422 is "Unprocessable Entity" up to 3.12, "Unprocessable Content" from 3.13) and with it the OpenAPI document
+DESCRIPTIONS = {
+    404: "Not found; `code` says what is missing.",
+    409: "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
+    422: "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+}
+_ERROR_BODY_REF = "#/components/schemas/ErrorBody"
+_FASTAPI_422_REF = "#/components/schemas/HTTPValidationError"
+
+
 def responses(*statuses: int) -> dict:
     """OpenAPI ``responses`` entry documenting the error body for these statuses."""
-    return {s: {"model": ErrorBody} for s in statuses}
+    return {s: {"model": ErrorBody, "description": DESCRIPTIONS[s]} for s in statuses}
+
+
+def document_validation_errors(schema: dict) -> dict:
+    """FastAPI documents request validation errors with its own body (``detail`` as a list), but ``install`` answers
+    them with ``ErrorBody`` like every other error: point those responses at it and drop FastAPI's schemas."""
+    for operations in schema.get("paths", {}).values():
+        for op in operations.values():
+            answer = op.get("responses", {}).get("422", {})
+            if answer.get("content", {}).get("application/json", {}).get("schema", {}).get("$ref") == _FASTAPI_422_REF:
+                op["responses"]["422"] = {"description": DESCRIPTIONS[422],
+                                          "content": {"application/json": {"schema": {"$ref": _ERROR_BODY_REF}}}}
+    components = schema.get("components", {}).get("schemas", {})
+    for name in ("HTTPValidationError", "ValidationError"):
+        components.pop(name, None)
+    return schema
 
 
 def install(app: FastAPI) -> None:
