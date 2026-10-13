@@ -42,3 +42,4 @@ class Meta(BaseModel):
     lazer_instructions: list[str] = Field(description="Steps to import a lazer import folder (Markdown).")
     level_band: float
     level_sigma: float
+    api_docs: bool = Field(description="Whether the API reference is served at /docs.")

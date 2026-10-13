@@ -5309,6 +5309,11 @@
           "level_sigma": {
             "type": "number",
             "title": "Level Sigma"
+          },
+          "api_docs": {
+            "type": "boolean",
+            "title": "Api Docs",
+            "description": "Whether the API reference is served at /docs."
           }
         },
         "type": "object",
@@ -5324,7 +5329,8 @@
           "periods",
           "lazer_instructions",
           "level_band",
-          "level_sigma"
+          "level_sigma",
+          "api_docs"
         ],
         "title": "Meta",
         "description": "Labels and choices shared by every page."

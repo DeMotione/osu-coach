@@ -1813,6 +1813,11 @@ export interface components {
             level_band: number;
             /** Level Sigma */
             level_sigma: number;
+            /**
+             * Api Docs
+             * @description Whether the API reference is served at /docs.
+             */
+            api_docs: boolean;
         };
         /** MissCause */
         MissCause: {

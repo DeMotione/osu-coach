@@ -35,9 +35,9 @@ def _isolated(monkeypatch, tmp_path):
     monkeypatch.setattr(sources, "download_osz", lambda set_id, dest, progress=None: None)
 
 
-def make_client(cache: Path, web_dir: Path | None = None) -> TestClient:
+def make_client(cache: Path, web_dir: Path | None = None, api_docs: bool = True) -> TestClient:
     config = Settings(cache_dir=cache, web_dir=web_dir, allowed_hosts=LOCAL_HOSTS + ("testserver",),
-                       reveal_folders=False, analysis_workers=1)
+                       reveal_folders=False, analysis_workers=1, api_docs=api_docs)
     return TestClient(create_app(config))
 
 

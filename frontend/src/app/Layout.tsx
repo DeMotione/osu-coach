@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet } from "react-router";
 
 import { OFFLINE, isApiError } from "../api/client";
 import { useJobs } from "../api/jobs";
-import { useAnalysisStatus, useHealth, useProfileSummary } from "../api/queries";
+import { useAnalysisStatus, useHealth, useMeta, useProfileSummary } from "../api/queries";
 import { IconBook, IconMenu, IconMonitor, IconMoon, IconSun, IconWarn } from "../components/icons";
 import { Progress, Segmented } from "../components/ui";
 import { stars } from "../lib/format";
@@ -60,6 +60,7 @@ function OfflineBanner() {
 export function Layout() {
   const [open, setOpen] = useState(false);
   const { choice, setChoice } = useTheme();
+  const meta = useMeta();
   const close = () => setOpen(false);
 
   return (
@@ -91,9 +92,11 @@ export function Layout() {
           <StatusLine />
           <div className="sidebar__links">
             <Segmented label="Theme" icons options={THEMES} value={choice} onChange={setChoice} />
-            <a className="btn btn--ghost btn--sm" href="/docs" target="_blank" rel="noreferrer" title="API reference">
-              <IconBook /> API
-            </a>
+            {meta.data?.api_docs && (
+              <a className="btn btn--ghost btn--sm" href="/docs" target="_blank" rel="noreferrer" title="API reference">
+                <IconBook /> API
+              </a>
+            )}
           </div>
         </div>
       </aside>

@@ -24,8 +24,9 @@ def health(request: Request, ws: WorkspaceDep) -> Health:
 
 
 @router.get("/meta", summary="Labels and choices shared by every page")
-def meta() -> Meta:
+def meta(request: Request) -> Meta:
     return Meta(
+        api_docs=request.app.state.api_docs,
         version=__version__,
         skills=[SkillMeta(key=k, label=label, what=SKILL_HELP[k][0], how=SKILL_HELP[k][1], practise=SKILL_HELP[k][2])
                 for k, label in SKILL_LABELS.items()],

@@ -33,6 +33,13 @@ def test_openapi_and_scalar_docs(client):
     assert "@scalar/api-reference@" in docs.text and "/api/openapi.json" in docs.text
 
 
+def test_api_docs_can_be_turned_off(tmp_path):
+    with make_client(tmp_path / "cache", api_docs=False) as c:
+        assert c.get("/api/meta").json()["api_docs"] is False
+        assert c.get("/api/openapi.json").status_code == 404
+        assert "@scalar/api-reference" not in c.get("/docs").text
+
+
 def test_unknown_api_path_is_a_json_404(client):
     r = client.get("/api/nope")
     assert r.status_code == 404 and r.json()["code"] == "not_found"
