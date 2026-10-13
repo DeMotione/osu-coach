@@ -32,8 +32,12 @@ fn server_command(resources: Option<PathBuf>, port: u16) -> Command {
     cmd
 }
 
+/// Stable port keeps the web origin (and its localStorage/PWA data) the same across launches; falls back to any free port if taken.
+const PREFERRED_PORT: u16 = 8511;
+
 fn free_port() -> std::io::Result<u16> {
-    Ok(TcpListener::bind((HOST, 0))?.local_addr()?.port())
+    let listener = TcpListener::bind((HOST, PREFERRED_PORT)).or_else(|_| TcpListener::bind((HOST, 0)))?;
+    Ok(listener.local_addr()?.port())
 }
 
 fn spawn_api(resources: Option<PathBuf>, port: u16) -> std::io::Result<Child> {

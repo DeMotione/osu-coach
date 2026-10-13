@@ -20,10 +20,19 @@ jobs:
       - name: Version from tag
         run: |
           $v = "${{ github.ref_name }}".TrimStart("v")
-          $py = (Select-String -Path backend/pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
-          $web = (Get-Content frontend/package.json | ConvertFrom-Json).version
-          $tauri = (Get-Content desktop/src-tauri/tauri.conf.json | ConvertFrom-Json).version
-          if ($py -ne $v -or $web -ne $v -or $tauri -ne $v) { throw "Tag $v does not match backend $py / web $web / desktop $tauri" }
+          $found = [ordered]@{
+            'backend/pyproject.toml' = (Select-String -Path backend/pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+            'backend/src/osu_coach/__init__.py' = (Select-String -Path backend/src/osu_coach/__init__.py -Pattern '^__version__ = "(.+)"').Matches[0].Groups[1].Value
+            'frontend/package.json' = (Get-Content frontend/package.json -Raw | ConvertFrom-Json).version
+            'frontend/package-lock.json' = (Get-Content frontend/package-lock.json -Raw | ConvertFrom-Json).version
+            'desktop/package.json' = (Get-Content desktop/package.json -Raw | ConvertFrom-Json).version
+            'desktop/package-lock.json' = (Get-Content desktop/package-lock.json -Raw | ConvertFrom-Json).version
+            'desktop/src-tauri/tauri.conf.json' = (Get-Content desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+            'desktop/src-tauri/Cargo.toml' = (Select-String -Path desktop/src-tauri/Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+            'desktop/src-tauri/Cargo.lock' = (Select-String -Path desktop/src-tauri/Cargo.lock -Pattern '(?m)^name = "osu-coach-desktop"\r?\nversion = "(.+)"').Matches[0].Groups[1].Value
+          }
+          $bad = $found.GetEnumerator() | Where-Object { $_.Value -ne $v }
+          if ($bad) { throw "Tag $v does not match: $(($bad | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ', ')" }
           "VERSION=$v" >> $env:GITHUB_ENV
 
       - uses: actions/setup-python@v5
