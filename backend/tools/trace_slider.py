@@ -2,7 +2,8 @@
 import math
 import sys
 
-from osu_coach.infrastructure.filesystem.beatmap import parse_beatmap_file, PlayableBeatmap
+from osu_coach.domain.beatmap import PlayableBeatmap
+from osu_coach.infrastructure.filesystem.beatmap import parse_beatmap_file
 from osu_coach.infrastructure.filesystem.osr import parse_replay_file
 
 rp, mp, idx = sys.argv[1], sys.argv[2], int(sys.argv[3])

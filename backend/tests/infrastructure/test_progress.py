@@ -7,7 +7,8 @@ import pandas as pd
 import pytest
 
 from osu_coach.infrastructure.database import progress
-from osu_coach.domain.analysis import ReplayAnalysis, analyze_files
+from osu_coach.domain.analysis import ReplayAnalysis
+from osu_coach.infrastructure.filesystem.library import analyze_files
 from osu_coach.cli import main
 from osu_coach.infrastructure.filesystem.library import Library
 from tests.conftest import replay_and_map

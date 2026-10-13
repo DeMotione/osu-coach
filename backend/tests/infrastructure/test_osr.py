@@ -2,7 +2,8 @@ import numpy as np
 import osrparse
 import pytest
 
-from osu_coach.infrastructure.filesystem.osr import parse_replay_file, mods_to_string, rate_from_mods
+from osu_coach.domain.replay import mods_to_string, rate_from_mods
+from osu_coach.infrastructure.filesystem.osr import parse_replay_file
 
 STABLE = "replays/osrparse__resources__replay.osr"
 LAZER = "replays/osrparse__resources__lazer_standard_format.osr"

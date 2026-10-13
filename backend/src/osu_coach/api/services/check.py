@@ -167,7 +167,7 @@ def report(ws: Workspace, path: str, online: bool) -> CheckReport:
         others = lib.analyze(same[:MAP_PLAYS_MAX], workers=ws.config.analysis_workers)[0] if same else []
         conn = progress.connect(lib.cache)
         try:
-            cmp = check.compare(conn, a, others)
+            cmp = check.compare(progress.saved_plays(conn, a), a, others)
             progress.record(conn, [a] + list(others))
         finally:
             conn.close()

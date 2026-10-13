@@ -5,7 +5,8 @@ import warnings
 import numpy as np
 import pytest
 
-from osu_coach.domain.analysis import UnsupportedReplay, analyze, playable
+from osu_coach.domain.analysis import UnsupportedReplay, playable
+from osu_coach.infrastructure.filesystem.library import analyze_bytes
 from osu_coach.infrastructure.filesystem.beatmap import parse_beatmap_bytes, parse_beatmap_file
 from osu_coach.domain.judge import simulate
 from osu_coach.domain.judge_lazer import lazer_hit_windows, lazer_options, simulate_lazer
@@ -139,7 +140,7 @@ def test_unsupported_lazer_mods_are_skipped_with_a_reason():
     replay = parse_replay_file(rp)
     replay.lazer = dict(replay.lazer, mods=[{"acronym": "WU"}])
     with pytest.raises(UnsupportedReplay, match="Wind Up"):
-        analyze(replay, mp.read_bytes())
+        analyze_bytes(replay, mp.read_bytes())
 
 
 def test_difficulty_adjust_and_mirror_change_the_playable_map():

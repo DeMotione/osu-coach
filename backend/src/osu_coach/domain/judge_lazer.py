@@ -31,9 +31,9 @@ import re
 
 import numpy as np
 
-from osu_coach.infrastructure.filesystem.beatmap import HitObject, PlayableBeatmap
+from osu_coach.domain.beatmap import HitObject, PlayableBeatmap
 from osu_coach.domain.judge import CLICK, HITTABLE_RANGE, IGNORED, SHAKE, ClickSeen, ObjResult, Press, SimResult, _classify_miss
-from osu_coach.infrastructure.filesystem.osr import KEY_K1, KEY_K2, KEY_M1, KEY_M2, MOD_BITS, Replay
+from osu_coach.domain.replay import KEY_K1, KEY_K2, KEY_M1, KEY_M2, MOD_BITS, Replay
 
 LEFT, RIGHT = 1, 2
 FOLLOW_AREA = 2.4

@@ -20,8 +20,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from osu_coach.infrastructure.filesystem.beatmap import HitObject, PlayableBeatmap
-from osu_coach.infrastructure.filesystem.osr import KEY_K1, KEY_K2, KEY_M1, KEY_M2, MOD_BITS, Replay
+from osu_coach.domain.beatmap import HitObject, PlayableBeatmap
+from osu_coach.domain.replay import KEY_K1, KEY_K2, KEY_M1, KEY_M2, MOD_BITS, Replay
 
 CLICK, SHAKE, IGNORED = 0, 1, 2
 HITTABLE_RANGE = 400

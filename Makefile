@@ -23,8 +23,8 @@ openapi:             ## regenerate the web app's API types after a schema change
 	$(PY) -m osu_coach.api.openapi frontend/src/api/openapi.json
 	cd frontend && npm run gen:api
 
-lint:                ## ruff, TypeScript, ESLint
-	cd backend && ruff check .
+lint:                ## ruff, import layering, TypeScript, ESLint
+	cd backend && ruff check . && lint-imports
 	cd frontend && npm run typecheck && npm run lint
 
 test:                ## Python and web unit tests

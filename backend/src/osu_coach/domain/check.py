@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import datetime as dt
 import math
-import sqlite3
 from collections import Counter
 
 import pandas as pd
@@ -253,16 +252,14 @@ PLAY_COLUMNS = ["key", "date", "mods", "rate", "cs", "ar", "od", "hp", "bpm", "s
                 "max_combo", "map_max_combo", "ur", "completed", "head_misses", "path", "this", "same_settings"]
 
 
-def map_plays(conn: sqlite3.Connection | None, a: ReplayAnalysis, others=()) -> pd.DataFrame:
-    """Every play of this map by this player: the saved history (progress.sqlite) plus ``others`` (analyses of
+def map_plays(saved: pd.DataFrame | None, a: ReplayAnalysis, others=()) -> pd.DataFrame:
+    """Every play of this map by this player: the saved history ``saved`` (rows of the replays table) plus ``others`` (analyses of
     the replay files of this map on the computer) and this play itself (``this``). ``same_settings`` = same speed,
     CS / AR / OD / HP and HD / FL as this play (:func:`settings_key`). Newest first."""
     m = a.meta
     rows = {}
-    if conn is not None:
-        df = pd.read_sql_query("SELECT * FROM replays WHERE player = ? AND beatmap_md5 = ?", conn,
-                               params=(m.get("player") or "", m.get("beatmap_md5")))
-        for r in df.to_dict("records"):
+    if saved is not None:
+        for r in saved.to_dict("records"):
             rows[r["key"]] = {**r, "date": r.get("played_at")}
     for o in list(others) + [a]:
         om = o.meta
@@ -285,12 +282,12 @@ def map_plays(conn: sqlite3.Connection | None, a: ReplayAnalysis, others=()) -> 
     return out.sort_values("date", ascending=False)[PLAY_COLUMNS].reset_index(drop=True)
 
 
-def compare(conn: sqlite3.Connection | None, a: ReplayAnalysis, others=()) -> dict:
+def compare(saved: pd.DataFrame | None, a: ReplayAnalysis, others=()) -> dict:
     """This play against the player's other plays of the same map (:func:`map_plays`). Best / not best is
     only judged against plays with the same settings: a DT ×1.5 play (285 BPM) and a ×1.26 play (240 BPM)
     of the same map are different challenges."""
     m = a.meta
-    plays = map_plays(conn, a, others)
+    plays = map_plays(saved, a, others)
     rest = plays[~plays["this"]]
     same = rest[rest["same_settings"]]
     out = {"plays": plays, "map_plays": int(len(same)), "map_plays_all": int(len(rest)),

@@ -16,7 +16,9 @@ from pathlib import Path
 from osu_coach.infrastructure.filesystem import locate
 from osu_coach.infrastructure.http import sources
 from osu_coach.domain.analysis import ANALYSIS_VERSION, UNSUPPORTED_LAZER_MODS, ReplayAnalysis, UnsupportedReplay, analyze
-from osu_coach.infrastructure.filesystem.osr import MOD_BITS, parse_replay
+from osu_coach.domain.replay import MOD_BITS
+from osu_coach.infrastructure.filesystem.beatmap import parse_beatmap_bytes
+from osu_coach.infrastructure.filesystem.osr import parse_replay
 
 # relax / autopilot / autoplay / cinema / target practice: not the player's own aim+tapping
 EXCLUDE_MODS = MOD_BITS["RX"] | MOD_BITS["AP"] | MOD_BITS["AT"] | (1 << 22) | (1 << 23)
@@ -48,10 +50,20 @@ def default_cache_dir() -> Path:
     return base / "osu-coach"
 
 
+def analyze_bytes(replay, osu_bytes: bytes, raw_replay: bytes | None = None) -> ReplayAnalysis:
+    return analyze(replay, parse_beatmap_bytes(osu_bytes), osu_bytes, raw_replay)
+
+
+def analyze_files(replay_path, beatmap_path) -> ReplayAnalysis:
+    raw = Path(replay_path).read_bytes()
+    replay = parse_replay(raw, source_path=str(replay_path))
+    return analyze_bytes(replay, Path(beatmap_path).read_bytes(), raw)
+
+
 def _work(replay_path: str, osu_path: str) -> ReplayAnalysis:
     raw = Path(replay_path).read_bytes()
     replay = parse_replay(raw, source_path=replay_path)
-    return analyze(replay, Path(osu_path).read_bytes(), raw)
+    return analyze_bytes(replay, Path(osu_path).read_bytes(), raw)
 
 
 def _error_text(exc: Exception) -> str:

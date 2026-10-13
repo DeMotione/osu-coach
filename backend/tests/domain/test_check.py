@@ -8,7 +8,7 @@ import pytest
 
 from osu_coach.domain import check
 from osu_coach.infrastructure.database import progress
-from osu_coach.domain.analysis import analyze_files
+from osu_coach.infrastructure.filesystem.library import analyze_files
 from osu_coach.infrastructure.filesystem.beatmap import read_metadata
 from osu_coach.cli import main
 from tests.conftest import replay_and_map
@@ -98,7 +98,7 @@ def test_compare_only_judges_plays_with_the_same_settings(tmp_path):
     progress.record(conn, [nm1, nm2, dt15], UTC)
     custom = _play("x126", dt.datetime(2026, 9, 4), 1, rate=1.26, ar=9.9, od=9.0, mods="DT")   # file only, not saved
     now = _play("now", dt.datetime(2026, 10, 1), 1)
-    c = check.compare(conn, now, [custom])
+    c = check.compare(progress.saved_plays(conn, now), now, [custom])
     assert (c["map_plays"], c["map_plays_all"], c["other_settings"]) == (2, 4, 2)
     assert (c["map_best_misses"], c["map_best"]) == (2, True)
     plays = c["plays"]
@@ -107,7 +107,7 @@ def test_compare_only_judges_plays_with_the_same_settings(tmp_path):
     assert plays.set_index("key").loc["nm1", "path"] == "C:/r/nm1.osr"               # can be opened again
     # the DT play is compared with the DT play only
     now_dt = _play("now_dt", dt.datetime(2026, 10, 2), 3, rate=1.5, ar=10.33, od=9.44, mods="DT")
-    c = check.compare(conn, now_dt, [custom])
+    c = check.compare(progress.saved_plays(conn, now_dt), now_dt, [custom])
     assert (c["map_plays"], c["map_best_misses"], c["map_best"]) == (1, 0, False)
     assert c["settings"] == "×1.5 · AR 10.3 · OD 9.4 · CS 4 · HP 5"
 
@@ -117,12 +117,14 @@ def test_plays_saved_without_hp_still_match(tmp_path):
     old = _play("old", dt.datetime(2026, 9, 1), 3)
     old.meta["hp"] = None                                          # saved by a version that didn't keep HP
     progress.record(conn, [old], UTC)
-    c = check.compare(conn, _play("now", dt.datetime(2026, 10, 1), 1))
+    now = _play("now", dt.datetime(2026, 10, 1), 1)
+    c = check.compare(progress.saved_plays(conn, now), now)
     assert c["map_plays"] == 1 and c["map_best"]
 
 
 def test_compare_without_history(tmp_path):
-    c = check.compare(progress.connect(tmp_path), _fake("now", dt.datetime(2026, 10, 1)))
+    now = _fake("now", dt.datetime(2026, 10, 1))
+    c = check.compare(progress.saved_plays(progress.connect(tmp_path), now), now)
     assert c["map_plays"] == 0 and c["map_plays_all"] == 0 and len(c["plays"]) == 1
 
 

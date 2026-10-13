@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from osu_coach.infrastructure.http import sources  # noqa: E402
-from osu_coach.domain.analysis import analyze             # noqa: E402
+from osu_coach.infrastructure.filesystem.library import analyze_bytes   # noqa: E402
 from osu_coach.infrastructure.filesystem.osr import parse_replay             # noqa: E402
 from osu_coach.domain.profile import SKILL_LABELS, build_profile   # noqa: E402
 
@@ -86,7 +86,7 @@ def main(argv=None) -> int:
             failed.append((f.name, "map download failed"))
             continue
         try:
-            a = analyze(rep, osu, raw)
+            a = analyze_bytes(rep, osu, raw)
         except Exception as e:  # noqa: BLE001
             failed.append((f.name, f"analysis failed: {e}"))
             continue

@@ -11,7 +11,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from osu_coach.infrastructure.filesystem.beatmap import PlayableBeatmap
+from osu_coach.domain.beatmap import PlayableBeatmap
 
 RUN_SNAP_MAX = 0.34      # 1/3 beat or faster counts as "tight" (streams/bursts)
 RUN_DT_MAX = 200.0       # ms (map time); keeps very slow maps out of streams

@@ -22,7 +22,8 @@ import numpy as np
 import pandas as pd
 
 from osu_coach.domain import difficulty
-from osu_coach.infrastructure.filesystem.beatmap import PlayableBeatmap, parse_beatmap_bytes
+from osu_coach.domain.beatmap import PlayableBeatmap
+from osu_coach.infrastructure.filesystem.beatmap import parse_beatmap_bytes
 from osu_coach.domain.features import object_features
 
 POOL_PATH = Path(__file__).parent.parent / "data" / "pool.json.gz"

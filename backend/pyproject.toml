@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "osrparse>=7", "httpx>=0.27", "ruff>=0.6"]
+dev = ["pytest>=8", "osrparse>=7", "httpx>=0.27", "ruff>=0.6", "import-linter>=2"]
 
 [project.scripts]
 osu-coach = "osu_coach.cli:main"
@@ -54,3 +54,22 @@ ignore = ["E501", "E731", "B905", "B007", "B023", "E741", "I001", "B008", "UP040
 "src/osu_coach/domain/analysis.py" = ["F841"]
 "src/osu_coach/domain/features.py" = ["F841"]
 "tests/domain/test_weighting.py" = ["F841"]
+
+[tool.importlinter]
+root_package = "osu_coach"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "domain is independent of every other layer and of I/O"
+type = "forbidden"
+source_modules = ["osu_coach.domain"]
+forbidden_modules = [
+    "osu_coach.infrastructure", "osu_coach.api", "osu_coach.config", "osu_coach.main", "osu_coach.cli",
+    "requests", "fastapi", "pydantic", "pydantic_settings", "sqlite3",
+]
+
+[[tool.importlinter.contracts]]
+name = "infrastructure does not depend on the API or entry points"
+type = "forbidden"
+source_modules = ["osu_coach.infrastructure"]
+forbidden_modules = ["osu_coach.api", "osu_coach.main", "osu_coach.cli"]

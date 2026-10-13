@@ -126,6 +126,12 @@ def record(conn: sqlite3.Connection, analyses, tz=None) -> int:
     return conn.execute("SELECT COUNT(*) FROM replays").fetchone()[0] - before
 
 
+def saved_plays(conn: sqlite3.Connection, a) -> pd.DataFrame:
+    """The saved plays of ``a``'s player on ``a``'s map."""
+    return pd.read_sql_query("SELECT * FROM replays WHERE player = ? AND beatmap_md5 = ?", conn,
+                             params=(a.meta.get("player") or "", a.meta.get("beatmap_md5")))
+
+
 def players(conn: sqlite3.Connection) -> list[tuple[str, int]]:
     return [(p or "", n) for p, n in conn.execute(
         "SELECT player, COUNT(*) FROM replays GROUP BY player ORDER BY COUNT(*) DESC, player")]

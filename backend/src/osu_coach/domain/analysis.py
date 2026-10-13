@@ -10,17 +10,16 @@ from __future__ import annotations
 import hashlib
 import math
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from osu_coach.domain import difficulty
-from osu_coach.infrastructure.filesystem.beatmap import Beatmap, PlayableBeatmap, parse_beatmap_bytes
+from osu_coach.domain.beatmap import Beatmap, PlayableBeatmap
 from osu_coach.domain.features import object_features
 from osu_coach.domain.judge import simulate
 from osu_coach.domain.judge_lazer import lazer_mod_settings
-from osu_coach.infrastructure.filesystem.osr import MOD_BITS, Replay, parse_replay, mods_to_string
+from osu_coach.domain.replay import MOD_BITS, Replay, mods_to_string
 
 ANALYSIS_VERSION = 7
 
@@ -84,19 +83,10 @@ def replay_key(replay: Replay, raw: bytes | None = None) -> str:
     return hashlib.md5(raw or f"{replay.beatmap_md5}{replay.timestamp}{replay.score}".encode()).hexdigest()
 
 
-def analyze_files(replay_path, beatmap_path) -> ReplayAnalysis:
-    raw = Path(replay_path).read_bytes()
-    replay = parse_replay(raw, source_path=str(replay_path))
-    osu_bytes = Path(beatmap_path).read_bytes()
-    return analyze(replay, osu_bytes, raw)
-
-
-def analyze(replay: Replay, osu_bytes: bytes, raw_replay: bytes | None = None,
-            beatmap: Beatmap | None = None) -> ReplayAnalysis:
+def analyze(replay: Replay, bm: Beatmap, osu_bytes: bytes, raw_replay: bytes | None = None) -> ReplayAnalysis:
     unsupported = [UNSUPPORTED_LAZER_MODS[m] for m in lazer_mod_settings(replay) if m in UNSUPPORTED_LAZER_MODS]
     if unsupported:
         raise UnsupportedReplay(f"skipped: {unsupported[0]}")
-    bm = beatmap or parse_beatmap_bytes(osu_bytes)
     rate = replay.rate
     pb = playable(bm, replay)
     sim = simulate(pb, replay)

@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from osu_coach.domain import selection
-from osu_coach.domain.analysis import analyze_files
+from osu_coach.infrastructure.filesystem.library import analyze_files
 from osu_coach.domain.profile import (build_profile, detect_level, miss_causes, replay_weight, stamina_score,
                                stream_fall_behind, stream_limits, stream_speed_profile)
 from tests.conftest import replay_and_map

@@ -3,7 +3,7 @@ import dataclasses
 import pytest
 
 from osu_coach.domain.advice import Setup, make_tips, mm_per_osu_px, practice_plan, rt_baseline, suggest_tablet_area
-from osu_coach.domain.analysis import analyze_files
+from osu_coach.infrastructure.filesystem.library import analyze_files
 from osu_coach.domain.profile import build_profile
 from tests.conftest import replay_and_map
 

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from osu_coach.domain.analysis import analyze_files
+from osu_coach.infrastructure.filesystem.library import analyze_files
 from osu_coach.domain.profile import (aim_regression, build_profile, fit_miss_model, quadrant_stats, stream_speed_profile,
                                worst_quadrant)
 from tests.conftest import replay_and_map

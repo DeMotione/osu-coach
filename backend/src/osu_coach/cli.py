@@ -430,7 +430,7 @@ def cmd_check(args) -> int:
     others, _ = lib.analyze(same[:50]) if same else ([], [])
     conn = progress.connect(lib.cache)
     try:
-        cmp = check.compare(conn, a, others)
+        cmp = check.compare(progress.saved_plays(conn, a), a, others)
         progress.record(conn, [a] + list(others))
     finally:
         conn.close()
