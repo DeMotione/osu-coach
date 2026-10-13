@@ -1,5 +1,5 @@
 ; Inno Setup script: packs dist/osu-coach into one installer .exe (per-user install, no admin rights needed).
-;   ISCC.exe /DAppVersion=1.6.1 packaging\installer.iss
+;   ISCC.exe /DAppVersion=0.9.0 packaging\installer.iss
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif

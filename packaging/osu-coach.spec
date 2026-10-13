@@ -1,4 +1,5 @@
-# PyInstaller spec: builds dist/osu-coach/osu-coach.exe (one folder). Run from the repo root:
+# PyInstaller spec: builds dist/osu-coach/osu-coach.exe (one folder). Run from the repo root, after building the
+# web app (cd frontend && npm ci && npm run build):
 #   python -m PyInstaller packaging/osu-coach.spec --noconfirm
 import os
 
@@ -6,25 +7,32 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metada
 
 HERE = SPECPATH                       # noqa: F821 (set by PyInstaller)
 ROOT = os.path.dirname(HERE)
+SRC, WEB = os.path.join(ROOT, "backend", "src"), os.path.join(ROOT, "frontend", "dist")
+if not os.path.isfile(os.path.join(WEB, "index.html")):
+    raise SystemExit("frontend/dist is missing: build the web app first (cd frontend && npm ci && npm run build)")
 
 datas, binaries, hiddenimports = [], [], []
-for pkg in ("streamlit", "plotly", "rosu_pp_py"):
+for pkg in ("rosu_pp_py", "scalar_fastapi"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
     hiddenimports += h
-for pkg in ("streamlit", "plotly", "pandas", "numpy", "requests", "pyarrow", "altair"):
+for pkg in ("fastapi", "starlette", "pydantic", "pydantic_core", "uvicorn", "pandas", "numpy", "requests",
+            "python-multipart", "osu-coach"):
     try:
         datas += copy_metadata(pkg)
     except Exception:
         pass
-hiddenimports += collect_submodules("osu_coach")
-# Streamlit runs the app from a real file on disk, and the map pool is read from disk too
-datas += [(os.path.join(ROOT, "osu_coach", "webapp", "app.py"), "osu_coach/webapp"),
-          (os.path.join(ROOT, "osu_coach", "data"), "osu_coach/data")]
+# uvicorn picks its loop / protocol implementations by name; FastAPI imports the multipart parser lazily
+for pkg in ("osu_coach", "uvicorn", "python_multipart", "pydantic_settings"):
+    hiddenimports += collect_submodules(pkg)
+# the map pool is read from disk; the web app is served from osu_coach/web (see osu_coach.config)
+datas += [(os.path.join(SRC, "osu_coach", "infrastructure", "data"), "osu_coach/infrastructure/data"),
+          (WEB, "osu_coach/web")]
 
-a = Analysis([os.path.join(HERE, "osu_coach_app.py")], pathex=[ROOT], binaries=binaries, datas=datas, hiddenimports=hiddenimports,
-             excludes=["pytest", "osrparse", "playwright", "tkinter", "IPython", "matplotlib"], noarchive=False)
+a = Analysis([os.path.join(HERE, "osu_coach_app.py")], pathex=[SRC], binaries=binaries, datas=datas,
+             hiddenimports=hiddenimports, noarchive=False,
+             excludes=["pytest", "osrparse", "playwright", "tkinter", "IPython", "matplotlib", "streamlit", "plotly"])
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="osu-coach", console=True, icon=os.path.join(HERE, "osu-coach.ico"),
           version=None, upx=False)
