@@ -1,6 +1,6 @@
 import datetime as dt
 
-from osu_coach.domain.progress import month_of, period_of
+from osu_coach.progress.domain import month_of, period_of
 
 UTC = dt.UTC
 EEST = dt.timezone(dt.timedelta(hours=3))     # Tallinn in summer

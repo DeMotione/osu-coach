@@ -2,10 +2,10 @@ import dataclasses
 
 import pytest
 
-from osu_coach.domain.advice import make_tips, mm_per_osu_px, practice_plan, rt_baseline, suggest_tablet_area
-from osu_coach.domain.setup import Setup
-from osu_coach.infrastructure.filesystem.library import analyze_files
-from osu_coach.domain.profile import build_profile
+from osu_coach.tips.domain import make_tips, mm_per_osu_px, practice_plan, rt_baseline, suggest_tablet_area
+from osu_coach.settings.domain import Setup
+from osu_coach.library.repository import analyze_files
+from osu_coach.profile.domain import build_profile
 from tests.conftest import replay_and_map
 
 REG = {"n": 500, "scale_x": 1.0, "scale_y": 1.0, "rotation_deg": 0.0, "offset_x": 0.0, "offset_y": 0.0,
@@ -142,7 +142,7 @@ AREA = dict(area_w_mm=100.0, area_h_mm=56.25, area_x_mm=76.0, area_y_mm=47.0)
 def _aim_misses_in(base, pattern: str, spaced: bool = False, n: int = 200):
     """The base profile with its misses replaced by n aim misses on notes of one pattern (jumps at normal speed,
     or streams — where they count as speed-aim misses)."""
-    from osu_coach.domain.profile import miss_causes
+    from osu_coach.profile.domain import miss_causes
     O = base.objects.copy()
     O["head_hit"] = True
     O["miss_reason"] = None

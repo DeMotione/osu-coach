@@ -5,12 +5,12 @@ import warnings
 import numpy as np
 import pytest
 
-from osu_coach.domain.analysis import UnsupportedReplay, playable
-from osu_coach.infrastructure.filesystem.library import analyze_bytes
-from osu_coach.infrastructure.filesystem.beatmap import parse_beatmap_bytes, parse_beatmap_file
-from osu_coach.domain.judge import simulate
-from osu_coach.domain.judge_lazer import lazer_hit_windows, lazer_options, simulate_lazer
-from osu_coach.infrastructure.filesystem.osr import parse_replay_file
+from osu_coach.analysis.domain import UnsupportedReplay, playable
+from osu_coach.library.repository import analyze_bytes
+from osu_coach.beatmaps.parser import parse_beatmap_bytes, parse_beatmap_file
+from osu_coach.analysis.judge import simulate
+from osu_coach.analysis.judge_lazer import lazer_hit_windows, lazer_options, simulate_lazer
+from osu_coach.replays.osr import parse_replay_file
 from tests.conftest import replay_and_map
 
 # Nikita's own lazer plays (client 2026.804.2): no mods, DT+HD with a spinner, a failed play
@@ -175,7 +175,7 @@ def test_aim_misses_are_not_counted_as_extra_presses():
 
 
 def test_sigmoid_does_not_overflow():
-    from osu_coach.domain.profile import _sigmoid
+    from osu_coach.profile.domain import _sigmoid
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         p = _sigmoid(np.array([-1e5, 0.0, 1e5]))

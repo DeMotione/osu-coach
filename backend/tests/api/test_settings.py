@@ -1,7 +1,7 @@
 """Remembered choices and the player's setup (shared with the command line through settings.json)."""
 from tests.api.conftest import workspace
 
-from osu_coach.infrastructure.filesystem.settings_store import load_settings, save_settings
+from osu_coach.settings.repository import load_settings, save_settings
 
 
 def test_defaults(client):

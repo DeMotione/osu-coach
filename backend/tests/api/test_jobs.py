@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from osu_coach.api.errors import ApiError, Busy, NotFound
-from osu_coach.api.state.jobs import BusyGate, JobManager
+from osu_coach.app.errors import ApiError, Busy, NotFound
+from osu_coach.jobs.manager import BusyGate, JobManager
 
 
 def _finish(job, timeout=5):

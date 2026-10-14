@@ -1,4 +1,4 @@
-from osu_coach.domain.collection_policy import merge_collections
+from osu_coach.exports.domain import merge_collections
 
 
 def test_merge_replaces_same_name_keeps_others_and_appends_new():

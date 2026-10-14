@@ -5,9 +5,16 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from osu_coach.domain.map_recommendations import (QUADRANTS, SKILLS, Targets, build_playlist, collection_name, suggest,
-                                                  targets_from_profile)
-from osu_coach.infrastructure.filesystem.map_pool import POOL_PATH, load_pool
+from osu_coach.maps.domain import (
+    QUADRANTS,
+    SKILLS,
+    Targets,
+    build_playlist,
+    collection_name,
+    suggest,
+    targets_from_profile,
+)
+from osu_coach.maps.repository import POOL_PATH, load_pool
 
 
 def fake_pool(n=600, seed=0):

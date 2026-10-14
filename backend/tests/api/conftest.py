@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from osu_coach.infrastructure.http import sources
+from osu_coach.beatmaps import sources
 from osu_coach.main import create_app
 from osu_coach.config import LOCAL_HOSTS, Settings
 

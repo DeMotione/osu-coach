@@ -2,10 +2,10 @@ import hashlib
 import shutil
 
 
-from osu_coach.infrastructure.filesystem import library as libmod
-from osu_coach.infrastructure.filesystem import locate
-from osu_coach.infrastructure.filesystem.library import Library
-from osu_coach.infrastructure.filesystem.osr import parse_header, parse_replay_file
+from osu_coach.library import repository as libmod
+from osu_coach.replays import locate
+from osu_coach.library.repository import Library
+from osu_coach.replays.osr import parse_header, parse_replay_file
 from tests.conftest import replay_and_map
 
 NAME = "circlecore__low_frametime_old__replay-osu_24722_433541214.osr"

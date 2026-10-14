@@ -4,7 +4,7 @@ import datetime as dt
 import pytest
 from tests.api.conftest import workspace
 
-from osu_coach.infrastructure.filesystem.settings_store import load_settings, save_settings
+from osu_coach.settings.repository import load_settings, save_settings
 
 
 def test_nothing_saved_yet(client):

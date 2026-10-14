@@ -14,21 +14,30 @@ import math
 import sys
 from pathlib import Path
 
-from osu_coach.domain import check, selection
-from osu_coach.infrastructure.filesystem import lazer_import, locate
-from osu_coach.infrastructure.database import progress
-from osu_coach.infrastructure.http import sources
-from osu_coach.domain.advice import make_tips, practice_plan
-from osu_coach.domain.setup import Setup
-from osu_coach.infrastructure.filesystem.collection_db import merge_into, write_collection_db
-from osu_coach.domain.collection_policy import sets_to_download
-from osu_coach.domain.replay_selection import EXCLUDE_MODS, skip_reason
-from osu_coach.infrastructure.filesystem.library import Library
-from osu_coach.infrastructure.filesystem.settings_store import load_settings, save_settings
-from osu_coach.domain.map_recommendations import SKILLS, Targets, build_playlist, collection_name, recommendations, skill_label, \
-    targets_from_profile
-from osu_coach.infrastructure.filesystem.map_pool import load_pool
-from osu_coach.domain.profile import MISS_LABELS, build_profile
+from osu_coach.check import domain as check
+from osu_coach.replays import selection
+from osu_coach.exports import lazer_import
+from osu_coach.replays import locate
+from osu_coach.progress import repository as progress
+from osu_coach.beatmaps import sources
+from osu_coach.tips.domain import make_tips, practice_plan
+from osu_coach.settings.domain import Setup
+from osu_coach.exports.collection_db import merge_into, write_collection_db
+from osu_coach.exports.domain import sets_to_download
+from osu_coach.replays.replay_selection import EXCLUDE_MODS, skip_reason
+from osu_coach.library.repository import Library
+from osu_coach.settings.repository import load_settings, save_settings
+from osu_coach.maps.domain import (
+    SKILLS,
+    Targets,
+    build_playlist,
+    collection_name,
+    recommendations,
+    skill_label,
+    targets_from_profile,
+)
+from osu_coach.maps.repository import load_pool
+from osu_coach.profile.domain import MISS_LABELS, build_profile
 
 SEVERITY = {3: "HIGH", 2: "MED ", 1: "LOW "}
 
@@ -501,7 +510,7 @@ def cmd_ui(args) -> int:
     """The app: the HTTP API (``osu-coach-api`` package) serving the web frontend. Imported lazily, so the
     domain package doesn't depend on the web layer; without it only the command line is available."""
     try:
-        from osu_coach.api.server import serve
+        from osu_coach.app.server import serve
     except ImportError:
         raise SystemExit("The app needs the osu-coach-api package (pip install -e api). "
                          "The command line works without it: osu-coach analyze --help") from None

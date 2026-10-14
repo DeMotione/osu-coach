@@ -1,7 +1,7 @@
 """Health, labels, docs, serving the web app, and the local-only protections."""
 from tests.api.conftest import make_client
 
-from osu_coach.domain.profile import SKILL_HELP, SKILL_LABELS
+from osu_coach.profile.domain import SKILL_HELP, SKILL_LABELS
 
 
 def test_health(client):

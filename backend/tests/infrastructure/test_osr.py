@@ -2,8 +2,8 @@ import numpy as np
 import osrparse
 import pytest
 
-from osu_coach.domain.replay import mods_to_string, rate_from_mods
-from osu_coach.infrastructure.filesystem.osr import parse_replay_file
+from osu_coach.replays.domain import mods_to_string, rate_from_mods
+from osu_coach.replays.osr import parse_replay_file
 
 STABLE = "replays/osrparse__resources__replay.osr"
 LAZER = "replays/osrparse__resources__lazer_standard_format.osr"
@@ -52,7 +52,7 @@ def test_lazer_score_info_blob_is_decoded(res):
     info = {"mods": [{"acronym": "DT", "settings": {"speed_change": 1.3}}], "statistics": {"great": 5, "miss": 1}}
     blob = lzma.compress(json.dumps(info).encode(), format=lzma.FORMAT_ALONE)
     raw += struct.pack("<i", len(blob)) + blob
-    from osu_coach.infrastructure.filesystem.osr import parse_replay
+    from osu_coach.replays.osr import parse_replay
 
     r = parse_replay(bytes(raw))
     assert r.lazer["statistics"]["great"] == 5

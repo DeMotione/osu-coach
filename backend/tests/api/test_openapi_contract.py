@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from osu_coach.api.errors import DESCRIPTIONS
-from osu_coach.api.openapi import document, render
+from osu_coach.app.errors import DESCRIPTIONS
+from osu_coach.app.openapi import document, render
 
 COMMITTED = Path(__file__).resolve().parents[3] / "frontend" / "src" / "api" / "openapi.json"
 

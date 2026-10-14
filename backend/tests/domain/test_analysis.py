@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from osu_coach.domain.analysis import along_cross
-from osu_coach.infrastructure.filesystem.library import analyze_files
+from osu_coach.analysis.domain import along_cross
+from osu_coach.library.repository import analyze_files
 from tests.conftest import replay_and_map
 
 
@@ -55,8 +55,8 @@ def test_dt_errors_are_converted_to_real_time():
 def test_replay_without_results_falls_back_to_simulation():
     """Some tools write .osr files with all-zero result counts."""
     from pathlib import Path
-    from osu_coach.infrastructure.filesystem.library import analyze_bytes
-    from osu_coach.infrastructure.filesystem.osr import parse_replay_file
+    from osu_coach.library.repository import analyze_bytes
+    from osu_coach.replays.osr import parse_replay_file
     rp, mp, _ = replay_and_map("circlecore__legit__legit-12.osr")
     replay = parse_replay_file(rp)
     replay.n300 = replay.n100 = replay.n50 = replay.nmiss = 0

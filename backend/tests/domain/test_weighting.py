@@ -7,14 +7,22 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from osu_coach.domain import selection
-from osu_coach.infrastructure.filesystem.library import analyze_files
-from osu_coach.domain.profile import (build_profile, detect_level, miss_causes, replay_weight, stamina_score,
-                               stream_fall_behind, stream_limits, stream_speed_profile)
+from osu_coach.replays import selection
+from osu_coach.library.repository import analyze_files
+from osu_coach.profile.domain import (
+    build_profile,
+    detect_level,
+    miss_causes,
+    replay_weight,
+    stamina_score,
+    stream_fall_behind,
+    stream_limits,
+    stream_speed_profile,
+)
 from tests.conftest import replay_and_map
-from osu_coach.domain.map_recommendations import Targets, stream_length_maps
-from osu_coach.infrastructure.filesystem.map_pool import load_pool
-from osu_coach.domain.profile import stamina_ref_bpm
+from osu_coach.maps.domain import Targets, stream_length_maps
+from osu_coach.maps.repository import load_pool
+from osu_coach.profile.domain import stamina_ref_bpm
 
 
 # ------------------------------------------------------------------ weights
@@ -311,7 +319,7 @@ def _stream_for(seconds, bpm, miss=None):
 
 
 def test_tempo_curve_is_the_fastest_tempo_kept_up_for_each_duration():
-    from osu_coach.domain.profile import tempo_curve
+    from osu_coach.profile.domain import tempo_curve
     C = tempo_curve(pd.DataFrame(_map("a", [_stream_for(150, 220)]))).set_index("window")
     assert C.loc[[10, 30, 60, 120], "bpm"].tolist() == pytest.approx([220] * 4, rel=0.01)
     assert 300 not in C.index                                         # the play is shorter than 5 minutes
@@ -323,7 +331,7 @@ def test_tempo_curve_is_the_fastest_tempo_kept_up_for_each_duration():
 
 
 def test_undertapping_stops_the_tempo_but_sloppy_hits_and_overstreaming_count():
-    from osu_coach.domain.profile import tempo_curve
+    from osu_coach.profile.domain import tempo_curve
     clean = tempo_curve(pd.DataFrame(_map("c", [_stream_for(130, 220)]))).set_index("window")["bpm"]
     # every 3rd note a 100 / an early miss where you tapped: your fingers kept going
     rows = _map("s", [_stream_for(130, 220)])
@@ -376,7 +384,7 @@ def _sliders(key, n, vel, length, turn=0.0, corners=0, bends=0, spans=1, broke=N
 
 
 def test_slider_difficulty_grows_with_speed_length_and_shape():
-    from osu_coach.domain.profile import slider_difficulty
+    from osu_coach.profile.domain import slider_difficulty
     S = pd.DataFrame(_sliders("a", 1, 0.5, 60) + _sliders("b", 1, 0.5, 200) + _sliders("c", 1, 1.5, 200)
                      + _sliders("d", 1, 1.5, 200, turn=2 * math.pi, corners=2, bends=2)
                      + _sliders("e", 1, 1.5, 200, change=0.7) + _sliders("f", 1, 1.5, 200, gap=50))
@@ -387,7 +395,7 @@ def test_slider_difficulty_grows_with_speed_length_and_shape():
 
 
 def test_many_easy_sliders_dont_add_up_to_a_few_hard_ones():
-    from osu_coach.domain.profile import slider_score
+    from osu_coach.profile.domain import slider_score
     easy = pd.DataFrame(sum((_sliders(f"e{k}", 300, 0.4, 90) for k in range(5)), []))
     hard = pd.DataFrame(sum((_sliders(f"h{k}", 30, 1.6, 260, turn=math.pi, corners=1) for k in range(5)), []))
     e, h = slider_score(easy, level=6.0), slider_score(hard, level=6.0)
@@ -402,7 +410,7 @@ def test_many_easy_sliders_dont_add_up_to_a_few_hard_ones():
 
 # ------------------------------------------------------------------ pp-style weighting and tapping speed
 def test_rank_weights_step_by_one_over_the_replays_analysed():
-    from osu_coach.domain.profile import rank_weights, ranked_mean
+    from osu_coach.profile.domain import rank_weights, ranked_mean
     assert rank_weights(100, 4).tolist() == pytest.approx([1.0, 0.99, 0.98, 0.97])
     assert rank_weights(20, 3).tolist() == pytest.approx([1.0, 0.95, 0.90])
     # the best value counts most, whatever order the plays come in
@@ -410,7 +418,7 @@ def test_rank_weights_step_by_one_over_the_replays_analysed():
 
 
 def test_hardest_plays_of_a_skill_weigh_the_most():
-    from osu_coach.domain.profile import difficulty_weights
+    from osu_coach.profile.domain import difficulty_weights
     P = pd.DataFrame({"replay_key": ["easy"] * 3 + ["hard"] * 3 + ["mid"] * 3,
                       "aim_eq": [3, 3, 3, 8, 8, 8, 5, 5, 5], "stars": [3] * 3 + [8] * 3 + [5] * 3})
     w = difficulty_weights(P, None, "aim_eq", 4).groupby(P["replay_key"]).first()
@@ -429,7 +437,7 @@ def _runs(key, bpm, n_runs, notes=8, miss=None, result=300):
 
 
 def test_tapping_speed_is_the_bpm_you_tap_cleanly_and_ignores_cursor_misses():
-    from osu_coach.domain.profile import speed_score, speed_values
+    from osu_coach.profile.domain import speed_score, speed_values
     clean = speed_values(pd.DataFrame(_runs("a", 240, 4))).iloc[0]
     assert clean["bpm"] == 240 and clean["clean"] == 4
     assert speed_values(pd.DataFrame(_runs("b", 240, 4, miss="aim"))).iloc[0]["bpm"] == 240      # cursor: fine
@@ -449,7 +457,7 @@ def _jumps(key, n, dist, dt, combo=1.0, completed=True, md5=None):
 
 
 def test_aim_is_distance_times_speed_times_combo():
-    from osu_coach.domain.profile import aim_values, aim_score
+    from osu_coach.profile.domain import aim_values, aim_score
     V = aim_values(pd.DataFrame(_jumps("a", 40, 3.0, 200) + _jumps("b", 40, 3.0, 150)
                                 + _jumps("c", 40, 4.0, 200) + _jumps("d", 40, 4.0, 200, combo=0.5)
                                 + _jumps("e", 40, 9.0, 100, completed=False))).set_index("replay_key")
@@ -479,7 +487,7 @@ def _read_play(key, ar, acc, stars=6.0, bpm_changes=0, hit_after=True, hidden=Fa
 
 
 def test_reading_counts_low_ar_accuracy_and_bpm_changes():
-    from osu_coach.domain.profile import reading_values, reading_score, usual_ar
+    from osu_coach.profile.domain import reading_values, reading_score, usual_ar
     assert float(usual_ar(6.0)) == 9.5
     V = reading_values(pd.DataFrame(_read_play("usual", 9.5, 0.95) + _read_play("low", 6.5, 0.95)
                                     + _read_play("low_hd", 6.5, 0.95, hidden=True) + _read_play("sloppy", 6.5, 0.85)
@@ -494,7 +502,7 @@ def test_reading_counts_low_ar_accuracy_and_bpm_changes():
     assert V.loc["bpm", "bpm_changes"] == 8 and V.loc["bpm", "bpm_factor"] == pytest.approx(1.5)
     assert V.loc["bpm_missed", "bpm_factor"] == pytest.approx(1 + 0.5 * 0.75)   # 1 of 4 notes after each change a 100
     maps = lambda ar: pd.DataFrame(sum((_read_play(f"{ar}-{k}", ar, 0.95) for k in range(3)), []))  # noqa: E731
-    from osu_coach.domain.profile import READ_REF
+    from osu_coach.profile.domain import READ_REF
     assert reading_score(maps(9.5))["score"] == pytest.approx(50 + 25 * math.log2(0.95 ** 8 / READ_REF))
     assert reading_score(maps(6.5))["score"] == pytest.approx(25 + reading_score(maps(9.5))["score"], abs=0.5)
     assert reading_score(maps(6.5))["low_ar_score"] == pytest.approx(reading_score(maps(6.5))["score"])
@@ -502,7 +510,7 @@ def test_reading_counts_low_ar_accuracy_and_bpm_changes():
 
 
 def test_low_ar_on_a_slow_map_counts_less_than_on_a_busy_one():
-    from osu_coach.domain.profile import reading_values
+    from osu_coach.profile.domain import reading_values
     V = reading_values(pd.DataFrame(_read_play("slow", 3.5, 0.95, gap=333.3)          # 3 circles per second
                                     + _read_play("busy", 3.5, 0.95, gap=153.8)        # 6.5 per second
                                     + _read_play("busy_usual", 9.5, 0.95, gap=153.8))).set_index("replay_key")
@@ -513,7 +521,7 @@ def test_low_ar_on_a_slow_map_counts_less_than_on_a_busy_one():
 
 # ------------------------------------------------------------------ compared with top players
 def test_against_the_top_players_level_never_scores_higher_than_against_your_own():
-    from osu_coach.domain.profile import skills_at_level, top_comparison
+    from osu_coach.profile.domain import skills_at_level, top_comparison
     skills = {"aim": {"value": 17.5}, "flow_aim": {"value": 11.0}, "speed": {"bpm": 210.0},
               "stamina": {"curve": {10: 116.0, 30: 99.0}}, "sliders": {"value": 40.0},
               "accuracy": {"score": 83.0}, "reading": {"score": 50.0}, "consistency": {"score": 32.0}}
@@ -526,7 +534,7 @@ def test_against_the_top_players_level_never_scores_higher_than_against_your_own
 
 
 def test_high_ar_counts_as_reading_too():
-    from osu_coach.domain.profile import reading_values
+    from osu_coach.profile.domain import reading_values
     V = reading_values(pd.DataFrame(_read_play("usual", 9.5, 0.95) + _read_play("high", 11.0, 0.95))
                        ).set_index("replay_key")
     assert V.loc["high", "ar_factor"] == pytest.approx(2.0, rel=0.02)    # 1.5 AR above usual = twice the demand
@@ -534,7 +542,7 @@ def test_high_ar_counts_as_reading_too():
 
 
 def test_consistency_has_a_score_from_steadiness_alone():
-    from osu_coach.domain.profile import consistency_score
+    from osu_coach.profile.domain import consistency_score
     rows = []
     for k in range(8):                       # 8 clean passes of similar maps: no misses to chain, but very steady
         rows += [{"replay_key": f"p{k}", "completed": True, "stars": 6.0 + 0.05 * k, "head_hit": True,
@@ -546,7 +554,7 @@ def test_consistency_has_a_score_from_steadiness_alone():
 
 
 def test_stamina_in_long_streams_by_speed_is_relative_to_the_note_gap():
-    from osu_coach.domain.profile import stream_fall_behind
+    from osu_coach.profile.domain import stream_fall_behind
     fast = _long_streams(40, 32, lambda pos: 15.0, seed=8, bpm=250.0)
     slow = _long_streams(40, 32, lambda pos: 15.0, seed=9, bpm=200.0)
     slow["replay_key"] = "s"

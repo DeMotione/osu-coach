@@ -6,10 +6,10 @@ import shutil
 import pandas as pd
 import pytest
 
-from osu_coach.domain import check
-from osu_coach.infrastructure.database import progress
-from osu_coach.infrastructure.filesystem.library import analyze_files
-from osu_coach.infrastructure.filesystem.beatmap import read_metadata
+from osu_coach.check import domain as check
+from osu_coach.progress import repository as progress
+from osu_coach.library.repository import analyze_files
+from osu_coach.beatmaps.parser import read_metadata
 from osu_coach.cli import main
 from tests.conftest import replay_and_map
 from tests.infrastructure.test_progress import MINE, _fake

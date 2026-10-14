@@ -14,9 +14,9 @@ import json
 import math
 import sys
 
-from osu_coach.infrastructure.filesystem import locate
-from osu_coach.infrastructure.filesystem.library import Library
-from osu_coach.domain.profile import build_profile
+from osu_coach.replays import locate
+from osu_coach.library.repository import Library
+from osu_coach.profile.domain import build_profile
 
 
 def best_of(analyses):

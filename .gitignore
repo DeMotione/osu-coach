@@ -11,7 +11,7 @@ dist/
 # data that stays local
 dev_data/
 .osu_coach_cache/
-exports/
+/exports/
 reference_replays/
 
 # frontend

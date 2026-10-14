@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from osu_coach.domain.analysis import along_cross
-from osu_coach.domain.profile import click_points, click_summary
+from osu_coach.analysis.domain import along_cross
+from osu_coach.profile.domain import click_points, click_summary
 
 R = 36.5
 

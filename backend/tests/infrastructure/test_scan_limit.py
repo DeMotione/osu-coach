@@ -7,12 +7,12 @@ import shutil
 from pathlib import Path
 
 
-from osu_coach.infrastructure.filesystem import locate
-from osu_coach.domain.replay import UNSUPPORTED_LAZER_MODS
+from osu_coach.replays import locate
+from osu_coach.replays.domain import UNSUPPORTED_LAZER_MODS
 from osu_coach.cli import main
-from osu_coach.domain.replay_selection import analysable, skip_reason
-from osu_coach.infrastructure.filesystem.library import Library
-from osu_coach.infrastructure.filesystem.osr import lazer_info, lazer_mod_acronyms, parse_header
+from osu_coach.replays.replay_selection import analysable, skip_reason
+from osu_coach.library.repository import Library
+from osu_coach.replays.osr import lazer_info, lazer_mod_acronyms, parse_header
 from tests.conftest import replay_and_map
 
 MINE = ["mot1one__lazer_nm.osr", "mot1one__lazer_dthd_spinner.osr", "mot1one__lazer_failed.osr"]  # old -> new

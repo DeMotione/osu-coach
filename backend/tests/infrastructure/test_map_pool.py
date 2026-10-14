@@ -1,7 +1,7 @@
 import pytest
 
-from osu_coach.domain.map_recommendations import QUADRANTS, SKILLS
-from osu_coach.infrastructure.filesystem.map_pool import POOL_PATH, load_pool, save_pool, stats_from_osu
+from osu_coach.maps.domain import QUADRANTS, SKILLS
+from osu_coach.maps.repository import POOL_PATH, load_pool, save_pool, stats_from_osu
 
 HEADER = """osu file format v14
 

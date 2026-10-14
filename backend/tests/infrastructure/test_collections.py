@@ -2,7 +2,7 @@ import struct
 
 import pytest
 
-from osu_coach.infrastructure.filesystem import collection_db as coll
+from osu_coach.exports import collection_db as coll
 
 H1 = "0123456789abcdef0123456789abcdef"
 H2 = "fedcba9876543210fedcba9876543210"

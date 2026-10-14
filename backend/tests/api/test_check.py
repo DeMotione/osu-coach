@@ -1,8 +1,8 @@
 """Detailed Map Analysis: one replay on its own."""
 from tests.api.conftest import plays_folder, replay_and_map, scan
 
-from osu_coach.infrastructure.database import progress
-from osu_coach.infrastructure.filesystem.beatmap import read_metadata
+from osu_coach.progress import repository as progress
+from osu_coach.beatmaps.parser import read_metadata
 
 
 def _title(name):

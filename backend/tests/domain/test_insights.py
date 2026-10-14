@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from osu_coach.domain import insights
-from osu_coach.infrastructure.filesystem.library import analyze_files
-from osu_coach.domain.profile import build_profile, click_points
+from osu_coach.insights import domain as insights
+from osu_coach.library.repository import analyze_files
+from osu_coach.profile.domain import build_profile, click_points
 from tests.conftest import replay_and_map
 
 NAMES = ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr", "mot1one__lazer_nm.osr",

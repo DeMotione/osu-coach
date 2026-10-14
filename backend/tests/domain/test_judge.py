@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
 
-from osu_coach.domain.beatmap import PlayableBeatmap
-from osu_coach.infrastructure.filesystem.beatmap import parse_beatmap_file
-from osu_coach.domain.judge import simulate
-from osu_coach.infrastructure.filesystem.osr import parse_replay_file
+from osu_coach.beatmaps.domain import PlayableBeatmap
+from osu_coach.beatmaps.parser import parse_beatmap_file
+from osu_coach.analysis.judge import simulate
+from osu_coach.replays.osr import parse_replay_file
 from tests.conftest import replay_and_map
 
 EXACT_CASES = [

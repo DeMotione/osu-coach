@@ -6,11 +6,11 @@ from pathlib import Path
 import pytest
 from tests.api.conftest import wait, workspace
 
-from osu_coach.infrastructure.filesystem import lazer_import
-from osu_coach.infrastructure.http import sources
-from osu_coach.infrastructure.filesystem.collection_db import loads
-from osu_coach.domain.map_recommendations import SKILLS
-from osu_coach.infrastructure.filesystem.map_pool import POOL_PATH
+from osu_coach.exports import lazer_import
+from osu_coach.beatmaps import sources
+from osu_coach.exports.collection_db import loads
+from osu_coach.maps.domain import SKILLS
+from osu_coach.maps.repository import POOL_PATH
 
 pytestmark = pytest.mark.skipif(not POOL_PATH.exists(), reason="bundled pool not built")
 
@@ -113,11 +113,11 @@ def test_stable_collection_needs_a_stable_install(client, export):
 
 
 def test_stable_collection_is_merged_with_a_backup(client, export, tmp_path, monkeypatch):
-    from osu_coach.infrastructure.filesystem import locate
+    from osu_coach.replays import locate
     root = tmp_path / "osu!"
     (root / "Songs").mkdir(parents=True)
     (root / "osu!.tester.cfg").write_text("")
-    from osu_coach.infrastructure.filesystem.collection_db import read_collection_db, write_collection_db
+    from osu_coach.exports.collection_db import read_collection_db, write_collection_db
     write_collection_db(root / "collection.db", {"mine": ["a" * 32]})
     ws = workspace(client)
     monkeypatch.setattr(ws, "installs", lambda refresh=False: locate.find_installs(stable_roots=[root], lazer_roots=[]))

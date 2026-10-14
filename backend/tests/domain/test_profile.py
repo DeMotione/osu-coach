@@ -4,9 +4,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from osu_coach.infrastructure.filesystem.library import analyze_files
-from osu_coach.domain.profile import (aim_regression, build_profile, fit_miss_model, quadrant_stats, stream_speed_profile,
-                               worst_quadrant)
+from osu_coach.library.repository import analyze_files
+from osu_coach.profile.domain import (
+    aim_regression,
+    build_profile,
+    fit_miss_model,
+    quadrant_stats,
+    stream_speed_profile,
+    worst_quadrant,
+)
 from tests.conftest import replay_and_map
 
 
@@ -111,7 +117,7 @@ def _sections(tilt: float, seed: int):
 
 
 def test_miss_chains_from_hard_sections_are_not_tilt():
-    from osu_coach.domain.profile import miss_chain_ratio
+    from osu_coach.profile.domain import miss_chain_ratio
     df = _sections(tilt=1.0, seed=4)
     naive = df.groupby("replay_key")["head_hit"].apply(lambda s: (~s).rolling(2).sum().eq(2).mean()).mean()
     assert naive > (~df["head_hit"]).mean() ** 2 * 1.5   # misses do cluster ...
@@ -119,12 +125,12 @@ def test_miss_chains_from_hard_sections_are_not_tilt():
 
 
 def test_tilt_after_misses_is_detected():
-    from osu_coach.domain.profile import miss_chain_ratio
+    from osu_coach.profile.domain import miss_chain_ratio
     assert miss_chain_ratio(_sections(tilt=3.0, seed=5)) > 1.5
 
 
 def test_notelock_followups_do_not_count_as_tilt():
-    from osu_coach.domain.profile import miss_chain_ratio
+    from osu_coach.profile.domain import miss_chain_ratio
     df = _sections(tilt=1.0, seed=6)
     # every miss drags the next note with it through notelock
     extra = df.index[(~df["head_hit"]).shift(1, fill_value=False)]
@@ -172,7 +178,7 @@ def test_unweighted_profile_counts_every_miss(real_profile):
 
 
 def test_detected_level_sets_the_weights(real_profile):
-    from osu_coach.domain.profile import replay_weight
+    from osu_coach.profile.domain import replay_weight
     stars = real_profile.replays["stars"].to_numpy()
     assert real_profile.levels["level_stars"] == pytest.approx(real_profile.levels["level_detected"])
     assert real_profile.replays["weight"].to_numpy() == pytest.approx(
@@ -196,7 +202,7 @@ def test_stream_profile_ignores_short_bursts():
 
 # ------------------------------------------------------------------ calibration on top players' replays
 def test_accuracy_scale_tops_out_at_99_percent_300s():
-    from osu_coach.domain.profile import accuracy_score
+    from osu_coach.profile.domain import accuracy_score
     assert accuracy_score(0.99) == pytest.approx(100) and accuracy_score(0.50) == pytest.approx(0)
     assert accuracy_score(0.995) == 100                      # clipped
     assert accuracy_score(0.955) == pytest.approx(92.9, abs=0.1)
@@ -204,7 +210,7 @@ def test_accuracy_scale_tops_out_at_99_percent_300s():
 
 
 def test_near_perfect_play_says_too_few_misses_instead_of_no_data():
-    from osu_coach.domain.profile import _subset_score
+    from osu_coach.profile.domain import _subset_score
     P = pd.DataFrame({"head_hit": [True] * 500 + [False], "local_eq": 5.0})
     model = lambda e: np.full(np.shape(e), 0.001)            # noqa: E731 - expects ~0.5 misses
     s = _subset_score(P, pd.Series(True, index=P.index), model)
