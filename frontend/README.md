@@ -1,7 +1,7 @@
 # osu! coach — web app
 
 The frontend of osu! coach: a React + TypeScript progressive web app (installable, its shell works offline) that talks
-to the API in `../api`.
+to the API in `../backend`.
 
 | | |
 | --- | --- |
@@ -33,8 +33,8 @@ npm run dev              # http://localhost:5173 — /api and /docs are forwarde
 | Script | |
 | --- | --- |
 | `npm run typecheck` / `npm run lint` / `npm test` | TypeScript, ESLint, unit tests |
-| `npm run e2e` | Builds nothing: run `npm run build` first. Starts the API on :8766 with an empty data folder, analyses the sample replays of the core tests through the UI and checks every page (set `OSU_COACH_PYTHON` to the Python that has the packages) |
-| `npm run gen:api` | Regenerates `src/api/schema.d.ts` from `src/api/openapi.json` (written by `python -m osu_coach_api.openapi src/api/openapi.json`) |
+| `npm run e2e` | Builds nothing: run `npm run build` first. Starts the API on :8766 with an empty data folder, analyses the sample replays of the backend tests through the UI and checks every page (set `OSU_COACH_PYTHON` to the Python that has the packages) |
+| `npm run gen:api` | Regenerates `src/api/schema.d.ts` from `src/api/openapi.json` (written by `python -m osu_coach.app.openapi src/api/openapi.json`) |
 
 ## Layout
 

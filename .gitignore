@@ -5,13 +5,15 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
-build/
-dist/
+/build/
+/dist/
+/backend/build/
+/backend/dist/
 
 # data that stays local
 dev_data/
 .osu_coach_cache/
-exports/
+/exports/
 reference_replays/
 
 # frontend

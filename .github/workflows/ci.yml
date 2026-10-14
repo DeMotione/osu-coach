@@ -22,8 +22,8 @@ jobs:
       matrix:
         python: ["3.11", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
           cache: pip
@@ -34,7 +34,7 @@ jobs:
           pip install -c constraints.txt -e "./backend[dev]"
       - name: Lint
         working-directory: backend
-        run: ruff check .
+        run: ruff check . && ruff format --check .
       - name: Import layering
         working-directory: backend
         run: lint-imports
@@ -49,13 +49,13 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -67,7 +67,7 @@ jobs:
           pip install -c ../constraints.txt -e ../backend
       - name: API types are up to date
         run: |
-          python -m osu_coach.api.openapi src/api/openapi.json
+          python -m osu_coach.app.openapi src/api/openapi.json
           npm run gen:api
           git diff --exit-code -- src/api
       - run: npm run typecheck
@@ -80,7 +80,7 @@ jobs:
           npm run e2e
         env:
           OSU_COACH_PYTHON: python
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-traces
