@@ -67,7 +67,7 @@ jobs:
           pip install -c ../constraints.txt -e ../backend
       - name: API types are up to date
         run: |
-          python -m osu_coach.api.openapi src/api/openapi.json
+          python -m osu_coach.app.openapi src/api/openapi.json
           npm run gen:api
           git diff --exit-code -- src/api
       - run: npm run typecheck
