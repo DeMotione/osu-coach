@@ -1,4 +1,5 @@
 """The FastAPI application: ``create_app()``."""
+
 from __future__ import annotations
 
 from fastapi import FastAPI
@@ -7,11 +8,19 @@ from fastapi.responses import HTMLResponse
 from scalar_fastapi import AgentScalarConfig, get_scalar_api_reference
 
 from osu_coach import __version__
-from osu_coach.api import errors, web
+from osu_coach.app import errors, jobs, web
+from osu_coach.app.security import LocalOnlyMiddleware
+from osu_coach.app.workspace import Workspace
+from osu_coach.check import routes as check
 from osu_coach.config import Settings, find_web_dir
-from osu_coach.api.routes import check, exports, jobs, library, maps, profile, progress, settings, system
-from osu_coach.api.security import LocalOnlyMiddleware
-from osu_coach.api.state.workspace import Workspace
+from osu_coach.dashboard import routes as dashboard
+from osu_coach.exports import routes as exports
+from osu_coach.library import routes as library
+from osu_coach.maps import routes as maps
+from osu_coach.progress import routes as progress
+from osu_coach.settings import routes as settings
+from osu_coach.system import routes as system
+from osu_coach.tips import routes as tips
 
 API_PREFIX = "/api"
 SCALAR_JS = "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.71.0"
@@ -51,8 +60,15 @@ TAGS = [
 
 def create_app(config: Settings | None = None) -> FastAPI:
     config = config or Settings()
-    app = FastAPI(title="osu! coach API", version=__version__, description=DESCRIPTION, openapi_tags=TAGS,
-                  docs_url=None, redoc_url=None, openapi_url=f"{API_PREFIX}/openapi.json" if config.api_docs else None)
+    app = FastAPI(
+        title="osu! coach API",
+        version=__version__,
+        description=DESCRIPTION,
+        openapi_tags=TAGS,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=f"{API_PREFIX}/openapi.json" if config.api_docs else None,
+    )
     app.state.api_docs = config.api_docs
     app.state.workspace = Workspace(config)
     web_dir = config.web_dir if config.web_dir is not None else find_web_dir()
@@ -60,21 +76,27 @@ def create_app(config: Settings | None = None) -> FastAPI:
     errors.install(app)
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(LocalOnlyMiddleware, allowed_hosts=config.allowed_hosts)
-    for module in (system, settings, library, jobs, profile, check, progress, maps, exports):
+    for module in (system, settings, library, jobs, dashboard, tips, check, progress, maps, exports):
         app.include_router(module.router, prefix=API_PREFIX)
     build_openapi = app.openapi
 
     def openapi() -> dict:
-        return errors.document_validation_errors(build_openapi())     # idempotent; FastAPI caches the document
+        return errors.document_validation_errors(build_openapi())  # idempotent; FastAPI caches the document
 
-    app.openapi = openapi                                                  # type: ignore[method-assign]
+    app.openapi = openapi  # type: ignore[method-assign]
 
     if config.api_docs:
+
         @app.get("/docs", include_in_schema=False)
         def docs() -> HTMLResponse:
-            return get_scalar_api_reference(openapi_url=app.openapi_url, title="osu! coach API",
-                                            scalar_js_url=SCALAR_JS, telemetry=False,
-                                            agent=AgentScalarConfig(disabled=True), hide_client_button=False)
+            return get_scalar_api_reference(
+                openapi_url=app.openapi_url,
+                title="osu! coach API",
+                scalar_js_url=SCALAR_JS,
+                telemetry=False,
+                agent=AgentScalarConfig(disabled=True),
+                hide_client_button=False,
+            )
 
     web.mount(app, app.state.web_dir)
     return app
