@@ -199,7 +199,7 @@ function FindCard({ settings }: { settings: Settings }) {
       />
       <button
         type="button"
-        className="btn btn--primary btn--block"
+        className={library.data?.scanned ? "btn btn--block" : "btn btn--primary btn--block"}
         disabled={busy || (filesMode && uploads.length === 0)}
         onClick={() => void startScan()}
       >

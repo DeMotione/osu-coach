@@ -7,19 +7,25 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
 }
 
 body {
   margin: 0;
   min-height: 100dvh;
-  background: var(--bg);
+  background: var(--backdrop) no-repeat fixed, var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 14px;
+  font-size: var(--t-base);
   line-height: 1.5;
-  font-feature-settings: "cv11", "ss01";
+  font-feature-settings: "cv11", "ss03";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--accent-soft);
 }
 
 h1,
@@ -41,13 +47,15 @@ li + li {
   margin-top: 0.35em;
 }
 
+/* links inside text are pink; most links in the app are buttons or navigation and say so by their shape */
 a {
-  color: var(--accent);
+  color: var(--accent-text);
   text-decoration: none;
 }
 
 a:hover {
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 button,
@@ -67,8 +75,28 @@ kbd {
   padding: 0.08em 0.38em;
 }
 
+kbd {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--text-2);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  background: var(--raised);
+}
+
 strong {
   font-weight: 600;
+}
+
+/* headings: tight, heavy, not shouty. Their size comes from the component, never from the tag. */
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 650;
+  letter-spacing: -0.012em;
 }
 
 :focus-visible {
@@ -85,7 +113,7 @@ strong {
 }
 
 .small {
-  font-size: 12.5px;
+  font-size: var(--t-sm);
 }
 
 .visually-hidden {
@@ -97,11 +125,25 @@ strong {
   white-space: nowrap;
 }
 
+/* set for a moment while the theme changes, so colours fade instead of snapping */
+.theme-fade *,
+.theme-fade *::before,
+.theme-fade *::after {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease,
+    fill 0.3s ease,
+    stroke 0.3s ease,
+    box-shadow 0.3s ease !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

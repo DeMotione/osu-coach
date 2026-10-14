@@ -97,7 +97,6 @@ function Body({ d }: { d: Page_ }) {
               label="Hit results per approach rate"
               rows={d.hits_by_ar}
               rowKey={(x) => String(x.ar)}
-              fill
               columns={[
                 { key: "ar", header: "AR", cell: (x) => fmt(x.ar, 1), value: (x) => x.ar, strong: true },
                 { key: "300", header: "300", cell: (x) => `${x.r300.toFixed(1)}%`, value: (x) => x.r300, align: "right" },

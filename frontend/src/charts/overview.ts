@@ -2,7 +2,7 @@ import type { Schemas } from "../api/client";
 import { esc } from "../lib/format";
 import { base, categoryAxis, grid, niceMax, refLine, responsive, tooltip, valueAxis } from "./base";
 import type { Option } from "./echarts";
-import { C, scoreColor, type ChartTheme } from "./palette";
+import { C, INK, scoreColor, type ChartTheme } from "./palette";
 import { params } from "./types";
 
 type Skill = Schemas["SkillScore"];
@@ -69,7 +69,7 @@ export function skillBars(skills: Skill[], help: SkillMeta[], t: ChartTheme): Op
           barMaxWidth: 22,
           data: skills.map((s) => ({
             value: s.score ?? 0,
-            itemStyle: { color: scoreColor(s.score), borderRadius: [0, 5, 5, 0] },
+            itemStyle: { color: scoreColor(s.score), borderRadius: [0, 3, 3, 0] },
           })),
           label: {
             show: true,
@@ -111,11 +111,11 @@ export function topBars(top: Schemas["TopSkill"][], t: ChartTheme): Option {
           type: "bar",
           name: "you",
           barMaxWidth: 22,
-          data: top.map((s) => ({ value: s.score ?? 0, itemStyle: { color: scoreColor(s.score), borderRadius: [0, 5, 5, 0] } })),
+          data: top.map((s) => ({ value: s.score ?? 0, itemStyle: { color: scoreColor(s.score), borderRadius: [0, 3, 3, 0] } })),
           label: {
             show: true,
             position: "insideRight",
-            color: "#16161f",
+            color: INK,
             fontWeight: 600,
             formatter: (p: unknown) => {
               const s = top[params(p)[0].dataIndex];
@@ -128,7 +128,7 @@ export function topBars(top: Schemas["TopSkill"][], t: ChartTheme): Option {
           name: "top players",
           symbol: "diamond",
           symbolSize: 13,
-          itemStyle: { color: t.dark ? "#c9cbd8" : "#6c6f82" },
+          itemStyle: { color: t.muted },
           data: top.map((s) => s.top),
           z: 3,
         },
@@ -168,7 +168,7 @@ export function missCauses(causes: Schemas["MissCause"][], descriptions: Record<
         type: "bar",
         barMaxWidth: 20,
         data: items.map((c) => +(c.share * 100).toFixed(2)),
-        itemStyle: { color: C.accent, borderRadius: [0, 5, 5, 0] },
+        itemStyle: { color: C.accent, borderRadius: [0, 3, 3, 0] },
         label: { show: true, position: "right", color: t.text, formatter: (p: unknown) => `${Math.round(Number(params(p)[0].value))}%` },
       },
     ],

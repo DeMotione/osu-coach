@@ -28,7 +28,7 @@ export function arMissChart(rows: Schemas["ArMissRow"][], t: ChartTheme): Option
         type: "bar",
         barMaxWidth: 48,
         data: rows.map((r) => (r.miss_rate === null ? null : +(r.miss_rate * 100).toFixed(3))),
-        itemStyle: { color: C.info, borderRadius: [5, 5, 0, 0] },
+        itemStyle: { color: C.info, borderRadius: [3, 3, 0, 0] },
       },
     ],
   });
@@ -59,7 +59,7 @@ export function sliderRatesChart(r: Schemas["SliderRates"], axisName: string, t:
         type: "bar",
         stack: "s",
         data: r.rows.map((b) => +b.broke.toFixed(2)),
-        itemStyle: { color: C.warn, borderRadius: [5, 5, 0, 0] },
+        itemStyle: { color: C.warn, borderRadius: [3, 3, 0, 0] },
       },
     ],
   });
@@ -88,7 +88,7 @@ export function hitsByArChart(rows: Schemas["HitsByAr"][], t: ChartTheme): Optio
       stack: "r",
       barMaxWidth: 56,
       data: rows.map((r) => +r[key].toFixed(2)),
-      itemStyle: { color, borderRadius: i === parts.length - 1 ? [5, 5, 0, 0] : 0 },
+      itemStyle: { color, borderRadius: i === parts.length - 1 ? [3, 3, 0, 0] : 0 },
     })),
   });
 }

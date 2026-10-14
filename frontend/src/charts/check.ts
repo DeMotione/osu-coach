@@ -51,7 +51,7 @@ export function playTimingChart(tm: Schemas["PlayTiming"], t: ChartTheme): Optio
         height: 22,
         bottom: 30,
         borderColor: t.line,
-        fillerColor: "rgba(255,102,170,0.15)",
+        fillerColor: "rgba(255,102,170,0.18)",
         handleStyle: { color: C.accent },
         textStyle: { color: t.muted },
         labelFormatter: (v: number) => mmss(v),
