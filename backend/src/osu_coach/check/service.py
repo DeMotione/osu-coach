@@ -15,7 +15,7 @@ from osu_coach.insights import domain as insights
 from osu_coach.replays import locate
 from osu_coach.progress import repository as progress
 from osu_coach.beatmaps.parser import read_metadata
-from osu_coach.replays.replay_selection import EXCLUDE_MODS, analysable, skip_reason
+from osu_coach.replays.eligibility import EXCLUDE_MODS, analysable, skip_reason
 from osu_coach.library.repository import Library
 from osu_coach.profile.domain import build_profile
 

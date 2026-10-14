@@ -14,7 +14,7 @@ from typing import Any, TypeVar
 
 from osu_coach.progress import repository as progress
 from osu_coach.replays import locate
-from osu_coach.replays import selection
+from osu_coach.replays import scope
 from osu_coach.settings.domain import Setup
 from osu_coach.analysis.domain import ReplayAnalysis
 from osu_coach.library.repository import Library
@@ -111,7 +111,7 @@ class Workspace:
         with self._profile_lock:
             if self._profile_sig != sig:
                 s = self.settings()
-                chosen = selection.select(self.analyses, s.get("replay_set", "all"))
+                chosen = scope.select(self.analyses, s.get("replay_set", "all"))
                 self._profile = build_profile(chosen, level=s.get("level_override")) if chosen else None
                 self._profile_sig, self._memo = sig, {}
             return self._profile
@@ -144,4 +144,4 @@ class Workspace:
 
     def replay_set(self) -> str:
         rs = self.settings().get("replay_set", "all")
-        return rs if rs in selection.REPLAY_SETS else "all"
+        return rs if rs in scope.REPLAY_SETS else "all"

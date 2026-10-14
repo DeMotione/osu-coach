@@ -15,9 +15,9 @@ from pathlib import Path
 from osu_coach.config import default_cache_dir
 from osu_coach.replays import locate
 from osu_coach.beatmaps import sources
-from osu_coach.replays import replay_selection
+from osu_coach.replays import eligibility
 from osu_coach.analysis.domain import ANALYSIS_VERSION, ReplayAnalysis, UnsupportedReplay, analyze
-from osu_coach.replays.replay_selection import analysable
+from osu_coach.replays.eligibility import analysable
 from osu_coach.beatmaps.parser import parse_beatmap_bytes
 from osu_coach.replays.osr import parse_replay
 
@@ -148,19 +148,19 @@ class Library:
     # -------------------------------------------------------------- selection
     def standard_replays(self) -> list[dict]:
         """Replays that can be analysed (see :func:`analysable`)."""
-        return replay_selection.standard_replays(self.replays)
+        return eligibility.standard_replays(self.replays)
 
     def left_out(self, player: str | None = None, since: str | None = None) -> Counter:
         """Reasons for osu!standard replays of ``player`` that can't be analysed (lazer mods the
         simulation can't follow), counted.  ``since``: only replays played at or after this
         timestamp (ISO, as in the headers)."""
-        return replay_selection.left_out(self.replays, player, since)
+        return eligibility.left_out(self.replays, player, since)
 
     def players(self) -> list[tuple[str, int]]:
-        return replay_selection.player_counts(self.replays)
+        return eligibility.player_counts(self.replays)
 
     def eligible(self, player: str | None = None, limit: int | None = None) -> list[dict]:
-        return replay_selection.eligible(self.replays, player, limit)
+        return eligibility.eligible(self.replays, player, limit)
 
     # -------------------------------------------------------------- beatmaps
     def has_unread_maps(self, kind: str | None = None) -> bool:

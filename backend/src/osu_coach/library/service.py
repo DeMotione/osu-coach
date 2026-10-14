@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from osu_coach.replays import locate
-from osu_coach.replays import selection
+from osu_coach.replays import scope
 from osu_coach.library.repository import Library
 
 from osu_coach.app.errors import ApiError, Invalid, NotFound
@@ -188,8 +188,8 @@ def select(ws: Workspace, player: str | None, latest: int, date_range: str, date
         start, end = date_from or today - dt.timedelta(days=30), date_to or today
         if start > end:
             raise Invalid("The start of the date range is after its end.", "bad_date_range")
-    since, until = selection.date_window(choice, [r.get("timestamp") for r in every], start, end)
-    refs = selection.filter_refs(every, since, until)[:limit]
+    since, until = scope.date_window(choice, [r.get("timestamp") for r in every], start, end)
+    refs = scope.filter_refs(every, since, until)[:limit]
     counts = dict(players)
     found = sum(counts.values()) if player == "*" else counts.get(player, 0)
     return Selection(player=player, players=players, refs=refs, found=found, limit=limit, only=only, choice=choice,

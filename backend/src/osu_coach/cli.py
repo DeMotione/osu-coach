@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 from osu_coach.check import domain as check
-from osu_coach.replays import selection
+from osu_coach.replays import scope
 from osu_coach.exports import lazer_import
 from osu_coach.replays import locate
 from osu_coach.progress import repository as progress
@@ -24,7 +24,7 @@ from osu_coach.tips.domain import make_tips, practice_plan
 from osu_coach.settings.domain import Setup
 from osu_coach.exports.collection_db import merge_into, write_collection_db
 from osu_coach.exports.domain import sets_to_download
-from osu_coach.replays.replay_selection import EXCLUDE_MODS, skip_reason
+from osu_coach.replays.eligibility import EXCLUDE_MODS, skip_reason
 from osu_coach.library.repository import Library
 from osu_coach.settings.repository import load_settings, save_settings
 from osu_coach.maps.domain import (
@@ -108,7 +108,7 @@ def _analyse(args, log):
     player = args.player or players[0][0]
     refs = lib.eligible(player)
     since, until = _date_window(args, refs)
-    refs = selection.filter_refs(refs, since, until)[:args.limit or None]
+    refs = scope.filter_refs(refs, since, until)[:args.limit or None]
     if since or until:
         log("played " + (f"from {since:%Y-%m-%d %H:%M} UTC " if since else "") + (f"until {until:%Y-%m-%d} " if until else ""))
     if not refs and (since or until):
@@ -135,7 +135,7 @@ def _analyse(args, log):
     except Exception as exc:  # noqa: BLE001 - the report matters more than the history
         log(f"could not save progress: {exc}")
     replay_set = _replay_set(args)
-    chosen = selection.select(analyses, replay_set)
+    chosen = scope.select(analyses, replay_set)
     if not chosen:
         raise SystemExit("No passed plays among these replays — use --all-replays.")
     if replay_set == "best":
@@ -152,7 +152,7 @@ def _replay_set(args) -> str:
             save_settings(sett, args.cache)
         return args.replay_set
     saved = load_settings(args.cache).get("replay_set")
-    return saved if saved in selection.REPLAY_SETS else "all"
+    return saved if saved in scope.REPLAY_SETS else "all"
 
 
 def _date_window(args, refs):
@@ -168,10 +168,10 @@ def _date_window(args, refs):
         except ValueError:
             raise SystemExit(f"Not a date (YYYY-MM-DD): {v}") from None
     if since_arg in ("session", "7d", "30d"):
-        since, _ = selection.date_window(since_arg, [r.get("timestamp") for r in refs])
+        since, _ = scope.date_window(since_arg, [r.get("timestamp") for r in refs])
     else:
-        since, _ = selection.date_window("custom", start=day(since_arg)) if since_arg else (None, None)
-    until = selection.date_window("custom", end=day(until_arg))[1] if until_arg else None
+        since, _ = scope.date_window("custom", start=day(since_arg)) if since_arg else (None, None)
+    until = scope.date_window("custom", end=day(until_arg))[1] if until_arg else None
     return since, until
 
 
@@ -218,7 +218,7 @@ def cmd_analyze(args) -> int:
           f"{ov['maps']} maps, "
           f"{_num(ov['play_minutes'], '.0f')} min of play")
     if replay_set == "best":
-        print(f"  ({selection.BEST_DEFINITION})")
+        print(f"  ({scope.BEST_DEFINITION})")
     lvl = lv.get("level_stars")
     how = ("set with --level" if lv.get("level_override") else
            f"detected from your {lv.get('level_recent_n', 0)} most recent replays")

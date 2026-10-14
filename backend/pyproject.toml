@@ -73,7 +73,7 @@ source_modules = [
     "osu_coach.*.domain",
     "osu_coach.beatmaps.curves", "osu_coach.beatmaps.difficulty", "osu_coach.beatmaps.features",
     "osu_coach.analysis.judge", "osu_coach.analysis.judge_lazer",
-    "osu_coach.replays.replay_selection", "osu_coach.replays.selection", "osu_coach.progress.goals",
+    "osu_coach.replays.eligibility", "osu_coach.replays.scope", "osu_coach.progress.goals",
 ]
 forbidden_modules = [
     "osu_coach.config", "osu_coach.app", "osu_coach.main", "osu_coach.cli", "osu_coach.jobs",

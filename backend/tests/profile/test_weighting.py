@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from osu_coach.replays import selection
+from osu_coach.replays import scope
 from osu_coach.library.repository import analyze_files
 from osu_coach.profile.domain import (
     build_profile,
@@ -214,36 +214,36 @@ def test_best_replays_one_per_map_and_speed():
     plays = [_meta("a", 1.0, 500, 0.95), _meta("a", 1.0, 700, 0.90), _meta("a", 1.5, 300, 0.80),
              _meta("a", 1.0, 900, 0.99, completed=False),          # failed: never "best"
              _meta("b", 1.0, 400, 0.97), _meta("b", 1.0, 400, 0.98), _meta("c", 0.75, 0, 0.5, completed=False)]
-    best = selection.best_replays(plays)
+    best = scope.best_replays(plays)
     got = {(m["beatmap_md5"], m["rate"]): (m["score"], m["accuracy"]) for m in best}
     assert got == {("a", 1.0): (700, 0.90), ("a", 1.5): (300, 0.80), ("b", 1.0): (400, 0.98)}
-    assert selection.select(plays, "all") == plays
+    assert scope.select(plays, "all") == plays
 
 
 def test_last_session_is_the_newest_run_of_close_plays():
     t = dt.datetime(2026, 10, 7, 20, 0, tzinfo=UTC)
     times = [t, t + dt.timedelta(minutes=40), t + dt.timedelta(minutes=70),     # one session
              t - dt.timedelta(hours=5), t - dt.timedelta(days=2)]
-    assert selection.last_session_start(times) == t
-    since, until = selection.date_window("session", [x.isoformat() for x in times])
+    assert scope.last_session_start(times) == t
+    since, until = scope.date_window("session", [x.isoformat() for x in times])
     assert since == t and until is None
 
 
 def test_date_windows():
     now = dt.datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
-    assert selection.date_window("all", now=now) == (None, None)
-    assert selection.date_window("7d", now=now)[0] == now - dt.timedelta(days=7)
-    assert selection.date_window("30d", now=now)[0] == now - dt.timedelta(days=30)
-    since, until = selection.date_window("custom", start=dt.date(2026, 10, 1), end=dt.date(2026, 10, 2), tz=UTC)
+    assert scope.date_window("all", now=now) == (None, None)
+    assert scope.date_window("7d", now=now)[0] == now - dt.timedelta(days=7)
+    assert scope.date_window("30d", now=now)[0] == now - dt.timedelta(days=30)
+    since, until = scope.date_window("custom", start=dt.date(2026, 10, 1), end=dt.date(2026, 10, 2), tz=UTC)
     assert since == dt.datetime(2026, 10, 1, tzinfo=UTC) and until == dt.datetime(2026, 10, 3, tzinfo=UTC)
 
 
 def test_filter_refs_by_header_time():
     refs = [{"timestamp": "2026-10-09T21:00:00"}, {"timestamp": "2026-09-01T10:00:00"}, {"timestamp": ""}]
     since = dt.datetime(2026, 10, 1, tzinfo=UTC)
-    assert selection.filter_refs(refs, since, None) == refs[:1]
-    assert selection.filter_refs(refs, None, None) == refs
-    assert selection.filter_refs(refs, None, since) == refs[1:2]
+    assert scope.filter_refs(refs, since, None) == refs[:1]
+    assert scope.filter_refs(refs, None, None) == refs
+    assert scope.filter_refs(refs, None, since) == refs[1:2]
 
 
 # ------------------------------------------------------------------ stamina: rhythm, overstreaming, time
