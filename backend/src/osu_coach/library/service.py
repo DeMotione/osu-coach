@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import datetime as dt
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from osu_coach.app.errors import ApiError, Invalid, NotFound
+from osu_coach.app.errors import ApiError, Invalid
 from osu_coach.app.schemas import Count
 from osu_coach.jobs.manager import Reporter
 from osu_coach.library.repository import Library
@@ -22,8 +21,8 @@ from osu_coach.library.schemas import (
     ScanResult,
     SelectionOut,
     SkippedReplay,
-    UploadedFile,
 )
+from osu_coach.library.uploads import resolve_upload
 from osu_coach.replays import locate, scope
 
 if TYPE_CHECKING:
@@ -40,8 +39,6 @@ class ScanArgs:
     map_installs: list[locate.Install] = field(default_factory=list)   # beatmaps only, for ``only``
 
 
-UPLOAD_SUFFIXES = {".osr": "replay", ".osu": "beatmap"}
-MAX_UPLOAD_BYTES = 64 * 1024 * 1024
 SKIPPED_SHOWN = 200
 
 
@@ -50,40 +47,6 @@ def install_out(inst: locate.Install) -> InstallOut:
                       replay_dirs=[str(d) for d in inst.replay_dirs],
                       files_dir=str(inst.files_dir) if inst.files_dir else None,
                       collection_db=str(inst.collection_db) if inst.collection_db else None)
-
-
-# ------------------------------------------------------------------ uploads
-def uploads_dir(ws: Workspace) -> Path:
-    d = ws.cache_dir / "uploads"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
-def safe_upload_name(name: str) -> str:
-    """The file name without folders or characters file systems reject."""
-    base = Path(name.replace("\\", "/")).name
-    base = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", base).strip(" .")
-    return base[:180] or "upload"
-
-
-def save_upload(ws: Workspace, name: str, data: bytes) -> UploadedFile:
-    clean = safe_upload_name(name)
-    kind = UPLOAD_SUFFIXES.get(Path(clean).suffix.lower())
-    if kind is None:
-        raise Invalid(f"{name}: only .osr replays and .osu beatmaps can be added.", "unsupported_file")
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise Invalid(f"{name}: file too large.", "file_too_large")
-    dest = uploads_dir(ws) / clean
-    dest.write_bytes(data)
-    return UploadedFile(id=clean, name=name, path=str(dest), kind=kind, size=len(data))
-
-
-def resolve_upload(ws: Workspace, upload_id: str) -> Path:
-    """An uploaded file by its id; only files inside the uploads folder."""
-    p = uploads_dir(ws) / safe_upload_name(upload_id)
-    if not p.is_file():
-        raise NotFound(f"Uploaded file {upload_id} not found — add it again.", "upload_not_found")
-    return p
 
 
 # ------------------------------------------------------------------ scan

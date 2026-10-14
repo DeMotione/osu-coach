@@ -9,6 +9,7 @@ from osu_coach.app.deps import WorkspaceDep
 from osu_coach.app.errors import ApiError, responses
 from osu_coach.jobs.schemas import job_view
 from osu_coach.library import service as svc
+from osu_coach.library import uploads
 from osu_coach.library.schemas import (
     AnalysisJob,
     AnalysisRequest,
@@ -34,7 +35,7 @@ def installs(ws: WorkspaceDep, refresh: bool = False) -> list[InstallOut]:
 @router.post("/uploads", summary="Add replay (.osr) / beatmap (.osu) files", status_code=201, responses=responses(422))
 def upload(files: Annotated[list[UploadFile], File(description=".osr replays and .osu beatmaps")],
            ws: WorkspaceDep) -> list[UploadedFile]:
-    return [svc.save_upload(ws, f.filename or "upload", f.file.read(svc.MAX_UPLOAD_BYTES + 1)) for f in files]
+    return [uploads.save_upload(ws, f.filename or "upload", f.file.read(uploads.MAX_UPLOAD_BYTES + 1)) for f in files]
 
 
 @router.post("/library/scan", summary="Find replays (background job)", status_code=202, responses=responses(404, 409, 422))
