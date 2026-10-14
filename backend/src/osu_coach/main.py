@@ -8,7 +8,6 @@ from fastapi.responses import HTMLResponse
 from scalar_fastapi import AgentScalarConfig, get_scalar_api_reference
 
 from osu_coach import __version__
-from osu_coach.analyse import routes as analyse
 from osu_coach.app import errors, jobs, web
 from osu_coach.app.security import LocalOnlyMiddleware
 from osu_coach.app.workspace import Workspace
@@ -77,7 +76,7 @@ def create_app(config: Settings | None = None) -> FastAPI:
     errors.install(app)
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(LocalOnlyMiddleware, allowed_hosts=config.allowed_hosts)
-    for module in (system, settings, library, analyse, jobs, dashboard, tips, check, progress, maps, exports):
+    for module in (system, settings, library, jobs, dashboard, tips, check, progress, maps, exports):
         app.include_router(module.router, prefix=API_PREFIX)
     build_openapi = app.openapi
 

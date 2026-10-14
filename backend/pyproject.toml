@@ -81,7 +81,7 @@ forbidden_modules = [
     "osu_coach.*.repository", "osu_coach.*.service", "osu_coach.*.schemas", "osu_coach.*.routes",
     "osu_coach.beatmaps.parser", "osu_coach.beatmaps.sources",
     "osu_coach.replays.osr", "osu_coach.replays.locate", "osu_coach.replays.detect",
-    "osu_coach.exports.collection_db", "osu_coach.exports.lazer_import",
+    "osu_coach.exports.collection_db", "osu_coach.exports.lazer_import", "osu_coach.library.uploads",
     "requests", "fastapi", "pydantic", "pydantic_settings", "sqlite3",
 ]
 
@@ -91,7 +91,7 @@ type = "forbidden"
 source_modules = [
     "osu_coach.*.repository", "osu_coach.*.service", "osu_coach.jobs.manager",
     "osu_coach.beatmaps.parser", "osu_coach.beatmaps.sources", "osu_coach.replays.osr", "osu_coach.replays.locate", "osu_coach.replays.detect",
-    "osu_coach.exports.collection_db", "osu_coach.exports.lazer_import",
+    "osu_coach.exports.collection_db", "osu_coach.exports.lazer_import", "osu_coach.library.uploads",
 ]
 forbidden_modules = [
     "osu_coach.*.routes", "osu_coach.app.deps", "osu_coach.app.workspace", "osu_coach.app.jobs",
@@ -103,7 +103,7 @@ name = "the shared web kernel knows no feature"
 type = "forbidden"
 source_modules = ["osu_coach.app.errors", "osu_coach.app.convert", "osu_coach.app.schemas"]
 forbidden_modules = [
-    "osu_coach.analyse", "osu_coach.analysis", "osu_coach.beatmaps", "osu_coach.check", "osu_coach.dashboard", "osu_coach.exports",
+    "osu_coach.analysis", "osu_coach.beatmaps", "osu_coach.check", "osu_coach.dashboard", "osu_coach.exports",
     "osu_coach.insights", "osu_coach.jobs", "osu_coach.library", "osu_coach.maps",
     "osu_coach.profile", "osu_coach.progress", "osu_coach.replays", "osu_coach.settings", "osu_coach.system",
     "osu_coach.tips",
@@ -115,10 +115,10 @@ type = "layers"
 containers = ["osu_coach"]
 layers = [
     "system | dashboard",
-    "tips | check | analyse | exports",
+    "tips | check",
     "insights | maps | progress",
     "library | profile",
-    "analysis | settings",
+    "analysis | settings | exports",
     "replays | beatmaps | jobs",
 ]
 # routes reach their feature's data through app.deps -> app.workspace, which composes every feature.

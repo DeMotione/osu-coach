@@ -21,6 +21,7 @@ from osu_coach.library.repository import Library
 from osu_coach.library.service import ScanArgs
 from osu_coach.maps.repository import load_pool
 from osu_coach.profile.domain import Profile, build_profile
+from osu_coach.progress import repository as progress
 from osu_coach.replays import detect, scope
 from osu_coach.settings.domain import Setup
 from osu_coach.settings.repository import load_settings, save_settings
@@ -123,6 +124,10 @@ class Workspace:
                 )
             raise NoProfile()
         return p
+
+    def save_progress(self, lib: Library, analyses: list[ReplayAnalysis]) -> None:
+        """Add the analyses to the progress history (SQLite; it stays when replays or caches are deleted)."""
+        progress.update(lib.cache, analyses, lib.load_cached)
 
     def memo(self, key: str, compute: Callable[[], T]) -> T:
         """A value computed from the current profile, kept until the profile changes."""

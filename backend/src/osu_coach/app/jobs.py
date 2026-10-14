@@ -5,12 +5,11 @@ from typing import Annotated
 from fastapi import APIRouter
 from pydantic import Field
 
-from osu_coach.analyse.schemas import AnalysisJob
 from osu_coach.app.deps import WorkspaceDep
 from osu_coach.app.errors import responses
 from osu_coach.exports.schemas import LazerPackJob, OszJob
 from osu_coach.jobs.schemas import job_view
-from osu_coach.library.schemas import ScanJob
+from osu_coach.library.schemas import AnalysisJob, ScanJob
 
 router = APIRouter(tags=["Jobs"])
 
