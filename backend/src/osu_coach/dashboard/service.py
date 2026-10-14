@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 
 from osu_coach.insights import domain as insights
+from osu_coach.insights import service as insights_service
+from osu_coach.insights.schemas import Clicks
 from osu_coach.maps.domain import stream_length_maps, targets_from_profile
 from osu_coach.profile.domain import SKILL_LABELS, Profile, top_comparison, weight_table
 
@@ -330,3 +332,7 @@ def sliders_reading(ws: Workspace, p: Profile) -> S.SlidersReadingPage:
                             end_miss_share=num(cs.get("end_miss_share")), end_object_share=num(cs.get("end_object_share")))
     return S.SlidersReadingPage(kpis=kpis, breaks=breaks, ar_misses=ar_misses, by_length=_slider_part(rates.get("length")),
                                 by_speed=_slider_part(rates.get("speed")), hits_by_ar=hits_by_ar, reading=reading)
+
+
+def clicks(ws: Workspace, p: Profile, view: str) -> Clicks:
+    return ws.memo(f"clicks:{view}", lambda: insights_service.clicks(p.objects, view))

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from osu_coach.maps.domain import (
+    PLAYLIST_SKILLS,
     SKILLS,
     Targets,
     build_playlist,
@@ -28,7 +29,6 @@ if TYPE_CHECKING:
 SUGGESTIONS_PER_SKILL = 5
 
 
-PLAYLIST_SKILLS = SKILLS + ["quadrant", "general"]
 
 
 def map_rows(df: pd.DataFrame | None) -> list[MapRow]:

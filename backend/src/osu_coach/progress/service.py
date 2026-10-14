@@ -7,7 +7,7 @@ import datetime as dt
 
 import pandas as pd
 
-from osu_coach.goals import domain as goals
+from osu_coach.progress import goals
 from osu_coach.progress import repository as progress
 from osu_coach.profile.domain import SKILL_LABELS
 

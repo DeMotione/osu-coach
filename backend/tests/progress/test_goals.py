@@ -1,6 +1,6 @@
 import datetime as dt
 
-from osu_coach.goals import domain as goals
+from osu_coach.progress import goals
 
 
 D0 = dt.date(2026, 10, 1)

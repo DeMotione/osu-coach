@@ -73,7 +73,7 @@ source_modules = [
     "osu_coach.*.domain",
     "osu_coach.beatmaps.curves", "osu_coach.beatmaps.difficulty", "osu_coach.beatmaps.features",
     "osu_coach.analysis.judge", "osu_coach.analysis.judge_lazer",
-    "osu_coach.replays.replay_selection", "osu_coach.replays.selection",
+    "osu_coach.replays.replay_selection", "osu_coach.replays.selection", "osu_coach.progress.goals",
 ]
 forbidden_modules = [
     "osu_coach.config", "osu_coach.app", "osu_coach.main", "osu_coach.cli", "osu_coach.jobs",
@@ -103,7 +103,7 @@ type = "forbidden"
 source_modules = ["osu_coach.app.errors", "osu_coach.app.convert", "osu_coach.app.schemas"]
 forbidden_modules = [
     "osu_coach.analysis", "osu_coach.beatmaps", "osu_coach.check", "osu_coach.dashboard", "osu_coach.exports",
-    "osu_coach.goals", "osu_coach.insights", "osu_coach.jobs", "osu_coach.library", "osu_coach.maps",
+    "osu_coach.insights", "osu_coach.jobs", "osu_coach.library", "osu_coach.maps",
     "osu_coach.profile", "osu_coach.progress", "osu_coach.replays", "osu_coach.settings", "osu_coach.system",
     "osu_coach.tips",
 ]
@@ -117,7 +117,7 @@ layers = [
     "tips | check",
     "insights | maps | progress",
     "library | profile",
-    "analysis | goals | settings | exports",
+    "analysis | settings | exports",
     "replays | beatmaps | jobs",
 ]
 # routes reach their feature's data through app.deps -> app.workspace, which composes every feature.

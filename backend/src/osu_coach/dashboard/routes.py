@@ -10,7 +10,6 @@ from osu_coach.app.errors import responses
 from osu_coach.dashboard import schemas as S
 from osu_coach.insights.schemas import Clicks
 from osu_coach.dashboard import service as pages
-from osu_coach.insights import service as insights
 
 
 router = APIRouter(prefix="/profile", tags=["Analysis"], responses=responses(409))
@@ -45,7 +44,7 @@ def aim(ws: WorkspaceDep, p: ProfileDep) -> S.AimPage:
 def clicks(ws: WorkspaceDep, p: ProfileDep, view: Literal["screen", "movement"] = "screen") -> Clicks:
     """``screen``: as on screen (a constant offset shows); ``movement``: jumps only, turned so every jump goes right
     (over / undershoot)."""
-    return ws.memo(f"clicks:{view}", lambda: insights.clicks(p.objects, view))
+    return pages.clicks(ws, p, view)
 
 
 

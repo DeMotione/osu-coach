@@ -17,6 +17,7 @@ from osu_coach.beatmaps.features import object_features
 
 QUADRANTS = ["top-left", "top-right", "bottom-left", "bottom-right"]
 SKILLS = ["aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading", "consistency"]
+PLAYLIST_SKILLS = SKILLS + ["quadrant", "general"]    # the skills a playlist can be made for
 
 SKILL_INFO = {
     "aim": {"label": "Jump aim", "offset": 0.0, "focus": "landing on the centre of each circle"},

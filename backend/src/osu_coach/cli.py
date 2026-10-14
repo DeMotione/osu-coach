@@ -28,7 +28,7 @@ from osu_coach.replays.replay_selection import EXCLUDE_MODS, skip_reason
 from osu_coach.library.repository import Library
 from osu_coach.settings.repository import load_settings, save_settings
 from osu_coach.maps.domain import (
-    SKILLS,
+    PLAYLIST_SKILLS,
     Targets,
     build_playlist,
     collection_name,
@@ -561,7 +561,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--rapid-trigger", action="store_true", help="you use a rapid-trigger keyboard")
     p.set_defaults(func=cmd_analyze)
     p = sub.add_parser("playlist", help="Skill Development: practice playlist for one skill")
-    p.add_argument("skill", choices=SKILLS + ["quadrant", "general"])
+    p.add_argument("skill", choices=PLAYLIST_SKILLS)
     discovery(p)
     p.add_argument("--comfort", type=float, help="your comfortable star rating (skips replay analysis)")
     p.add_argument("--stream-bpm", type=float, help="stream speed to train at")
