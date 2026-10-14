@@ -210,7 +210,7 @@ def test_accuracy_scale_tops_out_at_99_percent_300s():
 
 
 def test_near_perfect_play_says_too_few_misses_instead_of_no_data():
-    from osu_coach.profile.domain import _subset_score
+    from osu_coach.profile.domain.stats import _subset_score
     P = pd.DataFrame({"head_hit": [True] * 500 + [False], "local_eq": 5.0})
     model = lambda e: np.full(np.shape(e), 0.001)            # noqa: E731 - expects ~0.5 misses
     s = _subset_score(P, pd.Series(True, index=P.index), model)
