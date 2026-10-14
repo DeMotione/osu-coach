@@ -1,5 +1,5 @@
 import sys
 
-from osu_coach.api.server import main
+from osu_coach.app.server import main
 
 sys.exit(main())

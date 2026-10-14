@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from osu_coach.infrastructure.filesystem.map_pool import POOL_PATH, save_pool, stats_from_osu
+from osu_coach.maps.repository import POOL_PATH, save_pool, stats_from_osu
 
 META_KEYS = ("beatmap_id", "beatmapset_id", "status", "playcount", "passcount", "favourites", "set_playcount",
              "ranked_date")
