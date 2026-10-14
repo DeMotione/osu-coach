@@ -1,4 +1,5 @@
 """.osu beatmap file parsing (the model lives in osu_coach.beatmaps.domain)."""
+
 from __future__ import annotations
 
 import bisect
@@ -234,8 +235,20 @@ def _parse_slider(parts, idx, x, y, t, nc, bm: Beatmap, sv_times, sv_values) -> 
         velocity = 0.1
     span_duration = length / velocity if length > 0 else 0.0
     # stable floors the slider end time (danser: calculateFollowPointsStable)
-    obj = HitObject(idx, "slider", t, math.floor(t + span_duration * spans), x, y, nc, path=path, spans=spans,
-                    pixel_length=length, velocity=velocity, span_duration=span_duration)
+    obj = HitObject(
+        idx,
+        "slider",
+        t,
+        math.floor(t + span_duration * spans),
+        x,
+        y,
+        nc,
+        path=path,
+        spans=spans,
+        pixel_length=length,
+        velocity=velocity,
+        span_duration=span_duration,
+    )
     tick_distance = scoring_distance / bm.tick_rate
     if bm.format_version < 8:
         tick_distance /= sv
@@ -269,8 +282,9 @@ def _slider_events(o: HitObject, tick_distance: float) -> list[SliderEvent]:
             ticks.reverse()
         events.extend(ticks)
         if span < o.spans - 1:
-            events.append(SliderEvent(math.floor(span_start + o.span_duration), "repeat",
-                                      1.0 if span % 2 == 0 else 0.0))
+            events.append(
+                SliderEvent(math.floor(span_start + o.span_duration), "repeat", 1.0 if span % 2 == 0 else 0.0)
+            )
     start = int(o.time)
     end = int(o.end_time)
     final_end = max(start + (end - start) // 2, end - int(LEGACY_LAST_TICK_OFFSET))

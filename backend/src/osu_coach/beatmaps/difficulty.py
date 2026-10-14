@@ -3,6 +3,7 @@
 Gives star rating and per-skill ratings (aim / speed / reading) plus per-400 ms
 strain peaks used to tell "aim-heavy" from "speed-heavy" parts of a map.
 """
+
 from __future__ import annotations
 
 import math
@@ -12,9 +13,24 @@ try:  # pragma: no cover - import guard
 except Exception:  # noqa: BLE001
     rosu = None
 
-ATTR_NAMES = ["stars", "aim", "speed", "reading", "flashlight", "slider_factor", "speed_note_count",
-              "aim_difficult_strain_count", "speed_difficult_strain_count", "ar", "hp",
-              "great_hit_window", "n_circles", "n_sliders", "n_spinners", "max_combo"]
+ATTR_NAMES = [
+    "stars",
+    "aim",
+    "speed",
+    "reading",
+    "flashlight",
+    "slider_factor",
+    "speed_note_count",
+    "aim_difficult_strain_count",
+    "speed_difficult_strain_count",
+    "ar",
+    "hp",
+    "great_hit_window",
+    "n_circles",
+    "n_sliders",
+    "n_spinners",
+    "max_combo",
+]
 
 
 def available() -> bool:
@@ -28,8 +44,14 @@ def _map(osu_bytes: bytes):
 def _kwargs(mods: int, rate: float | None, lazer_mods: list | None, lazer: bool) -> dict:
     if lazer_mods:
         # lazer replays: the exact mod list incl. settings (custom rates, Difficulty Adjust, Classic ...)
-        return {"mods": [{"acronym": str(m["acronym"]), "settings": dict(m.get("settings") or {})}
-                         for m in lazer_mods if m.get("acronym")], "lazer": True}
+        return {
+            "mods": [
+                {"acronym": str(m["acronym"]), "settings": dict(m.get("settings") or {})}
+                for m in lazer_mods
+                if m.get("acronym")
+            ],
+            "lazer": True,
+        }
     kw = {"mods": int(mods), "lazer": bool(lazer)}
     if rate and abs(rate - _legacy_rate(mods)) > 1e-6:
         kw["clock_rate"] = float(rate)
@@ -45,8 +67,9 @@ def _difficulty(mods: int, rate: float | None, lazer_mods: list | None, lazer: b
         return rosu.Difficulty(**_kwargs(mods, rate, None, lazer))
 
 
-def attributes(osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer_mods: list | None = None,
-               lazer: bool = False) -> dict:
+def attributes(
+    osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer_mods: list | None = None, lazer: bool = False
+) -> dict:
     if rosu is None:
         return {}
     try:
@@ -64,8 +87,9 @@ def attributes(osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer
     return out
 
 
-def strains(osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer_mods: list | None = None,
-            lazer: bool = False) -> dict | None:
+def strains(
+    osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer_mods: list | None = None, lazer: bool = False
+) -> dict | None:
     if rosu is None:
         return None
     try:

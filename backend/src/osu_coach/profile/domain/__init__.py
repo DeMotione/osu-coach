@@ -16,6 +16,7 @@ Everything here is computed from replays only:
 
 Every statistic is weighted by the replay weight (column ``w`` on the objects and presses).
 """
+
 from __future__ import annotations
 
 from osu_coach.profile.domain.aim import (

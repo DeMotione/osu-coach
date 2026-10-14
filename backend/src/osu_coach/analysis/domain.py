@@ -5,6 +5,7 @@ Produces two tidy tables per replay:
   the player did (judgement, timing error, aim error vector, miss reason ...);
 * ``presses`` – one row per key press (key, hold duration, gaps, target).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -33,9 +34,16 @@ def playable(bm: Beatmap, replay: Replay) -> PlayableBeatmap:
     """The beatmap as it was played: legacy mods, lazer's speed changes, Difficulty Adjust and Mirror."""
     mods = lazer_mod_settings(replay)
     da = mods.get("DA") or {}
-    overrides = {k: float(da[src]) for k, src in (("cs", "circle_size"), ("ar", "approach_rate"),
-                                                  ("od", "overall_difficulty"), ("hp", "drain_rate"))
-                 if isinstance(da.get(src), (int, float))}
+    overrides = {
+        k: float(da[src])
+        for k, src in (
+            ("cs", "circle_size"),
+            ("ar", "approach_rate"),
+            ("od", "overall_difficulty"),
+            ("hp", "drain_rate"),
+        )
+        if isinstance(da.get(src), (int, float))
+    }
     mirror = None
     if "MR" in mods:
         refl = mods["MR"].get("reflection", 0)
@@ -84,18 +92,44 @@ def analyze(replay: Replay, bm: Beatmap, osu_bytes: bytes, raw_replay: bytes | N
 
     res_rows = []
     for r in sim.objects:
-        res_rows.append({
-            "result": r.result, "head_hit": bool(r.head_hit), "head_result": r.head_result,
-            "hit_time": r.hit_time, "hit_error": r.hit_error, "click_x": r.click_x, "click_y": r.click_y,
-            "key": r.key, "press_id": r.press_id, "miss_reason": r.miss_reason, "miss_dist": r.miss_dist,
-            "miss_x": r.miss_x, "miss_y": r.miss_y, "forced_miss": r.forced_miss,
-            "n_events": r.n_events, "n_events_hit": r.n_events_hit, "end_hit": r.end_hit,
-            "broke": r.broke, "break_reason": r.break_reason, "spins": r.spins,
-            "spins_required": r.spins_required,
-        })
+        res_rows.append(
+            {
+                "result": r.result,
+                "head_hit": bool(r.head_hit),
+                "head_result": r.head_result,
+                "hit_time": r.hit_time,
+                "hit_error": r.hit_error,
+                "click_x": r.click_x,
+                "click_y": r.click_y,
+                "key": r.key,
+                "press_id": r.press_id,
+                "miss_reason": r.miss_reason,
+                "miss_dist": r.miss_dist,
+                "miss_x": r.miss_x,
+                "miss_y": r.miss_y,
+                "forced_miss": r.forced_miss,
+                "n_events": r.n_events,
+                "n_events_hit": r.n_events_hit,
+                "end_hit": r.end_hit,
+                "broke": r.broke,
+                "break_reason": r.break_reason,
+                "spins": r.spins,
+                "spins_required": r.spins_required,
+            }
+        )
     obj = pd.concat([feats.reset_index(drop=True), pd.DataFrame(res_rows)], axis=1)
-    for col in ("hit_time", "hit_error", "click_x", "click_y", "miss_dist", "miss_x", "miss_y", "spins",
-                "spins_required", "press_id"):
+    for col in (
+        "hit_time",
+        "hit_error",
+        "click_x",
+        "click_y",
+        "miss_dist",
+        "miss_x",
+        "miss_y",
+        "spins",
+        "spins_required",
+        "press_id",
+    ):
         obj[col] = pd.to_numeric(obj[col], errors="coerce").astype(float)
     obj["replay_key"] = key
     obj["played"] = obj["result"] >= 0
@@ -152,26 +186,52 @@ def analyze(replay: Replay, bm: Beatmap, osu_bytes: bytes, raw_replay: bytes | N
     counts = header if header_total else simc
     acc = ((300 * counts[0] + 100 * counts[1] + 50 * counts[2]) / (300 * sum(counts))) if sum(counts) else math.nan
     meta = {
-        "key": key, "player": replay.player, "date": replay.timestamp, "beatmap_md5": replay.beatmap_md5,
-        "title": bm.title, "artist": bm.artist, "version": bm.version_name, "creator": bm.creator,
-        "beatmap_id": bm.beatmap_id, "beatmapset_id": bm.beatmapset_id, "map_name": bm.display_name,
-        "mods": replay.mods, "mod_string": mods_to_string(replay.mods), "rate": rate, "rules": sim.rules,
-        "client": "lazer" if replay.is_lazer else "stable", "replay_version": replay.version,
-        "n300": counts[0], "n100": counts[1], "n50": counts[2], "nmiss": counts[3],
-        "max_combo": replay.max_combo if header_total else sim.max_combo, "score": replay.score, "accuracy": acc,
+        "key": key,
+        "player": replay.player,
+        "date": replay.timestamp,
+        "beatmap_md5": replay.beatmap_md5,
+        "title": bm.title,
+        "artist": bm.artist,
+        "version": bm.version_name,
+        "creator": bm.creator,
+        "beatmap_id": bm.beatmap_id,
+        "beatmapset_id": bm.beatmapset_id,
+        "map_name": bm.display_name,
+        "mods": replay.mods,
+        "mod_string": mods_to_string(replay.mods),
+        "rate": rate,
+        "rules": sim.rules,
+        "client": "lazer" if replay.is_lazer else "stable",
+        "replay_version": replay.version,
+        "n300": counts[0],
+        "n100": counts[1],
+        "n50": counts[2],
+        "nmiss": counts[3],
+        "max_combo": replay.max_combo if header_total else sim.max_combo,
+        "score": replay.score,
+        "accuracy": acc,
         "header_empty": header_total == 0,
-        "sim_counts": simc, "sim_max_combo": sim.max_combo,
+        "sim_counts": simc,
+        "sim_max_combo": sim.max_combo,
         "sim_match": (simc == header) if header_total else None,
-        "sim_agreement": (1 - sum(abs(a - b) for a, b in zip(simc, header)) / header_total) if header_total
+        "sim_agreement": (1 - sum(abs(a - b) for a, b in zip(simc, header)) / header_total)
+        if header_total
         else math.nan,
-        "n_objects": len(obj), "n_played": n_played, "completed": n_played >= len(obj) - 1,
-        "cs": pb.cs, "ar": pb.effective_ar, "od": pb.effective_od, "hp": pb.hp,
-        "bpm": bm.main_bpm() * rate, "length_s": bm.drain_seconds / rate,
+        "n_objects": len(obj),
+        "n_played": n_played,
+        "completed": n_played >= len(obj) - 1,
+        "cs": pb.cs,
+        "ar": pb.effective_ar,
+        "od": pb.effective_od,
+        "hp": pb.hp,
+        "bpm": bm.main_bpm() * rate,
+        "length_s": bm.drain_seconds / rate,
         "ur": float(10 * errs.std(ddof=0)) if len(errs) > 1 else math.nan,
         "mean_error": float(errs.mean()) if len(errs) else math.nan,
         "head_misses": int((~played["head_hit"]).sum()),
         "relax_or_autopilot": bool(replay.mods & (MOD_BITS["RX"] | MOD_BITS["AP"] | MOD_BITS["AT"])),
-        "source_path": replay.source_path, "analysis_version": ANALYSIS_VERSION,
+        "source_path": replay.source_path,
+        "analysis_version": ANALYSIS_VERSION,
     }
     # lazer replays also store slider tick / tail results: a second, finer check of the simulation
     stats = (replay.lazer or {}).get("statistics") or {}
@@ -185,16 +245,18 @@ def analyze(replay: Replay, bm: Beatmap, osu_bytes: bytes, raw_replay: bytes | N
     return ReplayAnalysis(key, meta, obj, presses)
 
 
-def _attach_strains(obj: pd.DataFrame, osu_bytes: bytes, replay: Replay, pb: PlayableBeatmap, rate: float,
-                    attrs: dict | None = None):
+def _attach_strains(
+    obj: pd.DataFrame, osu_bytes: bytes, replay: Replay, pb: PlayableBeatmap, rate: float, attrs: dict | None = None
+):
     """Per-object local difficulty from osu!'s strain model.
 
     ``*_strain`` = section peak / map peak (0..1, where in the map it's hardest);
     ``*_eq`` = star-equivalent of the section: the rating a map would have if it
     were this hard all the way through, c*sqrt(10*S) with c calibrated so the
     map's own peaks reproduce its official aim/speed rating."""
-    s = difficulty.strains(osu_bytes, replay.mods, rate, lazer_mods=(replay.lazer or {}).get("mods") or None,
-                           lazer=replay.is_lazer)
+    s = difficulty.strains(
+        osu_bytes, replay.mods, rate, lazer_mods=(replay.lazer or {}).get("mods") or None, lazer=replay.is_lazer
+    )
     for col in ("aim_strain", "speed_strain", "reading_strain", "aim_eq", "speed_eq"):
         obj[col] = np.nan
     if not s or len(obj) < 2:
@@ -220,10 +282,26 @@ def _attach_strains(obj: pd.DataFrame, osu_bytes: bytes, replay: Replay, pb: Pla
 def _press_table(presses, obj: pd.DataFrame) -> pd.DataFrame:
     cols = ["id", "key", "time", "release", "duration", "x", "y", "target", "outcome"]
     if not presses:
-        return pd.DataFrame(columns=cols + ["gap_prev", "same_key_gap", "alternated", "target_pattern",
-                                            "target_dt", "target_run_len", "hold_ratio"])
-    df = pd.DataFrame([{"id": p.id, "key": p.key, "time": p.time, "release": p.release, "duration": p.duration,
-                        "x": p.x, "y": p.y, "target": p.target, "outcome": p.outcome} for p in presses])
+        return pd.DataFrame(
+            columns=cols
+            + ["gap_prev", "same_key_gap", "alternated", "target_pattern", "target_dt", "target_run_len", "hold_ratio"]
+        )
+    df = pd.DataFrame(
+        [
+            {
+                "id": p.id,
+                "key": p.key,
+                "time": p.time,
+                "release": p.release,
+                "duration": p.duration,
+                "x": p.x,
+                "y": p.y,
+                "target": p.target,
+                "outcome": p.outcome,
+            }
+            for p in presses
+        ]
+    )
     df = df.sort_values(["time", "id"]).reset_index(drop=True)
     df["gap_prev"] = df["time"].diff()
     df["prev_key"] = df["key"].shift(1)

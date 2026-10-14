@@ -1,4 +1,5 @@
 """The analysis pages. All of them answer 409 ``no_profile`` before replays were analysed."""
+
 from __future__ import annotations
 
 from typing import Literal

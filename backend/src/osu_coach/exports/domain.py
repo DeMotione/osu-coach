@@ -1,4 +1,5 @@
 """Collection policy: how new collections combine with existing ones, and which sets a playlist still needs."""
+
 from __future__ import annotations
 
 

@@ -5,6 +5,7 @@ Endpoints verified 2026-10: osu.direct API (md5 lookup, search, .osu, .osz),
 official https://osu.ppy.sh/osu/{id} for raw .osu files, and several public
 .osz mirrors with automatic fail-over.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -87,8 +88,10 @@ def lookup_md5(md5: str) -> dict | None:
 
 def download_osu(beatmap_id: int, expected_md5: str | None = None) -> bytes | None:
     """Raw .osu file. Verifies MD5 when given (maps can be updated after a play)."""
-    for host, url in (("osu.ppy.sh", f"https://osu.ppy.sh/osu/{beatmap_id}"),
-                      ("osu.direct", f"https://osu.direct/api/osu/{beatmap_id}")):
+    for host, url in (
+        ("osu.ppy.sh", f"https://osu.ppy.sh/osu/{beatmap_id}"),
+        ("osu.direct", f"https://osu.direct/api/osu/{beatmap_id}"),
+    ):
         r = _get(url, host)
         if r is None or r.status_code != 200 or not r.content.lstrip().startswith(b"osu file format"):
             continue
@@ -108,11 +111,23 @@ def fetch_beatmap_by_md5(md5: str) -> tuple[bytes, dict] | None:
     return data, meta
 
 
-def search_sets(query: str = "", sort: str = "play_count:desc", status: str = "ranked", mode: int = 0,
-                amount: int = 100, offset: int = 0) -> list[dict]:
+def search_sets(
+    query: str = "",
+    sort: str = "play_count:desc",
+    status: str = "ranked",
+    mode: int = 0,
+    amount: int = 100,
+    offset: int = 0,
+) -> list[dict]:
     status_code = {"ranked": 1, "approved": 2, "qualified": 3, "loved": 4}.get(status, status)
-    params = {"q": query, "sort": sort, "mode": mode, "status": status_code, "amount": min(amount, 100),
-              "offset": offset}
+    params = {
+        "q": query,
+        "sort": sort,
+        "mode": mode,
+        "status": status_code,
+        "amount": min(amount, 100),
+        "offset": offset,
+    }
     r = _get("https://osu.direct/api/v2/search", "osu.direct", params=params)
     if r is None or r.status_code != 200:
         return []
@@ -166,6 +181,7 @@ def _filename_from_headers(r: requests.Response, set_id: int) -> str:
     name = m.group(1) if m else f"{set_id}.osz"
     try:
         from urllib.parse import unquote
+
         name = unquote(name)
     except Exception:  # noqa: BLE001
         pass

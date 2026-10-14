@@ -1,4 +1,5 @@
 """Reading (AR / BPM changes): metrics, values and the reading score."""
+
 from __future__ import annotations
 
 import math
@@ -61,20 +62,20 @@ def _reading_ratios(P: pd.DataFrame, model) -> dict:
 
 
 # ------------------------------------------------------------------ reading
-READ_AR_STEP = 3.0        # every 3 AR below what is usual for the map's star rating doubles the reading demand
-READ_AR_MIN = 1.0         # the AR factor never lowers the value
-READ_AR_HIGH_STEP = 1.5   # every 1.5 AR above the usual AR doubles it too (reaction to fast approach)
-READ_LOW_AR, READ_HIGH_AR = 8.0, 10.0   # sub-scores: maps below AR 8 / from AR 10
-READ_NPS = 5.0            # circles per second (during play, breaks left out) at which low AR counts fully ...
+READ_AR_STEP = 3.0  # every 3 AR below what is usual for the map's star rating doubles the reading demand
+READ_AR_MIN = 1.0  # the AR factor never lowers the value
+READ_AR_HIGH_STEP = 1.5  # every 1.5 AR above the usual AR doubles it too (reaction to fast approach)
+READ_LOW_AR, READ_HIGH_AR = 8.0, 10.0  # sub-scores: maps below AR 8 / from AR 10
+READ_NPS = 5.0  # circles per second (during play, breaks left out) at which low AR counts fully ...
 READ_NPS_RANGE = (0.25, 2.0)  # ... the AR difference counts × circles per second ÷ 5 (0.25–2)
-READ_HD, READ_FL = 1.2, 1.6   # hidden / flashlight hide the notes: more to read
-READ_BPM_JUMP = 0.08      # a BPM change: the beat length changes by 8%+ from one note to the next
-READ_BPM_NOTES = 4        # the first 4 notes after a BPM change show whether you read it
-READ_BPM_FULL = 8         # 8+ BPM changes in a map = the full BPM-change bonus (×1.5 when you hit them as 300s)
+READ_HD, READ_FL = 1.2, 1.6  # hidden / flashlight hide the notes: more to read
+READ_BPM_JUMP = 0.08  # a BPM change: the beat length changes by 8%+ from one note to the next
+READ_BPM_NOTES = 4  # the first 4 notes after a BPM change show whether you read it
+READ_BPM_FULL = 8  # 8+ BPM changes in a map = the full BPM-change bonus (×1.5 when you hit them as 300s)
 READ_BPM_BONUS = 0.5
-READ_ACC_POWER = 8.0      # × accuracy^8: 99% = 0.92, 95% = 0.66, 90% = 0.43, 85% = 0.27
-READ_REF = 0.95 ** 8 * 1.3   # 50 = a little above the usual AR for the map at 95% (×1.3 after review)
-READ_POINTS = 25.0        # points per doubling of the value
+READ_ACC_POWER = 8.0  # × accuracy^8: 99% = 0.92, 95% = 0.66, 90% = 0.43, 85% = 0.27
+READ_REF = 0.95**8 * 1.3  # 50 = a little above the usual AR for the map at 95% (×1.3 after review)
+READ_POINTS = 25.0  # points per doubling of the value
 
 
 def usual_ar(stars) -> np.ndarray:
@@ -122,13 +123,24 @@ def reading_values(P: pd.DataFrame) -> pd.DataFrame:
         starts = np.flatnonzero(jump)
         after = np.zeros(len(d), dtype=bool)
         for i in starts:
-            after[i:i + READ_BPM_NOTES] = True
+            after[i : i + READ_BPM_NOTES] = True
         res = d["head_result"].to_numpy() if "head_result" in d else np.where(d["head_hit"], 300, 0)
         hit = float((res[after] == 300).mean()) if after.any() else math.nan
         f_bpm = 1.0 + READ_BPM_BONUS * min(1.0, len(starts) / READ_BPM_FULL) * (hit if hit == hit else 0.0)
-        rows.append({"replay_key": k, "map": m, "ar": ar, "nps": nps, "ar_factor": f_ar, "bpm_changes": int(len(starts)),
-                     "bpm_hit": hit, "bpm_factor": f_bpm, "accuracy": acc,
-                     "value": f_ar * f_bpm * max(acc, 0.0) ** READ_ACC_POWER})
+        rows.append(
+            {
+                "replay_key": k,
+                "map": m,
+                "ar": ar,
+                "nps": nps,
+                "ar_factor": f_ar,
+                "bpm_changes": int(len(starts)),
+                "bpm_hit": hit,
+                "bpm_factor": f_bpm,
+                "accuracy": acc,
+                "value": f_ar * f_bpm * max(acc, 0.0) ** READ_ACC_POWER,
+            }
+        )
     return pd.DataFrame(rows, columns=cols)
 
 
@@ -136,17 +148,33 @@ def reading_score(P: pd.DataFrame, n_total: int | None = None) -> dict:
     """Reading: lower AR than usual (and HD / FL), decent accuracy on those maps, and BPM changes read and hit
     accurately (:func:`reading_values`); one value per map (best pass), weighted like osu!'s pp
     (:func:`ranked_mean`); 50 = the usual AR for the map at 95% accuracy, +25 per doubling."""
-    out = {"score": None, "n": 0, "value": math.nan, "maps": 0, "lowest_ar": math.nan, "bpm_maps": 0,
-           "bpm_hit": math.nan, "best": None, "low_ar_score": None, "high_ar_score": None, "low_ar_maps": 0,
-           "high_ar_maps": 0}
+    out = {
+        "score": None,
+        "n": 0,
+        "value": math.nan,
+        "maps": 0,
+        "lowest_ar": math.nan,
+        "bpm_maps": 0,
+        "bpm_hit": math.nan,
+        "best": None,
+        "low_ar_score": None,
+        "high_ar_score": None,
+        "low_ar_maps": 0,
+        "high_ar_maps": 0,
+    }
     V = reading_values(P)
     if V.empty:
         return out
     B = V.sort_values("value", ascending=False).drop_duplicates("map")
     N = n_total or _n_replays(P)
-    out.update(n=int(len(V)), maps=int(len(B)), value=ranked_mean(B["value"].to_numpy(), N),
-               lowest_ar=float(B["ar"].min()), bpm_maps=int((B["bpm_changes"] > 0).sum()),
-               bpm_hit=float(B["bpm_hit"].dropna().mean()) if B["bpm_hit"].notna().any() else math.nan)
+    out.update(
+        n=int(len(V)),
+        maps=int(len(B)),
+        value=ranked_mean(B["value"].to_numpy(), N),
+        lowest_ar=float(B["ar"].min()),
+        bpm_maps=int((B["bpm_changes"] > 0).sum()),
+        bpm_hit=float(B["bpm_hit"].dropna().mean()) if B["bpm_hit"].notna().any() else math.nan,
+    )
     b = B.iloc[0]
     out["best"] = {"ar": float(b["ar"]), "accuracy": float(b["accuracy"]), "bpm_changes": int(b["bpm_changes"])}
     if len(B) >= 3:
@@ -155,6 +183,9 @@ def reading_score(P: pd.DataFrame, n_total: int | None = None) -> dict:
     for name, sel in (("low_ar", B["ar"] < READ_LOW_AR), ("high_ar", B["ar"] >= READ_HIGH_AR)):
         part = B[sel]
         out[f"{name}_maps"] = int(len(part))
-        out[f"{name}_score"] = (_clip(50 + READ_POINTS * math.log2(max(ranked_mean(part["value"].to_numpy(), N), 1e-6)
-                                                                   / READ_REF)) if len(part) >= 3 else None)
+        out[f"{name}_score"] = (
+            _clip(50 + READ_POINTS * math.log2(max(ranked_mean(part["value"].to_numpy(), N), 1e-6) / READ_REF))
+            if len(part) >= 3
+            else None
+        )
     return out

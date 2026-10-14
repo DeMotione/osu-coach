@@ -1,4 +1,5 @@
 """Consistency: how steady the plays are, and the consistency score."""
+
 from __future__ import annotations
 
 import math
@@ -31,8 +32,8 @@ def _consistency_metrics(P: pd.DataFrame, metas: pd.DataFrame) -> dict:
 
 
 # ------------------------------------------------------------------ consistency
-STEADY_TYPICAL = 2.0      # misses / 100 notes: typical spread between plays of the same difficulty (std) ...
-STEADY_POINTS = 30.0      # ... half the spread = +30, like the miss-chain part
+STEADY_TYPICAL = 2.0  # misses / 100 notes: typical spread between plays of the same difficulty (std) ...
+STEADY_POINTS = 30.0  # ... half the spread = +30, like the miss-chain part
 STEADY_MIN_PLAYS = 5
 
 
@@ -45,8 +46,10 @@ def play_steadiness(P: pd.DataFrame) -> dict:
     if P is None or P.empty or "replay_key" not in P:
         return out
     D = P[P["completed"].astype(bool)] if "completed" in P else P
-    g = D.groupby("replay_key").agg(miss=("head_hit", lambda h: float((~h.astype(bool)).mean() * 100)),
-                                    stars=("stars", "first") if "stars" in D else ("head_hit", "size"))
+    g = D.groupby("replay_key").agg(
+        miss=("head_hit", lambda h: float((~h.astype(bool)).mean() * 100)),
+        stars=("stars", "first") if "stars" in D else ("head_hit", "size"),
+    )
     g = g.dropna()
     if len(g) < STEADY_MIN_PLAYS:
         return out
@@ -69,8 +72,14 @@ def consistency_score(P: pd.DataFrame, weights: pd.Series, n_total: int) -> dict
     :func:`miss_chain_ratio`, 50 = typical 2×, half = +30) and **steadiness** (:func:`play_steadiness`: how much
     your plays of the same difficulty differ, 50 = a spread of 2 misses / 100 notes, half = +30). Either part
     alone is enough, so the score exists as soon as there are 5+ passed plays."""
-    out = {"score": None, "n": int(len(P)), "miss_after_miss_ratio": math.nan, "chain_score": None,
-           "steady_score": None, "spread": math.nan}
+    out = {
+        "score": None,
+        "n": int(len(P)),
+        "miss_after_miss_ratio": math.nan,
+        "chain_score": None,
+        "steady_score": None,
+        "spread": math.nan,
+    }
     if P is None or P.empty:
         return out
     ratio = miss_chain_ratio(_weighted(P, weights))
@@ -86,5 +95,5 @@ def consistency_score(P: pd.DataFrame, weights: pd.Series, n_total: int) -> dict
         out["score"] = float(np.mean(parts))
     misses = float((~P["head_hit"].astype(bool)).sum())
     if out["score"] is None and len(P) >= FEW_MISSES_NOTES and misses < FEW_MISSES:
-        out["too_few_misses"] = True        # nothing to chain: no misses to follow a miss
+        out["too_few_misses"] = True  # nothing to chain: no misses to follow a miss
     return out

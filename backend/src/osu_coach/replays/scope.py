@@ -8,17 +8,25 @@
   (every note reached, no fail), and for every beatmap + speed (NM / DT / HT / custom rate) only the
   single best play — highest score, ties broken by accuracy.
 """
+
 from __future__ import annotations
 
 import datetime as dt
 
 DATE_CHOICES = ["all", "session", "7d", "30d", "custom"]
-DATE_LABELS = {"all": "All time", "session": "Last session", "7d": "Last 7 days", "30d": "Last 30 days",
-               "custom": "Custom range"}
+DATE_LABELS = {
+    "all": "All time",
+    "session": "Last session",
+    "7d": "Last 7 days",
+    "30d": "Last 30 days",
+    "custom": "Custom range",
+}
 REPLAY_SETS = ["all", "best"]
 REPLAY_SET_LABELS = {"all": "All replays", "best": "Best replays"}
-BEST_DEFINITION = ("Best replays = only passed plays (no fails), and for every beatmap + speed mod (NM, DT/NC, HT, "
-                   "custom rate) only your single best play: highest score, ties broken by accuracy.")
+BEST_DEFINITION = (
+    "Best replays = only passed plays (no fails), and for every beatmap + speed mod (NM, DT/NC, HT, "
+    "custom rate) only your single best play: highest score, ties broken by accuracy."
+)
 SESSION_GAP = dt.timedelta(hours=1)
 
 
@@ -49,8 +57,14 @@ def last_session_start(times, gap: dt.timedelta = SESSION_GAP) -> dt.datetime | 
     return start
 
 
-def date_window(choice: str, times=(), start: dt.date | None = None, end: dt.date | None = None,
-                now: dt.datetime | None = None, tz=None) -> tuple[dt.datetime | None, dt.datetime | None]:
+def date_window(
+    choice: str,
+    times=(),
+    start: dt.date | None = None,
+    end: dt.date | None = None,
+    now: dt.datetime | None = None,
+    tz=None,
+) -> tuple[dt.datetime | None, dt.datetime | None]:
     """(since, until) in UTC for a date choice; None = open end. ``times``: replay times (for "session");
     ``start`` / ``end``: dates of a custom range (local calendar days in ``tz``, both included);
     "7d" / "30d" count back from ``now``."""
@@ -64,8 +78,7 @@ def date_window(choice: str, times=(), start: dt.date | None = None, end: dt.dat
     if choice == "custom":
         tz = tz or dt.datetime.now().astimezone().tzinfo
         since = dt.datetime.combine(start, dt.time.min, tz).astimezone(dt.UTC) if start else None
-        until = (dt.datetime.combine(end, dt.time.min, tz) + dt.timedelta(days=1)).astimezone(dt.UTC) \
-            if end else None
+        until = (dt.datetime.combine(end, dt.time.min, tz) + dt.timedelta(days=1)).astimezone(dt.UTC) if end else None
         return since, until
     return None, None
 

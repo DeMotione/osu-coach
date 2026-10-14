@@ -1,4 +1,5 @@
 """Detailed Map Analysis: one replay on its own."""
+
 import pytest
 
 from osu_coach.beatmaps.parser import read_metadata
@@ -21,7 +22,7 @@ def test_shows_the_newest_replay_and_others_on_request(tmp_path, client):
     scan(client, plays_folder(tmp_path))
     lst = client.get("/api/check/replays").json()
     assert lst["available"] and len(lst["replays"]) == 3
-    assert _title("mot1one__lazer_failed.osr") in lst["replays"][0]["map"]            # played last
+    assert _title("mot1one__lazer_failed.osr") in lst["replays"][0]["map"]  # played last
     assert lst["selected"] == lst["replays"][0]["path"] and not lst["only_map"]
     report = client.post("/api/check/report", json={"path": lst["selected"], "online": False})
     assert report.status_code == 200, report.text
@@ -36,7 +37,7 @@ def test_shows_the_newest_replay_and_others_on_request(tmp_path, client):
     other = client.post("/api/check/report", json={"path": oldest, "online": False}).json()
     assert _title("mot1one__lazer_nm.osr") in other["summary"]["map"]
     assert other["summary"]["misses"] == 2 and len([e for e in other["events"] if e["what"] == "miss"]) == 2
-    assert all(len(e["timestamp"]) == 9 for e in other["events"])                       # mm:ss:mmm
+    assert all(len(e["timestamp"]) == 9 for e in other["events"])  # mm:ss:mmm
     assert other["timing"] and len(other["timing"]["time"]) == len(other["timing"]["error"])
     assert other["clicks_screen"]["view"] == "screen"
 
@@ -52,14 +53,16 @@ def test_opens_the_replay_chosen_elsewhere_with_its_maps_plays(tmp_path, client)
 
 def test_a_dropped_replay_is_checked_and_saved_in_the_history(tmp_path, client):
     rp, mp = sample_paths("mot1one__lazer_nm.osr")
-    ups = client.post("/api/uploads", files=[("files", (rp.name, rp.read_bytes())),
-                                             ("files", (mp.name, mp.read_bytes()))]).json()
+    ups = client.post(
+        "/api/uploads", files=[("files", (rp.name, rp.read_bytes())), ("files", (mp.name, mp.read_bytes()))]
+    ).json()
     replay = next(u for u in ups if u["kind"] == "replay")
     beatmap = next(u for u in ups if u["kind"] == "beatmap")
     lst = client.get("/api/check/replays", params={"path": replay["path"]}).json()
     assert lst["available"] and lst["selected"] == replay["path"]
     # the map isn't in any library: the report finds it once it is added too
     from tests.conftest import workspace
+
     workspace(client).check_library.add_files([beatmap["path"]])
     r = client.post("/api/check/report", json={"path": replay["path"], "online": False})
     assert r.status_code == 200, r.text

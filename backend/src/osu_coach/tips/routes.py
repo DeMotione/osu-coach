@@ -1,4 +1,5 @@
 """The Tips & Setup page. Answers 409 ``no_profile`` before replays were analysed."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter

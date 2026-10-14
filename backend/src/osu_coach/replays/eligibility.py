@@ -1,4 +1,5 @@
 """Which replays can be analysed, and picking them from replay headers (dicts as the library lists them)."""
+
 from __future__ import annotations
 
 from collections import Counter
@@ -50,9 +51,14 @@ def eligible(refs: list[dict], player: str | None = None, limit: int | None = No
 def left_out(refs: list[dict], player: str | None = None, since: str | None = None) -> Counter:
     """Reasons osu!standard replays of ``player`` can't be analysed, counted. ``since``: only replays
     played at or after this ISO timestamp."""
-    picked = [r for r in refs if r.get("mode") == 0 and not (r.get("mods", 0) & EXCLUDE_MODS)
-              and (not player or player == "*" or r.get("player") == player)
-              and (not since or r.get("timestamp", "") >= since)]
+    picked = [
+        r
+        for r in refs
+        if r.get("mode") == 0
+        and not (r.get("mods", 0) & EXCLUDE_MODS)
+        and (not player or player == "*" or r.get("player") == player)
+        and (not since or r.get("timestamp", "") >= since)
+    ]
     return Counter(skip_reason(r) for r in dedupe(picked) if skip_reason(r))
 
 

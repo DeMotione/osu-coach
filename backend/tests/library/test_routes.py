@@ -32,7 +32,7 @@ def test_scan_and_analyse_a_folder(tmp_path, client):
     assert job["result"] == {"analysed": 3, "skipped": 0, "best_replays": None, "profile_ready": True, "warnings": []}
     status = client.get("/api/analysis").json()
     assert status["analysed"] == 3 and status["player_label"] == "Mot1one" and status["profile_replays"] == 3
-    assert load_settings(workspace(client).cache_dir)["player"] == "Mot1one"       # remembered
+    assert load_settings(workspace(client).cache_dir)["player"] == "Mot1one"  # remembered
     summary = client.get("/api/profile/summary").json()
     assert summary["replays"] == 3 and summary["notes"] > 100 and summary["replay_set"] == "all"
 
@@ -64,11 +64,13 @@ def test_selection_by_count_and_date(tmp_path, client):
     scan(client, plays_folder(tmp_path))
     newest = client.get("/api/library/selection", params={"latest": 100}).json()
     assert newest["replays"] == 3 and not newest["newest_only"]
-    none = client.get("/api/library/selection", params={"date_range": "custom", "date_from": "2020-01-01",
-                                                        "date_to": "2020-01-31"}).json()
+    none = client.get(
+        "/api/library/selection", params={"date_range": "custom", "date_from": "2020-01-01", "date_to": "2020-01-31"}
+    ).json()
     assert none["replays"] == 0 and none["empty_range"]
-    r = client.get("/api/library/selection", params={"date_range": "custom", "date_from": "2026-10-01",
-                                                     "date_to": "2026-09-01"})
+    r = client.get(
+        "/api/library/selection", params={"date_range": "custom", "date_from": "2026-10-01", "date_to": "2026-09-01"}
+    )
     assert r.status_code == 422 and r.json()["code"] == "bad_date_range"
     session = client.get("/api/library/selection", params={"date_range": "session"}).json()
     assert 1 <= session["replays"] <= 3
@@ -91,7 +93,9 @@ def test_missing_folder_is_a_warning_not_an_error(tmp_path, client):
 
 def test_only_dropped_files(tmp_path, client):
     rp, mp = sample_paths(MOT1ONE[0])
-    r = client.post("/api/uploads", files=[("files", (rp.name, rp.read_bytes())), ("files", ("map.osu", mp.read_bytes()))])
+    r = client.post(
+        "/api/uploads", files=[("files", (rp.name, rp.read_bytes())), ("files", ("map.osu", mp.read_bytes()))]
+    )
     assert r.status_code == 201, r.text
     ups = r.json()
     assert [u["kind"] for u in ups] == ["replay", "beatmap"]
@@ -100,7 +104,7 @@ def test_only_dropped_files(tmp_path, client):
     assert job["status"] == "succeeded" and job["result"]["replays"] == 1
     assert client.get("/api/library").json()["mode"] == "files"
     sel = client.get("/api/library/selection", params={"latest": 100, "date_range": "7d"}).json()
-    assert sel["files_mode"] and sel["replays"] == 1 and sel["date_range"] == "all"     # no count / date filter
+    assert sel["files_mode"] and sel["replays"] == 1 and sel["date_range"] == "all"  # no count / date filter
     analyse(client)
     assert client.post("/api/library/rescan", json={"latest": 0}).json()["code"] == "nothing_to_rescan"
 
@@ -129,5 +133,3 @@ def test_a_second_scan_waits_for_the_first(tmp_path, client):
     finally:
         ws.gate.release()
     assert isinstance(Busy("x"), Exception)
-
-

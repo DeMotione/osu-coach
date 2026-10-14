@@ -30,9 +30,14 @@ def unhide(ws: WorkspaceDep) -> int:
     return 0
 
 
-@router.get("/playlists", summary="A staged playlist (warm-up / core / push) for one skill",
-            responses=responses(409, 422))
-def playlist(ws: WorkspaceDep, skill: str | None = None, maps: Annotated[int, Query(ge=6, le=30)] = 15,
-             comfort: Annotated[float | None, Query(ge=1.0, le=8.0)] = None) -> Playlist:
+@router.get(
+    "/playlists", summary="A staged playlist (warm-up / core / push) for one skill", responses=responses(409, 422)
+)
+def playlist(
+    ws: WorkspaceDep,
+    skill: str | None = None,
+    maps: Annotated[int, Query(ge=6, le=30)] = 15,
+    comfort: Annotated[float | None, Query(ge=1.0, le=8.0)] = None,
+) -> Playlist:
     """``skill`` defaults to your weakest one; ``comfort``: your level without analysed replays."""
     return svc.playlist(ws, skill, maps, comfort)

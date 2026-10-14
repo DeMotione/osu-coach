@@ -1,4 +1,5 @@
 """Responses and requests of the replay library: finding replays, choosing and analysing them."""
+
 from __future__ import annotations
 
 import datetime as dt
@@ -64,6 +65,7 @@ class LibraryOut(BaseModel):
 
 class SelectionOut(BaseModel):
     """Which of the found replays an analysis with these choices would read."""
+
     player: str = Field(description="Resolved player; '*' = all players.")
     players: list[PlayerCount]
     files_mode: bool
@@ -83,5 +85,3 @@ class SelectionOut(BaseModel):
 class ScanJob(JobBase):
     kind: Literal["scan"]
     result: ScanResult | None
-
-

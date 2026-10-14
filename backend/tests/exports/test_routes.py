@@ -1,4 +1,5 @@
 """Getting maps into osu!: collection.db, lazer import folder, stable collection, .osz downloads (routes)."""
+
 import io
 import zipfile
 from pathlib import Path
@@ -11,7 +12,10 @@ from osu_coach.exports.collection_db import loads
 from osu_coach.maps.repository import POOL_PATH
 from tests.conftest import wait, workspace
 
-pytestmark = [pytest.mark.usefixtures("_isolated"), pytest.mark.skipif(not POOL_PATH.exists(), reason="bundled pool not built")]
+pytestmark = [
+    pytest.mark.usefixtures("_isolated"),
+    pytest.mark.skipif(not POOL_PATH.exists(), reason="bundled pool not built"),
+]
 
 
 # ------------------------------------------------------------------ exports
@@ -19,8 +23,10 @@ pytestmark = [pytest.mark.usefixtures("_isolated"), pytest.mark.skipif(not POOL_
 def export(client):
     pl = client.get("/api/playlists", params={"skill": "aim", "comfort": 4.0, "maps": 6}).json()
     maps = [m for st in pl["stages"] for m in st["maps"]]
-    return {"name": pl["collection_name"], "maps": [{"md5": m["md5"], "beatmapset_id": m["beatmapset_id"]}
-                                                    for m in maps]}
+    return {
+        "name": pl["collection_name"],
+        "maps": [{"md5": m["md5"], "beatmapset_id": m["beatmapset_id"]} for m in maps],
+    }
 
 
 def test_export_preview(client, export):
@@ -40,8 +46,8 @@ def test_collection_db_download(client, export):
 def test_lazer_zip_download(client, export):
     r = client.post("/api/exports/lazer-zip", json=export)
     assert r.status_code == 200 and r.headers["content-type"] == "application/zip"
-    disposition = r.headers["content-disposition"]                 # the name has a ★: ASCII fallback + UTF-8 name
-    assert disposition.startswith('attachment; filename="osu-coach Jump aim (4,0_).zip"; filename*=UTF-8\'\'')
+    disposition = r.headers["content-disposition"]  # the name has a ★: ASCII fallback + UTF-8 name
+    assert disposition.startswith("attachment; filename=\"osu-coach Jump aim (4,0_).zip\"; filename*=UTF-8''")
     assert "%E2%98%85" in disposition
     names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
     folder = lazer_import.safe_name(export["name"])
@@ -56,6 +62,7 @@ def test_lazer_import_folder(client, export, monkeypatch):
         with zipfile.ZipFile(osz, "w") as z:
             z.writestr("map.osu", "osu file format v14\n")
         return osz
+
     monkeypatch.setattr(sources, "download_osz", fake_download)
     r = client.post("/api/exports/lazer-pack", json=export)
     assert r.status_code == 202
@@ -74,10 +81,12 @@ def test_stable_collection_needs_a_stable_install(client, export):
 
 def test_stable_collection_is_merged_with_a_backup(client, export, tmp_path, monkeypatch):
     from osu_coach.replays import detect
+
     root = tmp_path / "osu!"
     (root / "Songs").mkdir(parents=True)
     (root / "osu!.tester.cfg").write_text("")
     from osu_coach.exports.collection_db import read_collection_db, write_collection_db
+
     write_collection_db(root / "collection.db", {"mine": ["a" * 32]})
     ws = workspace(client)
     monkeypatch.setattr(ws, "installs", lambda refresh=False: detect.find_installs(stable_roots=[root], lazer_roots=[]))

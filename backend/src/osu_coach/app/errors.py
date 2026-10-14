@@ -1,4 +1,5 @@
 """API errors: every error response is ``{"detail": <message>, "code": <machine-readable code>}``."""
+
 from __future__ import annotations
 
 from fastapi import FastAPI, Request
@@ -22,8 +23,9 @@ class ApiError(Exception):
 
 
 class NoProfile(ApiError):
-    def __init__(self, message: str = "No replays analysed yet. Scan your replays on the Replays page and press "
-                                      "Analyse replays."):
+    def __init__(
+        self, message: str = "No replays analysed yet. Scan your replays on the Replays page and press Analyse replays."
+    ):
         super().__init__(409, "no_profile", message)
 
 
@@ -65,8 +67,10 @@ def document_validation_errors(schema: dict) -> dict:
         for op in operations.values():
             answer = op.get("responses", {}).get("422", {})
             if answer.get("content", {}).get("application/json", {}).get("schema", {}).get("$ref") == _FASTAPI_422_REF:
-                op["responses"]["422"] = {"description": DESCRIPTIONS[422],
-                                          "content": {"application/json": {"schema": {"$ref": _ERROR_BODY_REF}}}}
+                op["responses"]["422"] = {
+                    "description": DESCRIPTIONS[422],
+                    "content": {"application/json": {"schema": {"$ref": _ERROR_BODY_REF}}},
+                }
     components = schema.get("components", {}).get("schemas", {})
     for name in ("HTTPValidationError", "ValidationError"):
         components.pop(name, None)
@@ -81,8 +85,11 @@ def install(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_: Request, exc: StarletteHTTPException):
         code = {404: "not_found", 405: "method_not_allowed"}.get(exc.status_code, "http_error")
-        return JSONResponse({"detail": str(exc.detail), "code": code}, status_code=exc.status_code,
-                            headers=getattr(exc, "headers", None))
+        return JSONResponse(
+            {"detail": str(exc.detail), "code": code},
+            status_code=exc.status_code,
+            headers=getattr(exc, "headers", None),
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(_: Request, exc: RequestValidationError):
@@ -90,5 +97,6 @@ def install(app: FastAPI) -> None:
         for e in exc.errors():
             where = ".".join(str(x) for x in e.get("loc", ()) if x not in ("body", "query", "path"))
             parts.append(f"{where}: {e.get('msg')}" if where else str(e.get("msg")))
-        return JSONResponse({"detail": "; ".join(parts) or "Invalid request.", "code": "validation_error"},
-                            status_code=422)
+        return JSONResponse(
+            {"detail": "; ".join(parts) or "Invalid request.", "code": "validation_error"}, status_code=422
+        )

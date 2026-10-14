@@ -10,6 +10,7 @@ folder brings the playlist's maps *and* its collection in together:
     <folder>/collection.db     the playlist
     <folder>/Songs/<set id>/   maps you don't have yet, unpacked from their .osz
 """
+
 from __future__ import annotations
 
 import io
@@ -84,7 +85,7 @@ def build_pack(dest, collections: dict, sets=(), progress=None, download=None) -
     for i, sid in enumerate(sets, 1):
         if progress:
             progress(i - 1, len(sets), f"Downloading map set {i}/{len(sets)} ({sid})")
-        target = songs / str(sid)          # short paths: Windows' 260-character limit
+        target = songs / str(sid)  # short paths: Windows' 260-character limit
         if _has_maps(target):
             got.append(sid)
             continue

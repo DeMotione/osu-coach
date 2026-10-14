@@ -1,4 +1,5 @@
 """Run the app: the API and the web app on http://localhost:<port>, for this computer only."""
+
 from __future__ import annotations
 
 import argparse
@@ -42,11 +43,13 @@ def serve(port: int = DEFAULT_PORT, open_browser: bool = True) -> int:
             if open_browser:
                 webbrowser.open(url)
             return 0
-        print(f"Port {port} is used by another program. Start with another port, e.g. --port {port + 1}.",
-              file=sys.stderr)
+        print(
+            f"Port {port} is used by another program. Start with another port, e.g. --port {port + 1}.", file=sys.stderr
+        )
         return 1
-    server = uvicorn.Server(uvicorn.Config(create_app(), host=BIND, port=port, log_level="warning",
-                                           timeout_graceful_shutdown=3))
+    server = uvicorn.Server(
+        uvicorn.Config(create_app(), host=BIND, port=port, log_level="warning", timeout_graceful_shutdown=3)
+    )
 
     def when_started():
         for _ in range(300):

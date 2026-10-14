@@ -6,6 +6,7 @@
   allowed host: another web site open in the browser can't make the app scan, download or write files (CSRF).
   Requests without ``Origin`` (curl, scripts) are not from a web page and are let through.
 """
+
 from __future__ import annotations
 
 import json
@@ -40,8 +41,12 @@ class LocalOnlyMiddleware:
             await self._refuse(send, 400, "invalid_host", "This address isn't allowed; open osu! coach via localhost.")
             return
         origin = headers.get("origin")
-        if scope["type"] == "http" and scope.get("method", "GET") not in SAFE_METHODS and origin is not None \
-                and _hostname(origin) not in self.allowed:
+        if (
+            scope["type"] == "http"
+            and scope.get("method", "GET") not in SAFE_METHODS
+            and origin is not None
+            and _hostname(origin) not in self.allowed
+        ):
             await self._refuse(send, 403, "cross_origin", "Requests from other web sites are not allowed.")
             return
         await self.app(scope, receive, send)
@@ -49,6 +54,11 @@ class LocalOnlyMiddleware:
     @staticmethod
     async def _refuse(send: Send, status: int, code: str, message: str) -> None:
         body = json.dumps({"detail": message, "code": code}).encode()
-        await send({"type": "http.response.start", "status": status,
-                    "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]})
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())],
+            }
+        )
         await send({"type": "http.response.body", "body": body})

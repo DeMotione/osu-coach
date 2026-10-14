@@ -5,6 +5,7 @@ The pool holds ~5,000 popular ranked osu!standard difficulties, 9 in 10 of them 
 pattern detector used on the player's replays plus osu!'s own difficulty model (rosu-pp).
 Rebuild with ``tools/build_pool.py``. Selection logic lives in ``domain.map_recommendations``.
 """
+
 from __future__ import annotations
 
 import gzip
@@ -37,8 +38,15 @@ def _load_cached(path: str, mtime: float) -> pd.DataFrame:
         rows = json.load(fh)
     df = pd.DataFrame(rows)
     for col in df.columns:
-        if df[col].dtype == object and col not in ("md5", "title", "artist", "version", "creator", "status",
-                                                    "ranked_date"):
+        if df[col].dtype == object and col not in (
+            "md5",
+            "title",
+            "artist",
+            "version",
+            "creator",
+            "status",
+            "ranked_date",
+        ):
             df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
@@ -58,6 +66,7 @@ def save_pool(rows: list[dict], path: Path | str = POOL_PATH) -> Path:
         if isinstance(v, np.integer):
             return int(v)
         return v
+
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(p, "wt", encoding="utf-8") as fh:

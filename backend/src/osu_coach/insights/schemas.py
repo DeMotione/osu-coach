@@ -1,4 +1,5 @@
 """Responses of the chart-style analyses shared by several pages."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -23,6 +24,7 @@ class ClickSummary(BaseModel):
 
 class Clicks(BaseModel):
     """Where clicks land, in circle radii from the note centre (y down)."""
+
     view: Literal["screen", "movement"]
     enough: bool
     n: int = Field(description="All clicks.")

@@ -1,6 +1,7 @@
 """Practice map pool logic: per-difficulty pattern statistics + skill scores,
 map suggestions and staged "improve a skill" playlists. Loading the pool file lives in
 ``osu_coach.maps.repository``."""
+
 from __future__ import annotations
 
 import hashlib
@@ -17,7 +18,7 @@ from osu_coach.beatmaps.features import object_features
 
 QUADRANTS = ["top-left", "top-right", "bottom-left", "bottom-right"]
 SKILLS = ["aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading", "consistency"]
-PLAYLIST_SKILLS = SKILLS + ["quadrant", "general"]    # the skills a playlist can be made for
+PLAYLIST_SKILLS = SKILLS + ["quadrant", "general"]  # the skills a playlist can be made for
 
 SKILL_INFO = {
     "aim": {"label": "Jump aim", "offset": 0.0, "focus": "landing on the centre of each circle"},
@@ -71,10 +72,19 @@ def map_stats(bm: Beatmap, osu_bytes: bytes) -> dict | None:
     rhythm = rhythm[rhythm != "break"]
     s = {
         "md5": hashlib.md5(osu_bytes).hexdigest(),
-        "title": bm.title, "artist": bm.artist, "version": bm.version_name, "creator": bm.creator,
-        "beatmap_id": bm.beatmap_id, "beatmapset_id": bm.beatmapset_id,
-        "cs": bm.cs, "ar": bm.ar, "od": bm.od, "hp": bm.hp,
-        "bpm": bm.main_bpm(), "drain_length": bm.drain_seconds, "n_objects": int(len(f)),
+        "title": bm.title,
+        "artist": bm.artist,
+        "version": bm.version_name,
+        "creator": bm.creator,
+        "beatmap_id": bm.beatmap_id,
+        "beatmapset_id": bm.beatmapset_id,
+        "cs": bm.cs,
+        "ar": bm.ar,
+        "od": bm.od,
+        "hp": bm.hp,
+        "bpm": bm.main_bpm(),
+        "drain_length": bm.drain_seconds,
+        "n_objects": int(len(f)),
         "circle_share": float((ns["kind"] == "circle").mean()),
         "slider_share": float((ns["kind"] == "slider").mean()),
         "stream_share": float((pat == "stream").mean()),
@@ -100,9 +110,16 @@ def map_stats(bm: Beatmap, osu_bytes: bytes) -> dict | None:
     for q in QUADRANTS:
         s["q_" + q.replace("-", "_")] = float((jumps["quadrant"] == q).mean()) if len(jumps) else 0.0
     a = difficulty.attributes(osu_bytes, 0)
-    s.update({"stars": a.get("stars", math.nan), "aim": a.get("aim", math.nan), "speed": a.get("speed", math.nan),
-              "slider_factor": a.get("slider_factor", 1.0), "max_combo": a.get("max_combo", math.nan),
-              "speed_note_count": a.get("speed_note_count", math.nan)})
+    s.update(
+        {
+            "stars": a.get("stars", math.nan),
+            "aim": a.get("aim", math.nan),
+            "speed": a.get("speed", math.nan),
+            "slider_factor": a.get("slider_factor", 1.0),
+            "max_combo": a.get("max_combo", math.nan),
+            "speed_note_count": a.get("speed_note_count", math.nan),
+        }
+    )
     s["stars_dt"] = difficulty.attributes(osu_bytes, 64).get("stars", math.nan)
     s["evenness"] = _evenness(osu_bytes)
     s.update(skill_scores(s))
@@ -132,12 +149,15 @@ def skill_scores(s: dict) -> dict:
         "s_aim": 0.6 * _c(jumpy, 0.05, 0.40) + 0.4 * _c(aim_ratio, 0.45, 0.60),
         "s_flow_aim": _c(s.get("spaced_stream_share"), 0.02, 0.20),
         "s_speed": 0.7 * _c(tappy, 0.05, 0.40) + 0.3 * _c(1 - aim_ratio, 0.40, 0.55),
-        "s_stamina": 0.5 * _c(s.get("stream_notes"), 50, 400) + 0.3 * _c(s.get("max_run"), 12, 48)
-                     + 0.2 * _c(s.get("drain_length"), 90, 300),
-        "s_accuracy": 0.5 * _c(s.get("od"), 6.5, 9.5) + 0.3 * _c(s.get("circle_share"), 0.3, 0.8)
-                      + 0.2 * (1 - _c(jumpy, 0.1, 0.5)),
-        "s_sliders": 0.45 * _c(s.get("slider_share"), 0.25, 0.65) + 0.35 * _c(1 - _f(s.get("slider_factor"), 1.0), 0, 0.08)
-                     + 0.2 * _c(s.get("reverse_share"), 0.05, 0.35),
+        "s_stamina": 0.5 * _c(s.get("stream_notes"), 50, 400)
+        + 0.3 * _c(s.get("max_run"), 12, 48)
+        + 0.2 * _c(s.get("drain_length"), 90, 300),
+        "s_accuracy": 0.5 * _c(s.get("od"), 6.5, 9.5)
+        + 0.3 * _c(s.get("circle_share"), 0.3, 0.8)
+        + 0.2 * (1 - _c(jumpy, 0.1, 0.5)),
+        "s_sliders": 0.45 * _c(s.get("slider_share"), 0.25, 0.65)
+        + 0.35 * _c(1 - _f(s.get("slider_factor"), 1.0), 0, 0.08)
+        + 0.2 * _c(s.get("reverse_share"), 0.05, 0.35),
         "s_reading": 0.6 * _c(s.get("density_p90"), 4, 10) + 0.4 * _c(s.get("odd_rhythm_share"), 0.0, 0.15),
         "s_consistency": 0.5 * _c(s.get("drain_length"), 90, 270) + 0.5 * _c(s.get("evenness"), 0.3, 0.7),
     }
@@ -146,16 +166,16 @@ def skill_scores(s: dict) -> dict:
 # ------------------------------------------------------------------ targets & suggestions
 @dataclass
 class Targets:
-    comfort: float = 2.5                    # star rating the player handles comfortably
-    stream_bpm: float | None = None         # stream speed to train at (1/4 notes)
-    quadrant: str | None = None             # weakest quadrant (if significant)
+    comfort: float = 2.5  # star rating the player handles comfortably
+    stream_bpm: float | None = None  # stream speed to train at (1/4 notes)
+    quadrant: str | None = None  # weakest quadrant (if significant)
     ar_range: tuple[float, float] | None = None
     played: frozenset = field(default_factory=frozenset)
 
 
 def targets_from_profile(p) -> Targets:
     lv = getattr(p, "levels", {}) or {}
-    comfort = _f(lv.get("level_stars", lv.get("comfort_stars")))   # detected (or chosen) level, else comfort
+    comfort = _f(lv.get("level_stars", lv.get("comfort_stars")))  # detected (or chosen) level, else comfort
     if math.isnan(comfort):
         comfort = _f(lv.get("comfort_stars"))
     if math.isnan(comfort):
@@ -208,9 +228,17 @@ def _title_key(title) -> str:
     return re.sub(r"\s*[\(\[].*?[\)\]]", "", str(title or "").lower()).strip()
 
 
-def suggest(pool: pd.DataFrame, skill: str, targets: Targets, n: int = 10, offset: float | None = None,
-            width: float = 0.5, exclude: set | frozenset = frozenset(), min_skill: float = 0.35,
-            exclude_titles: set | frozenset = frozenset()) -> pd.DataFrame:
+def suggest(
+    pool: pd.DataFrame,
+    skill: str,
+    targets: Targets,
+    n: int = 10,
+    offset: float | None = None,
+    width: float = 0.5,
+    exclude: set | frozenset = frozenset(),
+    min_skill: float = 0.35,
+    exclude_titles: set | frozenset = frozenset(),
+) -> pd.DataFrame:
     """Best practice maps for a skill around the player's level (easiest first).
 
     Candidates come from a star window around the target (widened until there is
@@ -228,7 +256,7 @@ def suggest(pool: pd.DataFrame, skill: str, targets: Targets, n: int = 10, offse
     if base.empty:
         return base
     base["skill_fit"] = _skill_column(base, skill, targets)
-    if skill == "accuracy":   # timing practice needs tight hit windows *for the player's level*
+    if skill == "accuracy":  # timing practice needs tight hit windows *for the player's level*
         od_min = min(8.5, 3.0 + targets.comfort)
         base["skill_fit"] = 0.5 * base["skill_fit"] + 0.5 * ((base["od"] - (od_min - 2.5)) / 2.5).clip(0, 1).fillna(0)
     if skill == "reading" and targets.ar_range:
@@ -252,7 +280,7 @@ def suggest(pool: pd.DataFrame, skill: str, targets: Targets, n: int = 10, offse
         if win["beatmapset_id"].nunique() >= 3 * n:
             break
         w *= 1.5
-    if win["beatmapset_id"].nunique() < n:   # thin region of the pool: take the closest maps
+    if win["beatmapset_id"].nunique() < n:  # thin region of the pool: take the closest maps
         win = base.nsmallest(max(6 * n, 60), "star_dist")
         w = max(w, float(win["star_dist"].max()) or w)
     if win.empty:
@@ -263,8 +291,9 @@ def suggest(pool: pd.DataFrame, skill: str, targets: Targets, n: int = 10, offse
     cand["popularity"] = pop.rank(pct=True)
     cand["star_fit"] = 1 - (cand["star_dist"] / w).clip(0, 1)
     bpm_w = 0.3 if tgt_bpm else 0.0
-    cand["score"] = (0.55 * cand["skill_fit"] + 0.25 * cand["star_fit"] + 0.20 * cand["popularity"]
-                     + bpm_w * cand["bpm_fit"])
+    cand["score"] = (
+        0.55 * cand["skill_fit"] + 0.25 * cand["star_fit"] + 0.20 * cand["popularity"] + bpm_w * cand["bpm_fit"]
+    )
     # maps above the skill threshold first; the rest only fill up a thin region
     cand["ok"] = cand["skill_fit"] >= thr
     cand = cand.sort_values(["ok", "score"], ascending=False).drop_duplicates("beatmapset_id")
@@ -285,8 +314,9 @@ def suggest(pool: pd.DataFrame, skill: str, targets: Targets, n: int = 10, offse
     return out.reset_index(drop=True)
 
 
-def stream_length_maps(pool: pd.DataFrame, targets: Targets, min_run: int, max_run: int, n: int = 6,
-                       offset: float = -0.3) -> pd.DataFrame:
+def stream_length_maps(
+    pool: pd.DataFrame, targets: Targets, min_run: int, max_run: int, n: int = 6, offset: float = -0.3
+) -> pd.DataFrame:
     """Maps whose longest stream is ``min_run``–``max_run`` notes, at a stream speed the player can tap
     (``targets.stream_bpm``) and around his level: for practising streams of exactly that length."""
     if pool is None or pool.empty or "max_run" not in pool:
@@ -296,13 +326,32 @@ def stream_length_maps(pool: pd.DataFrame, targets: Targets, min_run: int, max_r
         return sub
     out = suggest(sub, "stamina", targets, n=n, offset=offset, min_skill=0.0)
     if not out.empty:
-        out["why"] = [f"longest stream {int(r['max_run'])} notes at ~{_f(r.get('stream_bpm'), _f(r.get('burst_bpm'), 0)):.0f}"
-                      f" BPM (1/4)" for _, r in out.iterrows()]
+        out["why"] = [
+            f"longest stream {int(r['max_run'])} notes at ~{_f(r.get('stream_bpm'), _f(r.get('burst_bpm'), 0)):.0f}"
+            f" BPM (1/4)"
+            for _, r in out.iterrows()
+        ]
     return out
 
 
-PLAYLIST_COLUMNS = ["stage", "goal", "stars", "artist", "title", "version", "creator", "why", "url", "md5",
-                    "beatmap_id", "beatmapset_id", "bpm", "ar", "od", "drain_length"]
+PLAYLIST_COLUMNS = [
+    "stage",
+    "goal",
+    "stars",
+    "artist",
+    "title",
+    "version",
+    "creator",
+    "why",
+    "url",
+    "md5",
+    "beatmap_id",
+    "beatmapset_id",
+    "bpm",
+    "ar",
+    "od",
+    "drain_length",
+]
 
 
 def build_playlist(pool: pd.DataFrame, skill: str, targets: Targets, n: int = 15) -> pd.DataFrame:
@@ -314,8 +363,9 @@ def build_playlist(pool: pd.DataFrame, skill: str, targets: Targets, n: int = 15
     for (stage, _), delta, k in zip(STAGES, deltas, per):
         if k <= 0:
             continue
-        part = suggest(pool, skill, targets, n=k, offset=base_offset + delta, width=0.3, exclude=used,
-                       exclude_titles=titles)
+        part = suggest(
+            pool, skill, targets, n=k, offset=base_offset + delta, width=0.3, exclude=used, exclude_titles=titles
+        )
         if part.empty:
             continue
         used |= set(pool.loc[pool["beatmapset_id"].isin(part["beatmapset_id"]), "md5"])
@@ -334,9 +384,11 @@ def goal(stage: str, skill: str, t: Targets) -> str:
     focus = SKILL_INFO.get(skill, SKILL_INFO["general"])["focus"]
     if skill == "quadrant" and t.quadrant:
         focus = f"committing to the full movement into the {t.quadrant} corner"
-    return {"Warm-up": f"Full combo — focus on {focus}",
-            "Core": "Under 5 misses, then go for the full combo",
-            "Push": "Pass it, then retry the hardest section"}[stage]
+    return {
+        "Warm-up": f"Full combo — focus on {focus}",
+        "Core": "Under 5 misses, then go for the full combo",
+        "Push": "Pass it, then retry the hardest section",
+    }[stage]
 
 
 def why(r, skill: str, t: Targets) -> str:

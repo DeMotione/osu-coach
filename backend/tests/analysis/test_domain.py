@@ -58,6 +58,7 @@ def test_replay_without_results_falls_back_to_simulation():
 
     from osu_coach.library.repository import analyze_bytes
     from osu_coach.replays.osr import parse_replay_file
+
     rp, mp, _ = replay_and_map("circlecore__legit__legit-12.osr")
     replay = parse_replay_file(rp)
     replay.n300 = replay.n100 = replay.n50 = replay.nmiss = 0

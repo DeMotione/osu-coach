@@ -12,6 +12,7 @@ mouse sensitivity, rapid-trigger values). Rules of thumb used:
   0.3-1.0 mm actuation with 0.1-0.3 mm RT sensitivity; very low values (0.1 mm)
   cause chatter / accidental double taps, too high values miss fast taps.
 """
+
 from __future__ import annotations
 
 from osu_coach.tips.domain.common import Tip

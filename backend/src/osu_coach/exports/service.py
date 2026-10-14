@@ -1,4 +1,5 @@
 """Getting maps into osu!: lazer import folder, stable collection, .osz downloads."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -36,13 +37,21 @@ def export_preview(ws: Workspace, req: ExportRequest) -> ExportPreview:
     have = lib.installed["lazer"] if lib is not None else set()
     sets = sets_to_download(_set_rows(req), have)
     stable = _stable_installs(ws)
-    osz = stable[0].songs if stable and stable[0].songs else \
-        Path.home() / "osu-coach-maps" / lazer_import.safe_name(req.name)
-    return ExportPreview(collection=req.name, preferred_client=ws.preferred_client(),
-                         total_sets=len({m.beatmapset_id for m in req.maps}), lazer_sets=len(sets),
-                         lazer_approximate=bool(lib is not None and lib.has_unread_maps("lazer")),
-                         lazer_folder=str(lazer_import.default_pack_dir(req.name)),
-                         stable_available=bool(stable), osz_folder=str(osz))
+    osz = (
+        stable[0].songs
+        if stable and stable[0].songs
+        else Path.home() / "osu-coach-maps" / lazer_import.safe_name(req.name)
+    )
+    return ExportPreview(
+        collection=req.name,
+        preferred_client=ws.preferred_client(),
+        total_sets=len({m.beatmapset_id for m in req.maps}),
+        lazer_sets=len(sets),
+        lazer_approximate=bool(lib is not None and lib.has_unread_maps("lazer")),
+        lazer_folder=str(lazer_import.default_pack_dir(req.name)),
+        stable_available=bool(stable),
+        osz_folder=str(osz),
+    )
 
 
 def collection_db(req: ExportRequest) -> bytes:

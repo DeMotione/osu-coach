@@ -8,8 +8,17 @@ from osu_coach.settings.domain import Setup
 from osu_coach.tips.domain import make_tips, mm_per_osu_px, practice_plan, rt_baseline, suggest_tablet_area
 from tests.conftest import replay_and_map
 
-REG = {"n": 500, "scale_x": 1.0, "scale_y": 1.0, "rotation_deg": 0.0, "offset_x": 0.0, "offset_y": 0.0,
-       "offset_se": 0.3, "residual_px": 15.0, "radius": 36.5}
+REG = {
+    "n": 500,
+    "scale_x": 1.0,
+    "scale_y": 1.0,
+    "rotation_deg": 0.0,
+    "offset_x": 0.0,
+    "offset_y": 0.0,
+    "offset_se": 0.3,
+    "residual_px": 15.0,
+    "radius": 36.5,
+}
 
 
 @pytest.fixture(scope="module")
@@ -71,9 +80,20 @@ def test_large_offset_gives_shift_in_mm(base):
 
 
 def _quadrant(significant):
-    return {"quadrant": "bottom-right", "miss_rate": 0.1, "rest_miss_rate": 0.04, "relative_risk": 2.5, "z": 5.0,
-            "objects": 900, "misses": 90, "mean_dx": -6.0, "mean_dy": -5.0, "along": -0.2, "aim_miss_rate": 0.08,
-            "significant": significant}
+    return {
+        "quadrant": "bottom-right",
+        "miss_rate": 0.1,
+        "rest_miss_rate": 0.04,
+        "relative_risk": 2.5,
+        "z": 5.0,
+        "objects": 900,
+        "misses": 90,
+        "mean_dx": -6.0,
+        "mean_dy": -5.0,
+        "along": -0.2,
+        "aim_miss_rate": 0.08,
+        "significant": significant,
+    }
 
 
 def test_significant_weak_quadrant_is_top_priority(base):
@@ -81,7 +101,7 @@ def test_significant_weak_quadrant_is_top_priority(base):
     t = tip(tips, "Quadrant")
     assert t.severity == 3 and "BOTTOM-RIGHT" in t.title
     text = " ".join(t.actions)
-    assert "short" in text            # clicks land towards the middle -> not reaching the corner
+    assert "short" in text  # clicks land towards the middle -> not reaching the corner
     assert "nearest your hand" in text
 
 
@@ -103,8 +123,7 @@ def test_rapid_trigger_chatter_makes_settings_less_sensitive(base):
 
 
 def test_rapid_trigger_falling_behind_lowers_actuation(base):
-    p = _tapping(base, chatter_per_1000=0.0, extra_presses_per_100=0.5, slope_ms_per_note=1.2, n=500,
-                 comfort_bpm=180)
+    p = _tapping(base, chatter_per_1000=0.0, extra_presses_per_100=0.5, slope_ms_per_note=1.2, n=500, comfort_bpm=180)
     s = Setup(keyboard="rapid_trigger", actuation_mm=1.2, rt_press_mm=0.3, rt_release_mm=0.3)
     t = tip(make_tips(p, s), "Keyboard / Rapid trigger")
     assert t.settings["actuation_mm"] < 1.2
@@ -143,6 +162,7 @@ def _aim_misses_in(base, pattern: str, spaced: bool = False, n: int = 200):
     """The base profile with its misses replaced by n aim misses on notes of one pattern (jumps at normal speed,
     or streams — where they count as speed-aim misses)."""
     from osu_coach.profile.domain import miss_causes
+
     O = base.objects.copy()
     O["head_hit"] = True
     O["miss_reason"] = None
@@ -172,14 +192,26 @@ def test_aim_miss_tip_keeps_jump_advice_for_jumps(base):
 
 
 def test_calibration_tip_is_always_in_the_setup_tips(base):
-    t = tip(make_tips(with_(base, regression={**REG, "scale_x": 1.0, "scale_y": 1.01}), Setup(**AREA)),
-            "Setup / aim calibration", "fits")
+    t = tip(
+        make_tips(with_(base, regression={**REG, "scale_x": 1.0, "scale_y": 1.01}), Setup(**AREA)),
+        "Setup / aim calibration",
+        "fits",
+    )
     assert t is not None and "keep your tablet area" in " ".join(t.actions)
-    t = tip(make_tips(with_(base, regression={**REG, "scale_x": 1.08, "scale_y": 1.08}), Setup(**AREA)),
-            "Setup / aim calibration", "larger tablet area")
+    t = tip(
+        make_tips(with_(base, regression={**REG, "scale_x": 1.08, "scale_y": 1.08}), Setup(**AREA)),
+        "Setup / aim calibration",
+        "larger tablet area",
+    )
     assert t is not None and t.actions[0] == "Now 100 × 56.25 mm → try 108.0 × 60.8 mm."
-    t = tip(make_tips(with_(base, regression={**REG, "scale_x": 0.9, "scale_y": 0.9}),
-                      Setup(device="mouse", mouse_dpi=800, ingame_sens=1.0)), "Setup / aim calibration", "higher")
+    t = tip(
+        make_tips(
+            with_(base, regression={**REG, "scale_x": 0.9, "scale_y": 0.9}),
+            Setup(device="mouse", mouse_dpi=800, ingame_sens=1.0),
+        ),
+        "Setup / aim calibration",
+        "higher",
+    )
     assert t is not None and "raise your sensitivity" in " ".join(t.actions)
 
 
@@ -220,17 +252,30 @@ def test_no_area_suggestion_without_an_area_or_with_a_mouse(base):
 
 # ---------------------------------------------------------------- SayoDevice keypad
 # Nikita's settings (SayoDevice web configurator screenshot)
-SAYO = dict(keyboard="sayo", sayo_stroke_mm=4.0, sayo_trigger_mm=0.40, sayo_release_mm=0.35, sayo_rt=True,
-            sayo_rt_trigger_mm=0.10, sayo_rt_release_mm=0.15, sayo_full_stroke=False, sayo_rt_upper_mm=0.10,
-            sayo_rt_lower_mm=3.80)
-CLEAN = dict(chatter_per_1000=2.0, extra_presses_per_100=0.9, overlap_in_streams=0.43, slope_ms_per_note=0.05,
-             comfort_bpm=210)
+SAYO = dict(
+    keyboard="sayo",
+    sayo_stroke_mm=4.0,
+    sayo_trigger_mm=0.40,
+    sayo_release_mm=0.35,
+    sayo_rt=True,
+    sayo_rt_trigger_mm=0.10,
+    sayo_rt_release_mm=0.15,
+    sayo_full_stroke=False,
+    sayo_rt_upper_mm=0.10,
+    sayo_rt_lower_mm=3.80,
+)
+CLEAN = dict(
+    chatter_per_1000=2.0, extra_presses_per_100=0.9, overlap_in_streams=0.43, slope_ms_per_note=0.05, comfort_bpm=210
+)
 
 
 def _clean(base, **kw):
     p = _tapping(base, **{**CLEAN, **kw})
-    return with_(p, slider_breaks={"follow": 52, "released": 8, "key_swap": 2},
-                 miss_breakdown={"aim": 2288, "lost": 709, "no_tap": 383, "early": 61})
+    return with_(
+        p,
+        slider_breaks={"follow": 52, "released": 8, "key_swap": 2},
+        miss_breakdown={"aim": 2288, "lost": 709, "no_tap": 383, "early": 61},
+    )
 
 
 def _sayo(p, **setup):
@@ -239,17 +284,23 @@ def _sayo(p, **setup):
 
 def test_sayo_settings_that_fit_the_tapping_are_kept(base):
     t = _sayo(_clean(base))
-    assert {k: t.settings[k] for k in ("Trigger", "Release", "RT Trigger", "RT Release", "RT Upper Bound",
-                                       "RT Lower Bound")} == {"Trigger": 0.40, "Release": 0.35, "RT Trigger": 0.10,
-                                                              "RT Release": 0.15, "RT Upper Bound": 0.10,
-                                                              "RT Lower Bound": 3.80}
+    assert {
+        k: t.settings[k] for k in ("Trigger", "Release", "RT Trigger", "RT Release", "RT Upper Bound", "RT Lower Bound")
+    } == {
+        "Trigger": 0.40,
+        "Release": 0.35,
+        "RT Trigger": 0.10,
+        "RT Release": 0.15,
+        "RT Upper Bound": 0.10,
+        "RT Lower Bound": 3.80,
+    }
     assert t.severity == 1 and "fit" in t.title.lower()
 
 
 def test_sayo_double_presses_make_rapid_trigger_less_sensitive(base):
     t = _sayo(_clean(base, chatter_per_1000=9.0))
     assert t.settings["RT Trigger"] == 0.15 and t.settings["RT Release"] == 0.20
-    assert t.settings["RT Upper Bound"] == 0.40      # rapid trigger no longer fires above the trigger point
+    assert t.settings["RT Upper Bound"] == 0.40  # rapid trigger no longer fires above the trigger point
     assert t.severity == 2
 
 
@@ -266,8 +317,8 @@ def test_sayo_falling_behind_in_streams_makes_presses_register_sooner(base):
 
 def test_sayo_impossible_settings_are_fixed(base):
     t = _sayo(_clean(base), sayo_release_mm=0.45, sayo_rt_lower_mm=4.0)
-    assert t.settings["Release"] == 0.35             # must be shallower than Trigger 0.40
-    assert t.settings["RT Lower Bound"] == 3.95      # not at the very bottom of the stroke
+    assert t.settings["Release"] == 0.35  # must be shallower than Trigger 0.40
+    assert t.settings["RT Lower Bound"] == 3.95  # not at the very bottom of the stroke
     text = " ".join(t.actions)
     assert "Release" in text and "RT Lower Bound" in text
 

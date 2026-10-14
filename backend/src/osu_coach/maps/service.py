@@ -1,4 +1,5 @@
 """Map suggestions and skill playlists from the bundled map pool."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -32,13 +33,26 @@ def map_rows(df: pd.DataFrame | None) -> list[MapRow]:
         return []
     rows = []
     for r in df.to_dict("records"):
-        rows.append(MapRow(
-            md5=str(r["md5"]), beatmap_id=integer(r.get("beatmap_id")) or 0,
-            beatmapset_id=integer(r.get("beatmapset_id")) or 0, artist=text(r.get("artist")) or "",
-            title=text(r.get("title")) or "", version=text(r.get("version")) or "", creator=text(r.get("creator")),
-            stars=num(r.get("stars")), bpm=num(r.get("bpm")), ar=num(r.get("ar")), od=num(r.get("od")),
-            length_s=num(r.get("drain_length")), why=text(r.get("why")) or "", url=text(r.get("url")) or "",
-            stage=text(r.get("stage")), goal=text(r.get("goal"))))
+        rows.append(
+            MapRow(
+                md5=str(r["md5"]),
+                beatmap_id=integer(r.get("beatmap_id")) or 0,
+                beatmapset_id=integer(r.get("beatmapset_id")) or 0,
+                artist=text(r.get("artist")) or "",
+                title=text(r.get("title")) or "",
+                version=text(r.get("version")) or "",
+                creator=text(r.get("creator")),
+                stars=num(r.get("stars")),
+                bpm=num(r.get("bpm")),
+                ar=num(r.get("ar")),
+                od=num(r.get("od")),
+                length_s=num(r.get("drain_length")),
+                why=text(r.get("why")) or "",
+                url=text(r.get("url")) or "",
+                stage=text(r.get("stage")),
+                goal=text(r.get("goal")),
+            )
+        )
     return rows
 
 
@@ -60,11 +74,17 @@ def suggestions(ws: Workspace, p: Profile) -> Suggestions:
     for sk, df in recommendations(pool, p, per_skill=SUGGESTIONS_PER_SKILL):
         title = "Level up" if sk == "general" else skill_label(sk, t)
         score = None if sk in ("general", "quadrant") else num(p.skills.get(sk, {}).get("score"))
-        sections.append(SuggestionSection(skill=sk, title=title, score=score,
-                                          maps=map_rows(df.assign(stage=skill_label(sk, t)))))
-    return Suggestions(comfort=float(t.comfort), pool_size=len(ws.pool()), hidden=len(hidden), sections=sections,
-                       collection_name=f"osu-coach: Map Suggestion ({t.comfort:.1f}★)",
-                       preferred_client=ws.preferred_client())
+        sections.append(
+            SuggestionSection(skill=sk, title=title, score=score, maps=map_rows(df.assign(stage=skill_label(sk, t))))
+        )
+    return Suggestions(
+        comfort=float(t.comfort),
+        pool_size=len(ws.pool()),
+        hidden=len(hidden),
+        sections=sections,
+        collection_name=f"osu-coach: Map Suggestion ({t.comfort:.1f}★)",
+        preferred_client=ws.preferred_client(),
+    )
 
 
 def hide(ws: Workspace, md5s: list[str]) -> int:
@@ -90,10 +110,29 @@ def playlist(ws: Workspace, skill: str | None, n: int, comfort: float | None) ->
     if skill == "quadrant" and not t.quadrant:
         raise ApiError(409, "no_weak_quadrant", "No clearly weak quadrant in your replays — pick another skill.")
     pl = build_playlist(pool, skill, t, n=n)
-    stages = [PlaylistStage(stage=str(stage), goal=str(part["goal"].iloc[0]), maps=map_rows(part))
-              for stage, part in pl.groupby("stage", sort=False)] if not pl.empty else []
-    skills = [PlaylistSkill(key=k, label=skill_label(k, t),
-                            score=num(p.skills.get(k, {}).get("score")) if p is not None else None) for k in options]
-    return Playlist(skill=skill, skills=skills, default_skill=default, has_profile=p is not None,
-                    comfort=float(t.comfort), stream_bpm=num(t.stream_bpm), maps=n,
-                    collection_name=collection_name(skill, t), stages=stages, preferred_client=ws.preferred_client())
+    stages = (
+        [
+            PlaylistStage(stage=str(stage), goal=str(part["goal"].iloc[0]), maps=map_rows(part))
+            for stage, part in pl.groupby("stage", sort=False)
+        ]
+        if not pl.empty
+        else []
+    )
+    skills = [
+        PlaylistSkill(
+            key=k, label=skill_label(k, t), score=num(p.skills.get(k, {}).get("score")) if p is not None else None
+        )
+        for k in options
+    ]
+    return Playlist(
+        skill=skill,
+        skills=skills,
+        default_skill=default,
+        has_profile=p is not None,
+        comfort=float(t.comfort),
+        stream_bpm=num(t.stream_bpm),
+        maps=n,
+        collection_name=collection_name(skill, t),
+        stages=stages,
+        preferred_client=ws.preferred_client(),
+    )

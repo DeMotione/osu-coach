@@ -1,4 +1,5 @@
 """Detailed Map Analysis: one play on its own."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field

@@ -3,6 +3,7 @@
 
 Where the folders are is found in :mod:`osu_coach.replays.detect`.
 """
+
 from __future__ import annotations
 
 import datetime as _dt
@@ -48,7 +49,7 @@ def replay_header(path: Path, head: bytes | None = None) -> dict | None:
         head = read_head(path) if head is None else head
         whole = head if len(head) < HEAD_BYTES else None
         h = parse_header(head)
-        if h is None and whole is None and peek_header(head) is not None:   # very long life-bar string
+        if h is None and whole is None and peek_header(head) is not None:  # very long life-bar string
             whole = Path(path).read_bytes()
             h = parse_header(whole)
         if h and h["version"] >= 30000001:
@@ -125,7 +126,7 @@ class NewestReplays:
         self.latest = int(latest)
         self.player = player or None
         self.accept = accept or (lambda h: True)
-        self.newest: dict[str, list[float]] = {}     # player -> min-heap of the newest play times
+        self.newest: dict[str, list[float]] = {}  # player -> min-heap of the newest play times
         self.counts: Counter = Counter()
         self.seen: set = set()
 
@@ -187,8 +188,9 @@ def _cached_header(p: Path, cache: dict) -> dict | None:
     return dict(h, path=key) if h else None
 
 
-def scan_folder(folder: Path, index: dict, latest: int | None = None, player: str | None = None,
-                accept=None) -> tuple[list[dict], dict[str, str]]:
+def scan_folder(
+    folder: Path, index: dict, latest: int | None = None, player: str | None = None, accept=None
+) -> tuple[list[dict], dict[str, str]]:
     """Replays (.osr) and beatmaps (.osu, md5-indexed) under a folder.  ``latest``: read the
     replays newest file first and stop once the newest ``latest`` plays are certain (see
     NewestReplays) instead of reading every replay."""
@@ -248,7 +250,7 @@ class LazerStore:
     def __init__(self, files_dir, index: dict):
         self.files_dir = Path(files_dir)
         self.cache = index.setdefault("lazer", {})
-        self.unread: list[tuple[str, float]] = []   # files a limited scan skipped, newest first
+        self.unread: list[tuple[str, float]] = []  # files a limited scan skipped, newest first
 
     @property
     def exhausted(self) -> bool:
@@ -263,8 +265,9 @@ class LazerStore:
                 self.cache[name] = info
         return info
 
-    def scan(self, progress=None, latest: int | None = None, player: str | None = None,
-             accept=None) -> tuple[list[dict], dict[str, str]]:
+    def scan(
+        self, progress=None, latest: int | None = None, player: str | None = None, accept=None
+    ) -> tuple[list[dict], dict[str, str]]:
         """Replays and beatmaps.  ``latest``: newest files first, stop once the newest ``latest``
         plays are certain (see NewestReplays); the rest is left in ``unread`` for find()."""
         files = list_files(self.files_dir, lambda n: len(n) == 64)
@@ -317,7 +320,7 @@ class SongsFolder:
     def __init__(self, songs, index: dict):
         self.songs = Path(songs)
         self.cache = index.setdefault("files", {})
-        self.unread: list[tuple[str, float]] | None = None   # .osu files not hashed yet (find)
+        self.unread: list[tuple[str, float]] | None = None  # .osu files not hashed yet (find)
 
     @property
     def exhausted(self) -> bool:
@@ -338,8 +341,9 @@ class SongsFolder:
     def find(self, md5s, progress=None) -> dict[str, str]:
         """Hash .osu files newest first until every beatmap in ``md5s`` has turned up."""
         if self.unread is None:
-            self.unread = sorted(list_files(self.songs, lambda n: n.lower().endswith(".osu")),
-                                 key=lambda f: f[1], reverse=True)
+            self.unread = sorted(
+                list_files(self.songs, lambda n: n.lower().endswith(".osu")), key=lambda f: f[1], reverse=True
+            )
         remaining = set(md5s)
         maps: dict[str, str] = {}
         i = 0

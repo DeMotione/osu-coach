@@ -15,8 +15,14 @@ def test_parse_header_matches_full_parse():
     rp, _, _ = replay_and_map(NAME)
     h = parse_header(open(rp, "rb").read())
     r = parse_replay_file(rp)
-    assert (h["beatmap_md5"], h["player"], h["mods"], h["n300"], h["nmiss"], h["score"]) == \
-           (r.beatmap_md5, r.player, r.mods, r.n300, r.nmiss, r.score)
+    assert (h["beatmap_md5"], h["player"], h["mods"], h["n300"], h["nmiss"], h["score"]) == (
+        r.beatmap_md5,
+        r.player,
+        r.mods,
+        r.n300,
+        r.nmiss,
+        r.score,
+    )
     assert h["timestamp"] == r.timestamp.isoformat()
     assert parse_header(b"not a replay" * 10) is None
 
@@ -72,7 +78,7 @@ def test_eligible_filters_dedupes_and_sorts():
         dict(base, path="1", player="A", mode=0, mods=0, timestamp="2026-01-01T00:00:00"),
         dict(base, path="2", player="A", mode=0, mods=0, timestamp="2026-01-01T00:00:00"),  # same play twice
         dict(base, path="3", player="A", mode=0, mods=128, timestamp="2026-02-01T00:00:00"),  # relax
-        dict(base, path="4", player="A", mode=1, mods=0, timestamp="2026-03-01T00:00:00"),    # taiko
+        dict(base, path="4", player="A", mode=1, mods=0, timestamp="2026-03-01T00:00:00"),  # taiko
         dict(base, path="5", player="B", mode=0, mods=0, timestamp="2026-04-01T00:00:00"),
         dict(base, path="6", player="A", mode=0, mods=8, timestamp="2026-05-01T00:00:00", score=2),
     ]
@@ -95,6 +101,7 @@ def test_analysis_is_cached_by_replay_content(tmp_path, monkeypatch):
 
     def boom(*a, **k):
         raise AssertionError("should have been served from cache")
+
     monkeypatch.setattr(libmod, "_work", boom)
     lib2 = Library(tmp_path / "cache")
     lib2.add_folder(folder)
@@ -117,7 +124,7 @@ def test_parallel_analysis_matches_sequential(tmp_path):
     for n in (NAME, NAME2):
         rp, mp, _ = replay_and_map(n)
         shutil.copy(mp, folder / f"{n}.osu")
-        for copy in range(2):   # 4 replay files -> big enough batch to use the process pool
+        for copy in range(2):  # 4 replay files -> big enough batch to use the process pool
             shutil.copy(rp, folder / f"{copy}-{n}")
     seq = Library(tmp_path / "c1")
     seq.add_folder(folder)

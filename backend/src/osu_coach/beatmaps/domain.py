@@ -5,6 +5,7 @@ hit windows (truncated ints), preempt, circle radius (+0.041% allowance),
 new/old stacking, slider velocity, ticks (lazer SliderEventGenerator incl. the
 legacy 36 ms last-tick offset) and HardRock vertical flip.
 """
+
 from __future__ import annotations
 
 import bisect
@@ -164,8 +165,14 @@ class PlayableBeatmap:
     instead of the map's own settings. ``mirror``: lazer's Mirror mod, "horizontal",
     "vertical" or "both"."""
 
-    def __init__(self, beatmap: Beatmap, mods: int = 0, rate: float | None = None,
-                 overrides: dict | None = None, mirror: str | None = None):
+    def __init__(
+        self,
+        beatmap: Beatmap,
+        mods: int = 0,
+        rate: float | None = None,
+        overrides: dict | None = None,
+        mirror: str | None = None,
+    ):
         self.beatmap = beatmap
         self.mods = mods
         cs, ar, od, hp = beatmap.cs, beatmap.ar, beatmap.od, beatmap.hp
@@ -264,7 +271,9 @@ class PlayableBeatmap:
                     continue
                 if ok.time - sb.end_time > threshold:
                     break
-                if d(start(sb), start(ok)) < STACK_DISTANCE or (sb.is_slider and d(end(sb), start(ok)) < STACK_DISTANCE):
+                if d(start(sb), start(ok)) < STACK_DISTANCE or (
+                    sb.is_slider and d(end(sb), start(ok)) < STACK_DISTANCE
+                ):
                     base = k
                     st[ok.index] = 0
             if base > extended_end:

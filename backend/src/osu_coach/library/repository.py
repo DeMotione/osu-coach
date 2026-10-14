@@ -1,6 +1,7 @@
 """Replay library: discovery -> beatmap lookup (local first, then online) ->
 cached, parallel analysis.
 """
+
 from __future__ import annotations
 
 import concurrent.futures as cf
@@ -49,8 +50,8 @@ class Library:
         self.maps: dict[str, str] = {}
         self.installed: dict[str, set[str]] = {"stable": set(), "lazer": set()}  # beatmap md5s in the game
         self.sources: list[str] = []
-        self._limits: list[int | None] = []                 # `latest` of every scanned source
-        self._unread_maps: list[tuple[str, object]] = []    # (kind, LazerStore/SongsFolder) not fully read
+        self._limits: list[int | None] = []  # `latest` of every scanned source
+        self._unread_maps: list[tuple[str, object]] = []  # (kind, LazerStore/SongsFolder) not fully read
         self._index_path = self.cache / "index.json"
         try:
             self.index = json.loads(self._index_path.read_text(encoding="utf-8"))
@@ -85,8 +86,14 @@ class Library:
         for md5, path in maps.items():
             self.maps.setdefault(md5, path)
 
-    def add_install(self, inst: detect.Install, progress=None, index_songs: bool = True,
-                    latest: int | None = None, player: str | None = None):
+    def add_install(
+        self,
+        inst: detect.Install,
+        progress=None,
+        index_songs: bool = True,
+        latest: int | None = None,
+        player: str | None = None,
+    ):
         """Replays and beatmaps of an osu! install.  ``latest``: read only the newest ``latest``
         replays of ``player`` (default: whoever has the most, normally you), newest files first,
         and leave the beatmaps to :meth:`find_maps` instead of reading the whole install."""
@@ -113,8 +120,14 @@ class Library:
                 self.installed["stable"].update(m)
         self.save_index()
 
-    def add_folder(self, folder, source: str = "folder", latest: int | None = None, player: str | None = None,
-                   maps_only: bool = False):
+    def add_folder(
+        self,
+        folder,
+        source: str = "folder",
+        latest: int | None = None,
+        player: str | None = None,
+        maps_only: bool = False,
+    ):
         """Replays and beatmaps in a folder (``maps_only``: just the beatmaps)."""
         self.sources.append(str(folder))
         self._limits.append(latest or None)
@@ -127,8 +140,9 @@ class Library:
         for analysing only a few replay files."""
         if inst.kind == "lazer" and inst.files_dir:
             store = locate.LazerStore(inst.files_dir, self.index)
-            store.unread = sorted(locate.list_files(store.files_dir, lambda n: len(n) == 64), key=lambda f: f[1],
-                                  reverse=True)
+            store.unread = sorted(
+                locate.list_files(store.files_dir, lambda n: len(n) == 64), key=lambda f: f[1], reverse=True
+            )
             self._unread_maps.append(("lazer", store))
         elif inst.kind == "stable" and inst.songs:
             self._unread_maps.append(("stable", locate.SongsFolder(inst.songs, self.index)))
@@ -229,8 +243,9 @@ class Library:
                 continue
         return out
 
-    def analyze(self, refs: list[dict], workers: int | None = None, progress=None
-                ) -> tuple[list[ReplayAnalysis], list[tuple[dict, str]]]:
+    def analyze(
+        self, refs: list[dict], workers: int | None = None, progress=None
+    ) -> tuple[list[ReplayAnalysis], list[tuple[dict, str]]]:
         """Analyse replays (cached by replay content). Returns (analyses, errors)."""
         (self.cache / "analyses").mkdir(parents=True, exist_ok=True)
         done: list[ReplayAnalysis] = []

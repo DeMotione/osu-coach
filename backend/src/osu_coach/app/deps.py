@@ -1,4 +1,5 @@
 """FastAPI dependencies."""
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -20,4 +21,3 @@ def get_profile(ws: Annotated[Workspace, Depends(get_workspace)]) -> Profile:
 
 WorkspaceDep = Annotated[Workspace, Depends(get_workspace)]
 ProfileDep = Annotated[Profile, Depends(get_profile)]
-

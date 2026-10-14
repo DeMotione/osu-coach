@@ -1,4 +1,5 @@
 """The /api/profile pages (the dashboard slice; the Tips & Setup page of the tips slice is checked here too)."""
+
 import copy
 import dataclasses
 
@@ -49,8 +50,12 @@ def test_overview_explains_every_skill(analysed):
         else:
             assert s["score_text"].startswith(f"{s['score']:.0f}")
     assert len(ov["top"]) == len(SKILL_LABELS)
-    first = ov["level"]["weights"][0]                         # README: "1★ off 61%"
-    assert ov["level"]["stars"] is not None and first["stars_off"] == 1 and first["weight"] == pytest.approx(0.61, abs=0.01)
+    first = ov["level"]["weights"][0]  # README: "1★ off 61%"
+    assert (
+        ov["level"]["stars"] is not None
+        and first["stars_off"] == 1
+        and first["weight"] == pytest.approx(0.61, abs=0.01)
+    )
     assert ov["kpis"]["replays"] == 3 and 0 < ov["kpis"]["accuracy"] <= 1
     shares = sum(c["share"] for c in ov["miss_causes"])
     assert shares == pytest.approx(1.0) if ov["miss_causes"] else shares == 0
@@ -91,10 +96,10 @@ def _two_plays_of_one_map():
     a = analyze_files(rp, mp)
     b = copy.deepcopy(a)
     b.key = b.meta["key"] = "retry"
-    b.meta["score"] = a.meta["score"] + 1000            # the better play of the same map and speed ...
+    b.meta["score"] = a.meta["score"] + 1000  # the better play of the same map and speed ...
     c = copy.deepcopy(a)
     c.key = c.meta["key"] = "failed"
-    c.meta.update(score=a.meta["score"] * 10, completed=False)   # ... a failed one never counts as best
+    c.meta.update(score=a.meta["score"] * 10, completed=False)  # ... a failed one never counts as best
     return [a, b, c]
 
 
@@ -118,11 +123,29 @@ def test_level_override_is_used_and_remembered(client):
 
 
 # ------------------------------------------------------------------ tips & setup
-REG = {"n": 500, "scale_x": 1.0, "scale_y": 1.0, "rotation_deg": 0.0, "offset_x": 8.0, "offset_y": -4.0,
-       "offset_se": 0.2, "residual_px": 15.0, "radius": 36.5}
-SAYO = {"keyboard": "sayo", "sayo_stroke_mm": 4.0, "sayo_trigger_mm": 0.4, "sayo_release_mm": 0.35, "sayo_rt": True,
-        "sayo_rt_trigger_mm": 0.1, "sayo_rt_release_mm": 0.15, "sayo_full_stroke": False, "sayo_rt_upper_mm": 0.1,
-        "sayo_rt_lower_mm": 3.8}
+REG = {
+    "n": 500,
+    "scale_x": 1.0,
+    "scale_y": 1.0,
+    "rotation_deg": 0.0,
+    "offset_x": 8.0,
+    "offset_y": -4.0,
+    "offset_se": 0.2,
+    "residual_px": 15.0,
+    "radius": 36.5,
+}
+SAYO = {
+    "keyboard": "sayo",
+    "sayo_stroke_mm": 4.0,
+    "sayo_trigger_mm": 0.4,
+    "sayo_release_mm": 0.35,
+    "sayo_rt": True,
+    "sayo_rt_trigger_mm": 0.1,
+    "sayo_rt_release_mm": 0.15,
+    "sayo_full_stroke": False,
+    "sayo_rt_upper_mm": 0.1,
+    "sayo_rt_lower_mm": 3.8,
+}
 
 
 @pytest.fixture(scope="module")
@@ -139,12 +162,22 @@ def _with_profile(client, monkeypatch, prof):
 
 def test_tips_page_shows_tablet_area_and_sayo_settings(client, monkeypatch, small_profile):
     ws = _with_profile(client, monkeypatch, dataclasses.replace(small_profile, regression=REG))
-    save_settings({"setup_saved": True, "device": "tablet", "area_w_mm": 100.0, "area_h_mm": 56.25, "area_x_mm": 76.0,
-                   "area_y_mm": 47.0, **SAYO}, ws.cache_dir)
+    save_settings(
+        {
+            "setup_saved": True,
+            "device": "tablet",
+            "area_w_mm": 100.0,
+            "area_h_mm": 56.25,
+            "area_x_mm": 76.0,
+            "area_y_mm": 47.0,
+            **SAYO,
+        },
+        ws.cache_dir,
+    )
     page = client.get("/api/profile/tips").json()
     area = page["tablet_area"]
     assert (area["now_w"], area["now_h"], area["now_x"], area["now_y"]) == (100, 56.25, 76, 47)
-    assert area["x"] != 76                                         # the 8 px offset moves the area
+    assert area["x"] != 76  # the 8 px offset moves the area
     sayo = next(t for t in page["tips"] if t["category"] == "Keys / SayoDevice")["sayo"]
     rows = {r["setting"]: r for r in sayo}
     assert "RT Lower Bound" in rows and rows["Trigger"]["now"] == 0.4 and rows["RT Mode"]["now"] is True
@@ -166,9 +199,19 @@ def _long_streams(n_runs, length, err_fn, seed=3, bpm=200.0):
     for run in range(n_runs):
         for pos in range(length):
             size = err_fn(pos) + abs(rng.normal(0, 1))
-            rows.append({"run_len": length, "run_pos": pos, "run_id": run, "replay_key": "r", "head_hit": True,
-                         "err_real": size * (1 if rng.random() < 0.5 else -1), "stream_bpm": bpm, "played": True,
-                         "kind": "circle"})
+            rows.append(
+                {
+                    "run_len": length,
+                    "run_pos": pos,
+                    "run_id": run,
+                    "replay_key": "r",
+                    "head_hit": True,
+                    "err_real": size * (1 if rng.random() < 0.5 else -1),
+                    "stream_bpm": bpm,
+                    "played": True,
+                    "kind": "circle",
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -179,9 +222,22 @@ def _plays_at(bpm, ur, offsets, n=60, seed=0):
     for k, off in enumerate(offsets):
         e = rng.normal(0, 1, n)
         e = (e - e.mean()) / e.std() * ur / 10 + off
-        rows += [{"run_len": 20, "run_pos": 1 + i % 19, "stream_bpm": bpm + 2, "head_hit": True, "miss_reason": None,
-                  "err_real": float(x), "played": True, "kind": "circle", "head_result": 300, "pattern": "stream",
-                  "replay_key": f"{bpm}-{k}"} for i, x in enumerate(e)]
+        rows += [
+            {
+                "run_len": 20,
+                "run_pos": 1 + i % 19,
+                "stream_bpm": bpm + 2,
+                "head_hit": True,
+                "miss_reason": None,
+                "err_real": float(x),
+                "played": True,
+                "kind": "circle",
+                "head_result": 300,
+                "pattern": "stream",
+                "replay_key": f"{bpm}-{k}",
+            }
+            for i, x in enumerate(e)
+        ]
     return rows
 
 
@@ -198,7 +254,7 @@ def test_tapping_page_shows_stream_stamina_and_weak_speeds(client, monkeypatch, 
     f = t["fall_behind"]
     assert f["available"] and f["start_note"] == fb["start_note"] and f["comfort_notes"] == fb["comfort_notes"]
     assert f["practice_notes"] == list(fb["practice_notes"])
-    assert f["comfortable_maps"]["maps"] and f["practice_maps"]["maps"]          # the two map lists
+    assert f["comfortable_maps"]["maps"] and f["practice_maps"]["maps"]  # the two map lists
     assert f["practice_maps"]["min_notes"] == fb["practice_notes"][0]
     weak = [r["bpm"] for r in t["stream_speed"]["rows"] if r["weak"]]
     assert weak == [200]

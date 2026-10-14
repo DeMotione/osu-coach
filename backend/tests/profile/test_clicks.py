@@ -1,5 +1,6 @@
 """'Where your clicks land' (Aim page): the on-screen view must show what the jump-rotated view
 can't (a constant offset), and the numbers must count clicks outside the circle."""
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -21,16 +22,27 @@ def _objects(n=600, dx=6.0, dy=-3.0, sd=8.0, aim_misses=0, seed=1):
     ey = dy + rng.normal(0, sd, n)
     hit = np.ones(n, bool)
     reason = np.array([None] * n, dtype=object)
-    for i in range(aim_misses):            # clicks 1.3 radii away in a random direction
+    for i in range(aim_misses):  # clicks 1.3 radii away in a random direction
         a = rng.uniform(0, 2 * np.pi)
         ex[i], ey[i] = np.cos(a) * 1.3 * R, np.sin(a) * 1.3 * R
         hit[i], reason[i] = False, "aim"
     ac = [along_cross(a, b, c, d) for a, b, c, d in zip(ex, ey, x - sx, y - sy)]
-    return pd.DataFrame({
-        "played": True, "kind": "circle", "head_hit": hit, "miss_reason": reason, "x": x, "y": y,
-        "err_dx": ex, "err_dy": ey, "radius": R, "dist_norm": dist / (2 * R),
-        "along": [a / R for a, _ in ac], "cross": [c / R for _, c in ac],
-    })
+    return pd.DataFrame(
+        {
+            "played": True,
+            "kind": "circle",
+            "head_hit": hit,
+            "miss_reason": reason,
+            "x": x,
+            "y": y,
+            "err_dx": ex,
+            "err_dy": ey,
+            "radius": R,
+            "dist_norm": dist / (2 * R),
+            "along": [a / R for a, _ in ac],
+            "cross": [c / R for _, c in ac],
+        }
+    )
 
 
 def test_screen_view_shows_a_constant_offset_the_jump_view_cancels():
@@ -54,7 +66,7 @@ def test_clicks_outside_the_circle_are_counted():
 def test_misses_without_a_click_are_not_plotted():
     O = _objects(n=50)
     O.loc[:4, "head_hit"] = False
-    O.loc[:4, "miss_reason"] = "lost"         # no click near the note at all
-    O.loc[5:9, "dist_norm"] = 0.4             # stream notes: in the screen view, not in the jump view
+    O.loc[:4, "miss_reason"] = "lost"  # no click near the note at all
+    O.loc[5:9, "dist_norm"] = 0.4  # stream notes: in the screen view, not in the jump view
     assert len(click_points(O, "screen")) == 45
     assert len(click_points(O, "movement")) == 40

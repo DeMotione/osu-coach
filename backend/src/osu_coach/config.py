@@ -1,4 +1,5 @@
 """Runtime settings: constructor arguments, then ``OSU_COACH_*`` environment variables, then ``.env``."""
+
 from __future__ import annotations
 
 import os
@@ -15,8 +16,9 @@ DEFAULT_PORT = 8501
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="OSU_COACH_", populate_by_name=True,
-                                      frozen=True, extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_prefix="OSU_COACH_", populate_by_name=True, frozen=True, extra="ignore"
+    )
 
     cache_dir: Path | None = Field(None, validation_alias=AliasChoices("cache_dir", "OSU_COACH_CACHE"))
     """osu! coach data folder (settings, analysis cache, progress); None = the per-user cache folder."""

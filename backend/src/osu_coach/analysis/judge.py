@@ -13,6 +13,7 @@ Port of the osu!stable rules as reproduced by danser-go (app/rulesets/osu):
 On top of the game result it records *why* things went wrong (aim / timing /
 notelock / missing tap / slider break reason) and every key press.
 """
+
 from __future__ import annotations
 
 import math
@@ -32,10 +33,10 @@ LEFT, RIGHT, BOTH = 1, 2, 3
 @dataclass
 class ClickSeen:
     time: float
-    dist: float          # cursor distance to object centre / radius
-    action: int          # CLICK / SHAKE / IGNORED
+    dist: float  # cursor distance to object centre / radius
+    action: int  # CLICK / SHAKE / IGNORED
     in_range: bool
-    x: float = 0.0       # cursor position at the click
+    x: float = 0.0  # cursor position at the click
     y: float = 0.0
 
 
@@ -47,21 +48,21 @@ class ObjResult:
     end_time: float
     x: float
     y: float
-    result: int = -1                 # final 300/100/50/0
-    head_hit: bool = False           # circle hit / slider head hit (not a miss)
-    head_result: int = -1            # timing judgement of circle / slider head
+    result: int = -1  # final 300/100/50/0
+    head_hit: bool = False  # circle hit / slider head hit (not a miss)
+    head_result: int = -1  # timing judgement of circle / slider head
     hit_time: float | None = None
-    hit_error: float | None = None   # ms, map time (positive = late)
+    hit_error: float | None = None  # ms, map time (positive = late)
     click_x: float | None = None
     click_y: float | None = None
     key: str | None = None
     press_id: int | None = None
     miss_reason: str | None = None
-    miss_dist: float | None = None   # closest click distance (radii) when relevant
-    miss_x: float | None = None      # cursor position of that closest click
+    miss_dist: float | None = None  # closest click distance (radii) when relevant
+    miss_x: float | None = None  # cursor position of that closest click
     miss_y: float | None = None
     miss_time: float | None = None
-    forced_miss: bool = False        # lazer: missed because a later object was hit first
+    forced_miss: bool = False  # lazer: missed because a later object was hit first
     clicks: list[ClickSeen] = field(default_factory=list, repr=False)
     # sliders
     n_events: int = 0
@@ -83,8 +84,8 @@ class Press:
     x: float
     y: float
     release: float | None = None
-    target: int | None = None        # object index judged by this press
-    outcome: str = "none"            # hit / early_miss / notelock / none
+    target: int | None = None  # object index judged by this press
+    outcome: str = "none"  # hit / early_miss / notelock / none
 
     @property
     def duration(self) -> float | None:
@@ -104,8 +105,22 @@ class SimResult:
 
 
 class _ObjState:
-    __slots__ = ("obj", "res", "is_hit", "is_start_hit", "start_result", "down_button", "sliding",
-                 "slide_start", "scored", "missed", "points", "spin_angle", "last_angle", "last_t")
+    __slots__ = (
+        "obj",
+        "res",
+        "is_hit",
+        "is_start_hit",
+        "start_result",
+        "down_button",
+        "sliding",
+        "slide_start",
+        "scored",
+        "missed",
+        "points",
+        "spin_angle",
+        "last_angle",
+        "last_t",
+    )
 
     def __init__(self, obj: HitObject, res: ObjResult):
         self.obj = obj
@@ -144,6 +159,7 @@ def simulate(pb: PlayableBeatmap, replay: Replay, rules: str | None = None) -> S
     """rules: 'stable' / 'lazer' / None (auto: lazer replays use lazer's rules, see judge_lazer)."""
     if rules == "lazer" or (rules is None and replay.is_lazer):
         from osu_coach.analysis.judge_lazer import lazer_options, simulate_lazer
+
         return simulate_lazer(pb, replay, **lazer_options(replay))
     objs = pb.beatmap.objects
     radius = pb.radius
@@ -198,8 +214,12 @@ def simulate(pb: PlayableBeatmap, replay: Replay, rules: str | None = None) -> S
             queue_i += 1
 
         # -- physical key presses (for tapping analysis)
-        phys = {"K1": bool(k & KEY_K1), "K2": bool(k & KEY_K2),
-                "M1": bool(k & KEY_M1) and not (k & KEY_K1), "M2": bool(k & KEY_M2) and not (k & KEY_K2)}
+        phys = {
+            "K1": bool(k & KEY_K1),
+            "K2": bool(k & KEY_K2),
+            "M1": bool(k & KEY_M1) and not (k & KEY_K1),
+            "M2": bool(k & KEY_M2) and not (k & KEY_K2),
+        }
         new_left_press = new_right_press = None
         for name, down in phys.items():
             if down and name not in open_press:

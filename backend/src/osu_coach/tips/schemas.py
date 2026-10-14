@@ -1,4 +1,5 @@
 """Responses of the Tips & Setup page (and the tips the Overview shows)."""
+
 from __future__ import annotations
 
 from typing import Literal

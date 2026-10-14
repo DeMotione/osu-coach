@@ -1,7 +1,8 @@
 """Write the OpenAPI document (the web app's TypeScript types are generated from it).
 
-    python -m osu_coach.app.openapi frontend/src/api/openapi.json
+python -m osu_coach.app.openapi frontend/src/api/openapi.json
 """
+
 from __future__ import annotations
 
 import json

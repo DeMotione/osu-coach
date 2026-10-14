@@ -4,6 +4,7 @@ Goals live in the settings (``settings.json``, key ``goals``) as plain dicts:
 ``{"id", "skill", "start", "target", "created", "deadline", "done"}`` — ``start`` is the skill score when the
 goal was set, ``done`` the date it was first reached (None while open). Dates are ISO strings.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -11,12 +12,17 @@ import math
 import uuid
 
 
-def new_goal(skill: str, start: float | None, target: float, deadline: dt.date,
-             today: dt.date | None = None) -> dict:
+def new_goal(skill: str, start: float | None, target: float, deadline: dt.date, today: dt.date | None = None) -> dict:
     today = today or dt.date.today()
-    return {"id": uuid.uuid4().hex[:8], "skill": skill, "start": None if start is None else round(float(start), 1),
-            "target": round(float(target), 1), "created": today.isoformat(), "deadline": deadline.isoformat(),
-            "done": None}
+    return {
+        "id": uuid.uuid4().hex[:8],
+        "skill": skill,
+        "start": None if start is None else round(float(start), 1),
+        "target": round(float(target), 1),
+        "created": today.isoformat(),
+        "deadline": deadline.isoformat(),
+        "done": None,
+    }
 
 
 def _num(v) -> float | None:

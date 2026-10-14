@@ -4,6 +4,7 @@ Format reference: osu! wiki "osr (file format)" and lazer's LegacyScoreDecoder.
 Frame clean-up follows lazer's decoder (which mirrors stable's ReplayWatcher):
 seed frame removed, the two (256,-500) skip frames removed, no backwards time.
 """
+
 from __future__ import annotations
 
 import datetime as _dt
@@ -126,8 +127,13 @@ def _parse_frames(text: str):
         out_x.append(x)
         out_y.append(y)
         out_k.append(k)
-    return (np.asarray(out_t, dtype=np.int64), np.asarray(out_x, dtype=np.float64),
-            np.asarray(out_y, dtype=np.float64), np.asarray(out_k, dtype=np.int64), seed)
+    return (
+        np.asarray(out_t, dtype=np.int64),
+        np.asarray(out_x, dtype=np.float64),
+        np.asarray(out_y, dtype=np.float64),
+        np.asarray(out_k, dtype=np.int64),
+        seed,
+    )
 
 
 def parse_replay(data: bytes, source_path: str | None = None) -> Replay:
@@ -160,11 +166,33 @@ def parse_replay(data: bytes, source_path: str | None = None) -> Replay:
             except (ValueError, lzma.LZMAError):
                 lazer = None
     t, x, y, k, seed = _parse_frames(_lzma_decode(compressed))
-    return Replay(mode=mode, version=version, beatmap_md5=beatmap_md5, player=player, replay_md5=replay_md5,
-                  n300=n300, n100=n100, n50=n50, ngeki=ngeki, nkatu=nkatu, nmiss=nmiss, score=score,
-                  max_combo=max_combo, perfect=perfect, mods=mods, life_bar=life_bar, timestamp=ts,
-                  online_id=online_id, t=t, x=x, y=y, keys=k, rng_seed=seed, lazer=lazer,
-                  source_path=source_path)
+    return Replay(
+        mode=mode,
+        version=version,
+        beatmap_md5=beatmap_md5,
+        player=player,
+        replay_md5=replay_md5,
+        n300=n300,
+        n100=n100,
+        n50=n50,
+        ngeki=ngeki,
+        nkatu=nkatu,
+        nmiss=nmiss,
+        score=score,
+        max_combo=max_combo,
+        perfect=perfect,
+        mods=mods,
+        life_bar=life_bar,
+        timestamp=ts,
+        online_id=online_id,
+        t=t,
+        x=x,
+        y=y,
+        keys=k,
+        rng_seed=seed,
+        lazer=lazer,
+        source_path=source_path,
+    )
 
 
 def parse_replay_file(path) -> Replay:
@@ -187,7 +215,7 @@ def lazer_info(data: bytes) -> dict | None:
             r.short()
         r.int(), r.short(), r.byte(), r.int()
         r.string()  # life bar graph
-        r.long()    # timestamp
+        r.long()  # timestamp
         clen = r.int()
         if clen > 0:
             r._read(clen)
@@ -205,8 +233,11 @@ def lazer_info(data: bytes) -> dict | None:
 
 
 def lazer_mod_acronyms(info: dict | None) -> list[str]:
-    return [str(m.get("acronym", "")).upper() for m in (info or {}).get("mods", []) or []
-            if isinstance(m, dict) and m.get("acronym")]
+    return [
+        str(m.get("acronym", "")).upper()
+        for m in (info or {}).get("mods", []) or []
+        if isinstance(m, dict) and m.get("acronym")
+    ]
 
 
 def peek_header(data: bytes) -> dict | None:
@@ -247,7 +278,22 @@ def parse_header(data: bytes) -> dict | None:
         return None
     total = n300 + n100 + n50 + nmiss
     acc = (300 * n300 + 100 * n100 + 50 * n50) / (300 * total) if total else 0.0
-    return {"mode": mode, "version": version, "beatmap_md5": md5, "player": player, "replay_md5": replay_md5,
-            "n300": n300, "n100": n100, "n50": n50, "nmiss": nmiss, "score": score, "max_combo": max_combo,
-            "perfect": perfect, "mods": mods, "mod_string": mods_to_string(mods), "timestamp": ts.isoformat(),
-            "accuracy": acc, "is_lazer": version >= 30000000}
+    return {
+        "mode": mode,
+        "version": version,
+        "beatmap_md5": md5,
+        "player": player,
+        "replay_md5": replay_md5,
+        "n300": n300,
+        "n100": n100,
+        "n50": n50,
+        "nmiss": nmiss,
+        "score": score,
+        "max_combo": max_combo,
+        "perfect": perfect,
+        "mods": mods,
+        "mod_string": mods_to_string(mods),
+        "timestamp": ts.isoformat(),
+        "accuracy": acc,
+        "is_lazer": version >= 30000000,
+    }

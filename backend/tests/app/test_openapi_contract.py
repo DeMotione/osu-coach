@@ -1,4 +1,5 @@
 """The web app's types are generated from frontend/src/api/openapi.json: it must match the API."""
+
 import json
 from pathlib import Path
 
@@ -14,7 +15,8 @@ COMMITTED = Path(__file__).resolve().parents[3] / "frontend" / "src" / "api" / "
 def test_committed_openapi_document_is_current():
     assert COMMITTED.read_text(encoding="utf-8") == render(), (
         "The API changed: run `python -m osu_coach.app.openapi frontend/src/api/openapi.json` and "
-        "`npm run gen:api` in frontend/.")
+        "`npm run gen:api` in frontend/."
+    )
 
 
 def test_errors_are_documented_with_the_body_they_have():
@@ -26,5 +28,7 @@ def test_errors_are_documented_with_the_body_they_have():
                 if status.startswith("4"):
                     where = f"{method.upper()} {path} {status}"
                     assert answer["description"] == DESCRIPTIONS[int(status)], where
-                    assert answer["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/ErrorBody"}, where
+                    assert answer["content"]["application/json"]["schema"] == {
+                        "$ref": "#/components/schemas/ErrorBody"
+                    }, where
     assert "HTTPValidationError" not in json.dumps(doc)

@@ -1,4 +1,5 @@
 """osu!lazer judgement (judge_lazer) against the statistics lazer stores in its own replays."""
+
 import dataclasses
 import warnings
 
@@ -15,8 +16,21 @@ from tests.conftest import replay_and_map
 
 # Nikita's own lazer plays (client 2026.804.2): no mods, DT+HD with a spinner, a failed play
 LAZER_CASES = ["mot1one__lazer_nm.osr", "mot1one__lazer_dthd_spinner.osr", "mot1one__lazer_failed.osr"]
-STAT_KEYS = ("great", "ok", "meh", "miss", "large_tick_hit", "large_tick_miss", "slider_tail_hit", "small_tick_hit",
-             "small_tick_miss", "small_bonus", "large_bonus", "ignore_hit", "ignore_miss")
+STAT_KEYS = (
+    "great",
+    "ok",
+    "meh",
+    "miss",
+    "large_tick_hit",
+    "large_tick_miss",
+    "slider_tail_hit",
+    "small_tick_hit",
+    "small_tick_miss",
+    "small_bonus",
+    "large_bonus",
+    "ignore_hit",
+    "ignore_miss",
+)
 
 
 def load(name):
@@ -33,8 +47,12 @@ def test_every_stored_statistic_is_reproduced(name):
     stored = replay.lazer["statistics"]
     assert {k: sim.lazer_stats[k] for k in STAT_KEYS} == {k: int(stored.get(k, 0)) for k in STAT_KEYS}
     assert sim.max_combo == replay.max_combo
-    assert (sim.counts[300], sim.counts[100], sim.counts[50], sim.counts[0]) == \
-        (replay.n300, replay.n100, replay.n50, replay.nmiss)
+    assert (sim.counts[300], sim.counts[100], sim.counts[50], sim.counts[0]) == (
+        replay.n300,
+        replay.n100,
+        replay.n50,
+        replay.nmiss,
+    )
 
 
 def test_simulate_dispatches_lazer_replays_to_lazer_rules():
@@ -48,8 +66,13 @@ def test_simulate_dispatches_lazer_replays_to_lazer_rules():
 def test_options_follow_the_replay():
     replay, _ = load("mot1one__lazer_nm.osr")
     opts = lazer_options(replay)
-    assert opts == {"classic_slider": False, "classic_notelock": False, "floored_windows": True,
-                    "spun_out": False, "fail_after": None}
+    assert opts == {
+        "classic_slider": False,
+        "classic_notelock": False,
+        "floored_windows": True,
+        "spun_out": False,
+        "fail_after": None,
+    }
     failed, _ = load("mot1one__lazer_failed.osr")
     st = failed.lazer["statistics"]
     assert lazer_options(failed)["fail_after"] == sum(st.get(k, 0) for k in ("great", "ok", "meh", "miss"))
@@ -74,12 +97,14 @@ def test_classic_slider_scoring_counts_whole_sliders():
     s = sim.lazer_stats
     objs = pb.beatmap.objects
     n_sliders = sum(o.is_slider for o in objs)
-    assert s["great"] + s["ok"] + s["meh"] + s["miss"] == len(objs)          # circles + whole sliders
-    assert s["small_tick_hit"] + s["small_tick_miss"] == n_sliders           # tails are small ticks
+    assert s["great"] + s["ok"] + s["meh"] + s["miss"] == len(objs)  # circles + whole sliders
+    assert s["small_tick_hit"] + s["small_tick_miss"] == n_sliders  # tails are small ticks
     assert s["slider_tail_hit"] == 0 and s["ignore_hit"] == 0
     # heads count as large ticks now
     normal = simulate_lazer(pb, replay).lazer_stats
-    assert s["large_tick_hit"] + s["large_tick_miss"] == normal["large_tick_hit"] + normal["large_tick_miss"] + n_sliders
+    assert (
+        s["large_tick_hit"] + s["large_tick_miss"] == normal["large_tick_hit"] + normal["large_tick_miss"] + n_sliders
+    )
 
 
 TINY_MAP = b"""osu file format v14
@@ -123,15 +148,15 @@ def tiny_play(press_at: float):
 def test_hitting_a_later_note_misses_the_skipped_one():
     sim = tiny_play(1080)
     first, second = sim.objects
-    assert first.result == 0 and first.forced_miss          # lazer's hit policy, not a timeout
+    assert first.result == 0 and first.forced_miss  # lazer's hit policy, not a timeout
     assert second.result == 300
     assert sim.max_combo == 1
 
 
 def test_a_later_note_cannot_be_hit_before_the_earlier_one_starts():
-    sim = tiny_play(990)                                     # 10 ms before the first note's time
+    sim = tiny_play(990)  # 10 ms before the first note's time
     first, second = sim.objects
-    assert second.result == 0 and first.result == 0         # the tap only shook the second note
+    assert second.result == 0 and first.result == 0  # the tap only shook the second note
     assert sim.presses[0].outcome == "notelock"
 
 
@@ -146,8 +171,13 @@ def test_unsupported_lazer_mods_are_skipped_with_a_reason():
 def test_difficulty_adjust_and_mirror_change_the_playable_map():
     replay, _ = load("mot1one__lazer_nm.osr")
     bm = parse_beatmap_file(replay_and_map("mot1one__lazer_nm.osr")[1])
-    replay.lazer = dict(replay.lazer, mods=[{"acronym": "DA", "settings": {"circle_size": 7, "approach_rate": 10}},
-                                            {"acronym": "MR", "settings": {"reflection": 1}}])
+    replay.lazer = dict(
+        replay.lazer,
+        mods=[
+            {"acronym": "DA", "settings": {"circle_size": 7, "approach_rate": 10}},
+            {"acronym": "MR", "settings": {"reflection": 1}},
+        ],
+    )
     pb = playable(bm, replay)
     assert pb.cs == 7 and pb.ar == 10 and pb.od == bm.od
     o = bm.objects[0]
@@ -159,7 +189,7 @@ def test_lazer_replays_only_record_left_and_right():
     sim = simulate_lazer(pb, replay)
     assert {p.key for p in sim.presses} <= {"L", "R"}
     hit_objects = [o for o in sim.objects if o.kind != "spinner" and o.head_hit and o.press_id is not None]
-    assert len(hit_objects) >= replay.n300 + replay.n100 - 1          # minus the spinner
+    assert len(hit_objects) >= replay.n300 + replay.n100 - 1  # minus the spinner
     assert sum(p.outcome == "hit" for p in sim.presses) == len(hit_objects)
 
 
@@ -176,6 +206,7 @@ def test_aim_misses_are_not_counted_as_extra_presses():
 
 def test_sigmoid_does_not_overflow():
     from osu_coach.profile.domain.misses import _sigmoid
+
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         p = _sigmoid(np.array([-1e5, 0.0, 1e5]))

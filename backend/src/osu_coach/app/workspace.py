@@ -5,6 +5,7 @@ replay library, the analysed replays and the profile built from them — lives i
 :class:`Workspace`. Settings (choices that are remembered across starts) are in ``settings.json``
 in the data folder, shared with the command line.
 """
+
 from __future__ import annotations
 
 import threading
@@ -87,7 +88,7 @@ class Workspace:
 
     @staticmethod
     def pool():
-        return load_pool()      # cached by maps.repository (per file and modification time)
+        return load_pool()  # cached by maps.repository (per file and modification time)
 
     # -------------------------------------------------------------- analyses and the profile
     def set_analyses(self, analyses: list[ReplayAnalysis], errors: list[tuple[dict, str]], player_label: str):
@@ -117,8 +118,9 @@ class Workspace:
         p = self.profile()
         if p is None:
             if self.analyses:
-                raise NoProfile("None of the analysed replays is a passed play, so Best replays is empty — switch "
-                                "to All replays.")
+                raise NoProfile(
+                    "None of the analysed replays is a passed play, so Best replays is empty — switch to All replays."
+                )
             raise NoProfile()
         return p
 
@@ -131,7 +133,7 @@ class Workspace:
                 return self._memo[key]
         value = compute()
         with self._profile_lock:
-            if self._profile_sig == sig:        # not if the profile was rebuilt meanwhile
+            if self._profile_sig == sig:  # not if the profile was rebuilt meanwhile
                 self._memo[key] = value
         return value
 

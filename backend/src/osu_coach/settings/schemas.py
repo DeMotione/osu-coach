@@ -13,6 +13,7 @@ ReplaySet = Literal["all", "best"]
 
 class AppSettings(BaseModel):
     """Choices remembered across starts (``settings.json`` in the data folder, shared with the command line)."""
+
     source_mode: SourceMode = "library"
     folders: str = Field("", description="Extra replay folders, one per line.")
     latest: Latest = Field(Latest.newest_500, description="Newest replays to read; 0 = all.")
@@ -28,6 +29,7 @@ class AppSettings(BaseModel):
 
 class SettingsPatch(Request):
     """Fields to change; fields left out stay as they are (``null`` clears a nullable one)."""
+
     source_mode: SourceMode | None = None
     folders: str | None = Field(None, max_length=20000)
     latest: Latest | None = None
@@ -42,6 +44,7 @@ class SettingsPatch(Request):
 
 class SetupModel(BaseModel):
     """The player's setup: makes the tips concrete (tablet area, sensitivity, keyboard / SayoDevice)."""
+
     device: Literal["tablet", "mouse"] = "tablet"
     handedness: Literal["right", "left"] = "right"
     client: Literal["stable", "lazer"] = "stable"

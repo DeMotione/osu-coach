@@ -1,4 +1,5 @@
 """The FastAPI application: ``create_app()``."""
+
 from __future__ import annotations
 
 from fastapi import FastAPI
@@ -60,8 +61,15 @@ TAGS = [
 
 def create_app(config: Settings | None = None) -> FastAPI:
     config = config or Settings()
-    app = FastAPI(title="osu! coach API", version=__version__, description=DESCRIPTION, openapi_tags=TAGS,
-                  docs_url=None, redoc_url=None, openapi_url=f"{API_PREFIX}/openapi.json" if config.api_docs else None)
+    app = FastAPI(
+        title="osu! coach API",
+        version=__version__,
+        description=DESCRIPTION,
+        openapi_tags=TAGS,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=f"{API_PREFIX}/openapi.json" if config.api_docs else None,
+    )
     app.state.api_docs = config.api_docs
     app.state.workspace = Workspace(config)
     web_dir = config.web_dir if config.web_dir is not None else find_web_dir()
@@ -74,16 +82,22 @@ def create_app(config: Settings | None = None) -> FastAPI:
     build_openapi = app.openapi
 
     def openapi() -> dict:
-        return errors.document_validation_errors(build_openapi())     # idempotent; FastAPI caches the document
+        return errors.document_validation_errors(build_openapi())  # idempotent; FastAPI caches the document
 
-    app.openapi = openapi                                                  # type: ignore[method-assign]
+    app.openapi = openapi  # type: ignore[method-assign]
 
     if config.api_docs:
+
         @app.get("/docs", include_in_schema=False)
         def docs() -> HTMLResponse:
-            return get_scalar_api_reference(openapi_url=app.openapi_url, title="osu! coach API",
-                                            scalar_js_url=SCALAR_JS, telemetry=False,
-                                            agent=AgentScalarConfig(disabled=True), hide_client_button=False)
+            return get_scalar_api_reference(
+                openapi_url=app.openapi_url,
+                title="osu! coach API",
+                scalar_js_url=SCALAR_JS,
+                telemetry=False,
+                agent=AgentScalarConfig(disabled=True),
+                hide_client_button=False,
+            )
 
     web.mount(app, app.state.web_dir)
     return app

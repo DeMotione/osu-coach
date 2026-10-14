@@ -11,8 +11,9 @@ H3 = "00000000000000000000000000000001"
 
 def test_exact_bytes_of_a_tiny_collection():
     data = coll.dumps({"A": [H1]})
-    expected = (struct.pack("<ii", coll.DEFAULT_VERSION, 1) + b"\x0b\x01A" + struct.pack("<i", 1)
-                + b"\x0b\x20" + H1.encode())
+    expected = (
+        struct.pack("<ii", coll.DEFAULT_VERSION, 1) + b"\x0b\x01A" + struct.pack("<i", 1) + b"\x0b\x20" + H1.encode()
+    )
     assert data == expected
 
 
@@ -40,7 +41,7 @@ def test_merge_replaces_same_name_keeps_others_and_backs_up(tmp_path):
     db.write_bytes(original)
     info = coll.merge_into(db, {"osu-coach: Aim": [H2], "osu-coach: Speed": [H3]})
     version, cols = coll.read_collection_db(db)
-    assert version == 20250101                      # user's file version preserved
+    assert version == 20250101  # user's file version preserved
     assert cols == [("Mine", [H3]), ("osu-coach: Aim", [H2]), ("osu-coach: Speed", [H3])]
     assert info["replaced"] == ["osu-coach: Aim"] and info["added"] == ["osu-coach: Speed"]
     assert info["backup"] and open(info["backup"], "rb").read() == original

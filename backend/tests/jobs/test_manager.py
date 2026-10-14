@@ -1,4 +1,5 @@
 """The background job runner and the busy gate."""
+
 import threading
 import time
 
@@ -24,6 +25,7 @@ def test_a_job_reports_progress_and_its_result():
         report(1, 4, "a quarter")
         seen.wait(5)
         return {"ok": True}
+
     job = jobs.start("scan", "Scanning", work)
     for _ in range(500):
         if job.progress:
@@ -44,6 +46,7 @@ def test_failures_keep_the_message():
 
     def unknown(report):
         raise ValueError("boom")
+
     assert _finish(jobs.start("scan", "x", known)).error == "Nothing to do."
     assert _finish(jobs.start("scan", "x", unknown)).error == "ValueError: boom"
 
@@ -55,12 +58,12 @@ def test_exclusive_jobs_wait_for_each_other_and_release_the_gate():
     first = jobs.start("scan", "Scanning", lambda r: go.wait(5))
     with pytest.raises(Busy, match="Scanning"):
         jobs.start("analysis", "Analysing", lambda r: None)
-    other = jobs.start("osz_download", "Downloading", lambda r: 1, exclusive=False)    # not exclusive: runs
+    other = jobs.start("osz_download", "Downloading", lambda r: 1, exclusive=False)  # not exclusive: runs
     _finish(other)
     go.set()
     _finish(first)
     assert gate.holder is None
-    _finish(jobs.start("analysis", "Analysing", lambda r: 2))                     # free again
+    _finish(jobs.start("analysis", "Analysing", lambda r: 2))  # free again
     with gate.hold("check"):
         assert gate.holder == "check"
     assert gate.holder is None

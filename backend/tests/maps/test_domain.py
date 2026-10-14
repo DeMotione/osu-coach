@@ -19,16 +19,37 @@ from osu_coach.maps.repository import POOL_PATH, load_pool
 
 def fake_pool(n=600, seed=0):
     rng = np.random.default_rng(seed)
-    df = pd.DataFrame({
-        "md5": [f"{i:032x}" for i in range(n)], "beatmap_id": np.arange(n) + 1,
-        "beatmapset_id": np.arange(n) // 2 + 1, "creator": [f"mapper{i % 97}" for i in range(n)],
-        "title": [f"song {i // 2}" for i in range(n)], "artist": "a", "version": "v",
-        "stars": rng.uniform(1, 8, n), "playcount": rng.integers(1000, 10 ** 6, n),
-        "stream_bpm": rng.uniform(140, 240, n), "burst_bpm": np.nan, "max_run": 20, "long_runs": 2,
-        "jump_share": 0.3, "spaced_share": 0.1, "jump_dist": 3.0, "spaced_stream_share": 0.1, "od": 8.0,
-        "circle_share": 0.6, "slider_share": 0.4, "reverse_share": 0.1, "slider_factor": 0.98, "ar": 9.0,
-        "density_p90": 6.0, "drain_length": 150.0, "evenness": 0.5, "n_jumps": 120,
-    })
+    df = pd.DataFrame(
+        {
+            "md5": [f"{i:032x}" for i in range(n)],
+            "beatmap_id": np.arange(n) + 1,
+            "beatmapset_id": np.arange(n) // 2 + 1,
+            "creator": [f"mapper{i % 97}" for i in range(n)],
+            "title": [f"song {i // 2}" for i in range(n)],
+            "artist": "a",
+            "version": "v",
+            "stars": rng.uniform(1, 8, n),
+            "playcount": rng.integers(1000, 10**6, n),
+            "stream_bpm": rng.uniform(140, 240, n),
+            "burst_bpm": np.nan,
+            "max_run": 20,
+            "long_runs": 2,
+            "jump_share": 0.3,
+            "spaced_share": 0.1,
+            "jump_dist": 3.0,
+            "spaced_stream_share": 0.1,
+            "od": 8.0,
+            "circle_share": 0.6,
+            "slider_share": 0.4,
+            "reverse_share": 0.1,
+            "slider_factor": 0.98,
+            "ar": 9.0,
+            "density_p90": 6.0,
+            "drain_length": 150.0,
+            "evenness": 0.5,
+            "n_jumps": 120,
+        }
+    )
     for sk in SKILLS:
         df["s_" + sk] = rng.uniform(0, 1, n)
     for q in QUADRANTS:
@@ -81,10 +102,15 @@ def test_accuracy_playlist_is_easier_than_comfort():
 
 
 def test_targets_from_profile():
-    p = SimpleNamespace(levels={"comfort_stars": 3.2}, overview={}, tapping={"comfort_bpm": 160, "limit_bpm": 180},
-                        worst_quadrant={"quadrant": "bottom-left", "significant": True},
-                        reading={"high_ar_miss_rate": 0.1, "mid_ar_miss_rate": 0.04, "low_ar_miss_rate": math.nan},
-                        replays=pd.DataFrame({"beatmap_md5": ["a" * 32]}), weaknesses=["aim"])
+    p = SimpleNamespace(
+        levels={"comfort_stars": 3.2},
+        overview={},
+        tapping={"comfort_bpm": 160, "limit_bpm": 180},
+        worst_quadrant={"quadrant": "bottom-left", "significant": True},
+        reading={"high_ar_miss_rate": 0.1, "mid_ar_miss_rate": 0.04, "low_ar_miss_rate": math.nan},
+        replays=pd.DataFrame({"beatmap_md5": ["a" * 32]}),
+        weaknesses=["aim"],
+    )
     t = targets_from_profile(p)
     assert t.comfort == pytest.approx(3.2)
     assert t.stream_bpm == 170
@@ -95,8 +121,14 @@ def test_targets_from_profile():
 
 
 def test_targets_fallback_for_a_new_player():
-    p = SimpleNamespace(levels={"comfort_stars": math.nan}, overview={"avg_stars": math.nan}, tapping={},
-                        worst_quadrant={"quadrant": "top-left", "significant": False}, reading={}, replays=None)
+    p = SimpleNamespace(
+        levels={"comfort_stars": math.nan},
+        overview={"avg_stars": math.nan},
+        tapping={},
+        worst_quadrant={"quadrant": "top-left", "significant": False},
+        reading={},
+        replays=None,
+    )
     t = targets_from_profile(p)
     assert t.comfort == 2.5 and t.stream_bpm is None and t.quadrant is None
 

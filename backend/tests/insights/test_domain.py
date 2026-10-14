@@ -1,4 +1,5 @@
 """Chart aggregations of a profile (insights.py) on real replays and on hand-made data."""
+
 import math
 
 import numpy as np
@@ -10,8 +11,12 @@ from osu_coach.library.repository import analyze_files
 from osu_coach.profile.domain import build_profile, click_points
 from tests.conftest import replay_and_map
 
-NAMES = ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr", "mot1one__lazer_nm.osr",
-         "mot1one__lazer_dthd_spinner.osr"]
+NAMES = [
+    "circlecore__legit__legit-12.osr",
+    "osrparse__resources__replay.osr",
+    "mot1one__lazer_nm.osr",
+    "mot1one__lazer_dthd_spinner.osr",
+]
 
 
 @pytest.fixture(scope="module")
@@ -48,8 +53,9 @@ def test_timing_histogram_shares_and_bins(prof):
 def test_click_sample_keeps_the_real_miss_share():
     rng = np.random.default_rng(1)
     n = 20000
-    C = pd.DataFrame({"x": rng.normal(0, 0.5, n), "y": rng.normal(0, 0.5, n), "radius": 36.0,
-                      "hit": rng.random(n) > 0.1, "w": 1.0})
+    C = pd.DataFrame(
+        {"x": rng.normal(0, 0.5, n), "y": rng.normal(0, 0.5, n), "radius": 36.0, "hit": rng.random(n) > 0.1, "w": 1.0}
+    )
     drawn = insights.click_sample(C, n=4000)
     assert len(drawn) <= 4000
     assert (drawn["x"].abs() < insights.CLICK_RANGE).all() and (drawn["y"].abs() < insights.CLICK_RANGE).all()
@@ -102,13 +108,14 @@ def test_stream_time_series_needs_streams():
 
 
 def test_fall_behind_by_speed_finds_where_stamina_gives_in():
-    cb = pd.DataFrame({"group": ["180–209 BPM"] * 3 + ["210–239 BPM"] * 3, "pos": [1, 5, 9] * 2,
-                       "rel_err": [10, 11, 12, 10, 20, 30]})
+    cb = pd.DataFrame(
+        {"group": ["180–209 BPM"] * 3 + ["210–239 BPM"] * 3, "pos": [1, 5, 9] * 2, "rel_err": [10, 11, 12, 10, 20, 30]}
+    )
     r = insights.fall_behind_by_speed(cb)
     assert r["worst"] == "210–239 BPM"
     assert {g["group"]: g["rise"] for g in r["groups"]} == {"180–209 BPM": 2, "210–239 BPM": 20}
     flat = cb.assign(rel_err=10)
-    assert insights.fall_behind_by_speed(flat)["worst"] is None          # nothing rises more than 3 points
+    assert insights.fall_behind_by_speed(flat)["worst"] is None  # nothing rises more than 3 points
     assert insights.fall_behind_by_speed(None) == {"groups": [], "worst": None}
 
 

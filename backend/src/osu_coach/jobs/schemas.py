@@ -1,5 +1,6 @@
 """Background jobs: the fields every job has. Each feature declares the job model of its own kind
 (``kind`` + a typed ``result``); the union of all kinds is assembled in ``app/jobs.py``."""
+
 from __future__ import annotations
 
 import datetime as dt
@@ -22,5 +23,14 @@ class JobBase(BaseModel):
 
 def job_view(model: type[JobBase], job) -> JobBase:
     """The response model ``model`` for a running or finished job of :mod:`osu_coach.jobs.manager`."""
-    return model(id=job.id, kind=job.kind, status=job.status, progress=job.progress, message=job.message,
-                 error=job.error, created_at=job.created_at, finished_at=job.finished_at, result=job.result)
+    return model(
+        id=job.id,
+        kind=job.kind,
+        status=job.status,
+        progress=job.progress,
+        message=job.message,
+        error=job.error,
+        created_at=job.created_at,
+        finished_at=job.finished_at,
+        result=job.result,
+    )

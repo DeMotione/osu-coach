@@ -3,6 +3,7 @@
 Produces a polyline, then trims or extends it to the slider's expected pixel length
 exactly like lazer (and stable) do.
 """
+
 from __future__ import annotations
 
 import bisect
@@ -107,8 +108,10 @@ def approximate_circular_arc(points: list[Point]) -> list[Point] | None:
     a_sq = a[0] ** 2 + a[1] ** 2
     b_sq = b[0] ** 2 + b[1] ** 2
     c_sq = c[0] ** 2 + c[1] ** 2
-    centre = ((a_sq * (b[1] - c[1]) + b_sq * (c[1] - a[1]) + c_sq * (a[1] - b[1])) / d,
-              (a_sq * (c[0] - b[0]) + b_sq * (a[0] - c[0]) + c_sq * (b[0] - a[0])) / d)
+    centre = (
+        (a_sq * (b[1] - c[1]) + b_sq * (c[1] - a[1]) + c_sq * (a[1] - b[1])) / d,
+        (a_sq * (c[0] - b[0]) + b_sq * (a[0] - c[0]) + c_sq * (b[0] - a[0])) / d,
+    )
     da, dc = _sub(a, centre), _sub(c, centre)
     r = _len(da)
     theta_start = math.atan2(da[1], da[0])
@@ -138,8 +141,13 @@ def approximate_circular_arc(points: list[Point]) -> list[Point] | None:
 def _catmull(v1, v2, v3, v4, t):
     t2, t3 = t * t, t * t * t
     return tuple(
-        0.5 * (2 * v2[k] + (-v1[k] + v3[k]) * t + (2 * v1[k] - 5 * v2[k] + 4 * v3[k] - v4[k]) * t2
-               + (-v1[k] + 3 * v2[k] - 3 * v3[k] + v4[k]) * t3)
+        0.5
+        * (
+            2 * v2[k]
+            + (-v1[k] + v3[k]) * t
+            + (2 * v1[k] - 5 * v2[k] + 4 * v3[k] - v4[k]) * t2
+            + (-v1[k] + 3 * v2[k] - 3 * v3[k] + v4[k]) * t3
+        )
         for k in range(2)
     )
 
@@ -180,8 +188,13 @@ class SliderPath:
     which starts a new segment there (lazer multi-segment format).
     """
 
-    def __init__(self, curve_type: str, control_points: list[Point], expected_length: float | None,
-                 point_types: dict[int, str] | None = None):
+    def __init__(
+        self,
+        curve_type: str,
+        control_points: list[Point],
+        expected_length: float | None,
+        point_types: dict[int, str] | None = None,
+    ):
         self.points: list[Point] = []
         self.cumulative: list[float] = [0.0]
         self._build(curve_type, list(control_points), dict(point_types or {}))
@@ -215,7 +228,7 @@ class SliderPath:
             a, b = bounds[k], bounds[k + 1]
             if b <= a:
                 continue
-            seg = pts[a:b + 1]
+            seg = pts[a : b + 1]
             for p in _approximate_segment(types[a], seg):
                 if not out or out[-1] != p:
                     out.append(p)

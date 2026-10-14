@@ -1,4 +1,5 @@
 """Responses and requests of the "analyse replays" use case."""
+
 from __future__ import annotations
 
 import datetime as dt

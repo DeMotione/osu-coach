@@ -6,6 +6,7 @@
 * lazer: everything lives in a content-addressed store ``<data>/files/a/ab/<sha256>``. Exported replays land
   in ``<data>/exports``. A custom data location is read from ``storage.ini``.
 """
+
 from __future__ import annotations
 
 import getpass
@@ -18,7 +19,7 @@ from pathlib import Path
 
 @dataclass
 class Install:
-    kind: str                                   # "stable" | "lazer"
+    kind: str  # "stable" | "lazer"
     root: Path
     songs: Path | None = None
     replay_dirs: list[Path] = field(default_factory=list)
@@ -53,11 +54,20 @@ def stable_candidates() -> list[Path]:
         user = getpass.getuser()
     except Exception:  # noqa: BLE001
         user = os.environ.get("USER", "")
-    for prefix in (home / ".wine_osu", home / ".wineosu", home / ".wine", home / "osu/prefix",
-                   home / ".local/share/osu-wine/WINE.win32", home / ".local/share/wineprefixes/osu-stable",
-                   home / ".local/share/osuconfig/WINE.win32"):
-        c += [prefix / "drive_c/osu!", prefix / "drive_c/users" / user / "AppData/Local/osu!",
-              prefix / "drive_c/users" / user / "Local Settings/Application Data/osu!"]
+    for prefix in (
+        home / ".wine_osu",
+        home / ".wineosu",
+        home / ".wine",
+        home / "osu/prefix",
+        home / ".local/share/osu-wine/WINE.win32",
+        home / ".local/share/wineprefixes/osu-stable",
+        home / ".local/share/osuconfig/WINE.win32",
+    ):
+        c += [
+            prefix / "drive_c/osu!",
+            prefix / "drive_c/users" / user / "AppData/Local/osu!",
+            prefix / "drive_c/users" / user / "Local Settings/Application Data/osu!",
+        ]
     if sys.platform == "darwin":
         c.append(home / "Applications/osu!.app/Contents/Resources/drive_c/osu!")
     return c
@@ -111,8 +121,14 @@ def stable_install(root: Path) -> Install | None:
             continue
     replay_dirs = [d for d in (root / "Data" / "r", root / "Replays") if d.is_dir()]
     coll = root / "collection.db"
-    return Install("stable", root, songs if songs.is_dir() else None, replay_dirs, None,
-                   coll if coll.exists() or (root / "osu!.db").exists() else None)
+    return Install(
+        "stable",
+        root,
+        songs if songs.is_dir() else None,
+        replay_dirs,
+        None,
+        coll if coll.exists() or (root / "osu!.db").exists() else None,
+    )
 
 
 def lazer_install(root: Path) -> Install | None:
@@ -133,8 +149,10 @@ def find_installs(stable_roots=None, lazer_roots=None) -> list[Install]:
         stable_roots = stable_roots if stable_roots is not None else []
         lazer_roots = lazer_roots if lazer_roots is not None else []
     out, seen = [], set()
-    for roots, fn in ((stable_roots if stable_roots is not None else stable_candidates(), stable_install),
-                      (lazer_roots if lazer_roots is not None else lazer_candidates(), lazer_install)):
+    for roots, fn in (
+        (stable_roots if stable_roots is not None else stable_candidates(), stable_install),
+        (lazer_roots if lazer_roots is not None else lazer_candidates(), lazer_install),
+    ):
         for r in roots:
             try:
                 key = Path(r).resolve()
@@ -154,8 +172,9 @@ def is_osu_running() -> bool:
     runs would be undone."""
     try:
         if os.name == "nt":
-            out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq osu!.exe"], capture_output=True, text=True,
-                                 timeout=10).stdout
+            out = subprocess.run(
+                ["tasklist", "/FI", "IMAGENAME eq osu!.exe"], capture_output=True, text=True, timeout=10
+            ).stdout
             return "osu!.exe" in out
         for pid in os.listdir("/proc"):
             if pid.isdigit():

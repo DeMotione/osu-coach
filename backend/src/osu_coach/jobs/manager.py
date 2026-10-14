@@ -4,6 +4,7 @@ A job runs in its own thread and reports progress through a :class:`Reporter`. J
 library hold the :class:`BusyGate` for their whole run, so two of them never touch the library at once; the
 few synchronous endpoints that change it (the one-replay check) go through the same gate.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -55,8 +56,8 @@ class BusyGate:
 class Job:
     kind: str
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
-    status: str = "running"            # running | succeeded | failed
-    progress: float | None = None      # 0..1 when known
+    status: str = "running"  # running | succeeded | failed
+    progress: float | None = None  # 0..1 when known
     message: str = ""
     result: Any = None
     error: str | None = None
@@ -99,8 +100,9 @@ class JobManager:
                 if self._jobs[oldest].status == "running":
                     break
                 self._jobs.pop(oldest)
-        thread = threading.Thread(target=self._run, args=(job, work, exclusive), name=f"job-{kind}-{job.id}",
-                                  daemon=True)
+        thread = threading.Thread(
+            target=self._run, args=(job, work, exclusive), name=f"job-{kind}-{job.id}", daemon=True
+        )
         try:
             thread.start()
         except RuntimeError:

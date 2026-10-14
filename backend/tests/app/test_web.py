@@ -1,4 +1,5 @@
 """Web plumbing: the API reference, serving the web app, the local-only protections and the error shape."""
+
 import pytest
 
 from tests.conftest import make_client
@@ -49,7 +50,7 @@ def test_serves_the_web_app_with_client_side_routes(tmp_path):
         index = c.get("/")
         assert index.status_code == 200 and "osu! coach" in index.text
         assert index.headers["cache-control"] == "no-cache"
-        assert "osu! coach" in c.get("/overview").text                         # a client-side route
+        assert "osu! coach" in c.get("/overview").text  # a client-side route
         asset = c.get("/assets/app-1234.js")
         assert asset.text == "console.log(1)" and "immutable" in asset.headers["cache-control"]
         assert c.get("/sw.js").headers["cache-control"] == "no-cache"
@@ -76,7 +77,7 @@ def test_other_web_sites_cant_change_anything(client):
     assert r.status_code == 403 and r.json()["code"] == "cross_origin"
     assert client.get("/api/settings").json()["latest"] == 500
     assert client.patch("/api/settings", json=body, headers={"origin": "http://localhost:5173"}).status_code == 200
-    assert client.patch("/api/settings", json={"latest": 0}).status_code == 200            # no Origin: not a browser
+    assert client.patch("/api/settings", json={"latest": 0}).status_code == 200  # no Origin: not a browser
     # reading is fine: the browser keeps other sites from seeing the answer
     assert client.get("/api/settings", headers={"origin": "https://evil.example"}).status_code == 200
 

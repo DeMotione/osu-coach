@@ -1,4 +1,5 @@
 """Domain values (numpy / pandas scalars, NaN, naive UTC datetimes) to plain JSON-safe Python values."""
+
 from __future__ import annotations
 
 import datetime as dt

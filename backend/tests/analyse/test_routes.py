@@ -1,4 +1,5 @@
 """Analysing the scanned replays: the result, the status, and what happens with Best replays."""
+
 import shutil
 
 import pytest
@@ -20,4 +21,4 @@ def test_failed_plays_and_best_replays(tmp_path, client):
     r = client.get("/api/profile/overview")
     assert r.status_code == 409 and "Best replays" in r.json()["detail"]
     client.patch("/api/settings", json={"replay_set": "all"})
-    assert client.get("/api/profile/summary").json()["replays"] == 1      # the copy is the same play
+    assert client.get("/api/profile/summary").json()["replays"] == 1  # the copy is the same play

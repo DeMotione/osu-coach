@@ -4,6 +4,7 @@
 * for the route tests, an app on a temporary data folder without network or osu! installs: those test modules
   set ``pytestmark = pytest.mark.usefixtures("_isolated")``, then use ``client`` / ``analysed``.
 """
+
 from __future__ import annotations
 
 import json
@@ -22,7 +23,7 @@ from osu_coach.main import create_app
 RES = pathlib.Path(__file__).parent / "resources"
 DEV = pathlib.Path(__file__).parent.parent / "dev_data"
 INDEX = {i["replay"]: i for i in json.loads((RES / "index.json").read_text())}
-MOT1ONE = ["mot1one__lazer_nm.osr", "mot1one__lazer_dthd_spinner.osr", "mot1one__lazer_failed.osr"]   # old -> new
+MOT1ONE = ["mot1one__lazer_nm.osr", "mot1one__lazer_dthd_spinner.osr", "mot1one__lazer_failed.osr"]  # old -> new
 OTHERS = ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr"]
 
 
@@ -70,8 +71,14 @@ def _isolated(monkeypatch, tmp_path):
 
 
 def make_client(cache: Path, web_dir: Path | None = None, api_docs: bool = True) -> TestClient:
-    config = Settings(cache_dir=cache, web_dir=web_dir, allowed_hosts=LOCAL_HOSTS + ("testserver",),
-                       reveal_folders=False, analysis_workers=1, api_docs=api_docs)
+    config = Settings(
+        cache_dir=cache,
+        web_dir=web_dir,
+        allowed_hosts=LOCAL_HOSTS + ("testserver",),
+        reveal_folders=False,
+        analysis_workers=1,
+        api_docs=api_docs,
+    )
     return TestClient(create_app(config))
 
 

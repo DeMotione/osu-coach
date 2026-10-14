@@ -1,4 +1,5 @@
 """Health and the labels every page uses."""
+
 import pytest
 
 from osu_coach.profile.domain import SKILL_HELP, SKILL_LABELS

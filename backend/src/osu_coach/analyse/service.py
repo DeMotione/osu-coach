@@ -1,4 +1,5 @@
 """Analysing the scanned replays: read the chosen replays, save the progress, build the profile, report the result."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -21,19 +22,25 @@ def run_analysis(ws: Workspace, req: AnalysisRequest, report: Reporter) -> Analy
     lib = require_library(ws)
     sel = select(ws, req.player, int(req.latest), req.date_range, req.date_from, req.date_to)
     if not sel.refs:
-        raise ApiError(409, "nothing_to_analyse", "No replays in that time range — choose a longer one."
-                       if sel.choice != "all" else "No replays to analyse.")
+        raise ApiError(
+            409,
+            "nothing_to_analyse",
+            "No replays in that time range — choose a longer one." if sel.choice != "all" else "No replays to analyse.",
+        )
     report(0, 1, "Preparing…")
     if req.online:
         missing = lib.missing_maps(sel.refs, progress=report.note)
         if missing:
             lib.fetch_missing(missing, progress=report)
-    analyses, errors = lib.analyze(sel.refs, workers=ws.config.analysis_workers,
-                                   progress=lambda done, total, _msg: report(done, total,
-                                                                             f"Analysing replays… {done}/{total}"))
+    analyses, errors = lib.analyze(
+        sel.refs,
+        workers=ws.config.analysis_workers,
+        progress=lambda done, total, _msg: report(done, total, f"Analysing replays… {done}/{total}"),
+    )
     if not analyses:
-        raise ApiError(422, "nothing_analysed", "None of the replays could be analysed. "
-                       + (errors[0][1] if errors else ""))
+        raise ApiError(
+            422, "nothing_analysed", "None of the replays could be analysed. " + (errors[0][1] if errors else "")
+        )
     warnings = []
     report.note("Saving your progress…")
     try:
@@ -47,16 +54,23 @@ def run_analysis(ws: Workspace, req: AnalysisRequest, report: Reporter) -> Analy
     best = ws.replay_set() == "best"
     if prof is None:
         warnings.append("None of these replays is a passed play, so Best replays is empty — switch to All replays.")
-    return AnalysisResult(analysed=len(analyses), skipped=len(errors),
-                          best_replays=len(prof.replays) if best and prof is not None else None,
-                          profile_ready=prof is not None, warnings=warnings)
+    return AnalysisResult(
+        analysed=len(analyses),
+        skipped=len(errors),
+        best_replays=len(prof.replays) if best and prof is not None else None,
+        profile_ready=prof is not None,
+        warnings=warnings,
+    )
 
 
 def analysis_status(ws: Workspace) -> AnalysisStatus:
     prof = ws.profile()
     return AnalysisStatus(
-        analysed=len(ws.analyses), player_label=ws.player_label, replay_set=ws.replay_set(),
+        analysed=len(ws.analyses),
+        player_label=ws.player_label,
+        replay_set=ws.replay_set(),
         profile_replays=len(prof.replays) if prof is not None else None,
         best_empty=bool(ws.analyses) and prof is None,
         skipped=[SkippedReplay(file=Path(ref["path"]).name, reason=err) for ref, err in ws.errors[:SKIPPED_SHOWN]],
-        skipped_total=len(ws.errors))
+        skipped_total=len(ws.errors),
+    )

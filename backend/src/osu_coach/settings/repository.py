@@ -1,4 +1,5 @@
 """``settings.json`` in the data folder: the user's goals, hidden maps, setup and remembered choices."""
+
 from __future__ import annotations
 
 import json

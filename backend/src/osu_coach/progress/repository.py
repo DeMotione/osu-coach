@@ -10,6 +10,7 @@ when replays or the analysis cache are deleted later. Per month and player:
   that difficulty, more = fewer misses than usual that month — so months can be compared. (The profile's
   own scores compare each skill with the player's level in the same replays, so they can't show progress.)
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -23,16 +24,43 @@ from osu_coach.config import default_cache_dir
 from osu_coach.progress.domain import mark_full_combos, month_of, period_metrics, period_of, summarize_periods, utc
 
 DB_FILE = "progress.sqlite"
-SCHEMA_VERSION = 2   # 2: hp, path
+SCHEMA_VERSION = 2  # 2: hp, path
 # replays table column -> meta key
 COLUMNS = {
-    "player": "player", "beatmap_md5": "beatmap_md5", "beatmap_id": "beatmap_id", "beatmapset_id": "beatmapset_id",
-    "artist": "artist", "title": "title", "version": "version", "creator": "creator", "mods": "mod_string",
-    "rate": "rate", "client": "client", "stars": "stars", "aim_stars": "aim", "speed_stars": "speed", "bpm": "bpm",
-    "length_s": "length_s", "ar": "ar", "od": "od", "cs": "cs", "accuracy": "accuracy", "n300": "n300",
-    "n100": "n100", "n50": "n50", "nmiss": "nmiss", "head_misses": "head_misses", "n_objects": "n_objects",
-    "n_played": "n_played", "completed": "completed", "max_combo": "max_combo", "map_max_combo": "map_max_combo",
-    "ur": "ur", "score": "score", "hp": "hp", "path": "source_path",
+    "player": "player",
+    "beatmap_md5": "beatmap_md5",
+    "beatmap_id": "beatmap_id",
+    "beatmapset_id": "beatmapset_id",
+    "artist": "artist",
+    "title": "title",
+    "version": "version",
+    "creator": "creator",
+    "mods": "mod_string",
+    "rate": "rate",
+    "client": "client",
+    "stars": "stars",
+    "aim_stars": "aim",
+    "speed_stars": "speed",
+    "bpm": "bpm",
+    "length_s": "length_s",
+    "ar": "ar",
+    "od": "od",
+    "cs": "cs",
+    "accuracy": "accuracy",
+    "n300": "n300",
+    "n100": "n100",
+    "n50": "n50",
+    "nmiss": "nmiss",
+    "head_misses": "head_misses",
+    "n_objects": "n_objects",
+    "n_played": "n_played",
+    "completed": "completed",
+    "max_combo": "max_combo",
+    "map_max_combo": "map_max_combo",
+    "ur": "ur",
+    "score": "score",
+    "hp": "hp",
+    "path": "source_path",
 }
 TEXT_COLUMNS = ("player", "beatmap_md5", "artist", "title", "version", "creator", "mods", "client", "path")
 SCHEMA = f"""
@@ -58,7 +86,7 @@ def connect(cache_dir=None) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.executescript(SCHEMA)
     have = {r[1] for r in conn.execute("PRAGMA table_info(replays)")}
-    with conn:   # databases from older versions: add the new columns (filled in when a replay is analysed again)
+    with conn:  # databases from older versions: add the new columns (filled in when a replay is analysed again)
         for c in COLUMNS:
             if c not in have:
                 conn.execute(f"ALTER TABLE replays ADD COLUMN {c} {'TEXT' if c in TEXT_COLUMNS else 'REAL'}")
@@ -81,14 +109,18 @@ def record(conn: sqlite3.Connection, analyses, tz=None) -> int:
     before = conn.execute("SELECT COUNT(*) FROM replays").fetchone()[0]
     now = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
     cols = list(COLUMNS)
-    sql = (f"INSERT INTO replays (key, played_at, month, added_at, {', '.join(cols)}) "
-           f"VALUES ({', '.join('?' * (len(cols) + 4))}) ON CONFLICT(key) DO UPDATE SET "
-           + ", ".join(f"{c} = excluded.{c}" for c in ["played_at", "month"] + cols))
+    sql = (
+        f"INSERT INTO replays (key, played_at, month, added_at, {', '.join(cols)}) "
+        f"VALUES ({', '.join('?' * (len(cols) + 4))}) ON CONFLICT(key) DO UPDATE SET "
+        + ", ".join(f"{c} = excluded.{c}" for c in ["played_at", "month"] + cols)
+    )
     rows = []
     for a in analyses:
         m = a.meta
-        rows.append([a.key, utc(m["date"]).isoformat(), month_of(m["date"], tz), now]
-                    + [_value(m.get(COLUMNS[c])) for c in cols])
+        rows.append(
+            [a.key, utc(m["date"]).isoformat(), month_of(m["date"], tz), now]
+            + [_value(m.get(COLUMNS[c])) for c in cols]
+        )
     with conn:
         conn.executemany(sql, rows)
     return conn.execute("SELECT COUNT(*) FROM replays").fetchone()[0] - before
@@ -96,13 +128,18 @@ def record(conn: sqlite3.Connection, analyses, tz=None) -> int:
 
 def saved_plays(conn: sqlite3.Connection, a) -> pd.DataFrame:
     """The saved plays of ``a``'s player on ``a``'s map."""
-    return pd.read_sql_query("SELECT * FROM replays WHERE player = ? AND beatmap_md5 = ?", conn,
-                             params=(a.meta.get("player") or "", a.meta.get("beatmap_md5")))
+    return pd.read_sql_query(
+        "SELECT * FROM replays WHERE player = ? AND beatmap_md5 = ?",
+        conn,
+        params=(a.meta.get("player") or "", a.meta.get("beatmap_md5")),
+    )
 
 
 def players(conn: sqlite3.Connection) -> list[tuple[str, int]]:
-    return [(p or "", n) for p, n in conn.execute(
-        "SELECT player, COUNT(*) FROM replays GROUP BY player ORDER BY COUNT(*) DESC, player")]
+    return [
+        (p or "", n)
+        for p, n in conn.execute("SELECT player, COUNT(*) FROM replays GROUP BY player ORDER BY COUNT(*) DESC, player")
+    ]
 
 
 def rebuild_months(conn: sqlite3.Connection, player: str, analyses, tz=None) -> None:
@@ -113,8 +150,10 @@ def rebuild_months(conn: sqlite3.Connection, player: str, analyses, tz=None) -> 
         with conn:
             conn.execute("DELETE FROM month_metrics WHERE player = ? AND month = ?", (player, month))
             if rows:
-                conn.executemany("INSERT INTO month_metrics VALUES (?, ?, ?, ?, ?, ?)",
-                                 [(player, month, name, _value(value), n, now) for name, value, n in rows])
+                conn.executemany(
+                    "INSERT INTO month_metrics VALUES (?, ?, ?, ?, ?, ?)",
+                    [(player, month, name, _value(value), n, now) for name, value, n in rows],
+                )
 
 
 def update(cache_dir, analyses, load_cached=None, tz=None) -> list[str]:
@@ -139,23 +178,28 @@ def monthly(conn: sqlite3.Connection, player: str) -> pd.DataFrame:
     return by_period(conn, player, "month")
 
 
-def by_period(conn: sqlite3.Connection, player: str, period: str = "month", since: dt.date | None = None,
-              until: dt.date | None = None, tz=None) -> pd.DataFrame:
+def by_period(
+    conn: sqlite3.Connection,
+    player: str,
+    period: str = "month",
+    since: dt.date | None = None,
+    until: dt.date | None = None,
+    tz=None,
+) -> pd.DataFrame:
     """Like :func:`monthly`, per ``period`` ("month", "week" or "day"; the ``month`` column holds the period's
     key), only plays from ``since`` to ``until`` (dates in ``tz``, both included)."""
     df = pd.read_sql_query("SELECT * FROM replays WHERE player = ?", conn, params=(player,))
-    mm = pd.read_sql_query("SELECT month, name, value FROM month_metrics WHERE player = ?", conn,
-                           params=(player,))
+    mm = pd.read_sql_query("SELECT month, name, value FROM month_metrics WHERE player = ?", conn, params=(player,))
     return summarize_periods(df, mm, period, since, until, tz)
 
 
 def month_plays(conn: sqlite3.Connection, player: str, month: str, period: str = "month", tz=None) -> pd.DataFrame:
     """The plays of one month (or of one week / day: ``period`` and its key), newest first."""
     if period == "month":
-        df = pd.read_sql_query("SELECT * FROM replays WHERE player = ? AND month = ? ORDER BY played_at DESC",
-                               conn, params=(player, month))
+        df = pd.read_sql_query(
+            "SELECT * FROM replays WHERE player = ? AND month = ? ORDER BY played_at DESC", conn, params=(player, month)
+        )
     else:
-        df = pd.read_sql_query("SELECT * FROM replays WHERE player = ? ORDER BY played_at DESC", conn,
-                               params=(player,))
+        df = pd.read_sql_query("SELECT * FROM replays WHERE player = ? ORDER BY played_at DESC", conn, params=(player,))
         df = df[[period_of(t, period, tz) == month for t in df["played_at"]]]
     return mark_full_combos(df)

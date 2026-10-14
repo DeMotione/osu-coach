@@ -30,6 +30,7 @@ class MissCauseMeta(BaseModel):
 
 class Meta(BaseModel):
     """Labels and choices shared by every page."""
+
     version: str
     skills: list[SkillMeta]
     playlist_skills: list[Choice]

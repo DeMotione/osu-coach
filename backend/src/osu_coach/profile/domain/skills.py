@@ -1,4 +1,5 @@
 """The skill scores together: accuracy, the comparison with top players, ``compute_skills``."""
+
 from __future__ import annotations
 
 import math
@@ -41,18 +42,18 @@ def accuracy_score(r300: float) -> float:
 # The skill values of the top players' reference plays (dev_tools/reference_replays.md, 38 plays, each skill from
 # its own group of 4-5 specialists, computed with these same formulas): 100 = as good as them.
 TOP_PLAYERS = {
-    "aim": 52.2,              # cursor speed x combo of the jump group (WhiteCat, mrekk)
-    "flow_aim": 28.6,         # flow group (cryshina, chocomint)
-    "speed": 282.7,           # clean burst / stream BPM of the speed group (MALISZEWSKI, aetrna, milosz)
-    "stamina": {10: 237.5, 30: 211.7, 60: 195.0, 120: 141.6, 300: 103.0},   # stamina group; 5 min: mrekk's Save Me
-    "accuracy": 0.988,        # single-note 300 share of the accuracy group
-    "sliders": 277.7,         # slider group (MALISZEWSKI AKAGE / Magic people, mrekk Euclid)
-    "reading": 16.4,          # reading group (AR0 plays, -GN / JGLF / reowl)
-    "consistency": 1.0,       # miss-after-miss ratio 1.0: a miss doesn't make you miss more (top players barely miss)
+    "aim": 52.2,  # cursor speed x combo of the jump group (WhiteCat, mrekk)
+    "flow_aim": 28.6,  # flow group (cryshina, chocomint)
+    "speed": 282.7,  # clean burst / stream BPM of the speed group (MALISZEWSKI, aetrna, milosz)
+    "stamina": {10: 237.5, 30: 211.7, 60: 195.0, 120: 141.6, 300: 103.0},  # stamina group; 5 min: mrekk's Save Me
+    "accuracy": 0.988,  # single-note 300 share of the accuracy group
+    "sliders": 277.7,  # slider group (MALISZEWSKI AKAGE / Magic people, mrekk Euclid)
+    "reading": 16.4,  # reading group (AR0 plays, -GN / JGLF / reowl)
+    "consistency": 1.0,  # miss-after-miss ratio 1.0: a miss doesn't make you miss more (top players barely miss)
 }
 
 
-TOP_LEVEL = 10.0          # the reference players' level (their plays average ~10 stars with mods)
+TOP_LEVEL = 10.0  # the reference players' level (their plays average ~10 stars with mods)
 
 
 def skills_at_level(skills: dict, level: float) -> dict:
@@ -64,14 +65,17 @@ def skills_at_level(skills: dict, level: float) -> dict:
 
     def log_score(v, ref, points):
         return _clip(50 + points * math.log2(v / ref)) if v is not None and np.isfinite(v) and v > 0 else None
+
     out["aim"] = log_score(g("aim", "value"), aim_ref(level), AIM_POINTS)
-    out["flow_aim"] = log_score(g("flow_aim", "value"), FLOW_REF * 2 ** ((level - 6.0) / FLOW_REF_STEP),
-                                FLOW_POINTS)
+    out["flow_aim"] = log_score(g("flow_aim", "value"), FLOW_REF * 2 ** ((level - 6.0) / FLOW_REF_STEP), FLOW_POINTS)
     out["speed"] = log_score(g("speed", "bpm"), stamina_ref_bpm(level), SPEED_POINTS)
     curve = g("stamina", "curve")
     if isinstance(curve, dict) and curve:
-        parts = [log_score(v, stamina_ref_bpm(level) * STAMINA_WINDOW_SHARE[W], STAMINA_POINTS)
-                 for W, v in curve.items() if W in STAMINA_WINDOW_SHARE]
+        parts = [
+            log_score(v, stamina_ref_bpm(level) * STAMINA_WINDOW_SHARE[W], STAMINA_POINTS)
+            for W, v in curve.items()
+            if W in STAMINA_WINDOW_SHARE
+        ]
         parts = [x for x in parts if x is not None]
         out["stamina"] = float(np.mean(parts)) if parts else None
     else:
@@ -86,11 +90,16 @@ def _top_skills() -> dict:
     """The top players' reference values (:data:`TOP_PLAYERS`) as a skills dict, scored like a player's."""
     t = TOP_PLAYERS
     r = t["accuracy"]
-    return {"aim": {"value": t["aim"]}, "flow_aim": {"value": t["flow_aim"]}, "speed": {"bpm": t["speed"]},
-            "stamina": {"curve": dict(t["stamina"])}, "sliders": {"value": t["sliders"]},
-            "accuracy": {"score": accuracy_score(r)},
-            "reading": {"score": _clip(50 + READ_POINTS * math.log2(t["reading"] / READ_REF))},
-            "consistency": {"score": _clip(50 + 30 * math.log2(TYPICAL_CHAIN_RATIO / t["consistency"]))}}
+    return {
+        "aim": {"value": t["aim"]},
+        "flow_aim": {"value": t["flow_aim"]},
+        "speed": {"bpm": t["speed"]},
+        "stamina": {"curve": dict(t["stamina"])},
+        "sliders": {"value": t["sliders"]},
+        "accuracy": {"score": accuracy_score(r)},
+        "reading": {"score": _clip(50 + READ_POINTS * math.log2(t["reading"] / READ_REF))},
+        "consistency": {"score": _clip(50 + 30 * math.log2(TYPICAL_CHAIN_RATIO / t["consistency"]))},
+    }
 
 
 def top_comparison(skills: dict, level: float = TOP_LEVEL) -> dict:
@@ -102,8 +111,9 @@ def top_comparison(skills: dict, level: float = TOP_LEVEL) -> dict:
     return {k: {"score": you.get(k), "top": top.get(k), "label": SKILL_LABELS.get(k, k)} for k in SKILL_LABELS}
 
 
-def compute_skills(P, model, tapping, sliders, reading, consistency, level: float | None = None,
-            presses: pd.DataFrame | None = None) -> dict:
+def compute_skills(
+    P, model, tapping, sliders, reading, consistency, level: float | None = None, presses: pd.DataFrame | None = None
+) -> dict:
     s = {}
     N = _n_replays(P)
     # every skill: its plays ranked hardest first, 100% / 99% / 98% ... (1/N steps), like osu!'s pp list
@@ -117,18 +127,28 @@ def compute_skills(P, model, tapping, sliders, reading, consistency, level: floa
     wa = Wa[sd.index]
     r300 = float((wa * (sd["head_result"] == 300)).sum() / wa.sum()) if len(sd) and wa.sum() > 0 else math.nan
     n_single = int(single.sum())
-    s["accuracy"] = {"score": accuracy_score(r300) if not math.isnan(r300) and n_single >= 60 else None,
-                     "n": n_single, "three_hundred_rate": r300, "ur": tapping.get("ur_single")}
+    s["accuracy"] = {
+        "score": accuracy_score(r300) if not math.isnan(r300) and n_single >= 60 else None,
+        "n": n_single,
+        "three_hundred_rate": r300,
+        "ur": tapping.get("ur_single"),
+    }
     s["sliders"] = slider_score(P, level, n_total=N)
     s["reading"] = reading_score(P, N)
     s["consistency"] = consistency_score(P, Wa, N)
     for k, v in s.items():
         v["label"] = SKILL_LABELS[k]
         maps = v.get("maps") if v.get("maps") is not None else (v.get("plays") or 0)
-        if isinstance(maps, dict):           # stamina: maps per duration
+        if isinstance(maps, dict):  # stamina: maps per duration
             maps = max(maps.values(), default=0)
-        v["low_data"] = bool(v.get("score") is not None and (N < LOW_DATA_REPLAYS or (
-            k in ("accuracy",) and (v.get("n") or 0) < LOW_DATA_NOTES) or (0 < maps < LOW_DATA_MAPS)))
+        v["low_data"] = bool(
+            v.get("score") is not None
+            and (
+                N < LOW_DATA_REPLAYS
+                or (k in ("accuracy",) and (v.get("n") or 0) < LOW_DATA_NOTES)
+                or (0 < maps < LOW_DATA_MAPS)
+            )
+        )
     return s
 
 

@@ -7,6 +7,7 @@ inside the Streamlit pages; they live here so every interface (HTTP API, command
 same numbers. All of them work on the profile's per-note table and respect the difficulty weights
 (column ``w``).
 """
+
 from __future__ import annotations
 
 import math
@@ -33,7 +34,7 @@ def weights(df: pd.DataFrame) -> np.ndarray:
 # ------------------------------------------------------------------ aim
 PLAYFIELD_W, PLAYFIELD_H = 512, 384
 GRID_COLS, GRID_ROWS = 8, 6
-GRID_MIN_NOTES = 15      # cells with fewer (weighted) notes stay empty
+GRID_MIN_NOTES = 15  # cells with fewer (weighted) notes stay empty
 
 
 def playfield_grid(p: Profile) -> dict:
@@ -41,18 +42,24 @@ def playfield_grid(p: Profile) -> dict:
     NaN where a cell has fewer than :data:`GRID_MIN_NOTES` notes; ``x`` / ``y`` are the cell centres."""
     P = played(p)
     bins_x, bins_y = np.linspace(0, PLAYFIELD_W, GRID_COLS + 1), np.linspace(0, PLAYFIELD_H, GRID_ROWS + 1)
-    allh, _, _ = np.histogram2d(P["x"].clip(0, PLAYFIELD_W - 0.1), P["y"].clip(0, PLAYFIELD_H - 0.1),
-                                bins=[bins_x, bins_y], weights=weights(P))
+    allh, _, _ = np.histogram2d(
+        P["x"].clip(0, PLAYFIELD_W - 0.1), P["y"].clip(0, PLAYFIELD_H - 0.1), bins=[bins_x, bins_y], weights=weights(P)
+    )
     M = P[~P["head_hit"]]
-    mh, _, _ = np.histogram2d(M["x"].clip(0, PLAYFIELD_W - 0.1), M["y"].clip(0, PLAYFIELD_H - 0.1),
-                              bins=[bins_x, bins_y], weights=weights(M))
+    mh, _, _ = np.histogram2d(
+        M["x"].clip(0, PLAYFIELD_W - 0.1), M["y"].clip(0, PLAYFIELD_H - 0.1), bins=[bins_x, bins_y], weights=weights(M)
+    )
     rate = np.where(allh >= GRID_MIN_NOTES, mh / np.maximum(allh, 1) * 100, np.nan)
-    return {"x": ((bins_x[:-1] + bins_x[1:]) / 2).tolist(), "y": ((bins_y[:-1] + bins_y[1:]) / 2).tolist(),
-            "rate": rate.T.tolist(), "notes": allh.T.tolist()}
+    return {
+        "x": ((bins_x[:-1] + bins_x[1:]) / 2).tolist(),
+        "y": ((bins_y[:-1] + bins_y[1:]) / 2).tolist(),
+        "rate": rate.T.tolist(),
+        "notes": allh.T.tolist(),
+    }
 
 
 CLICKS_DRAWN = 4000
-CLICK_RANGE = 2.4        # radii shown around the circle centre
+CLICK_RANGE = 2.4  # radii shown around the circle centre
 
 
 def click_sample(C: pd.DataFrame, n: int = CLICKS_DRAWN, seed: int = 0) -> pd.DataFrame:
@@ -91,8 +98,13 @@ def timing_histogram(p: Profile) -> dict:
     scored = sum(shares.values())
     total = float(weights(H).sum())
     mean = float(np.average(H["err_real"], weights=weights(H))) if len(H) and total > 0 else math.nan
-    return {"centers": ((edges[:-1] + edges[1:]) / 2).tolist(), "counts": counts, "total": total,
-            "shares": {r: (v / scored if scored else math.nan) for r, v in shares.items()}, "mean": mean}
+    return {
+        "centers": ((edges[:-1] + edges[1:]) / 2).tolist(),
+        "counts": counts,
+        "total": total,
+        "shares": {r: (v / scored if scored else math.nan) for r, v in shares.items()},
+        "mean": mean,
+    }
 
 
 def key_hold_ms(p: Profile) -> float:
@@ -105,12 +117,12 @@ def key_hold_ms(p: Profile) -> float:
     return float(dur.median()) if len(dur) else math.nan
 
 
-STREAM_BAND = 20         # BPM per band in "streams over time"
-STREAM_BAND_MIN = 200    # notes a band needs to be offered
-STREAM_MIN_NOTES = 100   # stream notes needed for the chart at all
-STREAM_BIN_MIN = 30      # notes a point needs
-STREAM_UR_MIN = 20       # hits a point needs for its UR
-STREAM_STEPS = {"map": ("map_min", 0.5), "session": ("session_min", 5.0)}   # minutes per point
+STREAM_BAND = 20  # BPM per band in "streams over time"
+STREAM_BAND_MIN = 200  # notes a band needs to be offered
+STREAM_MIN_NOTES = 100  # stream notes needed for the chart at all
+STREAM_BIN_MIN = 30  # notes a point needs
+STREAM_UR_MIN = 20  # hits a point needs for its UR
+STREAM_STEPS = {"map": ("map_min", 0.5), "session": ("session_min", 5.0)}  # minutes per point
 SESSION_GAP_S = 3600
 
 
@@ -129,8 +141,9 @@ def stream_notes(p: Profile) -> pd.DataFrame:
         if last is None or (d - last).total_seconds() > SESSION_GAP_S:
             sess = d
         start[k], last = sess, d
-    S["session_min"] = [((dates[k] - start[k]).total_seconds() + t / 1000) / 60.0
-                        for k, t in zip(S["replay_key"], S["time"])]
+    S["session_min"] = [
+        ((dates[k] - start[k]).total_seconds() + t / 1000) / 60.0 for k, t in zip(S["replay_key"], S["time"])
+    ]
     S["band"] = (S["stream_bpm"] // STREAM_BAND * STREAM_BAND).astype(int)
     return S
 
@@ -139,15 +152,20 @@ def stream_bins(S: pd.DataFrame, xcol: str, step: float) -> pd.DataFrame:
     """Per time bin: weighted miss rate (%), UR (each play's own average taken out first, so different plays
     don't inflate it) and notes. ``x`` = start of the bin."""
     rows = []
-    S = S.assign(xb=(S[xcol] // step * step), err0=S["err_real"] - S.groupby("replay_key")["err_real"].transform("mean"))
+    S = S.assign(
+        xb=(S[xcol] // step * step), err0=S["err_real"] - S.groupby("replay_key")["err_real"].transform("mean")
+    )
     for xb, g in S.groupby("xb"):
         h = g["head_hit"].astype(bool) & g["err0"].notna()
         if len(g) < STREAM_BIN_MIN:
             continue
         w = g["w"].to_numpy(float) if "w" in g else np.ones(len(g))
         miss = float(np.average(~g["head_hit"].astype(bool), weights=w)) if w.sum() else math.nan
-        ur = float(np.sqrt(np.average(g.loc[h, "err0"] ** 2, weights=g.loc[h, "w"]))) * 10 \
-            if h.sum() >= STREAM_UR_MIN else math.nan
+        ur = (
+            float(np.sqrt(np.average(g.loc[h, "err0"] ** 2, weights=g.loc[h, "w"]))) * 10
+            if h.sum() >= STREAM_UR_MIN
+            else math.nan
+        )
         rows.append({"x": float(xb), "miss_rate": miss * 100, "ur": ur, "n": int(len(g))})
     return pd.DataFrame(rows, columns=["x", "miss_rate", "ur", "n"])
 
@@ -175,21 +193,32 @@ def fall_behind_by_speed(cb: pd.DataFrame | None) -> dict:
     point (% of the time between notes), the last note measured, and the speed where it rises most."""
     if cb is None or len(cb) < 3:
         return {"groups": [], "worst": None}
-    last = cb.sort_values("pos").groupby("group").agg(first=("rel_err", "first"), last=("rel_err", "last"),
-                                                     notes=("pos", "max"))
+    last = (
+        cb.sort_values("pos")
+        .groupby("group")
+        .agg(first=("rel_err", "first"), last=("rel_err", "last"), notes=("pos", "max"))
+    )
     last["rise"] = last["last"] - last["first"]
     worst = last["rise"].idxmax() if len(last) else None
-    groups = [{"group": str(g), "first": float(r["first"]), "last": float(r["last"]), "notes": int(r["notes"]),
-               "rise": float(r["rise"])} for g, r in last.iterrows()]
+    groups = [
+        {
+            "group": str(g),
+            "first": float(r["first"]),
+            "last": float(r["last"]),
+            "notes": int(r["notes"]),
+            "rise": float(r["rise"]),
+        }
+        for g, r in last.iterrows()
+    ]
     return {"groups": groups, "worst": str(worst) if worst is not None and last.loc[worst, "rise"] > 3 else None}
 
 
 # ------------------------------------------------------------------ sliders & reading
-SLIDER_LEN_BINS = [0, 1, 2, 4, 8, 1000]           # circle diameters of slider path
-SLIDER_SPEED_BINS = [0, 2, 4, 6, 9, 1000]         # circle diameters per second
-SLIDER_MIN = 100         # sliders needed for the charts
-SLIDER_BIN_MIN = 20      # sliders a bar needs
-SLIDER_BIG_BIN = 50      # bars with this many sliders are preferred for "worst"
+SLIDER_LEN_BINS = [0, 1, 2, 4, 8, 1000]  # circle diameters of slider path
+SLIDER_SPEED_BINS = [0, 2, 4, 6, 9, 1000]  # circle diameters per second
+SLIDER_MIN = 100  # sliders needed for the charts
+SLIDER_BIN_MIN = 20  # sliders a bar needs
+SLIDER_BIG_BIN = 50  # bars with this many sliders are preferred for "worst"
 
 
 def _slider_rates(S: pd.DataFrame, col: str, bins: list) -> pd.DataFrame:
@@ -202,8 +231,14 @@ def _slider_rates(S: pd.DataFrame, col: str, bins: list) -> pd.DataFrame:
         head = ~g["head_hit"].astype(bool)
         brk = g["broke"].fillna(False).astype(bool) & ~head
         hi = "+" if iv.right >= 1000 else f"–{iv.right:g}"
-        rows.append({"bin": f"{iv.left:g}{hi}", "head": float(np.average(head, weights=w)) * 100,
-                     "broke": float(np.average(brk, weights=w)) * 100, "n": int(len(g))})
+        rows.append(
+            {
+                "bin": f"{iv.left:g}{hi}",
+                "head": float(np.average(head, weights=w)) * 100,
+                "broke": float(np.average(brk, weights=w)) * 100,
+                "n": int(len(g)),
+            }
+        )
     return pd.DataFrame(rows, columns=["bin", "head", "broke", "n"])
 
 
@@ -229,8 +264,8 @@ def slider_rates(p: Profile) -> dict | None:
     return out
 
 
-AR_MIN_NOTES = 200       # notes needed for the chart
-AR_BIN_MIN = 100         # notes a bar needs
+AR_MIN_NOTES = 200  # notes needed for the chart
+AR_BIN_MIN = 100  # notes a bar needs
 
 
 def hits_by_ar(p: Profile) -> pd.DataFrame:
@@ -268,7 +303,12 @@ def play_timing(a: ReplayAnalysis) -> dict | None:
     trend = H["err_real"].rolling(TREND_WINDOW, center=True, min_periods=5).mean()
     od = a.meta.get("od")
     w300 = 80 - 6 * od if od is not None and not (isinstance(od, float) and math.isnan(od)) else None
-    return {"time": H["time"].to_numpy(float).tolist(), "error": H["err_real"].to_numpy(float).tolist(),
-            "result": H["head_result"].fillna(0).astype(int).tolist(), "trend": trend.to_numpy(float).tolist(),
-            "window_300": w300, "length_ms": float(o["time"].max()),
-            "top": float(H["err_real"].abs().quantile(0.99) or 50) * 1.15}
+    return {
+        "time": H["time"].to_numpy(float).tolist(),
+        "error": H["err_real"].to_numpy(float).tolist(),
+        "result": H["head_result"].fillna(0).astype(int).tolist(),
+        "trend": trend.to_numpy(float).tolist(),
+        "window_300": w300,
+        "length_ms": float(o["time"].max()),
+        "top": float(H["err_real"].abs().quantile(0.99) or 50) * 1.15,
+    }

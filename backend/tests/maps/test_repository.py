@@ -40,7 +40,7 @@ def osu_bytes(objs, mode=0):
 def stream_map():
     objs, t = [], 1000
     for block in range(6):
-        for i in range(16):          # 1/4 notes at 120 BPM = 125 ms apart, tiny spacing
+        for i in range(16):  # 1/4 notes at 120 BPM = 125 ms apart, tiny spacing
             objs.append((100 + (i % 8) * 12, 200 + (block % 2) * 10, t))
             t += 125
         t += 1000
@@ -86,7 +86,7 @@ def test_pool_file_round_trips(tmp_path):
 def test_bundled_pool_covers_beginner_to_advanced():
     pool = load_pool()
     assert len(pool) >= 4500
-    assert pool["stars"].between(2, 8, inclusive="left").mean() > 0.8      # most of it is 2-8 stars
+    assert pool["stars"].between(2, 8, inclusive="left").mean() > 0.8  # most of it is 2-8 stars
     assert pool["md5"].is_unique
     assert pool["stars"].min() < 1.5 and pool["stars"].max() > 7.5
     assert {"s_" + s for s in SKILLS} <= set(pool.columns)

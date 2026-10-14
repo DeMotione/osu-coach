@@ -5,6 +5,7 @@ average at that difficulty, more = fewer misses than usual in that period — so
 (The profile's own scores compare each skill with the player's level in the same replays, so they can't
 show progress.)
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -21,7 +22,7 @@ from osu_coach.profile.domain import (
     played_notes,
 )
 
-FEW_PLAYS = 5   # periods with fewer plays are shown, but marked as uncertain
+FEW_PLAYS = 5  # periods with fewer plays are shown, but marked as uncertain
 PERIODS = ("month", "week", "day")
 
 
@@ -64,17 +65,17 @@ def period_metrics(analyses, tz=None) -> dict[str, list[tuple[str, float | None,
     if not analyses:
         return {}
     try:
-        full = build_profile(analyses, weighted=False)   # periods stay comparable: no level weighting
+        full = build_profile(analyses, weighted=False)  # periods stay comparable: no level weighting
     except Exception:  # noqa: BLE001 - too little data for a model
         return {}
     threshold = full.reading.get("dense_threshold")
     groups = defaultdict(list)
     for a in analyses:
-        for period in PERIODS:      # months, ISO weeks and days, each kept under its own key
+        for period in PERIODS:  # months, ISO weeks and days, each kept under its own key
             groups[metric_key(period, period_of(a.meta["date"], period, tz))].append(a)
     out: dict[str, list[tuple[str, float | None, int]] | None] = {}
     for key, group in groups.items():
-        if len(group) < FEW_PLAYS:   # a play or two say little about a period's skill
+        if len(group) < FEW_PLAYS:  # a play or two say little about a period's skill
             out[key] = None
             continue
         try:
@@ -82,28 +83,44 @@ def period_metrics(analyses, tz=None) -> dict[str, list[tuple[str, float | None,
             reading = dict(mp.reading)
             if threshold is not None:
                 reading["dense_threshold"] = threshold
-            skills = compute_skills(played_notes(mp.objects), full.model, mp.tapping, mp.sliders, reading, mp.consistency,
-                             level=full.levels.get("level_stars"),   # one stamina yardstick for all periods
-                             presses=mp.presses)
+            skills = compute_skills(
+                played_notes(mp.objects),
+                full.model,
+                mp.tapping,
+                mp.sliders,
+                reading,
+                mp.consistency,
+                level=full.levels.get("level_stars"),  # one stamina yardstick for all periods
+                presses=mp.presses,
+            )
         except Exception:  # noqa: BLE001 - a period with too little data keeps no skill numbers
             continue
         rows = [(f"skill_{k}", v.get("score"), int(v.get("n") or 0)) for k, v in skills.items()]
-        rows += [("stream_bpm", mp.tapping.get("comfort_bpm"), int(mp.tapping.get("n") or 0)),
-                 ("ur_single", mp.tapping.get("ur_single"), 0),
-                 ("aim_err", mp.aim.get("aim_err_median"), 0)]
+        rows += [
+            ("stream_bpm", mp.tapping.get("comfort_bpm"), int(mp.tapping.get("n") or 0)),
+            ("ur_single", mp.tapping.get("ur_single"), 0),
+            ("aim_err", mp.aim.get("aim_err_median"), 0),
+        ]
         out[key] = rows
     return out
 
 
-def summarize_periods(df: pd.DataFrame, metrics: pd.DataFrame, period: str = "month", since: dt.date | None = None,
-                      until: dt.date | None = None, tz=None) -> pd.DataFrame:
+def summarize_periods(
+    df: pd.DataFrame,
+    metrics: pd.DataFrame,
+    period: str = "month",
+    since: dt.date | None = None,
+    until: dt.date | None = None,
+    tz=None,
+) -> pd.DataFrame:
     """One row per period with plays: counts, star rating, accuracy, skills (``skill_<name>``) etc.
     ``df``: the player's saved plays; ``metrics``: their month_metrics rows (month, name, value).
     Only plays from ``since`` to ``until`` (dates in ``tz``, both included)."""
     if df.empty:
         return pd.DataFrame(columns=["month", "plays"])
     local = pd.to_datetime(df["played_at"], utc=True, format="ISO8601").dt.tz_convert(
-        tz or dt.datetime.now().astimezone().tzinfo)
+        tz or dt.datetime.now().astimezone().tzinfo
+    )
     if since is not None:
         df, local = df[local.dt.date >= since], local[local.dt.date >= since]
     if until is not None:
@@ -119,8 +136,9 @@ def summarize_periods(df: pd.DataFrame, metrics: pd.DataFrame, period: str = "mo
     out["new_maps"] = first.value_counts().reindex(out.index, fill_value=0)
     out["minutes"] = g["length_s"].sum() / 60
     out["notes"] = g["n_played"].sum()
-    out["avg_stars"] = g.apply(lambda d: (d["stars"] * d["n_objects"]).sum() / max(d["n_objects"].sum(), 1),
-                               include_groups=False)
+    out["avg_stars"] = g.apply(
+        lambda d: (d["stars"] * d["n_objects"]).sum() / max(d["n_objects"].sum(), 1), include_groups=False
+    )
     out["comfort_stars"] = g.apply(comfort_stars, include_groups=False)
     out["max_stars_passed"] = df[clean_pass(df)].groupby("month")["stars"].max()
     out["max_stars_fc"] = df[full_combo(df)].groupby("month")["stars"].max()
@@ -130,7 +148,7 @@ def summarize_periods(df: pd.DataFrame, metrics: pd.DataFrame, period: str = "mo
     mm = metrics
     if period != "month":
         prefix = f"{period}:"
-        mm = mm[mm["month"].str.startswith(prefix)].assign(month=lambda d: d["month"].str[len(prefix):])
+        mm = mm[mm["month"].str.startswith(prefix)].assign(month=lambda d: d["month"].str[len(prefix) :])
     else:
         mm = mm[~mm["month"].str.contains(":")]
     for name in [f"skill_{k}" for k in SKILL_LABELS] + ["stream_bpm", "ur_single", "aim_err"]:

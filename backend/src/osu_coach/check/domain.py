@@ -6,6 +6,7 @@
 * ``summary``: the result and a few plain sentences on what cost the play;
 * ``compare``: the same map before, and your plays at a similar star rating (from progress.sqlite).
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -18,12 +19,26 @@ import pandas as pd
 from osu_coach.analysis.domain import ReplayAnalysis
 
 REASON_WORDS = {
-    "aim": "aim", "early": "too early", "late": "too late", "no_tap": "no tap", "lost": "lost track",
-    "notelock": "notelock", "spinner": "spinner", "follow": "left the slider", "released": "released the key",
+    "aim": "aim",
+    "early": "too early",
+    "late": "too late",
+    "no_tap": "no tap",
+    "lost": "lost track",
+    "notelock": "notelock",
+    "spinner": "spinner",
+    "follow": "left the slider",
+    "released": "released the key",
     "key_swap": "swapped keys",
 }
-PATTERN_WORDS = {"stream": "streams", "burst": "bursts", "jump": "jumps", "spaced": "spaced streams",
-                 "single": "single notes", "slider": "sliders", "spinner": "spinners"}
+PATTERN_WORDS = {
+    "stream": "streams",
+    "burst": "bursts",
+    "jump": "jumps",
+    "spaced": "spaced streams",
+    "single": "single notes",
+    "slider": "sliders",
+    "spinner": "spinners",
+}
 NO_MAP = "(map not on this computer)"
 
 
@@ -143,9 +158,16 @@ def sections(ev: pd.DataFrame, gap_ms: float = 3000) -> list[dict]:
         df = pd.DataFrame(g)
         pats = df["pattern"].dropna().value_counts()
         bpm = pd.to_numeric(df["stream_bpm"], errors="coerce").dropna()
-        out.append({"start": float(df["time"].min()), "end": float(df["time"].max()), "count": len(df),
-                    "reasons": dict(Counter(df["reason"])), "pattern": pats.index[0] if len(pats) else None,
-                    "bpm": float(bpm.max()) if len(bpm) else None})
+        out.append(
+            {
+                "start": float(df["time"].min()),
+                "end": float(df["time"].max()),
+                "count": len(df),
+                "reasons": dict(Counter(df["reason"])),
+                "pattern": pats.index[0] if len(pats) else None,
+                "bpm": float(bpm.max()) if len(bpm) else None,
+            }
+        )
     out.sort(key=lambda s: (-s["count"], s["start"]))
     return out
 
@@ -165,29 +187,51 @@ def summary(a: ReplayAnalysis, ev: pd.DataFrame | None = None) -> dict:
     heads = ev[ev["what"] == "combo break"]
     ends = int(((P["kind"] == "slider") & P["head_hit"] & (P["end_hit"] == False)).sum())  # noqa: E712
     out = {
-        "player": m.get("player") or "", "date": m.get("date"), "map": m.get("map_name"), "mods": m.get("mod_string") or "",
-        "rate": m.get("rate", 1.0), "stars": m.get("stars"), "bpm": m.get("bpm"), "length_s": m.get("length_s"),
-        "accuracy": m.get("accuracy"), "combo": m.get("max_combo"), "map_combo": m.get("map_max_combo"),
-        "counts": (m.get("n300"), m.get("n100"), m.get("n50"), m.get("nmiss")), "misses": len(misses),
-        "slider_breaks": len(breaks), "heads_missed": len(heads), "slider_ends_missed": ends, "ur": m.get("ur"),
-        "mean_error": m.get("mean_error"), "completed": bool(m.get("completed")), "client": m.get("client"),
-        "sim_exact": m.get("sim_match") is True, "sim_agreement": m.get("sim_agreement"),
+        "player": m.get("player") or "",
+        "date": m.get("date"),
+        "map": m.get("map_name"),
+        "mods": m.get("mod_string") or "",
+        "rate": m.get("rate", 1.0),
+        "stars": m.get("stars"),
+        "bpm": m.get("bpm"),
+        "length_s": m.get("length_s"),
+        "accuracy": m.get("accuracy"),
+        "combo": m.get("max_combo"),
+        "map_combo": m.get("map_max_combo"),
+        "counts": (m.get("n300"), m.get("n100"), m.get("n50"), m.get("nmiss")),
+        "misses": len(misses),
+        "slider_breaks": len(breaks),
+        "heads_missed": len(heads),
+        "slider_ends_missed": ends,
+        "ur": m.get("ur"),
+        "mean_error": m.get("mean_error"),
+        "completed": bool(m.get("completed")),
+        "client": m.get("client"),
+        "sim_exact": m.get("sim_match") is True,
+        "sim_agreement": m.get("sim_agreement"),
     }
     verdict = []
     if misses.empty and breaks.empty and heads.empty:
-        verdict.append("No misses and no combo breaks." + (f" {ends} slider end(s) missed (no combo break)."
-                                                            if ends else ""))
+        verdict.append(
+            "No misses and no combo breaks." + (f" {ends} slider end(s) missed (no combo break)." if ends else "")
+        )
     else:
         parts = []
         if len(misses):
             reasons = Counter(misses["reason"])
             only = len(reasons) == 1
-            parts.append(f"{len(misses)} miss{'es' if len(misses) != 1 else ''}"
-                         + (f" — {'both' if len(misses) == 2 else 'all'} {REASON_WORDS.get(next(iter(reasons)))}"
-                            if only and len(misses) > 1 else f": {_counted(reasons)}"))
+            parts.append(
+                f"{len(misses)} miss{'es' if len(misses) != 1 else ''}"
+                + (
+                    f" — {'both' if len(misses) == 2 else 'all'} {REASON_WORDS.get(next(iter(reasons)))}"
+                    if only and len(misses) > 1
+                    else f": {_counted(reasons)}"
+                )
+            )
         if len(breaks):
-            parts.append(f"{len(breaks)} slider break{'s' if len(breaks) != 1 else ''} "
-                         f"({_counted(Counter(breaks['reason']))})")
+            parts.append(
+                f"{len(breaks)} slider break{'s' if len(breaks) != 1 else ''} ({_counted(Counter(breaks['reason']))})"
+            )
         if len(heads):
             parts.append(f"{len(heads)} slider head{'s' if len(heads) != 1 else ''} missed")
         verdict.append("; ".join(parts) + ".")
@@ -200,15 +244,20 @@ def summary(a: ReplayAnalysis, ev: pd.DataFrame | None = None) -> dict:
             s = secs[0]
             where = PATTERN_WORDS.get(s["pattern"], s["pattern"] or "")
             bpm = f" at {s['bpm']:.0f} BPM" if s["bpm"] and s["pattern"] in ("stream", "burst") else ""
-            verdict.append(f"Most in one place: {timestamp(s['start'])}–{timestamp(s['end'])} ({s['count']} of "
-                           f"{len(ev)}{', ' + where + bpm if where else ''}).")
+            verdict.append(
+                f"Most in one place: {timestamp(s['start'])}–{timestamp(s['end'])} ({s['count']} of "
+                f"{len(ev)}{', ' + where + bpm if where else ''})."
+            )
     if not out["completed"]:
         last = P["time"].max() if len(P) else None
         verdict.append("Failed" + (f" at {timestamp(last)}" if last is not None and not _nan(last) else "") + ".")
     if not _nan(out["ur"]):
         me = out["mean_error"]
-        verdict.append(f"Timing: UR {out['ur']:.0f}" + (f", on average {abs(me):.1f} ms {'early' if me < 0 else 'late'}"
-                                                        if not _nan(me) else "") + ".")
+        verdict.append(
+            f"Timing: UR {out['ur']:.0f}"
+            + (f", on average {abs(me):.1f} ms {'early' if me < 0 else 'late'}" if not _nan(me) else "")
+            + "."
+        )
     out["verdict"] = verdict
     return out
 
@@ -224,11 +273,20 @@ def mods_label(mods, rate) -> str:
 def settings_key(m) -> tuple:
     """What changes how hard a play of the same map is: speed (DT/HT/custom rate), the effective CS / AR / OD /
     HP (HR, EZ, Difficulty Adjust, ...) and Hidden / Flashlight. Only plays with the same key are compared."""
+
     def r(v, nd=1):
         return None if _nan(v) else round(float(v), nd)
+
     mods = m.get("mods") if isinstance(m.get("mods"), str) else (m.get("mod_string") or "")
-    return (r(m.get("rate") or 1.0, 2), r(m.get("cs")), r(m.get("ar")), r(m.get("od")), r(m.get("hp")),
-            "HD" in mods, "FL" in mods)
+    return (
+        r(m.get("rate") or 1.0, 2),
+        r(m.get("cs")),
+        r(m.get("ar")),
+        r(m.get("od")),
+        r(m.get("hp")),
+        "HD" in mods,
+        "FL" in mods,
+    )
 
 
 def same_settings(k1: tuple, k2: tuple) -> bool:
@@ -248,8 +306,28 @@ def settings_label(m) -> str:
     return " · ".join(parts)
 
 
-PLAY_COLUMNS = ["key", "date", "mods", "rate", "cs", "ar", "od", "hp", "bpm", "stars", "accuracy", "nmiss",
-                "max_combo", "map_max_combo", "ur", "completed", "head_misses", "path", "this", "same_settings"]
+PLAY_COLUMNS = [
+    "key",
+    "date",
+    "mods",
+    "rate",
+    "cs",
+    "ar",
+    "od",
+    "hp",
+    "bpm",
+    "stars",
+    "accuracy",
+    "nmiss",
+    "max_combo",
+    "map_max_combo",
+    "ur",
+    "completed",
+    "head_misses",
+    "path",
+    "this",
+    "same_settings",
+]
 
 
 def map_plays(saved: pd.DataFrame | None, a: ReplayAnalysis, others=()) -> pd.DataFrame:
@@ -265,10 +343,31 @@ def map_plays(saved: pd.DataFrame | None, a: ReplayAnalysis, others=()) -> pd.Da
         om = o.meta
         if (om.get("beatmap_md5") != m.get("beatmap_md5")) or ((om.get("player") or "") != (m.get("player") or "")):
             continue
-        rows[o.key] = {**{k: om.get(k) for k in ("rate", "cs", "ar", "od", "hp", "bpm", "stars", "accuracy", "nmiss",
-                                                  "max_combo", "map_max_combo", "ur", "completed", "head_misses")},
-                       "key": o.key, "date": om.get("date"), "mods": om.get("mod_string") or "",
-                       "path": str(om.get("source_path") or "")}
+        rows[o.key] = {
+            **{
+                k: om.get(k)
+                for k in (
+                    "rate",
+                    "cs",
+                    "ar",
+                    "od",
+                    "hp",
+                    "bpm",
+                    "stars",
+                    "accuracy",
+                    "nmiss",
+                    "max_combo",
+                    "map_max_combo",
+                    "ur",
+                    "completed",
+                    "head_misses",
+                )
+            },
+            "key": o.key,
+            "date": om.get("date"),
+            "mods": om.get("mod_string") or "",
+            "path": str(om.get("source_path") or ""),
+        }
     if not rows:
         return pd.DataFrame(columns=PLAY_COLUMNS)
     out = pd.DataFrame(list(rows.values()))
@@ -290,16 +389,28 @@ def compare(saved: pd.DataFrame | None, a: ReplayAnalysis, others=()) -> dict:
     plays = map_plays(saved, a, others)
     rest = plays[~plays["this"]]
     same = rest[rest["same_settings"]]
-    out = {"plays": plays, "map_plays": int(len(same)), "map_plays_all": int(len(rest)),
-           "other_settings": int(len(rest) - len(same)), "settings": settings_label(m)}
+    out = {
+        "plays": plays,
+        "map_plays": int(len(same)),
+        "map_plays_all": int(len(rest)),
+        "other_settings": int(len(rest) - len(same)),
+        "settings": settings_label(m),
+    }
     if len(same):
-        sm = same.assign(_m=pd.to_numeric(same["head_misses"], errors="coerce").fillna(
-            pd.to_numeric(same["nmiss"], errors="coerce")), _a=pd.to_numeric(same["accuracy"], errors="coerce"))
+        sm = same.assign(
+            _m=pd.to_numeric(same["head_misses"], errors="coerce").fillna(
+                pd.to_numeric(same["nmiss"], errors="coerce")
+            ),
+            _a=pd.to_numeric(same["accuracy"], errors="coerce"),
+        )
         best = sm.sort_values(["_m", "_a"], ascending=[True, False]).iloc[0]
         hm, acc = m.get("head_misses") or 0, m.get("accuracy") or 0
-        out.update(map_best_misses=int(best["_m"]), map_best_accuracy=float(best["_a"]),
-                   map_best=bool(hm < best["_m"] or (hm == best["_m"] and acc > best["_a"])),
-                   map_best_date=best["date"])
+        out.update(
+            map_best_misses=int(best["_m"]),
+            map_best_accuracy=float(best["_a"]),
+            map_best=bool(hm < best["_m"] or (hm == best["_m"] and acc > best["_a"])),
+            map_best_date=best["date"],
+        )
         urs = pd.to_numeric(same["ur"], errors="coerce").dropna()
         if len(urs):
             out["ur_median"] = float(urs.median())
@@ -309,12 +420,13 @@ def compare(saved: pd.DataFrame | None, a: ReplayAnalysis, others=()) -> dict:
 
 
 # ------------------------------------------------------------------ practice sections
-LEAD_BEATS = 4      # a section starts one measure (4 beats) before the first miss ...
-TAIL_BEATS = 2      # ... and ends half a measure after the last one
+LEAD_BEATS = 4  # a section starts one measure (4 beats) before the first miss ...
+TAIL_BEATS = 2  # ... and ends half a measure after the last one
 
 
-def practice_sections(a: ReplayAnalysis, ev: pd.DataFrame | None = None, gap_ms: float = 3000,
-                      min_events: int = 2) -> list[dict]:
+def practice_sections(
+    a: ReplayAnalysis, ev: pd.DataFrame | None = None, gap_ms: float = 3000, min_events: int = 2
+) -> list[dict]:
     """Parts of the map to cut out and practise on their own (e.g. a custom difficulty with just that part):
     each cluster of misses / breaks (:func:`sections`) widened by a measure before and half a measure after,
     snapped to the notes of the map. ``start`` / ``end`` = map time (ms) of its first / last note, ``seconds``
@@ -338,6 +450,15 @@ def practice_sections(a: ReplayAnalysis, ev: pd.DataFrame | None = None, gap_ms:
         hi = int(np.searchsorted(times, s["end"] + TAIL_BEATS * b1, side="right")) - 1
         lo, hi = max(0, min(lo, i0)), min(len(times) - 1, max(hi, i1))
         start, end = float(times[lo]), float(ends[hi])
-        out.append({**s, "start": start, "end": end, "first_event": s["start"], "last_event": s["end"],
-                    "notes": hi - lo + 1, "seconds": (end - start) / 1000.0 / rate})
+        out.append(
+            {
+                **s,
+                "start": start,
+                "end": end,
+                "first_event": s["start"],
+                "last_event": s["end"],
+                "notes": hi - lo + 1,
+                "seconds": (end - start) / 1000.0 / rate,
+            }
+        )
     return out

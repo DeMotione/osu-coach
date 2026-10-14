@@ -1,4 +1,5 @@
 """``build_profile``: aggregate replay analyses into a :class:`Profile`."""
+
 from __future__ import annotations
 
 import math
@@ -73,18 +74,28 @@ def build_profile(analyses: list[ReplayAnalysis], level: float | None = None, we
     rw = pd.Series(weights, index=metas.index, dtype=float)
 
     overview = {
-        "replays": len(analyses), "maps": int(metas["beatmap_md5"].nunique()) if len(metas) else 0,
+        "replays": len(analyses),
+        "maps": int(metas["beatmap_md5"].nunique()) if len(metas) else 0,
         "weighted_replays": float(rw.sum()),
-        "objects": len(P), "head_misses": int(len(misses)), "miss_rate": _rate(~P["head_hit"], W),
+        "objects": len(P),
+        "head_misses": int(len(misses)),
+        "miss_rate": _rate(~P["head_hit"], W),
         "misses_per_100": 100 * _rate(~P["head_hit"], W),
         "accuracy": _wmean(metas["accuracy"], rw) if len(metas) else math.nan,
-        "avg_stars": float(np.average(metas["stars"].fillna(0), weights=metas["n_objects"])) if "stars" in metas and len(metas) else math.nan,
-        "max_stars_passed": float(metas.loc[clean_pass(metas), "stars"].max()) if "stars" in metas and clean_pass(metas).any() else math.nan,
+        "avg_stars": float(np.average(metas["stars"].fillna(0), weights=metas["n_objects"]))
+        if "stars" in metas and len(metas)
+        else math.nan,
+        "max_stars_passed": float(metas.loc[clean_pass(metas), "stars"].max())
+        if "stars" in metas and clean_pass(metas).any()
+        else math.nan,
         "ur": _ur(P.loc[P["head_hit"], "err_real"], W[P["head_hit"]]),
         "sim_exact_share": float(metas["sim_match"].dropna().astype(float).mean()) if len(metas) else math.nan,
-        "sim_agreement": float(pd.to_numeric(metas["sim_agreement"], errors="coerce").mean()) if len(metas) else math.nan,
+        "sim_agreement": float(pd.to_numeric(metas["sim_agreement"], errors="coerce").mean())
+        if len(metas)
+        else math.nan,
         "play_minutes": float(metas["length_s"].sum() / 60) if "length_s" in metas else math.nan,
-        "first_date": metas["date"].min() if len(metas) else None, "last_date": metas["date"].max() if len(metas) else None,
+        "first_date": metas["date"].min() if len(metas) else None,
+        "last_date": metas["date"].max() if len(metas) else None,
     }
     causes = misses["miss_cause"].fillna("lost")
     miss_breakdown_raw = {k: int(v) for k, v in causes.value_counts().items()}
@@ -96,8 +107,10 @@ def build_profile(analyses: list[ReplayAnalysis], level: float | None = None, we
     tapping = tapping_metrics(O, Pr, rates)
     sprof = stream_speed_profile(O)
     tapping.update(stream_limits(sprof, tapping.get("ur_single", math.nan)))
-    fall = stream_fall_behind(O, reach_bpm=(tapping["comfort_bpm"] + STAMINA_REACH) if tapping.get("comfort_bpm")
-                              else tapping.get("limit_bpm"))
+    fall = stream_fall_behind(
+        O,
+        reach_bpm=(tapping["comfort_bpm"] + STAMINA_REACH) if tapping.get("comfort_bpm") else tapping.get("limit_bpm"),
+    )
 
     q = quadrant_stats(O)
     wq = worst_quadrant(q)
@@ -112,10 +125,12 @@ def build_profile(analyses: list[ReplayAnalysis], level: float | None = None, we
         "aim_miss_share": _rate(misses["miss_cause"] == "aim", mw) if len(misses) else math.nan,
         "speed_aim_miss_share": _rate(misses["miss_cause"] == "speed_aim", mw) if len(misses) else math.nan,
         "near_miss_share": _rate(misses["miss_dist"] <= 1.4, mw) if len(misses) else math.nan,
-        "jump_objects": int(round(jw.sum())), "jump_miss_rate": _rate(~jumps["head_hit"], jw),
+        "jump_objects": int(round(jw.sum())),
+        "jump_miss_rate": _rate(~jumps["head_hit"], jw),
         "jump_along": _wmean(jumps["along"], jw) if len(jumps) else math.nan,
         "jump_along_pct": _wquantile(jumps["along"] * jumps["radius"] / jumps["dist"], jw, 0.5) * 100
-        if len(jumps) else math.nan,
+        if len(jumps)
+        else math.nan,
         "aim_err_median": _wquantile(P.loc[hit, "aim_err"], W[hit], 0.5) if len(P) else math.nan,
         "after_slider_miss_rate": _rate(~P.loc[fs, "head_hit"], W[fs]),
         "spaced_stream_objects": int(round(W[ss].sum())),
@@ -137,13 +152,41 @@ def build_profile(analyses: list[ReplayAnalysis], level: float | None = None, we
     aim.update(aim_split(P, model))
     strengths, weaknesses = _rank_skills(skills)
     levels = _levels(metas, P, model)
-    levels.update(level_stars=used, level_detected=found["level"], level_override=override,
-                  level_recent_n=found["recent_n"], level_recent_since=found["recent_since"],
-                  level_band=LEVEL_BAND, level_sigma=LEVEL_SIGMA, weighted=bool(weighted))
-    return Profile(overview=overview, replays=metas, miss_breakdown=miss_breakdown, slider_breaks=slider_breaks,
-                   tapping=tapping, stream_profile=sprof, aim=aim, quadrants=q, worst_quadrant=wq,
-                   grid=grid_stats(O), directions=direction_stats(O), distances=distance_stats(O),
-                   angles=angle_stats(O), regression=reg, sliders=slider_metrics, reading=reading,
-                   consistency=consistency, skills=skills, strengths=strengths, weaknesses=weaknesses,
-                   levels=levels, objects=O, presses=Pr, model=model, miss_breakdown_raw=miss_breakdown_raw,
-                   fall_behind=fall)
+    levels.update(
+        level_stars=used,
+        level_detected=found["level"],
+        level_override=override,
+        level_recent_n=found["recent_n"],
+        level_recent_since=found["recent_since"],
+        level_band=LEVEL_BAND,
+        level_sigma=LEVEL_SIGMA,
+        weighted=bool(weighted),
+    )
+    return Profile(
+        overview=overview,
+        replays=metas,
+        miss_breakdown=miss_breakdown,
+        slider_breaks=slider_breaks,
+        tapping=tapping,
+        stream_profile=sprof,
+        aim=aim,
+        quadrants=q,
+        worst_quadrant=wq,
+        grid=grid_stats(O),
+        directions=direction_stats(O),
+        distances=distance_stats(O),
+        angles=angle_stats(O),
+        regression=reg,
+        sliders=slider_metrics,
+        reading=reading,
+        consistency=consistency,
+        skills=skills,
+        strengths=strengths,
+        weaknesses=weaknesses,
+        levels=levels,
+        objects=O,
+        presses=Pr,
+        model=model,
+        miss_breakdown_raw=miss_breakdown_raw,
+        fall_behind=fall,
+    )

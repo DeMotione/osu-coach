@@ -4,6 +4,7 @@ Everything is computed on the *playable* beatmap (mods applied: HR flip, stackin
 CS/AR changes) and converted to real time with the play rate, so a DT play and a
 NM play of the same pattern produce comparable numbers.
 """
+
 from __future__ import annotations
 
 import math
@@ -13,9 +14,9 @@ import pandas as pd
 
 from osu_coach.beatmaps.domain import PlayableBeatmap
 
-RUN_SNAP_MAX = 0.34      # 1/3 beat or faster counts as "tight" (streams/bursts)
-RUN_DT_MAX = 200.0       # ms (map time); keeps very slow maps out of streams
-JUMP_DIST = 2.0          # spacing in circle diameters
+RUN_SNAP_MAX = 0.34  # 1/3 beat or faster counts as "tight" (streams/bursts)
+RUN_DT_MAX = 200.0  # ms (map time); keeps very slow maps out of streams
+JUMP_DIST = 2.0  # spacing in circle diameters
 DIR8 = ["right", "down-right", "down", "down-left", "left", "up-left", "up", "up-right"]
 
 
@@ -26,15 +27,22 @@ def _quadrant(x: float, y: float) -> str:
 
 
 def _rhythm_label(snap: float) -> str:
-    for label, value in (("1/8", 0.125), ("1/6", 1 / 6), ("1/4", 0.25), ("1/3", 1 / 3), ("1/2", 0.5),
-                         ("1/1", 1.0), ("2/1", 2.0)):
+    for label, value in (
+        ("1/8", 0.125),
+        ("1/6", 1 / 6),
+        ("1/4", 0.25),
+        ("1/3", 1 / 3),
+        ("1/2", 0.5),
+        ("1/1", 1.0),
+        ("2/1", 2.0),
+    ):
         if abs(snap - value) <= value * 0.08:
             return label
     return "other" if snap < 2.2 else "break"
 
 
-SHAPE_STEP = 8.0         # osu!px between path samples for the slider shape
-SHAPE_SHARP = math.radians(40)   # a direction change this big between two samples = a corner (red anchor)
+SHAPE_STEP = 8.0  # osu!px between path samples for the slider shape
+SHAPE_SHARP = math.radians(40)  # a direction change this big between two samples = a corner (red anchor)
 
 
 def slider_shape(o) -> tuple[float, int, int]:
@@ -74,18 +82,28 @@ def object_features(pb: PlayableBeatmap) -> pd.DataFrame:
     span = max(last_t - first_t, 1.0)
     times = np.array([o.time for o in objs])
 
-    prev = None       # index of previous non-spinner object
+    prev = None  # index of previous non-spinner object
     prevprev = None
     for i, o in enumerate(objs):
         x, y = starts[i]
         ex, ey = ends[i]
         beat = bm.beat_length_at(o.time)
         row = {
-            "idx": i, "kind": o.kind, "time": o.time, "end_time": o.end_time, "x": x, "y": y,
-            "end_x": ex, "end_y": ey, "new_combo": o.new_combo, "beat_len": beat,
-            "bpm_real": 60000.0 / beat * rate, "quadrant": _quadrant(x, y),
+            "idx": i,
+            "kind": o.kind,
+            "time": o.time,
+            "end_time": o.end_time,
+            "x": x,
+            "y": y,
+            "end_x": ex,
+            "end_y": ey,
+            "new_combo": o.new_combo,
+            "beat_len": beat,
+            "bpm_real": 60000.0 / beat * rate,
+            "quadrant": _quadrant(x, y),
             "grid": int(min(2, max(0, x // (512 / 3)))) + 3 * int(min(2, max(0, y // (384 / 3)))),
-            "edge_dist": min(x, 512 - x, y, 384 - y), "time_frac": (o.time - first_t) / span,
+            "edge_dist": min(x, 512 - x, y, 384 - y),
+            "time_frac": (o.time - first_t) / span,
             "slider_len": o.pixel_length if o.is_slider else 0.0,
             "slider_dur_real": (o.end_time - o.time) / rate if o.is_slider else 0.0,
             "slider_spans": o.spans if o.is_slider else 0,
@@ -100,9 +118,21 @@ def object_features(pb: PlayableBeatmap) -> pd.DataFrame:
         lo = np.searchsorted(times, o.time, side="left")
         row["density"] = int(hi - lo)
         if o.is_spinner or prev is None:
-            row.update(prev_idx=None if prev is None else prev, dt=np.nan, dt_end=np.nan, dist=np.nan,
-                       dist_norm=np.nan, angle=np.nan, direction=np.nan, dir8=None, snap=np.nan,
-                       rhythm=None, from_slider=False, mx=np.nan, my=np.nan)
+            row.update(
+                prev_idx=None if prev is None else prev,
+                dt=np.nan,
+                dt_end=np.nan,
+                dist=np.nan,
+                dist_norm=np.nan,
+                angle=np.nan,
+                direction=np.nan,
+                dir8=None,
+                snap=np.nan,
+                rhythm=None,
+                from_slider=False,
+                mx=np.nan,
+                my=np.nan,
+            )
         else:
             p = objs[prev]
             px, py = ends[prev]
@@ -120,10 +150,21 @@ def object_features(pb: PlayableBeatmap) -> pd.DataFrame:
                     ang = math.degrees(math.acos(max(-1.0, min(1.0, c))))
             direction = (math.degrees(math.atan2(dy, dx)) + 360) % 360 if dist > 1e-6 else np.nan
             snap = dt / beat if beat > 0 else np.nan
-            row.update(prev_idx=prev, dt=dt, dt_end=dt_end, dist=dist, dist_norm=dist / diameter,
-                       angle=ang, direction=direction,
-                       dir8=None if np.isnan(direction) else DIR8[int(((direction + 22.5) % 360) // 45)],
-                       snap=snap, rhythm=_rhythm_label(snap), from_slider=p.is_slider, mx=dx, my=dy)
+            row.update(
+                prev_idx=prev,
+                dt=dt,
+                dt_end=dt_end,
+                dist=dist,
+                dist_norm=dist / diameter,
+                angle=ang,
+                direction=direction,
+                dir8=None if np.isnan(direction) else DIR8[int(((direction + 22.5) % 360) // 45)],
+                snap=snap,
+                rhythm=_rhythm_label(snap),
+                from_slider=p.is_slider,
+                mx=dx,
+                my=dy,
+            )
         row["dt_real"] = row["dt"] / rate if not np.isnan(row["dt"]) else np.nan
         row["dt_end_real"] = row["dt_end"] / rate if not np.isnan(row["dt_end"]) else np.nan
         row["velocity_real"] = (row["dist"] / max(row["dt_end_real"], 25.0)) if not np.isnan(row["dist"]) else np.nan
@@ -140,7 +181,7 @@ def object_features(pb: PlayableBeatmap) -> pd.DataFrame:
     return df
 
 
-SLIDER_CHANGE_WINDOW = 2000.0   # ms (real): a slider this soon after the previous one is compared with it
+SLIDER_CHANGE_WINDOW = 2000.0  # ms (real): a slider this soon after the previous one is compared with it
 
 
 def _slider_context(df: pd.DataFrame):
@@ -187,16 +228,16 @@ def _label_runs(df: pd.DataFrame):
             j += 1
         if j > i:
             rid += 1
-            run_id[i:j + 1] = rid
-            run_len[i:j + 1] = j - i + 1
-            run_pos[i:j + 1] = np.arange(j - i + 1)
+            run_id[i : j + 1] = rid
+            run_len[i : j + 1] = j - i + 1
+            run_pos[i : j + 1] = np.arange(j - i + 1)
         i = j + 1
     df["run_id"] = run_id
     df["run_len"] = run_len
     df["run_pos"] = run_pos
     # BPM of the stream expressed in 1/4 notes, real time
     dtr = df["dt_real"].to_numpy(dtype=float)
-    dtr = np.where((run_pos > 0) & (dtr > 0), dtr, np.nan)   # simultaneous notes (2B maps) have dt = 0
+    dtr = np.where((run_pos > 0) & (dtr > 0), dtr, np.nan)  # simultaneous notes (2B maps) have dt = 0
     with np.errstate(divide="ignore", invalid="ignore"):
         stream_bpm = np.where(run_id >= 0, 15000.0 / dtr, np.nan)
     # first note of a run gets the run's median speed

@@ -8,14 +8,14 @@ from osu_coach.replays.osr import parse_replay_file
 from tests.conftest import replay_and_map
 
 EXACT_CASES = [
-    "osrparse__resources__replay.osr",            # Cookiezi FREEDOM DiVE, NM
-    "osrparse__resources__replay2.osr",           # HDHR
-    "circlecore__legit__legit-12.osr",            # NF, 303 misses (struggling player)
-    "circlecore__auto__auto-3.osr",               # perfect play
+    "osrparse__resources__replay.osr",  # Cookiezi FREEDOM DiVE, NM
+    "osrparse__resources__replay2.osr",  # HDHR
+    "circlecore__legit__legit-12.osr",  # NF, 303 misses (struggling player)
+    "circlecore__auto__auto-3.osr",  # perfect play
 ]
 STABLE_CASES = EXACT_CASES + [
     "circlecore__low_frametime_old__replay-osu_24722_433541214.osr",  # 2015 replay, 49 misses
-    "circlecore__legit__legit_snaps-22.osr",      # HDDT
+    "circlecore__legit__legit_snaps-22.osr",  # HDDT
 ]
 
 

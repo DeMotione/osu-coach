@@ -9,6 +9,7 @@ from osu_coach.app.schemas import Request
 
 class MapRow(BaseModel):
     """One beatmap of the bundled pool, as listed in suggestions and playlists."""
+
     md5: str
     beatmap_id: int
     beatmapset_id: int

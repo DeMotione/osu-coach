@@ -1,4 +1,5 @@
 """Stamina: the tempo the player keeps over time, stream loads, and the stamina score."""
+
 from __future__ import annotations
 
 import math
@@ -9,28 +10,28 @@ import pandas as pd
 from osu_coach.profile.domain.ranking import _n_replays, ranked_mean
 from osu_coach.profile.domain.stats import _clip, _dur, _map_key
 
-STAMINA_RUN = 16          # notes: a "long" stream
-STAMINA_REACH = 10        # BPM above the clean stream speed that still counts as reachable (precision chart)
-STAMINA_MAP_RUN = 8       # streams / bursts this long count towards a map's tapping load
-STAMINA_KEPT = 0.9        # share of a stream's notes you must have pressed for: "your fingers kept going"
-STAMINA_KEPT_ZERO = 0.6   # ... below this share a stream adds nothing; in between it counts partly
-STAMINA_BPM_POWER = 3.0   # a note at 240 BPM loads (240/200)^3 = 1.73x a note at 200 BPM
-STAMINA_STEADY_MIN = 0.3      # a stream that falls apart still counts 30% (you kept pressing)
-STAMINA_OVERSTREAM = 0.95     # taps ≥ 5% faster than the notes = overstreaming: fine, never penalised
-STAMINA_SLOW_FREE = 0.03      # steadiness of a long stream (info): the 2nd half may be 3% slower for free ...
-STAMINA_SLOW_COST = 2.5       # ... then each 1% slower costs 2.5%
-STAMINA_JITTER_FREE = 0.05    # the 2nd half's rhythm may get this much less even (spread / median) for free
+STAMINA_RUN = 16  # notes: a "long" stream
+STAMINA_REACH = 10  # BPM above the clean stream speed that still counts as reachable (precision chart)
+STAMINA_MAP_RUN = 8  # streams / bursts this long count towards a map's tapping load
+STAMINA_KEPT = 0.9  # share of a stream's notes you must have pressed for: "your fingers kept going"
+STAMINA_KEPT_ZERO = 0.6  # ... below this share a stream adds nothing; in between it counts partly
+STAMINA_BPM_POWER = 3.0  # a note at 240 BPM loads (240/200)^3 = 1.73x a note at 200 BPM
+STAMINA_STEADY_MIN = 0.3  # a stream that falls apart still counts 30% (you kept pressing)
+STAMINA_OVERSTREAM = 0.95  # taps ≥ 5% faster than the notes = overstreaming: fine, never penalised
+STAMINA_SLOW_FREE = 0.03  # steadiness of a long stream (info): the 2nd half may be 3% slower for free ...
+STAMINA_SLOW_COST = 2.5  # ... then each 1% slower costs 2.5%
+STAMINA_JITTER_FREE = 0.05  # the 2nd half's rhythm may get this much less even (spread / median) for free
 STAMINA_JITTER_COST = 1.0
 # stamina = the tempo you keep up for a given time (tempo-duration curve):
-STAMINA_WINDOWS = (10, 30, 60, 120, 300)      # seconds
+STAMINA_WINDOWS = (10, 30, 60, 120, 300)  # seconds
 # 50 = this share of the stream speed typical for your level (stamina_ref_bpm), kept up for that long
 # (set for the pp-style weighted average of all your maps, not your best few: a 6★ player's history and the 38
 # reference plays of ~10★ players give about 0.52 / 0.45 / 0.40 / 0.37 and 0.71 / 0.61 / 0.52 / 0.42 at 10 s … 2 min)
 STAMINA_WINDOW_SHARE = {10: 0.55, 30: 0.47, 60: 0.41, 120: 0.38, 300: 0.33}
-STAMINA_MIN_MAPS = 2          # a duration counts once 2+ maps were played that long
-STAMINA_BOOST = 1.05          # temporary +5% (review) until more players' data sets the yardstick
-STAMINA_POINTS = 75.0         # points per doubling of the tempo (≈ 10 points for 10% faster)
-PRESSED_REASONS = ("early", "late", "aim", "notelock")   # misses where a key was pressed
+STAMINA_MIN_MAPS = 2  # a duration counts once 2+ maps were played that long
+STAMINA_BOOST = 1.05  # temporary +5% (review) until more players' data sets the yardstick
+STAMINA_POINTS = 75.0  # points per doubling of the tempo (≈ 10 points for 10% faster)
+PRESSED_REASONS = ("early", "late", "aim", "notelock")  # misses where a key was pressed
 
 
 def stamina_ref_bpm(level: float | None) -> float:
@@ -70,15 +71,25 @@ def stream_rhythm(t: np.ndarray, start: float, end: float, bpm: float) -> dict |
     def spread(x):
         m = float(np.median(x))
         return float(1.4826 * np.median(np.abs(x - m)) / max(m, 1e-6))
+
     r1, r2 = float(np.median(a)), float(np.median(b))
     slow = max(0.0, r2 / max(r1, 1e-6) - 1.0)
-    if r2 <= STAMINA_OVERSTREAM:      # still tapping faster than the notes at the end: overstreaming, fine
+    if r2 <= STAMINA_OVERSTREAM:  # still tapping faster than the notes at the end: overstreaming, fine
         slow = 0.0
     jitter = max(0.0, spread(b) - spread(a))
-    steady = 1.0 - STAMINA_SLOW_COST * max(0.0, slow - STAMINA_SLOW_FREE) \
+    steady = (
+        1.0
+        - STAMINA_SLOW_COST * max(0.0, slow - STAMINA_SLOW_FREE)
         - STAMINA_JITTER_COST * max(0.0, jitter - STAMINA_JITTER_FREE)
-    return {"r1": r1, "r2": r2, "slow": slow, "jitter": jitter, "presses": int(len(tt)),
-            "steady": float(min(1.0, max(STAMINA_STEADY_MIN, steady)))}
+    )
+    return {
+        "r1": r1,
+        "r2": r2,
+        "slow": slow,
+        "jitter": jitter,
+        "presses": int(len(tt)),
+        "steady": float(min(1.0, max(STAMINA_STEADY_MIN, steady))),
+    }
 
 
 def stream_loads(P: pd.DataFrame, min_run: int = STAMINA_MAP_RUN, presses: pd.DataFrame | None = None) -> pd.DataFrame:
@@ -92,8 +103,22 @@ def stream_loads(P: pd.DataFrame, min_run: int = STAMINA_MAP_RUN, presses: pd.Da
     * ``quality`` = kept part × steady: kept ≥ 90% counts fully, ≤ 60% not at all, linear in between;
     * ``load`` = notes × (BPM / 200)^3 × quality: equivalent notes at 200 BPM, so faster streams weigh much
       more; ``raw_load`` without the quality factor."""
-    cols = ["replay_key", "run_id", "notes", "bpm", "start", "end", "kept", "steady", "slow", "overstream",
-            "quality", "raw_load", "load", "completed"]
+    cols = [
+        "replay_key",
+        "run_id",
+        "notes",
+        "bpm",
+        "start",
+        "end",
+        "kept",
+        "steady",
+        "slow",
+        "overstream",
+        "quality",
+        "raw_load",
+        "load",
+        "completed",
+    ]
     if P is None or P.empty or "run_id" not in P:
         return pd.DataFrame(columns=cols)
     R = P[(P["run_id"] >= 0) & (P["run_len"] >= min_run)].dropna(subset=["stream_bpm"])
@@ -105,14 +130,29 @@ def stream_loads(P: pd.DataFrame, min_run: int = STAMINA_MAP_RUN, presses: pd.Da
     done = R["completed"] if "completed" in R else pd.Series(True, index=R.index)
     rate = R["rate"].astype(float).fillna(1.0) if "rate" in R else pd.Series(1.0, index=R.index)
     t = R["time"].astype(float) / rate if "time" in R else pd.Series(np.nan, index=R.index)
-    D = pd.DataFrame({"replay_key": key, "run_id": R["run_id"], "pressed": pressed, "notes": R["run_len"],
-                      "bpm": R["stream_bpm"].astype(float), "completed": done.astype(bool), "t": t,
-                      "rate": rate})
+    D = pd.DataFrame(
+        {
+            "replay_key": key,
+            "run_id": R["run_id"],
+            "pressed": pressed,
+            "notes": R["run_len"],
+            "bpm": R["stream_bpm"].astype(float),
+            "completed": done.astype(bool),
+            "t": t,
+            "rate": rate,
+        }
+    )
     g = D.groupby(["replay_key", "run_id"], sort=False).agg(
-        notes=("notes", "first"), bpm=("bpm", "first"), pressed=("pressed", "sum"), completed=("completed", "first"),
-        t0=("t", "min"), t1=("t", "max"), rate=("rate", "first"))
+        notes=("notes", "first"),
+        bpm=("bpm", "first"),
+        pressed=("pressed", "sum"),
+        completed=("completed", "first"),
+        t0=("t", "min"),
+        t1=("t", "max"),
+        rate=("rate", "first"),
+    )
     g = g.reset_index()
-    g["kept"] = g["pressed"] / g["notes"].clip(lower=1)   # notes never reached (failed) count as not pressed
+    g["kept"] = g["pressed"] / g["notes"].clip(lower=1)  # notes never reached (failed) count as not pressed
     g["start"], g["end"] = g["t0"] / 1000.0, g["t1"] / 1000.0
     times = _press_times(presses, dict(zip(g["replay_key"], g["rate"])))
     steady, slow, over = [], [], []
@@ -170,13 +210,19 @@ def tempo_curve(P: pd.DataFrame, windows=STAMINA_WINDOWS) -> pd.DataFrame:
             share = np.where(n > 0, kept / np.maximum(n, 1), 0.0)
             q = np.clip((share - STAMINA_KEPT_ZERO) / (STAMINA_KEPT - STAMINA_KEPT_ZERO), 0, 1)
             bpm = np.where(t + W <= t[-1] + 0.02 * W, kept / W * 15.0 * q, 0.0)
-            rows.append({"replay_key": k, "map": maps[m][0], "window": W, "bpm": float(bpm.max()),
-                         "minutes": span / 60.0})
+            rows.append(
+                {"replay_key": k, "map": maps[m][0], "window": W, "bpm": float(bpm.max()), "minutes": span / 60.0}
+            )
     return pd.DataFrame(rows, columns=cols)
 
 
-def stamina_score(P: pd.DataFrame, tapping: dict | None = None, level: float | None = None,
-                  presses: pd.DataFrame | None = None, n_total: int | None = None) -> dict:
+def stamina_score(
+    P: pd.DataFrame,
+    tapping: dict | None = None,
+    level: float | None = None,
+    presses: pd.DataFrame | None = None,
+    n_total: int | None = None,
+) -> dict:
     """Stamina: for how long you keep a high tempo without your fingers giving in — not how accurate you stay.
 
     osu!standard has no stamina skill of its own: the star rating's speed strain decays to 30% per second
@@ -196,10 +242,23 @@ def stamina_score(P: pd.DataFrame, tapping: dict | None = None, level: float | N
     The steadiness numbers (did your taps slow down or get uneven in the second half of long streams) are shown
     for information. Difficulty weights are not used: the score asks what you *can* sustain."""
     ref_bpm = stamina_ref_bpm(level)
-    out = {"score": None, "n": 0, "ref_bpm": ref_bpm, "curve": {}, "parts": {}, "maps": {}, "best": {},
-           "ref_curve": {W: ref_bpm * STAMINA_WINDOW_SHARE[W] for W in STAMINA_WINDOWS},
-           "streams_long": 0, "streams_kept": 0, "streams_slowed": 0, "streams_overstreamed": 0,
-           "steadiness": math.nan, "best_stream": None, "longest_minutes": math.nan}
+    out = {
+        "score": None,
+        "n": 0,
+        "ref_bpm": ref_bpm,
+        "curve": {},
+        "parts": {},
+        "maps": {},
+        "best": {},
+        "ref_curve": {W: ref_bpm * STAMINA_WINDOW_SHARE[W] for W in STAMINA_WINDOWS},
+        "streams_long": 0,
+        "streams_kept": 0,
+        "streams_slowed": 0,
+        "streams_overstreamed": 0,
+        "steadiness": math.nan,
+        "best_stream": None,
+        "longest_minutes": math.nan,
+    }
     C = tempo_curve(P)
     if len(C):
         out["longest_minutes"] = float(C["minutes"].max())
@@ -223,11 +282,15 @@ def stamina_score(P: pd.DataFrame, tapping: dict | None = None, level: float | N
     long_all = L[L["notes"] >= STAMINA_RUN] if len(L) else L
     if len(long_all):
         measured = long_all[long_all["slow"].notna()]
-        out.update(streams_long=int(len(long_all)), streams_kept=int((long_all["kept"] >= STAMINA_KEPT).sum()),
-                   streams_slowed=int((measured["steady"] < 0.95).sum()),
-                   streams_overstreamed=int(measured["overstream"].sum()),
-                   steadiness=float(np.average(measured["steady"], weights=measured["raw_load"]))
-                   if len(measured) else math.nan)
+        out.update(
+            streams_long=int(len(long_all)),
+            streams_kept=int((long_all["kept"] >= STAMINA_KEPT).sum()),
+            streams_slowed=int((measured["steady"] < 0.95).sum()),
+            streams_overstreamed=int(measured["overstream"].sum()),
+            steadiness=float(np.average(measured["steady"], weights=measured["raw_load"]))
+            if len(measured)
+            else math.nan,
+        )
         kept = long_all[long_all["kept"] >= STAMINA_KEPT]
         if len(kept):
             b = kept.sort_values(["raw_load"], ascending=False).iloc[0]

@@ -24,6 +24,7 @@ Between frames the cursor is interpolated linearly (as lazer's replay playback d
 everything that falls due between two frames (ticks, the tail window, late misses, spinner
 ends) is judged at its own time.
 """
+
 from __future__ import annotations
 
 import math
@@ -121,16 +122,39 @@ class _Nested:
 
 
 class _Obj:
-    __slots__ = ("obj", "res", "kind", "time", "end", "x", "y", "judged", "hit_action", "prev_block", "nested",
-                 "last_tick", "tail", "tracking", "accept_any_after", "last_pressed", "all_judged", "slider_judged",
-                 "spin_total", "spin_at_completion", "spin_cur_max", "spin_completed", "last_angle", "lifetime_start")
+    __slots__ = (
+        "obj",
+        "res",
+        "kind",
+        "time",
+        "end",
+        "x",
+        "y",
+        "judged",
+        "hit_action",
+        "prev_block",
+        "nested",
+        "last_tick",
+        "tail",
+        "tracking",
+        "accept_any_after",
+        "last_pressed",
+        "all_judged",
+        "slider_judged",
+        "spin_total",
+        "spin_at_completion",
+        "spin_cur_max",
+        "spin_completed",
+        "last_angle",
+        "lifetime_start",
+    )
 
     def __init__(self, obj: HitObject, res: ObjResult, x: float, y: float, preempt: float):
         self.obj, self.res, self.kind = obj, res, obj.kind
         self.time = obj.time
         self.x, self.y = x, y
         self.lifetime_start = obj.time - preempt
-        self.judged = False              # circle / slider head / spinner judged
+        self.judged = False  # circle / slider head / spinner judged
         self.hit_action: int | None = None
         self.prev_block: _Obj | None = None
         self.nested: list[_Nested] = []
@@ -179,10 +203,18 @@ def lazer_nested_events(o: HitObject) -> list[tuple[str, float]]:
 
 
 # ---------------------------------------------------------------- simulation
-def simulate_lazer(pb: PlayableBeatmap, replay: Replay, *, classic_slider: bool = False,
-                   classic_notelock: bool = False, floored_windows: bool = True,
-                   spun_out: bool = False, fail_after: int | None = None, trace: list | None = None,
-                   tracking_step: float | None = TRACKING_STEP) -> SimResult:
+def simulate_lazer(
+    pb: PlayableBeatmap,
+    replay: Replay,
+    *,
+    classic_slider: bool = False,
+    classic_notelock: bool = False,
+    floored_windows: bool = True,
+    spun_out: bool = False,
+    fail_after: int | None = None,
+    trace: list | None = None,
+    tracking_step: float | None = TRACKING_STEP,
+) -> SimResult:
     """``fail_after``: stop judging after this many circle/head/slider/spinner judgements
     (a failed play).  ``trace``: if given, collects (object index, part, part time, judged at,
     hit, judged on a real frame) for every slider part, for debugging.  ``tracking_step``:
@@ -199,7 +231,7 @@ def simulate_lazer(pb: PlayableBeatmap, replay: Replay, *, classic_slider: bool 
 
     results: list[ObjResult] = []
     states: list[_Obj] = []
-    hittable: list[_Obj] = []          # circles and sliders (heads), in start-time order
+    hittable: list[_Obj] = []  # circles and sliders (heads), in start-time order
     for o in objs:
         x, y = pb.pos(o)
         r = ObjResult(o.index, o.kind, o.time, o.end_time, x, y)
@@ -224,13 +256,25 @@ def simulate_lazer(pb: PlayableBeatmap, replay: Replay, *, classic_slider: bool 
             hittable.append(s)
         results.append(r)
         states.append(s)
-    first_open = [0]                   # hittable[:first_open] are all judged
+    first_open = [0]  # hittable[:first_open] are all judged
 
     combo = 0
     max_combo = 0
-    stats = {"great": 0, "ok": 0, "meh": 0, "miss": 0, "large_tick_hit": 0, "large_tick_miss": 0,
-             "slider_tail_hit": 0, "small_tick_hit": 0, "small_tick_miss": 0, "small_bonus": 0, "large_bonus": 0,
-             "ignore_hit": 0, "ignore_miss": 0}
+    stats = {
+        "great": 0,
+        "ok": 0,
+        "meh": 0,
+        "miss": 0,
+        "large_tick_hit": 0,
+        "large_tick_miss": 0,
+        "slider_tail_hit": 0,
+        "small_tick_hit": 0,
+        "small_tick_miss": 0,
+        "small_bonus": 0,
+        "large_bonus": 0,
+        "ignore_hit": 0,
+        "ignore_miss": 0,
+    }
     name = {GREAT: "great", OK: "ok", MEH: "meh", MISS: "miss"}
     ctx = {"judged": 0, "stopped": False, "on_frame": True}
 
@@ -321,8 +365,9 @@ def simulate_lazer(pb: PlayableBeatmap, replay: Replay, *, classic_slider: bool 
                 judge_head(g, MISS, forced=True)
 
     # -------------------------------------------------------- judgements
-    def judge_head(s: _Obj, result: int, t: float | None = None, pos=None, press: Press | None = None,
-                   forced: bool = False):
+    def judge_head(
+        s: _Obj, result: int, t: float | None = None, pos=None, press: Press | None = None, forced: bool = False
+    ):
         if ctx["stopped"]:
             return
         r = s.res
@@ -516,7 +561,7 @@ def simulate_lazer(pb: PlayableBeatmap, replay: Replay, *, classic_slider: bool 
         small, large = min(spins, required + 2), min(max(spins - required - 2, 0), bonus_max)
         stats["small_bonus"] += small
         stats["large_bonus"] += large
-        stats["ignore_miss"] += (required + 2 - small) + (bonus_max - large)   # ticks not spun
+        stats["ignore_miss"] += (required + 2 - small) + (bonus_max - large)  # ticks not spun
         s.judged = s.all_judged = True
         r.result = res
         r.head_hit = res != MISS
@@ -569,10 +614,10 @@ def simulate_lazer(pb: PlayableBeatmap, replay: Replay, *, classic_slider: bool 
                 s.res.clicks.append(ClickSeen(t, math.sqrt(dist2) / radius, act, hovered, pos[0], pos[1]))
             if not hovered:
                 if act == CLICK and abs(t - o.time) <= w_meh and p is not None and p.outcome == "none":
-                    p.outcome = "off_target"   # tapped for this note but outside the circle: an aim miss
+                    p.outcome = "off_target"  # tapped for this note but outside the circle: an aim miss
                 continue
             if p is not None and p.outcome == "off_target":
-                p.outcome = "none"             # it did reach a (later) note after all
+                p.outcome = "none"  # it did reach a (later) note after all
             if not s.judged:
                 if act == CLICK and result is not None:
                     judge_head(s, result, t, pos, p)
@@ -662,8 +707,12 @@ def simulate_lazer(pb: PlayableBeatmap, replay: Replay, *, classic_slider: bool 
         if replay.is_lazer:
             phys = {"L": LEFT in actions, "R": RIGHT in actions}
         else:
-            phys = {"K1": bool(k & KEY_K1), "K2": bool(k & KEY_K2),
-                    "M1": bool(k & KEY_M1) and not (k & KEY_K1), "M2": bool(k & KEY_M2) and not (k & KEY_K2)}
+            phys = {
+                "K1": bool(k & KEY_K1),
+                "K2": bool(k & KEY_K2),
+                "M1": bool(k & KEY_M1) and not (k & KEY_K1),
+                "M2": bool(k & KEY_M2) and not (k & KEY_K2),
+            }
         new_left = new_right = None
         for key, down in phys.items():
             if down and key not in open_press:
@@ -702,5 +751,6 @@ def simulate_lazer(pb: PlayableBeatmap, replay: Replay, *, classic_slider: bool 
             classify_miss_reason(s, pb, replay)
 
     counts = {GREAT: stats["great"], OK: stats["ok"], MEH: stats["meh"], MISS: stats["miss"]}
-    return SimResult(results, presses, counts, max_combo, radius, (pb.hit300, pb.hit100, pb.hit50), "lazer",
-                     lazer_stats=dict(stats))
+    return SimResult(
+        results, presses, counts, max_combo, radius, (pb.hit300, pb.hit100, pb.hit50), "lazer", lazer_stats=dict(stats)
+    )

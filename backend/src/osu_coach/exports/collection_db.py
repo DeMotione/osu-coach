@@ -7,6 +7,7 @@ MD5 hashes. osu! Strings are 0x00 (null) or 0x0B + ULEB128 byte length + UTF-8.
 The same file is what osu!lazer's "import from previous version" and tools like
 Collection Manager read, so one exported file works for both clients.
 """
+
 from __future__ import annotations
 
 import datetime as _dt
@@ -17,7 +18,7 @@ from pathlib import Path
 
 from osu_coach.exports.domain import merge_collections
 
-DEFAULT_VERSION = 20150203   # same version osu-collect / osu-db write
+DEFAULT_VERSION = 20150203  # same version osu-collect / osu-db write
 
 
 def _uleb(n: int) -> bytes:
@@ -50,7 +51,7 @@ class _Reader:
     def take(self, n: int) -> bytes:
         if self.i + n > len(self.d):
             raise ValueError("collection.db is truncated")
-        b = self.d[self.i:self.i + n]
+        b = self.d[self.i : self.i + n]
         self.i += n
         return b
 
@@ -144,5 +145,10 @@ def merge_into(path, new_collections, backup: bool = True) -> dict:
             shutil.copy2(path, backup_path)
     merged, replaced, added = merge_collections(existing, _normalise(new_collections))
     write_collection_db(path, merged, version)
-    return {"path": str(path), "backup": str(backup_path) if backup_path else None, "replaced": replaced,
-            "added": added, "collections": len(merged)}
+    return {
+        "path": str(path),
+        "backup": str(backup_path) if backup_path else None,
+        "replaced": replaced,
+        "added": added,
+        "collections": len(merged),
+    }

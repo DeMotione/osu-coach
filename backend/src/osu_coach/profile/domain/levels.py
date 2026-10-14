@@ -1,4 +1,5 @@
 """The player's level and the weight of each replay by how far its star rating is from it; comfort stars."""
+
 from __future__ import annotations
 
 import datetime as _dt
@@ -7,10 +8,10 @@ import math
 import numpy as np
 import pandas as pd
 
-LEVEL_BAND = 0.5         # ★: replays within ± this of the player's level count fully
-LEVEL_SIGMA = 0.5        # ★: Gaussian fall-off outside the band
-RECENT_DAYS = 30         # the level is measured on the replays of the last 30 days (before the newest one) ...
-RECENT_MIN = 15          # ... or on the newest 15 if there are fewer
+LEVEL_BAND = 0.5  # ★: replays within ± this of the player's level count fully
+LEVEL_SIGMA = 0.5  # ★: Gaussian fall-off outside the band
+RECENT_DAYS = 30  # the level is measured on the replays of the last 30 days (before the newest one) ...
+RECENT_MIN = 15  # ... or on the newest 15 if there are fewer
 MIN_WEIGHT = 1e-6
 
 

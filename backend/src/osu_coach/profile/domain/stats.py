@@ -1,4 +1,5 @@
 """Weighted statistics shared by all the profile modules (column ``w`` is the replay weight)."""
+
 from __future__ import annotations
 
 import math
@@ -102,8 +103,14 @@ def _subset_score(P: pd.DataFrame, mask: pd.Series, model, min_n: int = 60) -> d
     obs = float(((~d["head_hit"]) * W).sum())
     exp = float(np.nansum(model(d["local_eq"].to_numpy()) * W.to_numpy()))
     score = _score_from_ratio(exp, obs) if (n >= min_n and exp >= 3) else None
-    out = {"score": score, "n": int(round(n)), "observed": obs, "expected": exp,
-           "miss_rate": obs / n if n > 0 else math.nan, "ratio": obs / exp if exp > 0 else math.nan}
+    out = {
+        "score": score,
+        "n": int(round(n)),
+        "observed": obs,
+        "expected": exp,
+        "miss_rate": obs / n if n > 0 else math.nan,
+        "ratio": obs / exp if exp > 0 else math.nan,
+    }
     if score is None and n >= min_n and obs < FEW_MISSES and exp < FEW_MISSES:
         # enough notes, but you (almost) never miss: the score compares misses, so there's nothing to compare
         out["too_few_misses"] = True

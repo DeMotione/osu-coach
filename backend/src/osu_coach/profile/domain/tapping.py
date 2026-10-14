@@ -1,4 +1,5 @@
 """Tapping: UR, stream speed profile, falling behind in streams, extra presses; the tapping speed score."""
+
 from __future__ import annotations
 
 import math
@@ -10,10 +11,23 @@ from osu_coach.profile.domain.ranking import _n_replays, ranked_mean
 from osu_coach.profile.domain.stamina import stamina_ref_bpm
 from osu_coach.profile.domain.stats import _clip, _map_key, _rate, _ur, _w, _wmean, _wquantile, played_notes
 
-STREAM_PROFILE_COLUMNS = ["bpm_bin", "objects", "miss_rate", "tap_miss_rate", "speed_aim_rate", "non300_rate", "ur",
-                          "ur_best", "ur_plays", "ur_pooled", "mean_err", "ur_trend", "weak"]
-UR_MIN_HITS = 10        # hits of one play in a BPM bin needed for that play's UR there
-WEAK_UR_FACTOR = 1.15   # a BPM whose UR is this much above the trend (and 15+ UR) is a weak spot
+STREAM_PROFILE_COLUMNS = [
+    "bpm_bin",
+    "objects",
+    "miss_rate",
+    "tap_miss_rate",
+    "speed_aim_rate",
+    "non300_rate",
+    "ur",
+    "ur_best",
+    "ur_plays",
+    "ur_pooled",
+    "mean_err",
+    "ur_trend",
+    "weak",
+]
+UR_MIN_HITS = 10  # hits of one play in a BPM bin needed for that play's UR there
+WEAK_UR_FACTOR = 1.15  # a BPM whose UR is this much above the trend (and 15+ UR) is a weak spot
 WEAK_UR_MIN = 15.0
 
 
@@ -90,17 +104,30 @@ def stream_speed_profile(O: pd.DataFrame, min_objects: int = 20, min_run: int = 
             best = float(plays["ur"].min())
         else:
             ur, best = pooled, math.nan
-        rows.append({"bpm_bin": int(b), "objects": float(w.sum()), "miss_rate": _rate(miss, w),
-                     "tap_miss_rate": _rate(miss & ~aim, w), "speed_aim_rate": _rate(aim, w),
-                     "non300_rate": _rate(hits["head_result"] != 300, hw) if len(hits) else math.nan,
-                     "ur": ur, "ur_best": best, "ur_plays": len(plays), "ur_pooled": pooled,
-                     "mean_err": _wmean(hits["err_real"], hw) if len(hits) else math.nan})
+        rows.append(
+            {
+                "bpm_bin": int(b),
+                "objects": float(w.sum()),
+                "miss_rate": _rate(miss, w),
+                "tap_miss_rate": _rate(miss & ~aim, w),
+                "speed_aim_rate": _rate(aim, w),
+                "non300_rate": _rate(hits["head_result"] != 300, hw) if len(hits) else math.nan,
+                "ur": ur,
+                "ur_best": best,
+                "ur_plays": len(plays),
+                "ur_pooled": pooled,
+                "mean_err": _wmean(hits["err_real"], hw) if len(hits) else math.nan,
+            }
+        )
     if not rows:
         return pd.DataFrame(columns=STREAM_PROFILE_COLUMNS)
     prof = pd.DataFrame(rows).sort_values("bpm_bin").reset_index(drop=True)
     prof["ur_trend"] = ur_trend(prof)
-    prof["weak"] = ((prof["ur"] > prof["ur_trend"] * WEAK_UR_FACTOR)
-                    & (prof["ur"] - prof["ur_trend"] >= WEAK_UR_MIN)).fillna(False).astype(bool)
+    prof["weak"] = (
+        ((prof["ur"] > prof["ur_trend"] * WEAK_UR_FACTOR) & (prof["ur"] - prof["ur_trend"] >= WEAK_UR_MIN))
+        .fillna(False)
+        .astype(bool)
+    )
     return prof[STREAM_PROFILE_COLUMNS]
 
 
@@ -112,8 +139,7 @@ def stream_limits(prof: pd.DataFrame, base_ur: float) -> dict:
     if prof is None or prof.empty:
         return out
     col = "tap_miss_rate" if "tap_miss_rate" in prof else "miss_rate"
-    good = prof[(prof["objects"] >= 30) & (prof[col] <= 0.03)
-                & ((prof["ur"] <= 1.6 * base_ur) | np.isnan(base_ur))]
+    good = prof[(prof["objects"] >= 30) & (prof[col] <= 0.03) & ((prof["ur"] <= 1.6 * base_ur) | np.isnan(base_ur))]
     if not good.empty:
         out["comfort_bpm"] = int(good["bpm_bin"].max())
     above = prof[(prof["objects"] >= 30) & (prof[col] >= 0.08)]
@@ -131,24 +157,29 @@ def stream_drift(O: pd.DataFrame) -> dict:
     w = _w(S)
     if len(S) < 60 or w.sum() < 60:
         return {"slope_ms_per_note": math.nan, "late_half_err": math.nan, "early_half_err": math.nan, "n": len(S)}
-    slope = np.polyfit(S["run_pos"].to_numpy(dtype=float), S["err_real"].to_numpy(dtype=float), 1,
-                       w=np.sqrt(w.to_numpy(float)))[0]
+    slope = np.polyfit(
+        S["run_pos"].to_numpy(dtype=float), S["err_real"].to_numpy(dtype=float), 1, w=np.sqrt(w.to_numpy(float))
+    )[0]
     half = S["run_pos"] >= S["run_len"] / 2
-    return {"slope_ms_per_note": float(slope), "late_half_err": _wmean(S.loc[half, "err_real"], w[half]),
-            "early_half_err": _wmean(S.loc[~half, "err_real"], w[~half]), "n": int(round(w.sum()))}
+    return {
+        "slope_ms_per_note": float(slope),
+        "late_half_err": _wmean(S.loc[half, "err_real"], w[half]),
+        "early_half_err": _wmean(S.loc[~half, "err_real"], w[~half]),
+        "n": int(round(w.sum())),
+    }
 
 
-FALL_BEHIND_MAX_POS = 128         # notes into a stream looked at
-FALL_BEHIND_MIN_RUN = 16          # streams this long or longer
-FALL_BEHIND_MIN_SLOPE = 0.1       # ms per note after the onset that counts as "getting less precise"
-FALL_BEHIND_MIN_GROWTH = 3.0      # ms, and at least ...
-FALL_BEHIND_MIN_GROWTH_SHARE = 0.2   # ... 20% of the precision before the onset
+FALL_BEHIND_MAX_POS = 128  # notes into a stream looked at
+FALL_BEHIND_MIN_RUN = 16  # streams this long or longer
+FALL_BEHIND_MIN_SLOPE = 0.1  # ms per note after the onset that counts as "getting less precise"
+FALL_BEHIND_MIN_GROWTH = 3.0  # ms, and at least ...
+FALL_BEHIND_MIN_GROWTH_SHARE = 0.2  # ... 20% of the precision before the onset
 STREAM_LENGTH_GROUPS = [(16, 31, "16–31 notes"), (32, 63, "32–63 notes"), (64, 10**6, "64+ notes")]
-STREAM_BIN = 4                    # notes per point on the chart
+STREAM_BIN = 4  # notes per point on the chart
 
 
-FALL_BEHIND_MIN_START = 12   # stamina can't give in before note 12 of a 16+ note stream
-SPEED_BAND = 30          # BPM per band in "stamina in long streams" by speed
+FALL_BEHIND_MIN_START = 12  # stamina can't give in before note 12 of a 16+ note stream
+SPEED_BAND = 30  # BPM per band in "stamina in long streams" by speed
 
 
 def _fall_behind_by_speed(L: pd.DataFrame, Lw: pd.Series, min_notes: int) -> pd.DataFrame:
@@ -171,15 +202,22 @@ def _fall_behind_by_speed(L: pd.DataFrame, Lw: pd.Series, min_notes: int) -> pd.
             h = d["head_hit"].astype(bool) & d["err_real"].notna()
             if h.sum() < min_notes:
                 continue
-            rows.append({"group": f"{int(b)}–{int(b) + SPEED_BAND - 1} BPM", "pos": int(pb) + 1,
-                         "rel_err": _wmean(d.loc[h, "err_real"].abs() / dg[h] * 100, dw[h]),
-                         "abs_err": _wmean(d.loc[h, "err_real"].abs(), dw[h]),
-                         "miss_rate": _rate(~d["head_hit"], dw), "n": int(h.sum())})
+            rows.append(
+                {
+                    "group": f"{int(b)}–{int(b) + SPEED_BAND - 1} BPM",
+                    "pos": int(pb) + 1,
+                    "rel_err": _wmean(d.loc[h, "err_real"].abs() / dg[h] * 100, dw[h]),
+                    "abs_err": _wmean(d.loc[h, "err_real"].abs(), dw[h]),
+                    "miss_rate": _rate(~d["head_hit"], dw),
+                    "n": int(h.sum()),
+                }
+            )
     return pd.DataFrame(rows, columns=cols)
 
 
-def stream_fall_behind(O: pd.DataFrame, min_run: int = FALL_BEHIND_MIN_RUN, min_notes: int = 10,
-                       reach_bpm: float | None = None) -> dict:
+def stream_fall_behind(
+    O: pd.DataFrame, min_run: int = FALL_BEHIND_MIN_RUN, min_notes: int = 10, reach_bpm: float | None = None
+) -> dict:
     """Where your precision in long streams starts to fall apart (stamina inside a stream).
 
     Precision = the average ABSOLUTE timing error (ms) of the hits on the 1st, 2nd, 3rd … note of streams of
@@ -196,18 +234,28 @@ def stream_fall_behind(O: pd.DataFrame, min_run: int = FALL_BEHIND_MIN_RUN, min_
       ``practice_notes``: (lo, hi) stream lengths to practise — just past the comfortable length;
     * only streams the player can reach count (``reach_bpm``: clean stream speed + 10, as for stamina):
       far faster streams are imprecise from the first note and say nothing about endurance."""
-    out = {"curves": pd.DataFrame(columns=["group", "pos", "abs_err", "err", "miss_rate", "n"]),
-           "curve": pd.DataFrame(columns=["pos", "abs_err", "err", "n"]), "start_note": None,
-           "start_seconds": None, "bpm": None, "slope_after": math.nan, "growth_ms": math.nan,
-           "base_ms": math.nan, "streams": 0, "longest": 0, "comfort_notes": None, "practice_notes": None,
-           "reach_bpm": reach_bpm,
-           "curves_bpm": pd.DataFrame(columns=["group", "pos", "rel_err", "abs_err", "miss_rate", "n"])}
+    out = {
+        "curves": pd.DataFrame(columns=["group", "pos", "abs_err", "err", "miss_rate", "n"]),
+        "curve": pd.DataFrame(columns=["pos", "abs_err", "err", "n"]),
+        "start_note": None,
+        "start_seconds": None,
+        "bpm": None,
+        "slope_after": math.nan,
+        "growth_ms": math.nan,
+        "base_ms": math.nan,
+        "streams": 0,
+        "longest": 0,
+        "comfort_notes": None,
+        "practice_notes": None,
+        "reach_bpm": reach_bpm,
+        "curves_bpm": pd.DataFrame(columns=["group", "pos", "rel_err", "abs_err", "miss_rate", "n"]),
+    }
     if O is None or O.empty or "run_len" not in O:
         return out
     P = played_notes(O)
     L = P[(P["run_len"] >= min_run) & (P["run_pos"] < FALL_BEHIND_MAX_POS)]
     if reach_bpm and "stream_bpm" in L:
-        L = L[L["stream_bpm"] < reach_bpm + 10]          # 10 BPM bins, as in stamina_score
+        L = L[L["stream_bpm"] < reach_bpm + 10]  # 10 BPM bins, as in stamina_score
     S = L[L["head_hit"]].dropna(subset=["err_real"])
     if len(S) < 60:
         return out
@@ -233,16 +281,30 @@ def stream_fall_behind(O: pd.DataFrame, min_run: int = FALL_BEHIND_MIN_RUN, min_
             h = d["head_hit"].astype(bool) & d["err_real"].notna()
             if h.sum() < min_notes:
                 continue
-            rows.append({"group": label, "pos": int(b) + 1, "abs_err": _wmean(d.loc[h, "err_real"].abs(), dw[h]),
-                         "err": _wmean(d.loc[h, "err_real"], dw[h]), "miss_rate": _rate(~d["head_hit"], dw),
-                         "n": int(h.sum())})
+            rows.append(
+                {
+                    "group": label,
+                    "pos": int(b) + 1,
+                    "abs_err": _wmean(d.loc[h, "err_real"].abs(), dw[h]),
+                    "err": _wmean(d.loc[h, "err_real"], dw[h]),
+                    "miss_rate": _rate(~d["head_hit"], dw),
+                    "n": int(h.sum()),
+                }
+            )
     if rows:
         out["curves"] = pd.DataFrame(rows)
     out["curves_bpm"] = _fall_behind_by_speed(L, Lw, min_notes)
     if len(g) < 6:
         return out
-    curve = pd.DataFrame({"pos": g.index.to_numpy() + 1, "abs_err": (g["sa"] / g["sw"]).to_numpy(),
-                          "err": (g["se"] / g["sw"]).to_numpy(), "n": g["n"].to_numpy(), "w": g["sw"].to_numpy()})
+    curve = pd.DataFrame(
+        {
+            "pos": g.index.to_numpy() + 1,
+            "abs_err": (g["sa"] / g["sw"]).to_numpy(),
+            "err": (g["se"] / g["sw"]).to_numpy(),
+            "n": g["n"].to_numpy(),
+            "w": g["sw"].to_numpy(),
+        }
+    )
     out["curve"] = curve[["pos", "abs_err", "err", "n"]]
     bpm = _wquantile(S["stream_bpm"], w, 0.5) if "stream_bpm" in S else math.nan
     out["bpm"] = None if math.isnan(bpm) else float(bpm)
@@ -250,7 +312,7 @@ def stream_fall_behind(O: pd.DataFrame, min_run: int = FALL_BEHIND_MIN_RUN, min_
     sw = np.sqrt(cw)
     best = None
     for k in x[2:-3]:
-        if k < FALL_BEHIND_MIN_START:     # the first notes of a stream are not stamina
+        if k < FALL_BEHIND_MIN_START:  # the first notes of a stream are not stamina
             continue
         h = np.maximum(0.0, x - k)
         X = np.column_stack([np.ones_like(x), h])
@@ -264,12 +326,15 @@ def stream_fall_behind(O: pd.DataFrame, min_run: int = FALL_BEHIND_MIN_RUN, min_
         _, k, base, slope = best
         out["slope_after"], out["base_ms"] = slope, base
         out["growth_ms"] = slope * (x.max() - k) if slope > 0 else 0.0
-        if (slope >= FALL_BEHIND_MIN_SLOPE and out["growth_ms"] >= FALL_BEHIND_MIN_GROWTH
-                and out["growth_ms"] >= FALL_BEHIND_MIN_GROWTH_SHARE * max(base, 1.0)):
+        if (
+            slope >= FALL_BEHIND_MIN_SLOPE
+            and out["growth_ms"] >= FALL_BEHIND_MIN_GROWTH
+            and out["growth_ms"] >= FALL_BEHIND_MIN_GROWTH_SHARE * max(base, 1.0)
+        ):
             out["start_note"] = int(k)
             out["comfort_notes"] = int(k)
             if out["bpm"]:
-                out["start_seconds"] = (k - 1) * 15.0 / out["bpm"]   # 1/4 notes: 15000 / BPM ms apart
+                out["start_seconds"] = (k - 1) * 15.0 / out["bpm"]  # 1/4 notes: 15000 / BPM ms apart
     c = out["comfort_notes"]
     out["practice_notes"] = (int(c), int(max(c + 8, round(c * 1.5))))
     return out
@@ -284,7 +349,8 @@ def tapping_metrics(O: pd.DataFrame, Pr: pd.DataFrame, rates: dict) -> dict:
     errs = hits["err_real"].dropna()
     ew = hw.loc[errs.index]
     out = {
-        "ur": _ur(hits["err_real"], hw), "ur_single": _ur(single["err_real"], _w(single)),
+        "ur": _ur(hits["err_real"], hw),
+        "ur_single": _ur(single["err_real"], _w(single)),
         "ur_streams": _ur(runs["err_real"], _w(runs)),
         "mean_error": _wmean(errs, ew) if len(errs) else math.nan,
         "early_share": _rate(errs < 0, ew) if len(errs) else math.nan,
@@ -308,8 +374,9 @@ def tapping_metrics(O: pd.DataFrame, Pr: pd.DataFrame, rates: dict) -> dict:
     # lazer replays only record left/right ("L"/"R"), not whether a key or a mouse/pen button was used
     legacy_mask = Pr["key"].isin(["K1", "K2", "M1", "M2"])
     legacy = Pr[legacy_mask]
-    out["mouse_button_share"] = (_rate(legacy["key"].isin(["M1", "M2"]), pw[legacy_mask])
-                                 if len(legacy) >= 200 else math.nan)
+    out["mouse_button_share"] = (
+        _rate(legacy["key"].isin(["M1", "M2"]), pw[legacy_mask]) if len(legacy) >= 200 else math.nan
+    )
     out["key_device_known_share"] = float(pw[legacy_mask].sum() / wtotal) if wtotal > 0 else math.nan
     in_run_mask = Pr["target_run_len"] >= 3
     in_run = Pr[in_run_mask]
@@ -362,10 +429,10 @@ def _extra_presses(O: pd.DataFrame, Pr: pd.DataFrame) -> float:
 
 
 # ------------------------------------------------------------------ tapping speed
-SPEED_FINGER = ("no_tap", "early", "late", "notelock")   # finger misses (aim / lost-track misses don't count)
-SPEED_TIMING = 0.8        # a clean run: no finger miss and 80%+ of its hit notes as 300s (mashing gives 100s)
-SPEED_RUNS = 3            # a play's speed: the 3rd fastest clean burst / stream (one lucky burst doesn't decide)
-SPEED_POINTS = 75.0       # points per doubling of the BPM (10% faster ≈ +10), like stamina
+SPEED_FINGER = ("no_tap", "early", "late", "notelock")  # finger misses (aim / lost-track misses don't count)
+SPEED_TIMING = 0.8  # a clean run: no finger miss and 80%+ of its hit notes as 300s (mashing gives 100s)
+SPEED_RUNS = 3  # a play's speed: the 3rd fastest clean burst / stream (one lucky burst doesn't decide)
+SPEED_POINTS = 75.0  # points per doubling of the BPM (10% faster ≈ +10), like stamina
 
 
 def speed_values(P: pd.DataFrame) -> pd.DataFrame:
@@ -381,17 +448,33 @@ def speed_values(P: pd.DataFrame) -> pd.DataFrame:
     reason = R["miss_reason"] if "miss_reason" in R else pd.Series(None, index=R.index, dtype=object)
     finger = (~R["head_hit"].astype(bool)) & reason.isin(SPEED_FINGER)
     great = (R["head_result"] == 300) if "head_result" in R else R["head_hit"].astype(bool)
-    D = pd.DataFrame({"replay_key": R["replay_key"] if "replay_key" in R else "all", "map": _map_key(R),
-                      "run_id": R["run_id"], "bpm": R["stream_bpm"].astype(float), "finger": finger,
-                      "hit": R["head_hit"].astype(bool), "great": great & R["head_hit"].astype(bool)})
-    g = D.groupby(["replay_key", "map", "run_id"], sort=False).agg(bpm=("bpm", "first"), finger=("finger", "sum"),
-                                                                    hit=("hit", "sum"), great=("great", "sum"))
+    D = pd.DataFrame(
+        {
+            "replay_key": R["replay_key"] if "replay_key" in R else "all",
+            "map": _map_key(R),
+            "run_id": R["run_id"],
+            "bpm": R["stream_bpm"].astype(float),
+            "finger": finger,
+            "hit": R["head_hit"].astype(bool),
+            "great": great & R["head_hit"].astype(bool),
+        }
+    )
+    g = D.groupby(["replay_key", "map", "run_id"], sort=False).agg(
+        bpm=("bpm", "first"), finger=("finger", "sum"), hit=("hit", "sum"), great=("great", "sum")
+    )
     g["clean"] = (g["finger"] == 0) & (g["great"] >= SPEED_TIMING * g["hit"].clip(lower=1))
     rows = []
     for (k, m), d in g.groupby(level=[0, 1], sort=False):
         c = d.loc[d["clean"], "bpm"].sort_values(ascending=False)
-        rows.append({"replay_key": k, "map": m, "bpm": float(c.iloc[SPEED_RUNS - 1]) if len(c) >= SPEED_RUNS
-                     else math.nan, "runs": int(len(d)), "clean": int(len(c))})
+        rows.append(
+            {
+                "replay_key": k,
+                "map": m,
+                "bpm": float(c.iloc[SPEED_RUNS - 1]) if len(c) >= SPEED_RUNS else math.nan,
+                "runs": int(len(d)),
+                "clean": int(len(c)),
+            }
+        )
     return pd.DataFrame(rows, columns=cols)
 
 
@@ -400,8 +483,15 @@ def speed_score(P: pd.DataFrame, level: float | None = None, n_total: int | None
     best play of it), ranked fastest first and weighted like osu!'s pp (:func:`ranked_mean`). 50 = the stream
     speed typical for your level (``stamina_ref_bpm``), 10% faster ≈ +10."""
     ref = stamina_ref_bpm(level)
-    out = {"score": None, "n": 0, "bpm": math.nan, "best_bpm": math.nan, "ref_bpm": ref, "maps": 0,
-           "clean_share": math.nan}
+    out = {
+        "score": None,
+        "n": 0,
+        "bpm": math.nan,
+        "best_bpm": math.nan,
+        "ref_bpm": ref,
+        "maps": 0,
+        "clean_share": math.nan,
+    }
     V = speed_values(P)
     if V.empty:
         return out

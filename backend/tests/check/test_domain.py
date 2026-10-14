@@ -1,5 +1,6 @@
 """Single replay check: one play on its own — misses and combo breaks with osu! editor timestamps, where
 they cluster, timing, and how the play compares with your other plays."""
+
 import datetime as dt
 import shutil
 
@@ -18,12 +19,12 @@ UTC = dt.UTC
 
 
 @pytest.fixture(scope="module")
-def legit():   # an osu!stable play with every kind of miss and some slider breaks
+def legit():  # an osu!stable play with every kind of miss and some slider breaks
     return analyze_files(*replay_and_map("circlecore__legit__legit-12.osr")[:2])
 
 
 @pytest.fixture(scope="module")
-def nm():      # one of Nikita's lazer plays: 2 aim misses
+def nm():  # one of Nikita's lazer plays: 2 aim misses
     return analyze_files(*replay_and_map("mot1one__lazer_nm.osr")[:2])
 
 
@@ -47,7 +48,7 @@ def test_map_title_is_read_without_parsing_the_whole_map():
 
 def test_events_are_the_misses_and_combo_breaks_of_the_play(legit):
     ev = check.events(legit)
-    assert (ev["what"] == "miss").sum() == legit.meta["sim_counts"][3]      # the results screen's misses
+    assert (ev["what"] == "miss").sum() == legit.meta["sim_counts"][3]  # the results screen's misses
     assert (ev["what"] == "slider break").sum() == 6
     assert list(ev["time"]) == sorted(ev["time"])
     assert ev["timestamp"].str.fullmatch(r"\d\d:\d\d:\d\d\d").all()
@@ -62,11 +63,15 @@ def test_lazer_play_events(nm):
 
 
 def test_sections_group_misses_close_in_time():
-    ev = pd.DataFrame({"time": [1000, 2000, 2500, 9000, 20000, 20500],
-                       "what": ["miss"] * 5 + ["slider break"],
-                       "reason": ["aim", "aim", "no_tap", "aim", "aim", "follow"],
-                       "pattern": ["stream", "stream", "stream", "jump", "jump", "slider"],
-                       "stream_bpm": [220, 220, 220, None, None, None]})
+    ev = pd.DataFrame(
+        {
+            "time": [1000, 2000, 2500, 9000, 20000, 20500],
+            "what": ["miss"] * 5 + ["slider break"],
+            "reason": ["aim", "aim", "no_tap", "aim", "aim", "follow"],
+            "pattern": ["stream", "stream", "stream", "jump", "jump", "slider"],
+            "stream_bpm": [220, 220, 220, None, None, None],
+        }
+    )
     s = check.sections(ev, gap_ms=3000)
     assert [(x["start"], x["end"], x["count"]) for x in s] == [(1000, 2500, 3), (20000, 20500, 2), (9000, 9000, 1)]
     assert s[0]["reasons"] == {"aim": 2, "no_tap": 1} and s[0]["pattern"] == "stream" and s[0]["bpm"] == 220
@@ -96,15 +101,15 @@ def test_compare_only_judges_plays_with_the_same_settings(tmp_path):
     nm2 = _play("nm2", dt.datetime(2026, 9, 2), 2)
     dt15 = _play("dt", dt.datetime(2026, 9, 3), 0, rate=1.5, ar=10.33, od=9.44, mods="DT")
     progress.record(conn, [nm1, nm2, dt15], UTC)
-    custom = _play("x126", dt.datetime(2026, 9, 4), 1, rate=1.26, ar=9.9, od=9.0, mods="DT")   # file only, not saved
+    custom = _play("x126", dt.datetime(2026, 9, 4), 1, rate=1.26, ar=9.9, od=9.0, mods="DT")  # file only, not saved
     now = _play("now", dt.datetime(2026, 10, 1), 1)
     c = check.compare(progress.saved_plays(conn, now), now, [custom])
     assert (c["map_plays"], c["map_plays_all"], c["other_settings"]) == (2, 4, 2)
     assert (c["map_best_misses"], c["map_best"]) == (2, True)
     plays = c["plays"]
-    assert list(plays["key"]) == ["now", "x126", "dt", "nm2", "nm1"]                  # newest first
+    assert list(plays["key"]) == ["now", "x126", "dt", "nm2", "nm1"]  # newest first
     assert plays["this"].sum() == 1 and set(plays.loc[plays["same_settings"], "key"]) == {"now", "nm1", "nm2"}
-    assert plays.set_index("key").loc["nm1", "path"] == "C:/r/nm1.osr"               # can be opened again
+    assert plays.set_index("key").loc["nm1", "path"] == "C:/r/nm1.osr"  # can be opened again
     # the DT play is compared with the DT play only
     now_dt = _play("now_dt", dt.datetime(2026, 10, 2), 3, rate=1.5, ar=10.33, od=9.44, mods="DT")
     c = check.compare(progress.saved_plays(conn, now_dt), now_dt, [custom])
@@ -115,7 +120,7 @@ def test_compare_only_judges_plays_with_the_same_settings(tmp_path):
 def test_plays_saved_without_hp_still_match(tmp_path):
     conn = progress.connect(tmp_path)
     old = _play("old", dt.datetime(2026, 9, 1), 3)
-    old.meta["hp"] = None                                          # saved by a version that didn't keep HP
+    old.meta["hp"] = None  # saved by a version that didn't keep HP
     progress.record(conn, [old], UTC)
     now = _play("now", dt.datetime(2026, 10, 1), 1)
     c = check.compare(progress.saved_plays(conn, now), now)
@@ -135,9 +140,12 @@ def test_mods_label_spells_out_custom_speeds():
 
 def test_old_progress_databases_get_the_new_columns(tmp_path):
     import sqlite3
+
     db = sqlite3.connect(tmp_path / progress.DB_FILE)
-    db.execute("CREATE TABLE replays (key TEXT PRIMARY KEY, played_at TEXT, month TEXT NOT NULL, added_at TEXT, "
-               "player TEXT, beatmap_md5 TEXT)")
+    db.execute(
+        "CREATE TABLE replays (key TEXT PRIMARY KEY, played_at TEXT, month TEXT NOT NULL, added_at TEXT, "
+        "player TEXT, beatmap_md5 TEXT)"
+    )
     db.commit()
     db.close()
     conn = progress.connect(tmp_path)
@@ -156,11 +164,11 @@ def test_practice_sections_cover_the_misses_and_snap_to_notes(legit):
     rate = legit.meta.get("rate") or 1.0
     for x in secs:
         assert x["start"] <= x["first_event"] and x["end"] >= x["last_event"]
-        assert x["start"] in times and x["end"] in ends                               # whole notes
+        assert x["start"] in times and x["end"] in ends  # whole notes
         assert x["seconds"] == pytest.approx((x["end"] - x["start"]) / 1000 / rate)
         inside = legit.objects[(legit.objects["time"] >= x["start"]) & (legit.objects["time"] <= x["end"])]
         assert x["notes"] == len(inside)
-        assert x["first_event"] - x["start"] <= 4 * legit.objects["beat_len"].max() + 1   # about a measure before
+        assert x["first_event"] - x["start"] <= 4 * legit.objects["beat_len"].max() + 1  # about a measure before
 
 
 # ------------------------------------------------------------------ command line and app
@@ -176,17 +184,33 @@ def _plays(tmp_path):
 
 def test_cli_checks_the_newest_replay(tmp_path, capsys):
     folder = _plays(tmp_path)
-    assert main(["check", "--no-auto", "--offline", "--folder", str(folder), "-q",
-                 "--cache", str(tmp_path / "cache")]) == 0
+    assert (
+        main(["check", "--no-auto", "--offline", "--folder", str(folder), "-q", "--cache", str(tmp_path / "cache")])
+        == 0
+    )
     out = capsys.readouterr().out
-    assert "Detailed map analysis — Mot1one" in out and _title("mot1one__lazer_failed.osr") in out   # played last
+    assert "Detailed map analysis — Mot1one" in out and _title("mot1one__lazer_failed.osr") in out  # played last
     assert "Misses and combo breaks" in out and "failed" in out.lower()
 
 
 def test_cli_checks_a_given_replay(tmp_path, capsys):
     folder = _plays(tmp_path)
-    assert main(["check", str(folder / "mot1one__lazer_nm.osr"), "--no-auto", "--offline", "--folder", str(folder),
-                 "-q", "--cache", str(tmp_path / "cache")]) == 0
+    assert (
+        main(
+            [
+                "check",
+                str(folder / "mot1one__lazer_nm.osr"),
+                "--no-auto",
+                "--offline",
+                "--folder",
+                str(folder),
+                "-q",
+                "--cache",
+                str(tmp_path / "cache"),
+            ]
+        )
+        == 0
+    )
     out = capsys.readouterr().out
     assert _title("mot1one__lazer_nm.osr") in out and "2 misses" in out
     # the check is saved in the history like any analysis

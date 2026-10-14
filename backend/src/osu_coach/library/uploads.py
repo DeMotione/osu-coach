@@ -1,4 +1,5 @@
 """Files the user adds in the web app (replays and beatmaps), kept in the data folder's ``uploads`` folder."""
+
 from __future__ import annotations
 
 import re

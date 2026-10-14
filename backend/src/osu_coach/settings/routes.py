@@ -18,8 +18,9 @@ def get_settings(ws: WorkspaceDep) -> AppSettings:
 
 @router.patch("/settings", summary="Change remembered choices", responses=responses(422))
 def patch_settings(patch: SettingsPatch, ws: WorkspaceDep) -> AppSettings:
-    changes = {k: v for k, v in patch.model_dump(exclude_unset=True, mode="json").items()
-               if v is not None or k in NULLABLE}
+    changes = {
+        k: v for k, v in patch.model_dump(exclude_unset=True, mode="json").items() if v is not None or k in NULLABLE
+    }
     if changes:
         ws.update_settings(**changes)
     return app_settings(ws)

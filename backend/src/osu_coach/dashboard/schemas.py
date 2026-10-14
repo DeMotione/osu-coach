@@ -1,4 +1,5 @@
 """Responses of the analysis pages. Rates and shares are fractions (0–1) unless the name says ``pct`` or the field description says %; ``null`` = not enough data."""
+
 from __future__ import annotations
 
 from typing import Literal

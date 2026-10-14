@@ -1,4 +1,5 @@
 """Replay model and mod/key constants (parsing lives in osu_coach.replays.osr)."""
+
 from __future__ import annotations
 
 import datetime as _dt
@@ -8,11 +9,48 @@ import numpy as np
 
 # Legacy mod bits (osu! API v1 / replay header)
 MOD_BITS = {
-    "NF": 1, "EZ": 2, "TD": 4, "HD": 8, "HR": 16, "SD": 32, "DT": 64, "RX": 128,
-    "HT": 256, "NC": 512, "FL": 1024, "AT": 2048, "SO": 4096, "AP": 8192, "PF": 16384,
-    "FI": 1048576, "RD": 2097152, "CN": 4194304, "TP": 8388608, "V2": 536870912, "MR": 1073741824,
+    "NF": 1,
+    "EZ": 2,
+    "TD": 4,
+    "HD": 8,
+    "HR": 16,
+    "SD": 32,
+    "DT": 64,
+    "RX": 128,
+    "HT": 256,
+    "NC": 512,
+    "FL": 1024,
+    "AT": 2048,
+    "SO": 4096,
+    "AP": 8192,
+    "PF": 16384,
+    "FI": 1048576,
+    "RD": 2097152,
+    "CN": 4194304,
+    "TP": 8388608,
+    "V2": 536870912,
+    "MR": 1073741824,
 }
-_DISPLAY_ORDER = ["EZ", "NF", "HT", "TD", "HD", "HR", "SD", "PF", "DT", "NC", "FL", "RX", "AP", "SO", "AT", "CN", "V2", "MR"]
+_DISPLAY_ORDER = [
+    "EZ",
+    "NF",
+    "HT",
+    "TD",
+    "HD",
+    "HR",
+    "SD",
+    "PF",
+    "DT",
+    "NC",
+    "FL",
+    "RX",
+    "AP",
+    "SO",
+    "AT",
+    "CN",
+    "V2",
+    "MR",
+]
 
 KEY_M1, KEY_M2, KEY_K1, KEY_K2, KEY_SMOKE = 1, 2, 4, 8, 16
 
@@ -21,13 +59,23 @@ LAZER_VERSION = 30000000
 # lazer mods whose effect the simulation can't reproduce (speed or note positions change during the
 # map, extra input rules): such replays are skipped with this reason
 UNSUPPORTED_LAZER_MODS = {
-    "WU": "Wind Up changes the speed during the map", "WD": "Wind Down changes the speed during the map",
-    "AS": "Adaptive Speed changes the speed during the map", "RD": "Random moves the notes",
-    "WG": "Wiggle moves the notes", "TR": "Transform moves the notes", "MG": "Magnetised moves the cursor",
-    "RP": "Repel moves the cursor", "BR": "Barrel Roll rotates the playfield", "DP": "Depth moves the notes",
-    "GR": "Grow changes the note size", "DF": "Deflate changes the note size", "SI": "Spin In changes the notes",
-    "TP": "Target Practice replaces the map", "AL": "Alternate blocks some presses",
-    "SG": "Single Tap blocks some presses", "ST": "Strict Tracking changes slider rules",
+    "WU": "Wind Up changes the speed during the map",
+    "WD": "Wind Down changes the speed during the map",
+    "AS": "Adaptive Speed changes the speed during the map",
+    "RD": "Random moves the notes",
+    "WG": "Wiggle moves the notes",
+    "TR": "Transform moves the notes",
+    "MG": "Magnetised moves the cursor",
+    "RP": "Repel moves the cursor",
+    "BR": "Barrel Roll rotates the playfield",
+    "DP": "Depth moves the notes",
+    "GR": "Grow changes the note size",
+    "DF": "Deflate changes the note size",
+    "SI": "Spin In changes the notes",
+    "TP": "Target Practice replaces the map",
+    "AL": "Alternate blocks some presses",
+    "SG": "Single Tap blocks some presses",
+    "ST": "Strict Tracking changes slider rules",
 }
 
 
@@ -75,10 +123,10 @@ class Replay:
     life_bar: str
     timestamp: _dt.datetime
     online_id: int
-    t: np.ndarray = field(repr=False)      # absolute frame time, ms (map/audio time)
-    x: np.ndarray = field(repr=False)      # osu!pixels, 0..512
-    y: np.ndarray = field(repr=False)      # osu!pixels, 0..384
-    keys: np.ndarray = field(repr=False)   # bitmask M1=1 M2=2 K1=4 K2=8 smoke=16
+    t: np.ndarray = field(repr=False)  # absolute frame time, ms (map/audio time)
+    x: np.ndarray = field(repr=False)  # osu!pixels, 0..512
+    y: np.ndarray = field(repr=False)  # osu!pixels, 0..384
+    keys: np.ndarray = field(repr=False)  # bitmask M1=1 M2=2 K1=4 K2=8 smoke=16
     rng_seed: int | None = None
     lazer: dict | None = None
     source_path: str | None = None

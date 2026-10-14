@@ -1,4 +1,5 @@
 """Progress by month / week / day and skill goals."""
+
 import datetime as dt
 
 import pytest
@@ -65,7 +66,7 @@ def test_plan_add_and_remove_goals(analysed):
     saved = load_settings(workspace(analysed).cache_dir)["goals"]
     assert all({"id", "skill", "start", "target", "created", "deadline", "done"} <= set(x) for x in saved)
     assert len(g["history"]) == len(g["open"]) and g["history"][0]["target"][-1]["score"] == g["open"][0]["target"]
-    again = analysed.post("/api/goals/plan").json()          # no second goal for a skill that has one
+    again = analysed.post("/api/goals/plan").json()  # no second goal for a skill that has one
     assert len(again["open"]) == len(g["open"])
     removed = analysed.delete(f"/api/goals/{g['open'][0]['id']}").json()
     assert len(removed["open"]) == len(g["open"]) - 1
@@ -78,19 +79,40 @@ def test_add_a_goal(analysed):
     r = analysed.post("/api/goals", json={"skill": skill["key"], "target": 100, "deadline": deadline})
     assert r.status_code == 201
     goal = r.json()["open"][0]
-    assert goal["skill"] == skill["key"] and goal["target"] == 100 and goal["start"] == pytest.approx(skill["score"], abs=0.05)
+    assert (
+        goal["skill"] == skill["key"]
+        and goal["target"] == 100
+        and goal["start"] == pytest.approx(skill["score"], abs=0.05)
+    )
     past = (dt.date.today() - dt.timedelta(days=1)).isoformat()
     r = analysed.post("/api/goals", json={"skill": skill["key"], "target": 90, "deadline": past})
     assert r.status_code == 422 and r.json()["code"] == "deadline_past"
-    assert analysed.post("/api/goals", json={"skill": skill["key"], "target": 101, "deadline": deadline}).status_code == 422
+    assert (
+        analysed.post("/api/goals", json={"skill": skill["key"], "target": 101, "deadline": deadline}).status_code
+        == 422
+    )
 
 
 def test_a_reached_goal_is_marked_done(analysed):
     skill = analysed.get("/api/goals").json()["skills"][0]
     ws = workspace(analysed)
-    save_settings({**load_settings(ws.cache_dir), "goals": [
-        {"id": "g1", "skill": skill["key"], "start": 1.0, "target": 1.0, "created": "2026-01-01",
-         "deadline": "2027-01-01", "done": None}]}, ws.cache_dir)
+    save_settings(
+        {
+            **load_settings(ws.cache_dir),
+            "goals": [
+                {
+                    "id": "g1",
+                    "skill": skill["key"],
+                    "start": 1.0,
+                    "target": 1.0,
+                    "created": "2026-01-01",
+                    "deadline": "2027-01-01",
+                    "done": None,
+                }
+            ],
+        },
+        ws.cache_dir,
+    )
     g = analysed.get("/api/goals").json()
     assert g["open"] == [] and g["done"][0]["id"] == "g1" and g["done"][0]["state"] == "done"
     assert load_settings(ws.cache_dir)["goals"][0]["done"] == dt.date.today().isoformat()

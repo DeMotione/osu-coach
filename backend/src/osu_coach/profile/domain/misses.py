@@ -1,4 +1,5 @@
 """Why misses happen, and the player's own miss model (miss chance against local difficulty)."""
+
 from __future__ import annotations
 
 import math
@@ -90,8 +91,17 @@ def miss_chain_ratio(P: pd.DataFrame, window: int = 10) -> float:
         is_nl = ((d["miss_reason"] == "notelock") & ~d["head_hit"].astype(bool)).to_numpy()
         prim = (~d["head_hit"].astype(bool)).to_numpy() & ~is_nl
         recent = pd.Series(prim.astype(float)).rolling(window, min_periods=1).max().shift(1).fillna(0).to_numpy()
-        parts.append(pd.DataFrame({"local_eq": d["local_eq"].to_numpy(), "head_hit": ~prim,
-                                   "after": recent > 0, "skip": is_nl, "w": _w(d).to_numpy()}))
+        parts.append(
+            pd.DataFrame(
+                {
+                    "local_eq": d["local_eq"].to_numpy(),
+                    "head_hit": ~prim,
+                    "after": recent > 0,
+                    "skip": is_nl,
+                    "w": _w(d).to_numpy(),
+                }
+            )
+        )
     if not parts:
         return math.nan
     D = pd.concat(parts, ignore_index=True)

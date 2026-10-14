@@ -32,26 +32,39 @@ def preview(req: ExportRequest, ws: WorkspaceDep) -> ExportPreview:
     return svc.export_preview(ws, req)
 
 
-@router.post("/collection-db", summary="collection.db with these maps", response_class=Response,
-             responses={200: {"content": {"application/octet-stream": {}}}})
+@router.post(
+    "/collection-db",
+    summary="collection.db with these maps",
+    response_class=Response,
+    responses={200: {"content": {"application/octet-stream": {}}}},
+)
 def collection_db(req: ExportRequest) -> Response:
     return _attachment(svc.collection_db(req), "collection.db", "application/octet-stream")
 
 
-@router.post("/lazer-zip", summary="lazer import folder without maps (.zip)", response_class=Response,
-             responses={200: {"content": {"application/zip": {}}}})
+@router.post(
+    "/lazer-zip",
+    summary="lazer import folder without maps (.zip)",
+    response_class=Response,
+    responses={200: {"content": {"application/zip": {}}}},
+)
 def lazer_zip(req: ExportRequest) -> Response:
     """Just the collection, e.g. for lazer on another computer: unzip it and import the folder."""
     data, name = svc.lazer_zip(req)
     return _attachment(data, name, "application/zip")
 
 
-@router.post("/lazer-pack", summary="Make the lazer import folder (background job)", status_code=202,
-             responses=responses(409))
+@router.post(
+    "/lazer-pack", summary="Make the lazer import folder (background job)", status_code=202, responses=responses(409)
+)
 def lazer_pack(req: ExportRequest, ws: WorkspaceDep) -> LazerPackJob:
     """In Downloads/osu-coach lazer import/<name>: the collection plus the maps lazer doesn't have yet."""
-    return job_view(LazerPackJob, ws.jobs.start("lazer_pack", "Making the lazer import folder",
-                                  lambda report: svc.build_lazer_pack(ws, req, report)))
+    return job_view(
+        LazerPackJob,
+        ws.jobs.start(
+            "lazer_pack", "Making the lazer import folder", lambda report: svc.build_lazer_pack(ws, req, report)
+        ),
+    )
 
 
 @router.post("/stable-collection", summary="Add the collection to osu!stable", responses=responses(404, 409))
@@ -60,8 +73,16 @@ def stable_collection(req: ExportRequest, ws: WorkspaceDep) -> StableMergeResult
     return svc.merge_stable(ws, req)
 
 
-@router.post("/osz", summary="Download the maps (.osz) into a folder (background job)", status_code=202,
-             responses=responses(422))
+@router.post(
+    "/osz", summary="Download the maps (.osz) into a folder (background job)", status_code=202, responses=responses(422)
+)
 def osz(req: OszRequest, ws: WorkspaceDep) -> OszJob:
-    return job_view(OszJob, ws.jobs.start("osz_download", "Downloading maps",
-                                  lambda report: svc.download_osz(req.folder, req.set_ids, report), exclusive=False))
+    return job_view(
+        OszJob,
+        ws.jobs.start(
+            "osz_download",
+            "Downloading maps",
+            lambda report: svc.download_osz(req.folder, req.set_ids, report),
+            exclusive=False,
+        ),
+    )

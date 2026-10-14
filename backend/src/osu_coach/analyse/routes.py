@@ -15,7 +15,9 @@ router = APIRouter(tags=["Replays"])
 @router.post("/analysis", summary="Analyse replays (background job)", status_code=202, responses=responses(409, 422))
 def analyse(req: AnalysisRequest, ws: WorkspaceDep) -> AnalysisJob:
     require_library(ws)
-    return job_view(AnalysisJob, ws.jobs.start("analysis", "Analysing replays", lambda report: svc.run_analysis(ws, req, report)))
+    return job_view(
+        AnalysisJob, ws.jobs.start("analysis", "Analysing replays", lambda report: svc.run_analysis(ws, req, report))
+    )
 
 
 @router.get("/analysis", summary="The analysed replays")

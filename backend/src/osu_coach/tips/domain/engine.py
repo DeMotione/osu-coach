@@ -1,4 +1,5 @@
 """The tips engine: ``make_tips`` runs every rule on a profile and the player's setup; ``practice_plan``."""
+
 from __future__ import annotations
 
 import math
@@ -16,9 +17,22 @@ from osu_coach.tips.domain.tapping import _key_usage_tips, _stream_tips, _timing
 def make_tips(p: Profile, setup: Setup | None = None) -> list[Tip]:
     setup = setup or Setup()
     tips: list[Tip] = []
-    for rule in (_miss_cause_tip, _calibration_tip, _area_scale_tips, _area_rotation_offset_tips, _quadrant_tips, _direction_tips,
-                 _distance_angle_tips, _timing_tips, _stream_tips, _key_usage_tips, _keyboard_tips, _slider_tips,
-                 _reading_tips, _consistency_tips):
+    for rule in (
+        _miss_cause_tip,
+        _calibration_tip,
+        _area_scale_tips,
+        _area_rotation_offset_tips,
+        _quadrant_tips,
+        _direction_tips,
+        _distance_angle_tips,
+        _timing_tips,
+        _stream_tips,
+        _key_usage_tips,
+        _keyboard_tips,
+        _slider_tips,
+        _reading_tips,
+        _consistency_tips,
+    ):
         try:
             out = rule(p, setup)
         except Exception as exc:  # noqa: BLE001 - one bad rule must not hide the others

@@ -1,4 +1,5 @@
 """The :class:`Profile`: what the analysis pages read."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -31,6 +32,6 @@ class Profile:
     levels: dict
     objects: pd.DataFrame = field(repr=False)
     presses: pd.DataFrame = field(repr=False)
-    model: object = field(default=None, repr=False)   # miss chance by local difficulty (fit_miss_model)
-    miss_breakdown_raw: dict = field(default_factory=dict)   # the same, unweighted counts
-    fall_behind: dict = field(default_factory=dict)          # stream_fall_behind()
+    model: object = field(default=None, repr=False)  # miss chance by local difficulty (fit_miss_model)
+    miss_breakdown_raw: dict = field(default_factory=dict)  # the same, unweighted counts
+    fall_behind: dict = field(default_factory=dict)  # stream_fall_behind()

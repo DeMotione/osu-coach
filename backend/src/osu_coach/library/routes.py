@@ -30,12 +30,15 @@ def installs(ws: WorkspaceDep, refresh: bool = False) -> list[InstallOut]:
 
 
 @router.post("/uploads", summary="Add replay (.osr) / beatmap (.osu) files", status_code=201, responses=responses(422))
-def upload(files: Annotated[list[UploadFile], File(description=".osr replays and .osu beatmaps")],
-           ws: WorkspaceDep) -> list[UploadedFile]:
+def upload(
+    files: Annotated[list[UploadFile], File(description=".osr replays and .osu beatmaps")], ws: WorkspaceDep
+) -> list[UploadedFile]:
     return [uploads.save_upload(ws, f.filename or "upload", f.file.read(uploads.MAX_UPLOAD_BYTES + 1)) for f in files]
 
 
-@router.post("/library/scan", summary="Find replays (background job)", status_code=202, responses=responses(404, 409, 422))
+@router.post(
+    "/library/scan", summary="Find replays (background job)", status_code=202, responses=responses(404, 409, 422)
+)
 def scan(req: ScanRequest, ws: WorkspaceDep) -> ScanJob:
     args = svc.scan_args(ws, req)
     if not args.only:
@@ -43,11 +46,17 @@ def scan(req: ScanRequest, ws: WorkspaceDep) -> ScanJob:
     else:
         ws.update_settings(source_mode=req.mode)
     latest = 0 if args.only else int(req.latest)
-    return job_view(ScanJob, ws.jobs.start("scan", "Scanning for replays", lambda report: svc.run_scan(ws, args, latest, report)))
+    return job_view(
+        ScanJob, ws.jobs.start("scan", "Scanning for replays", lambda report: svc.run_scan(ws, args, latest, report))
+    )
 
 
-@router.post("/library/rescan", summary="Read the same sources further back (background job)", status_code=202,
-             responses=responses(409))
+@router.post(
+    "/library/rescan",
+    summary="Read the same sources further back (background job)",
+    status_code=202,
+    responses=responses(409),
+)
 def rescan(req: RescanRequest, ws: WorkspaceDep) -> ScanJob:
     """After choosing more replays than the last scan read (*Replays to read*), the same sources are scanned again."""
     lib = svc.require_library(ws)
@@ -58,8 +67,9 @@ def rescan(req: RescanRequest, ws: WorkspaceDep) -> ScanJob:
         raise ApiError(409, "nothing_to_rescan", "The last scan already read that many replays.")
     ws.update_settings(latest=latest)
     args = ws.scan_args
-    return job_view(ScanJob, ws.jobs.start("scan", "Scanning for replays",
-                                  lambda report: svc.run_scan(ws, args, latest, report)))
+    return job_view(
+        ScanJob, ws.jobs.start("scan", "Scanning for replays", lambda report: svc.run_scan(ws, args, latest, report))
+    )
 
 
 @router.get("/library", summary="What the last scan found")
@@ -68,13 +78,14 @@ def library(ws: WorkspaceDep) -> LibraryOut:
 
 
 @router.get("/library/selection", summary="Which replays an analysis would read", responses=responses(409, 422))
-def selection(ws: WorkspaceDep, player: str | None = None, latest: Annotated[Latest, Query()] = Latest.newest_500,
-              date_range: Annotated[DateRange, Query()] = "all", date_from: dt.date | None = None,
-              date_to: dt.date | None = None) -> SelectionOut:
+def selection(
+    ws: WorkspaceDep,
+    player: str | None = None,
+    latest: Annotated[Latest, Query()] = Latest.newest_500,
+    date_range: Annotated[DateRange, Query()] = "all",
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+) -> SelectionOut:
     with ws.gate.hold("Checking the replays"):
         sel = svc.select(ws, player, int(latest), date_range, date_from, date_to)
         return svc.selection_out(ws, sel)
-
-
-
-

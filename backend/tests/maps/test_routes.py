@@ -5,7 +5,10 @@ import pytest
 from osu_coach.maps.domain import SKILLS
 from osu_coach.maps.repository import POOL_PATH
 
-pytestmark = [pytest.mark.usefixtures("_isolated"), pytest.mark.skipif(not POOL_PATH.exists(), reason="bundled pool not built")]
+pytestmark = [
+    pytest.mark.usefixtures("_isolated"),
+    pytest.mark.skipif(not POOL_PATH.exists(), reason="bundled pool not built"),
+]
 
 
 def test_suggestions_need_an_analysis(client):
@@ -34,8 +37,8 @@ def test_playlist_without_replays_uses_the_level_given(client):
     assert [st["stage"] for st in pl["stages"]] == ["Warm-up", "Core", "Push"]
     assert sum(len(st["maps"]) for st in pl["stages"]) == 9
     assert pl["collection_name"] == "osu-coach: Tapping speed (bursts/streams) (4.0★)"
-    assert [s["key"] for s in pl["skills"]] == SKILLS                  # no weak quadrant without replays
-    assert client.get("/api/playlists").json()["skill"] == "aim"       # the default
+    assert [s["key"] for s in pl["skills"]] == SKILLS  # no weak quadrant without replays
+    assert client.get("/api/playlists").json()["skill"] == "aim"  # the default
     assert client.get("/api/playlists", params={"skill": "quadrant"}).json()["code"] == "no_weak_quadrant"
     assert client.get("/api/playlists", params={"skill": "juggling"}).json()["code"] == "unknown_skill"
     assert client.get("/api/playlists", params={"maps": 50}).status_code == 422

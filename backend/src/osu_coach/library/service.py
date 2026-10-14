@@ -1,4 +1,5 @@
 """Finding replays (scan), choosing which to analyse (selection) and analysing them."""
+
 from __future__ import annotations
 
 import datetime as dt
@@ -28,18 +29,24 @@ if TYPE_CHECKING:
 @dataclass
 class ScanArgs:
     """What the last scan read, so it can be repeated further back (more replays)."""
+
     installs: list[detect.Install] = field(default_factory=list)
     folders: list[str] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
-    only: bool = False                                            # only these files, not the library
-    map_installs: list[detect.Install] = field(default_factory=list)   # beatmaps only, for ``only``
+    only: bool = False  # only these files, not the library
+    map_installs: list[detect.Install] = field(default_factory=list)  # beatmaps only, for ``only``
 
 
 def install_out(inst: detect.Install) -> InstallOut:
-    return InstallOut(kind=inst.kind, root=str(inst.root), label=inst.label, songs=str(inst.songs) if inst.songs else None,
-                      replay_dirs=[str(d) for d in inst.replay_dirs],
-                      files_dir=str(inst.files_dir) if inst.files_dir else None,
-                      collection_db=str(inst.collection_db) if inst.collection_db else None)
+    return InstallOut(
+        kind=inst.kind,
+        root=str(inst.root),
+        label=inst.label,
+        songs=str(inst.songs) if inst.songs else None,
+        replay_dirs=[str(d) for d in inst.replay_dirs],
+        files_dir=str(inst.files_dir) if inst.files_dir else None,
+        collection_db=str(inst.collection_db) if inst.collection_db else None,
+    )
 
 
 # ------------------------------------------------------------------ scan
@@ -51,8 +58,13 @@ def scan_args(ws: Workspace, req: ScanRequest) -> ScanArgs:
     installs = ws.installs()
     chosen = installs if req.installs is None else [i for i in installs if str(i.root) in set(req.installs)]
     folders = [f.strip().strip('"') for f in req.folders if f.strip().strip('"')]
-    return ScanArgs(installs=[] if only else chosen, folders=[] if only else folders, files=files, only=only,
-                    map_installs=list(installs) if only else [])
+    return ScanArgs(
+        installs=[] if only else chosen,
+        folders=[] if only else folders,
+        files=files,
+        only=only,
+        map_installs=list(installs) if only else [],
+    )
 
 
 def run_scan(ws: Workspace, args: ScanArgs, latest: int, report: Reporter) -> ScanResult:
@@ -81,8 +93,9 @@ def run_scan(ws: Workspace, args: ScanArgs, latest: int, report: Reporter) -> Sc
         report.note("Looking for the beatmaps of these replays…")
         lib.missing_maps(lib.eligible(players[0][0], limit), progress=report.note)
     ws.library, ws.scan_args = lib, args
-    return ScanResult(replays=len(lib.standard_replays()), players=len(players), scan_limit=lib.scan_limit,
-                      warnings=warnings)
+    return ScanResult(
+        replays=len(lib.standard_replays()), players=len(players), scan_limit=lib.scan_limit, warnings=warnings
+    )
 
 
 def needs_more(lib: Library, latest: int) -> bool:
@@ -94,9 +107,14 @@ def library_out(ws: Workspace) -> LibraryOut:
     lib = ws.library
     if lib is None:
         return LibraryOut(scanned=False, mode=None, sources=[], scan_limit=None, replays=0, players=[])
-    return LibraryOut(scanned=True, mode="files" if ws.scan_args and ws.scan_args.only else "library",
-                      sources=list(lib.sources), scan_limit=lib.scan_limit, replays=len(lib.standard_replays()),
-                      players=[PlayerCount(name=n, replays=c) for n, c in lib.players()])
+    return LibraryOut(
+        scanned=True,
+        mode="files" if ws.scan_args and ws.scan_args.only else "library",
+        sources=list(lib.sources),
+        scan_limit=lib.scan_limit,
+        replays=len(lib.standard_replays()),
+        players=[PlayerCount(name=n, replays=c) for n, c in lib.players()],
+    )
 
 
 def require_library(ws: Workspace) -> Library:
@@ -120,15 +138,17 @@ class Selection:
     since: dt.datetime | None
 
 
-def select(ws: Workspace, player: str | None, latest: int, date_range: str, date_from: dt.date | None,
-           date_to: dt.date | None) -> Selection:
+def select(
+    ws: Workspace, player: str | None, latest: int, date_range: str, date_from: dt.date | None, date_to: dt.date | None
+) -> Selection:
     """The replays an analysis with these choices reads: the player's (``*`` = everyone's) newest first, in the
     time range, at most ``latest`` (only when scanning the library, not dropped files)."""
     lib = require_library(ws)
     players = lib.players()
     if not players:
-        raise ApiError(409, "no_replays", "No osu!standard replays found there (relax/autopilot/autoplay replays are "
-                                          "skipped).")
+        raise ApiError(
+            409, "no_replays", "No osu!standard replays found there (relax/autopilot/autoplay replays are skipped)."
+        )
     names = [n for n, _ in players]
     opts = names + (["*"] if len(names) > 1 else [])
     player = player if player in opts else names[0]
@@ -146,24 +166,38 @@ def select(ws: Workspace, player: str | None, latest: int, date_range: str, date
     refs = scope.filter_refs(every, since, until)[:limit]
     counts = dict(players)
     found = sum(counts.values()) if player == "*" else counts.get(player, 0)
-    return Selection(player=player, players=players, refs=refs, found=found, limit=limit, only=only, choice=choice,
-                     start=start, end=end, since=since)
+    return Selection(
+        player=player,
+        players=players,
+        refs=refs,
+        found=found,
+        limit=limit,
+        only=only,
+        choice=choice,
+        start=start,
+        end=end,
+        since=since,
+    )
 
 
 def selection_out(ws: Workspace, sel: Selection) -> SelectionOut:
     lib = require_library(ws)
-    missing = lib.missing_maps(sel.refs)          # looks in the parts of the installs a limited scan didn't read
+    missing = lib.missing_maps(sel.refs)  # looks in the parts of the installs a limited scan didn't read
     names = [n for n, _ in sel.players]
     left = lib.left_out(sel.player, since=sel.refs[-1]["timestamp"] if sel.limit and sel.refs else None)
     return SelectionOut(
-        player=sel.player, players=[PlayerCount(name=n, replays=c) for n, c in sel.players], files_mode=sel.only,
-        replays=len(sel.refs), found=sel.found, newest_only=bool(sel.limit and sel.found > len(sel.refs)),
-        missing_maps=len(missing), date_range=sel.choice, date_from=sel.start, date_to=sel.end,
+        player=sel.player,
+        players=[PlayerCount(name=n, replays=c) for n, c in sel.players],
+        files_mode=sel.only,
+        replays=len(sel.refs),
+        found=sel.found,
+        newest_only=bool(sel.limit and sel.found > len(sel.refs)),
+        missing_maps=len(missing),
+        date_range=sel.choice,
+        date_from=sel.start,
+        date_to=sel.end,
         empty_range=not sel.refs and sel.choice != "all",
         older_hint=bool(lib.scan_limit and sel.limit and sel.player not in ("*", names[0]) and sel.found < sel.limit),
         left_out=[Count(label=reason, count=n) for reason, n in left.most_common(3)],
-        left_out_total=sum(left.values()))
-
-
-
-
+        left_out_total=sum(left.values()),
+    )
