@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { Effect } from "@tauri-apps/api/window";
 
 /** Whether the page runs inside the desktop app (Tauri), which has no native title bar. */
 export const isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -16,9 +17,12 @@ export const minimizeWindow = () => void currentWindow().then((w) => w.minimize(
 export const toggleMaximizeWindow = () => void currentWindow().then((w) => w.toggleMaximize());
 export const closeWindow = () => void currentWindow().then((w) => w.close());
 
-/** Makes the window's native material (Mica) light or dark like the app; null follows the system. */
-export const setWindowTheme = (theme: "light" | "dark" | null) => {
-  if (isDesktop) void currentWindow().then((w) => w.setTheme(theme));
+/** Makes the window's Mica material light or dark like the app (it does not follow the page's own theme). */
+export const setWindowMica = (dark: boolean) => {
+  if (!isDesktop) return;
+  // "micaDark" / "micaLight" exist in Tauri's Rust enum but are missing from its JS typings
+  const effect = (dark ? "micaDark" : "micaLight") as Effect;
+  void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setEffects({ effects: [effect] }));
 };
 
 /** Whether the desktop window is maximized (always false in a browser). */

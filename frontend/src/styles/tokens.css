@@ -161,6 +161,7 @@
   --bg: transparent;
   --sidebar: transparent;
   --backdrop: none;
+  --blur: none; /* there is nothing in the page to blur: the material is behind the window */
   --glass: light-dark(rgb(255 255 255 / 0.58), hsl(var(--ink) 24% 15% / 0.64));
   --glass-2: light-dark(rgb(255 255 255 / 0.42), hsl(var(--ink) 24% 21% / 0.5));
 }
