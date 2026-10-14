@@ -52,7 +52,7 @@ jobs:
           "version=$v" >> $env:GITHUB_OUTPUT
 
   windows:
-    name: Windows (setup, portable, msi)
+    name: Windows (setup, msi, portable)
     needs: version
     runs-on: windows-latest
     env:
@@ -83,65 +83,41 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -c constraints.txt -e ./backend pyinstaller pillow
-          choco install innosetup --no-progress -y
+          pip install -c constraints.txt -e ./backend
 
-      - name: Build web app
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run build
+      # the same script as a local build: web app, frozen server, then the setup, the .msi and the bare portable .exe
+      # (the server is baked into the executable, so they need nothing else)
+      - name: Desktop app (Tauri)
+        env:
+          PY: python
+        run: desktop/src-tauri/build.bat
 
-      - name: Freeze the app
+      - name: The lone exe starts its own server
         run: |
-          python packaging/make_icon.py
-          python -m PyInstaller packaging/osu-coach.spec --noconfirm
-
-      - name: Inno Setup installer
-        run: |
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$env:VERSION" packaging/installer.iss
-
-      - name: MSI (Tauri)
-        run: |
-          New-Item -ItemType Directory desktop/src-tauri/resources -Force | Out-Null
-          Copy-Item dist/osu-coach desktop/src-tauri/resources/osu-coach -Recurse
-          cd desktop
-          npm ci
-          npx tauri build --bundles msi --config src-tauri/tauri.release.conf.json
-
-      # the desktop app as the .msi installs it, in a folder to unzip anywhere: on Windows it looks for its
-      # resources (the frozen server in osu-coach\) next to its own .exe
-      - name: Portable (Tauri)
-        run: |
-          $app = "build/portable-app/osu! coach"
-          New-Item -ItemType Directory $app -Force | Out-Null
-          Copy-Item desktop/src-tauri/target/release/osu-coach-desktop.exe "$app/osu! coach.exe"
-          Copy-Item dist/osu-coach "$app/osu-coach" -Recurse
-          Compress-Archive -Path $app -DestinationPath "dist/osu-coach-$env:VERSION-windows-portable.zip"
-
-      - name: The portable app starts its own server
-        run: |
-          $app = Start-Process -FilePath "build/portable-app/osu! coach/osu! coach.exe" -PassThru
+          $dir = Join-Path $env:RUNNER_TEMP "lone"
+          New-Item -ItemType Directory $dir -Force | Out-Null
+          Copy-Item desktop/src-tauri/target/release/osu-coach-desktop.exe "$dir/osu! coach.exe"
+          $app = Start-Process -FilePath "$dir/osu! coach.exe" -PassThru
           $ok = $false
-          for ($i = 0; $i -lt 120 -and -not $ok; $i++) {
+          for ($i = 0; $i -lt 180 -and -not $ok; $i++) {
             Start-Sleep -Seconds 1
             try { $ok = (Invoke-RestMethod -TimeoutSec 2 http://127.0.0.1:8511/api/health).status -eq "ok" } catch {}
           }
-          # the one from the folder, not osu-coach-api from this runner's PATH (the app's fallback)
-          $server = Get-Process osu-coach -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*\portable-app\*" }
+          # unpacked by the app, not osu-coach-api from this runner's PATH (the app's fallback)
+          $server = Get-Process osu-coach -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*\app.osucoach.desktop\runtime\*" }
           Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
           Get-Process osu-coach -ErrorAction SilentlyContinue | Stop-Process -Force
-          if (-not $ok) { throw "the portable app's server did not answer /api/health" }
-          if (-not $server) { throw "the server that answered is not the one in the portable folder" }
+          if (-not $ok) { throw "the exe's server did not answer /api/health" }
+          if (-not $server) { throw "the server that answered is not the one unpacked by the app" }
           "started $($server.Path)"
 
       - name: Collect release files
         run: |
           New-Item -ItemType Directory release | Out-Null
-          Copy-Item "dist/osu-coach-$env:VERSION-setup.exe" release/
-          Copy-Item "dist/osu-coach-$env:VERSION-windows-portable.zip" release/
-          $msi = Get-ChildItem desktop/src-tauri/target/release/bundle/msi/*.msi | Select-Object -First 1
-          Copy-Item $msi.FullName "release/osu-coach-$env:VERSION-x64.msi"
+          $t = "desktop/src-tauri/target/release"
+          Copy-Item (Get-ChildItem "$t/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName "release/osu-coach-$env:VERSION-setup.exe"
+          Copy-Item (Get-ChildItem "$t/bundle/msi/*.msi" | Select-Object -First 1).FullName "release/osu-coach-$env:VERSION-x64.msi"
+          Copy-Item "$t/osu-coach-desktop.exe" "release/osu-coach-$env:VERSION-windows-portable.exe"
           Get-ChildItem release
 
       - uses: actions/upload-artifact@v7
@@ -186,24 +162,12 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -c constraints.txt -e ./backend pyinstaller
-
-      - name: Build web app
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run build
-
-      - name: Freeze the app
-        run: python -m PyInstaller packaging/osu-coach.spec --noconfirm
+          pip install -c constraints.txt -e ./backend
 
       - name: deb (Tauri)
-        run: |
-          mkdir -p desktop/src-tauri/resources
-          cp -a dist/osu-coach desktop/src-tauri/resources/osu-coach
-          cd desktop
-          npm ci
-          npx tauri build --bundles deb --config src-tauri/tauri.release.conf.json
+        env:
+          PY: python
+        run: bash desktop/src-tauri/build.sh
 
       - name: Collect release files
         run: |
@@ -213,11 +177,16 @@ jobs:
 
       - name: The installed package starts its server
         run: |
-          sudo apt-get install -y ./release/*.deb
-          server=$(dpkg -L osu-coach | grep '/osu-coach/osu-coach$')
-          "$server" ui --no-browser --port 8599 &
-          for i in $(seq 60); do curl -fs http://127.0.0.1:8599/api/health && exit 0; sleep 1; done
-          echo "the bundled server did not answer" >&2
+          sudo apt-get install -y xvfb ./release/*.deb
+          xvfb-run -a osu-coach-desktop &
+          for i in $(seq 120); do
+            if curl -fs http://127.0.0.1:8511/api/health; then
+              # unpacked by the app, not osu-coach-api from this runner's PATH (the app's fallback)
+              pgrep -af 'app.osucoach.desktop/runtime/.*/osu-coach ' && pkill -f osu-coach-desktop && exit 0
+            fi
+            sleep 1
+          done
+          echo "the app's server did not answer" >&2
           exit 1
 
       - uses: actions/upload-artifact@v7

@@ -65,12 +65,10 @@ step "Web app"
 
 step "Server (PyInstaller)"
 .venv/bin/python -m PyInstaller packaging/osu-coach.spec --noconfirm
+.venv/bin/python packaging/make_server_zip.py
 
 step "Desktop app (Tauri)"
-rm -rf desktop/src-tauri/resources/osu-coach
-mkdir -p desktop/src-tauri/resources
-cp -a dist/osu-coach desktop/src-tauri/resources/osu-coach
-(cd desktop && npm ci --no-audit --no-fund --loglevel=error && npx tauri build --bundles deb --config src-tauri/tauri.release.conf.json)
+(cd desktop && npm ci --no-audit --no-fund --loglevel=error && npx tauri build --bundles deb --features embedded-server)
 deb="dist/osu-coach_${version}_amd64.deb"
 cp desktop/src-tauri/target/release/bundle/deb/*_"${version}"_amd64.deb "$deb"
 

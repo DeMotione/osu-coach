@@ -1,6 +1,6 @@
 # AGENTS.md
 
-osu-coach analyzes osu! replays and gives coaching advice. Monorepo: Python 3.11+ FastAPI backend, React 19 + TypeScript (strict) + Vite PWA frontend, Windows packaging (PyInstaller + Inno Setup). The API listens on localhost:8501 only.
+osu-coach analyzes osu! replays and gives coaching advice. Monorepo: Python 3.11+ FastAPI backend, React 19 + TypeScript (strict) + Vite PWA frontend, Windows packaging (PyInstaller server embedded in the Tauri desktop app). The API listens on localhost:8501 only.
 
 ## Layout
 
@@ -8,7 +8,7 @@ osu-coach analyzes osu! replays and gives coaching advice. Monorepo: Python 3.11
 - `backend/tests/` — `tests/<feature>/` mirrors the source (`test_domain.py`, `test_repository.py`, `test_routes.py`, plus topic files); fixtures in `tests/resources/` (indexed by `index.json`).
 - `backend/tools/` — maintenance scripts (pool building, test-data fetching, sim debugging/validation).
 - `frontend/src/` — `api/` (typed client, hooks, generated schema), `pages/`, `components/`, `charts/`, `lib/`, `styles/`, `app/`.
-- `packaging/` — PyInstaller spec, Inno Setup script, app entry point. `desktop/` — Tauri shell.
+- `packaging/` — PyInstaller spec, server zipper, app entry point. `desktop/` — Tauri shell.
 - `build/`, `dist/`, `desktop/src-tauri/target/`, `frontend/test-results/` are build output; don't edit.
 
 ## Commands
@@ -64,6 +64,6 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs Python 3.11 and 3
 
 ## Packaging (Windows)
 
-After `cd frontend && npm ci && npm run build`: `python packaging/make_icon.py`, `python -m PyInstaller packaging/osu-coach.spec --noconfirm`, then `ISCC.exe /DAppVersion=<version> packaging/installer.iss`.
+After `cd frontend && npm ci && npm run build`: `python packaging/make_icon.py`, `python -m PyInstaller packaging/osu-coach.spec --noconfirm`, `python packaging/make_server_zip.py`, then `cd desktop && npx tauri build --bundles nsis,msi --features embedded-server`.
 
 Linux (.deb of the Tauri desktop app): `bash packaging/build-deb.sh --no-install` sets up the build (apt packages, Rust, `.venv`) and writes `dist/osu-coach_<version>_amd64.deb`; without `--no-install` it also installs it. A tag `v<version>` builds every installer (Windows setup / msi / portable zip of the Tauri app, Linux deb) in `release.yml` and publishes them with `packaging/release-notes.md`; pull requests touching `packaging/`, `desktop/` or that workflow build them without publishing.
