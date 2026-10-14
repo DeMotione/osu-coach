@@ -14,9 +14,9 @@ import json
 import math
 import sys
 
-from osu_coach.infrastructure.filesystem import locate
-from osu_coach.infrastructure.filesystem.library import Library
-from osu_coach.domain.profile import build_profile
+from osu_coach.replays import detect, locate
+from osu_coach.library.repository import Library
+from osu_coach.profile.domain import build_profile
 
 
 def best_of(analyses):
@@ -65,7 +65,7 @@ def numbers(p) -> dict:
 
 def main():
     lib = Library()
-    for inst in locate.find_installs():
+    for inst in detect.find_installs():
         lib.add_install(inst)
     player = lib.players()[0][0]
     refs = lib.eligible(player)
