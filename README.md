@@ -33,7 +33,7 @@ or Node.js):
 | --- | --- | --- |
 | `osu-coach-<version>-setup.exe` | Windows 10 / 11 | **Recommended.** Installs for your user, opens the app in your browser |
 | `osu-coach-<version>-x64.msi` | Windows 10 / 11 | The desktop app (its own window), installed for all users |
-| `osu-coach-<version>-portable.exe` | Windows 10 / 11 | One file, nothing to install |
+| `osu-coach-<version>-windows-portable.zip` | Windows 10 / 11 | The desktop app, nothing to install: unzip and start `osu! coach.exe` |
 | `osu-coach_<version>_amd64.deb` | Ubuntu 22.04+, Debian 12+ | The desktop app (its own window) |
 
 **Windows setup:** no admin rights needed. It installs for your user, adds a Start menu (and optional desktop)
@@ -114,14 +114,22 @@ Python 3.11. `constraints.txt` pins the versions everything is tested with.
 
 Building the Windows installer: build the web app (`cd frontend && npm ci && npm run build`), then
 `pip install pyinstaller pillow`, `python packaging/make_icon.py`, `python -m PyInstaller packaging/osu-coach.spec
---noconfirm` and (Inno Setup 6) `ISCC.exe /DAppVersion=0.9.0 packaging/installer.iss` →
-`dist/osu-coach-0.9.0-setup.exe`. The desktop app's `.msi` and `.deb` are made by Tauri from the same frozen app:
-see `desktop/README.md`.
+--noconfirm` and (Inno Setup 6) `ISCC.exe /DAppVersion=<version> packaging/installer.iss` →
+`dist/osu-coach-<version>-setup.exe`. The desktop app's `.msi`, portable zip and `.deb` are made by Tauri from the
+same frozen app: see `desktop/README.md`.
 
-Releasing: set the new version in the files `.github/workflows/release.yml` checks (backend, frontend, desktop),
-merge, then push a tag `v<version>`. The *Release* workflow builds every installer, checks that the `.deb` installs
-and starts, and publishes them with `packaging/release-notes.md` as the release notes. Pull requests that change
-`packaging/`, `desktop/` or that workflow build the installers too, without publishing.
+Releasing:
+
+```
+bash packaging/bump-version.sh 0.9.2       # every version number + the OpenAPI document; commit it in a pull request
+# after the merge, on main:
+git tag -a v0.9.2 -m "osu! coach 0.9.2" && git push origin v0.9.2
+```
+
+The tag starts the *Release* workflow: it checks that every version number matches the tag, builds every installer,
+checks that the portable app and the `.deb` start their server, and publishes them with `packaging/release-notes.md`
+as the release notes. Pull requests that change `packaging/`, `desktop/` or that workflow build the installers too,
+without publishing.
 
 ### Where the replays come from
 

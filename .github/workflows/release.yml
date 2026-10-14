@@ -96,8 +96,6 @@ jobs:
         run: |
           python packaging/make_icon.py
           python -m PyInstaller packaging/osu-coach.spec --noconfirm
-          $env:OSU_COACH_PORTABLE = "1"
-          python -m PyInstaller packaging/osu-coach.spec --noconfirm --distpath dist --workpath build/portable
 
       - name: Inno Setup installer
         run: |
@@ -111,11 +109,37 @@ jobs:
           npm ci
           npx tauri build --bundles msi --config src-tauri/tauri.release.conf.json
 
+      # the desktop app as the .msi installs it, in a folder to unzip anywhere: on Windows it looks for its
+      # resources (the frozen server in osu-coach\) next to its own .exe
+      - name: Portable (Tauri)
+        run: |
+          $app = "build/portable-app/osu! coach"
+          New-Item -ItemType Directory $app -Force | Out-Null
+          Copy-Item desktop/src-tauri/target/release/osu-coach-desktop.exe "$app/osu! coach.exe"
+          Copy-Item dist/osu-coach "$app/osu-coach" -Recurse
+          Compress-Archive -Path $app -DestinationPath "dist/osu-coach-$env:VERSION-windows-portable.zip"
+
+      - name: The portable app starts its own server
+        run: |
+          $app = Start-Process -FilePath "build/portable-app/osu! coach/osu! coach.exe" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 120 -and -not $ok; $i++) {
+            Start-Sleep -Seconds 1
+            try { $ok = (Invoke-RestMethod -TimeoutSec 2 http://127.0.0.1:8511/api/health).status -eq "ok" } catch {}
+          }
+          # the one from the folder, not osu-coach-api from this runner's PATH (the app's fallback)
+          $server = Get-Process osu-coach -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*\portable-app\*" }
+          Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+          Get-Process osu-coach -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $ok) { throw "the portable app's server did not answer /api/health" }
+          if (-not $server) { throw "the server that answered is not the one in the portable folder" }
+          "started $($server.Path)"
+
       - name: Collect release files
         run: |
           New-Item -ItemType Directory release | Out-Null
           Copy-Item "dist/osu-coach-$env:VERSION-setup.exe" release/
-          Copy-Item dist/osu-coach-portable.exe "release/osu-coach-$env:VERSION-portable.exe"
+          Copy-Item "dist/osu-coach-$env:VERSION-windows-portable.zip" release/
           $msi = Get-ChildItem desktop/src-tauri/target/release/bundle/msi/*.msi | Select-Object -First 1
           Copy-Item $msi.FullName "release/osu-coach-$env:VERSION-x64.msi"
           Get-ChildItem release
