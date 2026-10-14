@@ -16,7 +16,7 @@ from osu_coach.analysis.domain import ANALYSIS_VERSION, ReplayAnalysis, Unsuppor
 from osu_coach.beatmaps import sources
 from osu_coach.beatmaps.parser import parse_beatmap_bytes
 from osu_coach.config import default_cache_dir
-from osu_coach.replays import eligibility, locate
+from osu_coach.replays import detect, eligibility, locate
 from osu_coach.replays.eligibility import analysable
 from osu_coach.replays.osr import parse_replay
 
@@ -85,7 +85,7 @@ class Library:
         for md5, path in maps.items():
             self.maps.setdefault(md5, path)
 
-    def add_install(self, inst: locate.Install, progress=None, index_songs: bool = True,
+    def add_install(self, inst: detect.Install, progress=None, index_songs: bool = True,
                     latest: int | None = None, player: str | None = None):
         """Replays and beatmaps of an osu! install.  ``latest``: read only the newest ``latest``
         replays of ``player`` (default: whoever has the most, normally you), newest files first,
@@ -122,7 +122,7 @@ class Library:
         self._add([] if maps_only else r, m, source)
         self.save_index()
 
-    def add_map_source(self, inst: locate.Install):
+    def add_map_source(self, inst: detect.Install):
         """An install's beatmaps, looked up by MD5 only when needed (:meth:`find_maps`), without its replays:
         for analysing only a few replay files."""
         if inst.kind == "lazer" and inst.files_dir:

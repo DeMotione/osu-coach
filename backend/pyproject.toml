@@ -80,7 +80,7 @@ forbidden_modules = [
     "osu_coach.config", "osu_coach.app", "osu_coach.main", "osu_coach.cli", "osu_coach.jobs",
     "osu_coach.*.repository", "osu_coach.*.service", "osu_coach.*.schemas", "osu_coach.*.routes",
     "osu_coach.beatmaps.parser", "osu_coach.beatmaps.sources",
-    "osu_coach.replays.osr", "osu_coach.replays.locate",
+    "osu_coach.replays.osr", "osu_coach.replays.locate", "osu_coach.replays.detect",
     "osu_coach.exports.collection_db", "osu_coach.exports.lazer_import",
     "requests", "fastapi", "pydantic", "pydantic_settings", "sqlite3",
 ]
@@ -90,7 +90,7 @@ name = "data access and services do not depend on the web edge or the compositio
 type = "forbidden"
 source_modules = [
     "osu_coach.*.repository", "osu_coach.*.service", "osu_coach.jobs.manager",
-    "osu_coach.beatmaps.parser", "osu_coach.beatmaps.sources", "osu_coach.replays.osr", "osu_coach.replays.locate",
+    "osu_coach.beatmaps.parser", "osu_coach.beatmaps.sources", "osu_coach.replays.osr", "osu_coach.replays.locate", "osu_coach.replays.detect",
     "osu_coach.exports.collection_db", "osu_coach.exports.lazer_import",
 ]
 forbidden_modules = [

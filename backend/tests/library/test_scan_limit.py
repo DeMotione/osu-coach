@@ -8,7 +8,7 @@ from pathlib import Path
 
 from osu_coach.cli import main
 from osu_coach.library.repository import Library
-from osu_coach.replays import locate
+from osu_coach.replays import detect, locate
 from osu_coach.replays.domain import UNSUPPORTED_LAZER_MODS
 from osu_coach.replays.eligibility import analysable, skip_reason
 from osu_coach.replays.osr import lazer_info, lazer_mod_acronyms, parse_header
@@ -37,7 +37,7 @@ def _store(files_dir: Path, data: bytes, mtime: float) -> Path:
     return _touch(p, mtime)
 
 
-def _lazer(tmp_path, replay_time) -> locate.Install:
+def _lazer(tmp_path, replay_time) -> detect.Install:
     """A lazer install: replays written when they were played (``replay_time``), maps downloaded long before."""
     root = tmp_path / "lazer"
     (root / "files").mkdir(parents=True)
@@ -47,7 +47,7 @@ def _lazer(tmp_path, replay_time) -> locate.Install:
         _store(root / "files", rp.read_bytes(), replay_time(n))
         _store(root / "files", mp.read_bytes(), OLD + i)
     _store(root / "files", b"\x89PNG not interesting" * 50, OLD - 5)
-    return locate.find_installs(stable_roots=[], lazer_roots=[root])[0]
+    return detect.find_installs(stable_roots=[], lazer_roots=[root])[0]
 
 
 def _paths(refs):
@@ -160,7 +160,7 @@ def test_latest_stable_scan_hashes_songs_only_when_needed(tmp_path):
         song = root / "Songs" / f"{i} Artist - Title"
         song.mkdir(parents=True)
         _touch(Path(shutil.copy(mp, song / "map.osu")), OLD + i)
-    inst = locate.find_installs(stable_roots=[root], lazer_roots=[])[0]
+    inst = detect.find_installs(stable_roots=[root], lazer_roots=[])[0]
     full = Library(tmp_path / "full")
     full.add_install(inst)
     lib = Library(tmp_path / "cache")

@@ -21,7 +21,7 @@ from osu_coach.library.service import ScanArgs
 from osu_coach.maps.repository import load_pool
 from osu_coach.profile.domain import Profile, build_profile
 from osu_coach.progress import repository as progress
-from osu_coach.replays import locate, scope
+from osu_coach.replays import detect, scope
 from osu_coach.settings.domain import Setup
 from osu_coach.settings.repository import load_settings, save_settings
 
@@ -37,7 +37,7 @@ class Workspace:
         self.jobs = JobManager(self.gate)
         self._settings_lock = threading.Lock()
         self._profile_lock = threading.Lock()
-        self._installs: list[locate.Install] | None = None
+        self._installs: list[detect.Install] | None = None
         # the session
         self.library: Library | None = None
         self.scan_args: ScanArgs | None = None
@@ -81,9 +81,9 @@ class Workspace:
         return "lazer" if kinds == {"lazer"} else "stable"
 
     # -------------------------------------------------------------- installs and the map pool
-    def installs(self, refresh: bool = False) -> list[locate.Install]:
+    def installs(self, refresh: bool = False) -> list[detect.Install]:
         if self._installs is None or refresh:
-            self._installs = locate.find_installs()
+            self._installs = detect.find_installs()
         return self._installs
 
     @staticmethod

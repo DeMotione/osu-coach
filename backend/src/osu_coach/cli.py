@@ -32,7 +32,7 @@ from osu_coach.maps.domain import (
 from osu_coach.maps.repository import load_pool
 from osu_coach.profile.domain import MISS_LABELS, build_profile
 from osu_coach.progress import repository as progress
-from osu_coach.replays import locate, scope
+from osu_coach.replays import detect, scope
 from osu_coach.replays.eligibility import EXCLUDE_MODS, skip_reason
 from osu_coach.settings.domain import Setup
 from osu_coach.settings.repository import load_settings, save_settings
@@ -81,7 +81,7 @@ def _discover(args, log) -> Library:
         log(f"analysing only {len(files)} file(s)")
         lib.add_files(files, source="file")
         if not args.no_auto:            # their beatmaps may be in the osu! installs or the folders
-            for inst in locate.find_installs():
+            for inst in detect.find_installs():
                 lib.add_map_source(inst)
         for f in args.folder or []:
             lib.add_folder(f, maps_only=True)
@@ -90,7 +90,7 @@ def _discover(args, log) -> Library:
     if latest:
         log(f"reading only the newest {latest} replays" + (f" of {args.player}" if args.player else ""))
     if not args.no_auto:
-        for inst in locate.find_installs():
+        for inst in detect.find_installs():
             log(f"found {inst.label}")
             lib.add_install(inst, progress=log, latest=latest, player=args.player)
     for f in args.folder or []:
@@ -180,7 +180,7 @@ def _log(quiet):
 
 # ------------------------------------------------------------------ commands
 def cmd_locate(args) -> int:
-    installs = locate.find_installs()
+    installs = detect.find_installs()
     if not installs:
         print("No osu! installation found automatically.\n"
               "Use --folder with `analyze` (stable: <osu!>/Data/r, lazer: export replays).")
@@ -321,10 +321,10 @@ def cmd_playlist(args) -> int:
         print(f"\nwrote {p}\n  lazer: use --lazer instead (lazer can't open a collection.db on its own)\n"
               "  stable: use --merge (with osu! closed) or Collection Manager")
     if args.merge:
-        st = [i for i in locate.find_installs() if i.kind == "stable"]
+        st = [i for i in detect.find_installs() if i.kind == "stable"]
         if not st:
             raise SystemExit("No osu!stable install found to merge into.")
-        if locate.is_osu_running():
+        if detect.is_osu_running():
             raise SystemExit("Close osu! first — it rewrites collection.db when it exits.")
         info = merge_into(st[0].root / "collection.db", {name: hashes})
         print(f"\nadded to {info['path']} (backup: {info['backup']})")
@@ -409,7 +409,7 @@ def cmd_check(args) -> int:
     player = args.player or (None if path else _main_player(lib, args.cache))
     latest = 1 if player or path else 20     # unknown player: read a few replays to see who plays here
     if not args.no_auto:
-        for inst in locate.find_installs():
+        for inst in detect.find_installs():
             lib.add_install(inst, progress=log, latest=latest, player=player)
     for f in args.folder or []:
         lib.add_folder(f, latest=latest, player=player)

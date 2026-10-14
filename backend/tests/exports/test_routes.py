@@ -73,21 +73,21 @@ def test_stable_collection_needs_a_stable_install(client, export):
 
 
 def test_stable_collection_is_merged_with_a_backup(client, export, tmp_path, monkeypatch):
-    from osu_coach.replays import locate
+    from osu_coach.replays import detect
     root = tmp_path / "osu!"
     (root / "Songs").mkdir(parents=True)
     (root / "osu!.tester.cfg").write_text("")
     from osu_coach.exports.collection_db import read_collection_db, write_collection_db
     write_collection_db(root / "collection.db", {"mine": ["a" * 32]})
     ws = workspace(client)
-    monkeypatch.setattr(ws, "installs", lambda refresh=False: locate.find_installs(stable_roots=[root], lazer_roots=[]))
-    monkeypatch.setattr(locate, "is_osu_running", lambda: False)
+    monkeypatch.setattr(ws, "installs", lambda refresh=False: detect.find_installs(stable_roots=[root], lazer_roots=[]))
+    monkeypatch.setattr(detect, "is_osu_running", lambda: False)
     r = client.post("/api/exports/stable-collection", json=export)
     assert r.status_code == 200, r.text
     assert r.json()["backup"] and Path(r.json()["backup"]).is_file()
     names = [n for n, _ in read_collection_db(root / "collection.db")[1]]
     assert names == ["mine", export["name"]]
-    monkeypatch.setattr(locate, "is_osu_running", lambda: True)
+    monkeypatch.setattr(detect, "is_osu_running", lambda: True)
     r = client.post("/api/exports/stable-collection", json=export)
     assert r.status_code == 409 and r.json()["code"] == "osu_running"
 

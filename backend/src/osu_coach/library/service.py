@@ -23,7 +23,7 @@ from osu_coach.library.schemas import (
     SkippedReplay,
 )
 from osu_coach.library.uploads import resolve_upload
-from osu_coach.replays import locate, scope
+from osu_coach.replays import detect, scope
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
@@ -32,17 +32,17 @@ if TYPE_CHECKING:
 @dataclass
 class ScanArgs:
     """What the last scan read, so it can be repeated further back (more replays)."""
-    installs: list[locate.Install] = field(default_factory=list)
+    installs: list[detect.Install] = field(default_factory=list)
     folders: list[str] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
     only: bool = False                                            # only these files, not the library
-    map_installs: list[locate.Install] = field(default_factory=list)   # beatmaps only, for ``only``
+    map_installs: list[detect.Install] = field(default_factory=list)   # beatmaps only, for ``only``
 
 
 SKIPPED_SHOWN = 200
 
 
-def install_out(inst: locate.Install) -> InstallOut:
+def install_out(inst: detect.Install) -> InstallOut:
     return InstallOut(kind=inst.kind, root=str(inst.root), label=inst.label, songs=str(inst.songs) if inst.songs else None,
                       replay_dirs=[str(d) for d in inst.replay_dirs],
                       files_dir=str(inst.files_dir) if inst.files_dir else None,

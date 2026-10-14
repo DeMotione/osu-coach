@@ -3,7 +3,7 @@ import shutil
 
 from osu_coach.library import repository as libmod
 from osu_coach.library.repository import Library
-from osu_coach.replays import locate
+from osu_coach.replays import detect
 from osu_coach.replays.osr import parse_header, parse_replay_file
 from tests.conftest import replay_and_map
 
@@ -30,7 +30,7 @@ def test_finds_stable_install_with_custom_songs_folder(tmp_path):
     (root / "osu!.tester.cfg").write_text("Volume = 50\nBeatmapDirectory = MySongs\n")
     shutil.copy(rp, root / "Data" / "r" / "a-123.osr")
     shutil.copy(mp, song_dir / "map.osu")
-    installs = locate.find_installs(stable_roots=[root], lazer_roots=[])
+    installs = detect.find_installs(stable_roots=[root], lazer_roots=[])
     assert [i.kind for i in installs] == ["stable"]
     assert installs[0].songs == root / "MySongs"
     lib = Library(tmp_path / "cache")
@@ -55,7 +55,7 @@ def test_finds_replays_and_maps_in_lazer_file_store(tmp_path):
     _store(root / "files", open(rp, "rb").read())
     _store(root / "files", open(mp, "rb").read())
     _store(root / "files", b"\x89PNG not interesting" * 50)
-    inst = locate.find_installs(stable_roots=[], lazer_roots=[root])[0]
+    inst = detect.find_installs(stable_roots=[], lazer_roots=[root])[0]
     assert inst.kind == "lazer"
     lib = Library(tmp_path / "cache")
     lib.add_install(inst)

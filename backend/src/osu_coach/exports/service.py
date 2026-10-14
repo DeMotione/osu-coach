@@ -12,7 +12,7 @@ from osu_coach.exports.collection_db import merge_into
 from osu_coach.exports.domain import sets_to_download
 from osu_coach.exports.schemas import ExportPreview, ExportRequest, LazerPackResult, OszResult, StableMergeResult
 from osu_coach.jobs.manager import Reporter
-from osu_coach.replays import locate
+from osu_coach.replays import detect
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
@@ -27,7 +27,7 @@ def _set_rows(req: ExportRequest) -> list[tuple[str, int]]:
     return [(m.md5, m.beatmapset_id) for m in req.maps]
 
 
-def _stable_installs(ws: Workspace) -> list[locate.Install]:
+def _stable_installs(ws: Workspace) -> list[detect.Install]:
     return [i for i in ws.installs() if i.kind == "stable"]
 
 
@@ -71,7 +71,7 @@ def merge_stable(ws: Workspace, req: ExportRequest) -> StableMergeResult:
     stable = _stable_installs(ws)
     if not stable:
         raise NotFound("No osu!stable install found to add the collection to.", "no_stable_install")
-    if locate.is_osu_running():
+    if detect.is_osu_running():
         raise ApiError(409, "osu_running", "Close osu! first — it rewrites collection.db when it exits.")
     res = merge_into(stable[0].root / "collection.db", {req.name: _hashes(req)})
     return StableMergeResult(path=str(res["path"]), backup=str(res["backup"]) if res.get("backup") else None)
