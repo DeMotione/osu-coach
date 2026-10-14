@@ -59,6 +59,11 @@ npx tauri build --config src-tauri/tauri.release.conf.json
 The installers are `src-tauri\target\release\bundle\nsis\osu! coach_<version>_x64-setup.exe` and
 `src-tauri\target\release\bundle\msi\osu! coach_<version>_x64_en-US.msi`.
 
+Portable (what the release zips): the app also runs without installing, because on Windows it looks for its
+resources next to its own `.exe`. A folder with `src-tauri\target\release\osu-coach-desktop.exe` (renamed
+`osu! coach.exe` in the release) and `dist\osu-coach` copied in as `osu-coach\` is the whole app. It needs Microsoft's
+WebView2 runtime, which Windows 11 has and Windows 10 gets with Edge.
+
 ### Linux (.deb)
 
 On Debian / Ubuntu / Mint, one script does all of the following: it installs what the build needs (the system
@@ -95,7 +100,7 @@ an older distribution also runs on newer ones (the release builds it on Ubuntu 2
 
 ### Releases
 
-`.github/workflows/release.yml` builds all of this (plus the Inno Setup installer and the portable exe) when a tag
+`.github/workflows/release.yml` builds all of this (plus the Inno Setup installer) when a tag
 `v<version>` is pushed, and publishes the files as a GitHub release.
 
 ## Other
