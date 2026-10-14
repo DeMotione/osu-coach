@@ -44,7 +44,9 @@ The installers aren't code-signed yet: if SmartScreen says *Windows protected yo
 anyway**.
 
 **Linux:** `sudo apt install ./osu-coach_<version>_amd64.deb`, then start **osu! coach** from the app menu
-(`sudo apt remove osu-coach` removes it). On other distributions, run it from source (below).
+(`sudo apt remove osu-coach` removes it). To build that package from the source code yourself and install it,
+run `bash packaging/build-deb.sh` (Debian / Ubuntu / Mint; it sets up everything else it needs). On other
+distributions, run it from source (below).
 
 The app is a progressive web app: in Chrome or Edge, *Install osu! coach* in the address bar gives it its own
 window and Start menu entry. Its pages open even while osu! coach isn't running and say so until you start it.

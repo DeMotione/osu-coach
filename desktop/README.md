@@ -61,7 +61,17 @@ The installers are `src-tauri\target\release\bundle\nsis\osu! coach_<version>_x6
 
 ### Linux (.deb)
 
-Needs the [Tauri Linux packages](https://tauri.app/start/prerequisites/#linux); on Debian / Ubuntu:
+On Debian / Ubuntu / Mint, one script does all of the following: it installs what the build needs (the system
+packages below, Rust, a Python venv), builds the `.deb` and installs it with apt. It needs Python 3.11+ and
+Node.js 22.12+. Run it as your normal user from anywhere in the repo:
+
+```sh
+bash packaging/build-deb.sh               # build + install
+bash packaging/build-deb.sh --no-install  # only build: dist/osu-coach_<version>_amd64.deb
+```
+
+By hand: it needs the [Tauri Linux packages](https://tauri.app/start/prerequisites/#linux) and Rust
+(`curl https://sh.rustup.rs -sSf | sh`, not the distribution's `cargo`, which is usually too old). On Debian / Ubuntu:
 
 ```sh
 sudo apt install libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev build-essential
