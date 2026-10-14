@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Query, UploadFile
 
+from osu_coach.app import session
 from osu_coach.app.deps import WorkspaceDep
 from osu_coach.app.errors import ApiError, responses
 from osu_coach.jobs.schemas import job_view
@@ -98,10 +99,11 @@ def selection(
 def analyse(req: AnalysisRequest, ws: WorkspaceDep) -> AnalysisJob:
     svc.require_library(ws)
     return job_view(
-        AnalysisJob, ws.jobs.start("analysis", "Analysing replays", lambda report: svc.run_analysis(ws, req, report))
+        AnalysisJob,
+        ws.jobs.start("analysis", "Analysing replays", lambda report: session.run_analysis(ws, req, report)),
     )
 
 
 @router.get("/analysis", summary="The analysed replays")
 def analysis(ws: WorkspaceDep) -> AnalysisStatus:
-    return svc.analysis_status(ws)
+    return session.analysis_status(ws)

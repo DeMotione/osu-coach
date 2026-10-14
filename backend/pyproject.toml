@@ -116,12 +116,13 @@ containers = ["osu_coach"]
 layers = [
     "system | dashboard",
     "tips | check",
-    "insights | maps | progress",
+    "insights | maps | progress | exports",
     "library | profile",
-    "analysis | settings | exports",
+    "analysis | settings",
     "replays | beatmaps | jobs",
 ]
 # routes reach their feature's data through app.deps -> app.workspace, which composes every feature.
+# The analysis routes run the analysis session (app.session), which ties library, progress and profile together.
 # NB: this only checks imports. Services also reach other features through the Workspace (ws.profile(),
 # ws.library, ...); those calls are invisible to import-linter and must be kept pointing downwards by review.
-ignore_imports = ["osu_coach.*.routes -> osu_coach.app.deps"]
+ignore_imports = ["osu_coach.*.routes -> osu_coach.app.deps", "osu_coach.library.routes -> osu_coach.app.session"]
