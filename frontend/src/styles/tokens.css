@@ -156,6 +156,15 @@
   --toolbar-h: 40px;
 }
 
+/* Windows Mica provides the wallpaper-tinted material behind this transparent WebView. */
+:root.is-mica-desktop {
+  --bg: transparent;
+  --sidebar: transparent;
+  --backdrop: none;
+  --glass: light-dark(rgb(255 255 255 / 0.58), hsl(var(--ink) 24% 15% / 0.64));
+  --glass-2: light-dark(rgb(255 255 255 / 0.42), hsl(var(--ink) 24% 21% / 0.5));
+}
+
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     color-scheme: light;

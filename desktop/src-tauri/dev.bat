@@ -5,12 +5,14 @@ if not exist ".venv\Scripts\osu-coach-api.exe" (
   echo Setting up .venv and the web app ^(first run only^)...
   call run.bat --setup || exit /b 1
 )
-if not exist "frontend\dist\index.html" (
+if not exist "frontend\node_modules" (
   pushd frontend
   call npm ci --no-audit --no-fund --loglevel=error || (popd & exit /b 1)
-  call npm run build --silent || (popd & exit /b 1)
   popd
 )
+pushd frontend
+call npm run build --silent || (popd & exit /b 1)
+popd
 set "OSU_COACH_API_BIN=%CD%\.venv\Scripts\osu-coach-api.exe"
 set "OSU_COACH_WEB_DIR=%CD%\frontend\dist"
 cd desktop

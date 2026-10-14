@@ -5,6 +5,9 @@ export const isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" 
 
 // styles (the title bar height, the sidebar's offset) key off this class on <html>
 if (isDesktop) document.documentElement.classList.add("is-desktop");
+if (isDesktop && navigator.userAgent.includes("Windows")) {
+  document.documentElement.classList.add("is-mica-desktop");
+}
 
 // loaded on demand: the web app never needs it
 const currentWindow = () => import("@tauri-apps/api/window").then((m) => m.getCurrentWindow());
