@@ -5,13 +5,15 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
-build/
-dist/
+/build/
+/dist/
+/backend/build/
+/backend/dist/
 
 # data that stays local
 dev_data/
 .osu_coach_cache/
-exports/
+/exports/
 reference_replays/
 
 # frontend
@@ -21,8 +23,8 @@ frontend/dev-dist/
 frontend/test-results/
 frontend/playwright-report/
 *.tsbuildinfo
-# the built web app copied into the API package for the installer
-api/osu_coach_api/web/
+# the built web app copied into the package for the installer / desktop app
+backend/src/osu_coach/web/
 
 # desktop (Tauri)
 desktop/node_modules/
