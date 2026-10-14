@@ -54,10 +54,11 @@ cd frontend && npm ci && npm run build && cd ..
 
 ```
 backend/    osu-coach        Python package, organised by feature: each package under src/osu_coach/ (library, maps,
-                             profile, progress, ...) holds one feature end to end: pure analysis in `domain.py`, file /
-                             network / SQLite access in `repository.py`, then `service.py`, `schemas.py`, `routes.py`.
-                             `app/` is the web plumbing: the HTTP API (FastAPI), API reference with Scalar at /docs,
-                             and it serves the built web app. The `osu-coach` command line is `cli.py`
+                             profile, progress, ...) holds one feature end to end: pure analysis in `domain.py` (a
+                             `domain/` package when large), file / network / SQLite access in `repository.py`, then
+                             `service.py`, `schemas.py`, `routes.py`. `app/` is the web plumbing: the HTTP API
+                             (FastAPI), API reference with Scalar at /docs, and it serves the built web app. The
+                             `osu-coach` command line is `cli.py`
 frontend/   osu-coach-web    the web app: React + TypeScript progressive web app (Vite, TanStack Query, ECharts)
 packaging/                   Windows installer (PyInstaller + Inno Setup) and the app icons
 ```

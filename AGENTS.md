@@ -4,7 +4,7 @@ osu-coach analyzes osu! replays and gives coaching advice. Monorepo: Python 3.11
 
 ## Layout
 
-- `backend/src/osu_coach/` — one package per feature (e.g. `library`, `maps`, `profile`), plus `jobs/` (background jobs) and `app/` (web plumbing: `Workspace`, errors, deps, `server.py`, `openapi.py`), and `main.py`, `cli.py`, `config.py`. A feature holds its pure `domain.py`, disk/network/SQLite code (`repository.py`, parsers), `service.py`, `schemas.py` and `routes.py` — only those it needs.
+- `backend/src/osu_coach/` — one package per feature (e.g. `library`, `maps`, `profile`), plus `jobs/` (background jobs) and `app/` (web plumbing: `Workspace`, errors, deps, `server.py`, `openapi.py`), and `main.py`, `cli.py`, `config.py`. A feature holds its pure `domain.py` (a `domain/` package of topic modules when it grows, e.g. `profile`), disk/network/SQLite code (`repository.py`, parsers), `service.py`, `schemas.py` and `routes.py` — only those it needs.
 - `backend/tests/` — `tests/<feature>/` mirrors the source (`test_domain.py`, `test_repository.py`, `test_routes.py`, plus topic files); fixtures in `tests/resources/` (indexed by `index.json`).
 - `backend/tools/` — maintenance scripts (pool building, test-data fetching, sim debugging/validation).
 - `frontend/src/` — `api/` (typed client, hooks, generated schema), `pages/`, `components/`, `charts/`, `lib/`, `styles/`, `app/`.
@@ -32,7 +32,7 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs Python 3.11 and 3
 
 ## Architecture rules
 
-- Layering is enforced by import-linter (`[tool.importlinter]` in `backend/pyproject.toml`): `*/domain.py` (and the judges, curves, features) stays pure — no I/O, network, web or pydantic; services and data code never import routes or `app.workspace`; features depend only downwards (e.g. `profile` may use `analysis`, never `tips`). Feature code names `Workspace` only under `TYPE_CHECKING`. A new feature goes into the `layers` contract.
+- Layering is enforced by import-linter (`[tool.importlinter]` in `backend/pyproject.toml`): `*/domain` (module or package; also the judges, curves, features) stays pure — no I/O, network, web or pydantic; services and data code never import routes or `app.workspace`; features depend only downwards (e.g. `profile` may use `analysis`, never `tips`). Feature code names `Workspace` only under `TYPE_CHECKING`. A new feature goes into the `layers` contract.
 - API errors always use `{"detail": "...", "code": "..."}` with stable codes.
 - Rates and shares are 0–1 fractions; `null` means insufficient data. Times are ISO 8601 UTC.
 - Long work (scan, analysis, imports, downloads) runs as background jobs polled via `GET /api/jobs/{id}`.

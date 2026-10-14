@@ -1,6 +1,6 @@
 # osu! coach backend
 
-Python 3.11+. Organised by feature: every package under `src/osu_coach/` (e.g. `library`, `maps`, `profile`) holds one feature end to end — its pure `domain.py`, disk/network/SQLite code (`repository.py`, parsers), `service.py`, `schemas.py` and `routes.py`. `jobs/` runs background work and `app/` is the web plumbing (`Workspace`, errors, deps, API server, OpenAPI). Entry points: `main.py` (app factory), `cli.py`, `config.py`. Dependencies between features are one-way and enforced by import-linter (`[tool.importlinter]` in `pyproject.toml`).
+Python 3.11+. Organised by feature: every package under `src/osu_coach/` (e.g. `library`, `maps`, `profile`) holds one feature end to end — its pure `domain.py` (a `domain/` package of topic modules when large), disk/network/SQLite code (`repository.py`, parsers), `service.py`, `schemas.py` and `routes.py`. `jobs/` runs background work and `app/` is the web plumbing (`Workspace`, errors, deps, API server, OpenAPI). Entry points: `main.py` (app factory), `cli.py`, `config.py`. Dependencies between features are one-way and enforced by import-linter (`[tool.importlinter]` in `pyproject.toml`).
 
 ## Setup
 
