@@ -1,5 +1,5 @@
 """Background jobs: the fields every job has. Each feature declares the job model of its own kind
-(``kind`` + a typed ``result``); the union of all kinds is assembled in ``routes/jobs.py``."""
+(``kind`` + a typed ``result``); the union of all kinds is assembled in ``app/jobs.py``."""
 from __future__ import annotations
 
 import datetime as dt

@@ -32,7 +32,7 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs Python 3.11 and 3
 
 ## Architecture rules
 
-- Layering is enforced by import-linter (`[tool.importlinter]` in `backend/pyproject.toml`): `*/domain` (module or package; also the judges, curves, features) stays pure — no I/O, network, web or pydantic; services and data code never import routes or `app.workspace`; features depend only downwards (e.g. `profile` may use `analysis`, never `tips`). Feature code names `Workspace` only under `TYPE_CHECKING`. A new feature goes into the `layers` contract.
+- Layering is enforced by import-linter (`[tool.importlinter]` in `backend/pyproject.toml`): `*/domain` (module or package; also the judges, curves, features) stays pure — no I/O, network, web or pydantic; services and data code never import routes or `app.workspace`; features depend only downwards (e.g. `profile` may use `analysis`, never `tips`). Feature code names `Workspace` only under `TYPE_CHECKING`. A new feature goes into the `layers` contract. The contract only sees imports: calls made through the `Workspace` (`ws.profile()`, `ws.library`, ...) are not checked, so keep those pointing downwards in review.
 - API errors always use `{"detail": "...", "code": "..."}` with stable codes.
 - Rates and shares are 0–1 fractions; `null` means insufficient data. Times are ISO 8601 UTC.
 - Long work (scan, analysis, imports, downloads) runs as background jobs polled via `GET /api/jobs/{id}`.
@@ -54,7 +54,7 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs Python 3.11 and 3
 
 ## Environment variables
 
-`OSU_COACH_CACHE` (data dir), `OSU_COACH_WEB_DIR` (built web app to serve), `OSU_COACH_API` (Vite proxy target), `OSU_COACH_PYTHON` (e2e interpreter), `OSU_COACH_NO_AUTODETECT` (skip osu! detection), `OSU_COACH_API_DOCS` (serve `/docs` and show the web app's API link; default true).
+`OSU_COACH_CACHE` (data dir), `OSU_COACH_WEB_DIR` (built web app to serve), `OSU_COACH_API` (Vite proxy target), `OSU_COACH_PYTHON` (e2e interpreter), `OSU_COACH_NO_AUTODETECT` (skip osu! detection), `OSU_COACH_API_DOCS` (serve `/docs` and show the web app's API link; default true), `OSU_COACH_DEMO` (replay folder(s) used when none were saved; for demos).
 
 ## Dependencies and versions
 

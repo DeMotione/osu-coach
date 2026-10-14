@@ -13,7 +13,7 @@ COMMITTED = Path(__file__).resolve().parents[3] / "frontend" / "src" / "api" / "
 @pytest.mark.skipif(not COMMITTED.exists(), reason="frontend not in this checkout")
 def test_committed_openapi_document_is_current():
     assert COMMITTED.read_text(encoding="utf-8") == render(), (
-        "The API changed: run `python -m osu_coach.api.openapi frontend/src/api/openapi.json` and "
+        "The API changed: run `python -m osu_coach.app.openapi frontend/src/api/openapi.json` and "
         "`npm run gen:api` in frontend/.")
 
 

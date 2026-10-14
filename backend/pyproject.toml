@@ -120,5 +120,7 @@ layers = [
     "analysis | goals | settings | exports",
     "replays | beatmaps | jobs",
 ]
-# routes reach their feature's data through app.deps -> app.workspace, which composes every feature
+# routes reach their feature's data through app.deps -> app.workspace, which composes every feature.
+# NB: this only checks imports. Services also reach other features through the Workspace (ws.profile(),
+# ws.library, ...); those calls are invisible to import-linter and must be kept pointing downwards by review.
 ignore_imports = ["osu_coach.*.routes -> osu_coach.app.deps"]

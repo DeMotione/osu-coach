@@ -45,7 +45,7 @@ Or manually:
 
 ```
 python -m venv .venv
-.venv/bin/pip install -c constraints.txt -e ./core -e ./api     # Windows: .venv\Scripts\pip ...
+.venv/bin/pip install -c constraints.txt -e ./backend     # Windows: .venv\Scripts\pip ...
 cd frontend && npm ci && npm run build && cd ..
 .venv/bin/osu-coach ui
 ```
@@ -85,7 +85,7 @@ packaging/                   Windows installer (PyInstaller + Inno Setup) and th
 make install        # Python packages (editable) + web app dependencies
 make api            # API on :8501           (osu-coach-api)
 make web            # web app on :5173, forwarding /api and /docs to :8501
-make test lint      # pytest (core, api), vitest; ruff, tsc, eslint
+make test lint      # pytest, vitest; ruff, tsc, eslint
 make e2e            # build, then drive the app in Chromium against the real API
 make openapi        # after changing an API schema: regenerate the web app's types
 ```

@@ -2,7 +2,7 @@
 
 osu! coach is a single-user app running on the player's own computer, so the state of a session — the scanned
 replay library, the analysed replays and the profile built from them — lives in this process, in one
-:class:`Workspace`. Settings (choices that are remembered across starts) are in the domain's ``settings.json``
+:class:`Workspace`. Settings (choices that are remembered across starts) are in ``settings.json``
 in the data folder, shared with the command line.
 """
 from __future__ import annotations
@@ -90,7 +90,7 @@ class Workspace:
 
     @staticmethod
     def pool():
-        return load_pool()      # cached by the domain (per file and modification time)
+        return load_pool()      # cached by maps.repository (per file and modification time)
 
     # -------------------------------------------------------------- analyses and the profile
     def set_analyses(self, analyses: list[ReplayAnalysis], errors: list[tuple[dict, str]], player_label: str):
