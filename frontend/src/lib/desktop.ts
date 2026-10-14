@@ -16,6 +16,11 @@ export const minimizeWindow = () => void currentWindow().then((w) => w.minimize(
 export const toggleMaximizeWindow = () => void currentWindow().then((w) => w.toggleMaximize());
 export const closeWindow = () => void currentWindow().then((w) => w.close());
 
+/** Makes the window's native material (Mica) light or dark like the app; null follows the system. */
+export const setWindowTheme = (theme: "light" | "dark" | null) => {
+  if (isDesktop) void currentWindow().then((w) => w.setTheme(theme));
+};
+
 /** Whether the desktop window is maximized (always false in a browser). */
 export function useWindowMaximized(): boolean {
   const [maximized, setMaximized] = useState(false);

@@ -1,6 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- the provider and its hook belong together */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { setWindowTheme } from "./desktop";
+
 export type ThemeChoice = "system" | "light" | "dark";
 const KEY = "osu-coach:theme";
 
@@ -48,6 +50,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applied.current = choice;
     if (choice === "system") delete root.dataset.theme;
     else root.dataset.theme = choice;
+    setWindowTheme(choice === "system" ? null : choice);
   }, [choice]);
 
   const setChoice = useCallback((c: ThemeChoice) => {
