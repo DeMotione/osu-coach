@@ -30,6 +30,7 @@ from osu_coach.check.schemas import (
 from osu_coach.insights import domain as insights
 from osu_coach.insights.service import clicks
 from osu_coach.library.repository import Library
+from osu_coach.library.uploads import safe_upload_name, uploads_dir
 from osu_coach.profile.domain import build_profile
 from osu_coach.progress import repository as progress
 from osu_coach.replays import locate
@@ -112,13 +113,29 @@ def _replay(ref: dict, lib: Library) -> CheckReplay:
     )
 
 
-def _require_replay_file(path: str) -> Path:
-    p = Path(path)
-    if p.suffix.lower() != ".osr":
+def _require_replay_file(ws: Workspace, path: str) -> Path:
+    """The replay file a request names: only one the library already knows or one in the uploads folder (the
+    API hands out those paths itself), never an arbitrary location. The returned path comes from there, not
+    from the request."""
+    wanted = Path(path)
+    if wanted.suffix.lower() != ".osr":
         raise Invalid("Not a replay file (.osr).", "not_a_replay")
-    if not p.is_file():
+    known = next(
+        (
+            Path(r["path"])
+            for lib in (ws.library, ws.check_library)
+            if lib is not None
+            for r in lib.replays
+            if same_file(r["path"], wanted)
+        ),
+        None,
+    )
+    if known is None:
+        uploaded = uploads_dir(ws) / safe_upload_name(wanted.name)
+        known = uploaded if same_file(uploaded, wanted) else None
+    if known is None or not known.is_file():
         raise ApiError(404, "replay_not_found", "The replay file is no longer on this computer.")
-    return p
+    return known
 
 
 def replay_list(ws: Workspace, path: str | None, only_map: bool) -> CheckList:
@@ -126,8 +143,8 @@ def replay_list(ws: Workspace, path: str | None, only_map: bool) -> CheckList:
     ``only_map``: only (all of) the plays of that replay's map."""
     with _hold(ws):
         lib = check_library(ws)
-        if path:
-            p = _require_replay_file(path)
+        p = _require_replay_file(ws, path) if path else None
+        if p:
             if lib is None:
                 lib = ws.check_library = Library(ws.cache_dir)
             if not any(same_file(r["path"], p) for r in lib.replays):
@@ -136,13 +153,13 @@ def replay_list(ws: Workspace, path: str | None, only_map: bool) -> CheckList:
             return CheckList(available=False, replays=[], selected=None, focus_md5=None, only_map=False)
         every = lib.eligible("*")
         refs = every[:CHECK_LIST]
-        if path and not any(same_file(r["path"], path) for r in refs):
-            h = next((r for r in lib.replays if same_file(r["path"], path)), None) or locate.replay_header(Path(path))
+        if p and not any(same_file(r["path"], p) for r in refs):
+            h = next((r for r in lib.replays if same_file(r["path"], p)), None) or locate.replay_header(p)
             if h:
                 refs = [h] + refs
         if not refs:
             return CheckList(available=True, replays=[], selected=None, focus_md5=None, only_map=False)
-        chosen = next((r for r in refs if path and same_file(r["path"], path)), refs[0])
+        chosen = next((r for r in refs if p and same_file(r["path"], p)), refs[0])
         focus = chosen.get("beatmap_md5")
         if only_map and focus:
             mine = [r for r in every if r.get("beatmap_md5") == focus]
@@ -162,7 +179,7 @@ def replay_list(ws: Workspace, path: str | None, only_map: bool) -> CheckList:
 
 # ------------------------------------------------------------------ the report
 def report(ws: Workspace, path: str, online: bool) -> CheckReport:
-    p = _require_replay_file(path)
+    p = _require_replay_file(ws, path)
     with _hold(ws):
         lib = check_library(ws)
         if lib is None:

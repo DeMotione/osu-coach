@@ -83,6 +83,16 @@ def test_bad_paths(tmp_path, client):
     assert r.status_code == 404
 
 
+def test_only_known_replays_are_opened(tmp_path, client):
+    rp, _ = sample_paths("mot1one__lazer_nm.osr")
+    elsewhere = tmp_path / "elsewhere" / rp.name  # a real replay, but neither scanned nor uploaded
+    elsewhere.parent.mkdir()
+    elsewhere.write_bytes(rp.read_bytes())
+    r = client.post("/api/check/report", json={"path": str(elsewhere), "online": False})
+    assert r.status_code == 404 and r.json()["code"] == "replay_not_found"
+    assert client.get("/api/check/replays", params={"path": str(elsewhere)}).status_code == 404
+
+
 def test_a_replay_without_its_map_offline(tmp_path, client):
     rp, _ = sample_paths("mot1one__lazer_nm.osr")
     up = client.post("/api/uploads", files=[("files", (rp.name, rp.read_bytes()))]).json()[0]
