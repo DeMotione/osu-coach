@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from osu_coach.infrastructure.filesystem import locate
-from osu_coach.infrastructure.database import progress
 from osu_coach.domain import selection
 from osu_coach.infrastructure.filesystem.library import Library
 
@@ -220,7 +219,7 @@ def run_analysis(ws: Workspace, req: AnalysisRequest, report: Reporter) -> Analy
     warnings = []
     report.note("Saving your progress…")
     try:
-        progress.update(lib.cache, analyses, lib.load_cached)
+        ws.save_progress(lib, analyses)
     except Exception as exc:  # noqa: BLE001 - the analysis matters more than the history
         warnings.append(f"Could not save your progress: {exc}")
     ws.set_analyses(analyses, errors, "All players" if sel.player == "*" else sel.player)

@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TypeVar
 
+from osu_coach.infrastructure.database import progress
 from osu_coach.infrastructure.filesystem import locate
 from osu_coach.domain import selection
 from osu_coach.domain.setup import Setup
@@ -133,6 +134,10 @@ class Workspace:
                                 "to All replays.")
             raise NoProfile()
         return p
+
+    def save_progress(self, lib: Library, analyses: list[ReplayAnalysis]) -> None:
+        """Add the analyses to the progress history (SQLite; it stays when replays or caches are deleted)."""
+        progress.update(lib.cache, analyses, lib.load_cached)
 
     def memo(self, key: str, compute: Callable[[], T]) -> T:
         """A value computed from the current profile, kept until the profile changes."""
