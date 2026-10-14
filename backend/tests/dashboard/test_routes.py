@@ -1,4 +1,4 @@
-"""The analysis pages."""
+"""The /api/profile pages (the dashboard slice; the Tips & Setup page of the tips slice is checked here too)."""
 import copy
 import dataclasses
 
