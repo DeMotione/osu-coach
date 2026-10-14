@@ -57,10 +57,11 @@ def _throttle(host: str):
 
 
 def _get(url: str, host: str, **kw) -> requests.Response | None:
+    timeout = kw.pop("timeout", TIMEOUT)
     for attempt in range(3):
         _throttle(host)
         try:
-            r = session().get(url, timeout=kw.pop("timeout", TIMEOUT), **kw)
+            r = session().get(url, timeout=timeout, **kw)
         except requests.RequestException:
             time.sleep(1.5 * (attempt + 1))
             continue
