@@ -45,7 +45,7 @@ Or manually:
 
 ```
 python -m venv .venv
-.venv/bin/pip install -c constraints.txt -e ./backend     # Windows: .venv\Scripts\pip ...
+.venv/bin/pip install -c constraints.txt -e ./core -e ./api     # Windows: .venv\Scripts\pip ...
 cd frontend && npm ci && npm run build && cd ..
 .venv/bin/osu-coach ui
 ```
@@ -53,23 +53,23 @@ cd frontend && npm ci && npm run build && cd ..
 ## How the project is built
 
 ```
-backend/    osu-coach        Python package, organised by feature: each package under src/osu_coach/ (library, maps,
-                             profile, progress, ...) holds one feature end to end: pure analysis in `domain.py` (a
-                             `domain/` package when large), file / network / SQLite access in `repository.py`, then
-                             `service.py`, `schemas.py`, `routes.py`. `app/` is the web plumbing: the HTTP API
-                             (FastAPI), API reference with Scalar at /docs, and it serves the built web app. The
-                             `osu-coach` command line is `cli.py`
+backend/    osu-coach        Python package, in three layers:
+              domain/          pure analysis: judgement re-simulation, skill profile, tips, map recommendations,
+                               progress, playlists
+              infrastructure/  I/O only: replay and beatmap files, collection.db, HTTP sources, SQLite
+              api/             the HTTP API (FastAPI), API reference with Scalar at /docs; also serves the built
+                               web app. The `osu-coach` command line is `cli.py`
 frontend/   osu-coach-web    the web app: React + TypeScript progressive web app (Vite, TanStack Query, ECharts)
 packaging/                   Windows installer (PyInstaller + Inno Setup) and the app icons
 ```
 
 ```
- browser (PWA)  ──HTTP /api──►  backend/…/routes (FastAPI)  ──Python──►  services, domain, repositories
-   frontend/                       localhost only                        replays, beatmaps, settings.json,
-                                   background jobs                       analysis cache, progress.sqlite
+ browser (PWA)  ──HTTP /api──►  backend/…/api (FastAPI)  ──Python──►  domain/ + infrastructure/
+   frontend/                       localhost only                     replays, beatmaps, settings.json,
+                                   background jobs                    analysis cache, progress.sqlite
 ```
 
-* **domain code** (`*/domain.py`) knows nothing about the web. `osu_coach.insights` holds the chart aggregations, so the API only translates.
+* **core** knows nothing about the web. `osu_coach.insights` holds the chart aggregations, so the API only translates.
 * **api** keeps the state of the session (scanned library, analysed replays, the profile built from them) in one
   process — osu! coach is a single-user app on your own computer. Slow work (scanning, analysing, downloading) runs
   as background jobs the web app follows. It only answers to `localhost` and refuses requests that change something
@@ -85,7 +85,7 @@ packaging/                   Windows installer (PyInstaller + Inno Setup) and th
 make install        # Python packages (editable) + web app dependencies
 make api            # API on :8501           (osu-coach-api)
 make web            # web app on :5173, forwarding /api and /docs to :8501
-make test lint      # pytest, vitest; ruff, tsc, eslint
+make test lint      # pytest (core, api), vitest; ruff, tsc, eslint
 make e2e            # build, then drive the app in Chromium against the real API
 make openapi        # after changing an API schema: regenerate the web app's types
 ```
