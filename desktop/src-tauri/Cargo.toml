@@ -1,0 +1,11 @@
+[package]
+name = "osu-coach-desktop"
+version = "0.9.0"
+description = "osu! coach desktop app"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

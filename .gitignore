@@ -23,3 +23,9 @@ frontend/playwright-report/
 *.tsbuildinfo
 # the built web app copied into the API package for the installer
 api/osu_coach_api/web/
+
+# desktop (Tauri)
+desktop/node_modules/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/src-tauri/resources/

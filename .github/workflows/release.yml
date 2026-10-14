@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows installers
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version from tag
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $v = ($env:REF_NAME).TrimStart("v")
+          $found = [ordered]@{
+            'backend/pyproject.toml' = (Select-String -Path backend/pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+            'backend/src/osu_coach/__init__.py' = (Select-String -Path backend/src/osu_coach/__init__.py -Pattern '^__version__ = "(.+)"').Matches[0].Groups[1].Value
+            'frontend/package.json' = (Get-Content frontend/package.json -Raw | ConvertFrom-Json).version
+            'frontend/package-lock.json' = (Get-Content frontend/package-lock.json -Raw | ConvertFrom-Json).version
+            'desktop/package.json' = (Get-Content desktop/package.json -Raw | ConvertFrom-Json).version
+            'desktop/package-lock.json' = (Get-Content desktop/package-lock.json -Raw | ConvertFrom-Json).version
+            'desktop/src-tauri/tauri.conf.json' = (Get-Content desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+            'desktop/src-tauri/Cargo.toml' = (Select-String -Path desktop/src-tauri/Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+            'desktop/src-tauri/Cargo.lock' = (Get-Content desktop/src-tauri/Cargo.lock -Raw | Select-String -Pattern '(?m)^name = "osu-coach-desktop"\r?\nversion = "(.+)"').Matches[0].Groups[1].Value
+          }
+          $bad = $found.GetEnumerator() | Where-Object { $_.Value -ne $v }
+          if ($bad) { throw "Tag $v does not match: $(($bad | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ', ')" }
+          "VERSION=$v" >> $env:GITHUB_ENV
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: constraints.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -c constraints.txt -e ./backend pyinstaller pillow
+          choco install innosetup --no-progress -y
+
+      - name: Build web app
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Freeze the app
+        run: |
+          python packaging/make_icon.py
+          python -m PyInstaller packaging/osu-coach.spec --noconfirm
+          $env:OSU_COACH_PORTABLE = "1"
+          python -m PyInstaller packaging/osu-coach.spec --noconfirm --distpath dist --workpath build/portable
+
+      - name: Inno Setup installer
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$env:VERSION" packaging/installer.iss
+
+      - name: MSI (Tauri)
+        run: |
+          New-Item -ItemType Directory desktop/src-tauri/resources -Force | Out-Null
+          Copy-Item dist/osu-coach desktop/src-tauri/resources/osu-coach -Recurse
+          cd desktop
+          npm ci
+          npx tauri build --bundles msi --config src-tauri/tauri.release.conf.json
+
+      - name: Collect release files
+        run: |
+          New-Item -ItemType Directory release | Out-Null
+          Copy-Item "dist/osu-coach-$env:VERSION-setup.exe" release/
+          Copy-Item dist/osu-coach-portable.exe "release/osu-coach-$env:VERSION-portable.exe"
+          $msi = Get-ChildItem desktop/src-tauri/target/release/bundle/msi/*.msi | Select-Object -First 1
+          Copy-Item $msi.FullName "release/osu-coach-$env:VERSION-x64.msi"
+          Get-ChildItem release
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" release/* --title "osu! coach $env:VERSION" --generate-notes

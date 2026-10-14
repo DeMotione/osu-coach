@@ -34,6 +34,10 @@ a = Analysis([os.path.join(HERE, "osu_coach_app.py")], pathex=[SRC], binaries=bi
              hiddenimports=hiddenimports, noarchive=False,
              excludes=["pytest", "osrparse", "playwright", "tkinter", "IPython", "matplotlib", "streamlit", "plotly"])
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="osu-coach", console=True, icon=os.path.join(HERE, "osu-coach.ico"),
-          version=None, upx=False)
-coll = COLLECT(exe, a.binaries, a.datas, name="osu-coach", upx=False)
+icon = os.path.join(HERE, "osu-coach.ico")
+if os.environ.get("OSU_COACH_PORTABLE"):   # one self-extracting exe: dist/osu-coach-portable.exe
+    exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name="osu-coach-portable", console=True, icon=icon, upx=False)
+else:
+    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="osu-coach", console=True, icon=icon,
+              version=None, upx=False)
+    coll = COLLECT(exe, a.binaries, a.datas, name="osu-coach", upx=False)

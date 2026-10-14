@@ -59,7 +59,7 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs Python 3.11 and 3
 ## Dependencies and versions
 
 - Python dependencies are pinned in [constraints.txt](constraints.txt); install with `-c constraints.txt`.
-- Keep the version (currently 0.9.0) in sync between `backend/pyproject.toml` and `frontend/package.json`.
+- Keep the version (currently 0.9.0) in sync between `backend/pyproject.toml`, `backend/src/osu_coach/__init__.py`, `frontend/package.json`, `desktop/package.json`, `desktop/src-tauri/Cargo.toml` and `desktop/src-tauri/tauri.conf.json` (plus their lockfiles). Pushing a tag `v<version>` runs [release.yml](.github/workflows/release.yml), which fails if they differ.
 
 ## Packaging (Windows)
 
