@@ -7,7 +7,7 @@ import pytest
 from osu_coach.api.errors import DESCRIPTIONS
 from osu_coach.api.openapi import document, render
 
-COMMITTED = Path(__file__).resolve().parents[2] / "frontend" / "src" / "api" / "openapi.json"
+COMMITTED = Path(__file__).resolve().parents[3] / "frontend" / "src" / "api" / "openapi.json"
 
 
 @pytest.mark.skipif(not COMMITTED.exists(), reason="frontend not in this checkout")
