@@ -2,7 +2,7 @@ import type { Schemas } from "../api/client";
 import { esc } from "../lib/format";
 import { base, categoryAxis, circle, grid, legend, tooltip, valueAxis } from "./base";
 import type { Option } from "./echarts";
-import { C, type ChartTheme } from "./palette";
+import { C, INK, type ChartTheme } from "./palette";
 import { params } from "./types";
 
 const X_MARK = "path://M2,0L5,3L8,0L10,2L7,5L10,8L8,10L5,7L2,10L0,8L3,5L0,2Z";
@@ -69,7 +69,7 @@ export function clicksChart(c: Schemas["Clicks"], t: ChartTheme): Option {
         data: mean[0] !== null && mean[1] !== null ? [[mean[0], mean[1]]] : [],
         symbol: X_MARK,
         symbolSize: 14,
-        itemStyle: { color: C.info, borderColor: "#24242e", borderWidth: 1 },
+        itemStyle: { color: C.info, borderColor: INK, borderWidth: 1 },
         z: 6,
         silent: true,
       },
@@ -156,7 +156,7 @@ export function distanceChart(rows: Schemas["DistanceRow"][], t: ChartTheme): Op
         type: "bar",
         barMaxWidth: 42,
         data: rows.map((r) => (r.miss_rate === null ? null : +(r.miss_rate * 100).toFixed(2))),
-        itemStyle: { color: C.accent, borderRadius: [5, 5, 0, 0] },
+        itemStyle: { color: C.accent, borderRadius: [3, 3, 0, 0] },
       },
       {
         name: "over/undershoot",

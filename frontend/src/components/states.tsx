@@ -6,9 +6,9 @@ import { ApiError, OFFLINE, type Job } from "../api/client";
 import { IconFolder, IconInfo, IconWarn } from "./icons";
 import { Alert, Card, Progress } from "./ui";
 
-export function EmptyState({ title, children, icon, action }: { title: string; children?: ReactNode; icon?: ReactNode; action?: ReactNode }) {
+export function EmptyState({ title, children, icon, action, tone }: { title: string; children?: ReactNode; icon?: ReactNode; action?: ReactNode; tone?: "warn" }) {
   return (
-    <div className="state">
+    <div className={tone ? `state state--${tone}` : "state"}>
       {icon ?? <IconInfo />}
       <div className="state__title">{title}</div>
       {children && <p>{children}</p>}
@@ -17,16 +17,19 @@ export function EmptyState({ title, children, icon, action }: { title: string; c
   );
 }
 
-/** Placeholder blocks shaped like the page that is loading (keeps the layout from jumping). */
+/**
+ * Placeholder blocks shaped like the page that is loading (keeps the layout from jumping). They fade in after a
+ * short delay (`.later`), so a local API that answers at once never flashes them before the real content.
+ */
 export function LoadingPage({ tiles = 4 }: { tiles?: number }) {
   return (
     <>
-      <div className={`tiles tiles--${tiles}`}>
+      <div className={`tiles tiles--${tiles} later`}>
         {Array.from({ length: tiles }, (_, i) => (
           <div key={i} className="skeleton" style={{ height: 96 }} />
         ))}
       </div>
-      <div className="row">
+      <div className="row later">
         <div className="skeleton" style={{ height: 380 }} />
         <div className="skeleton" style={{ height: 380 }} />
       </div>
@@ -63,6 +66,7 @@ export function ErrorCard({ error, onRetry }: { error: unknown; onRetry?: () => 
     <Card>
       <EmptyState
         icon={<IconWarn />}
+        tone="warn"
         title={offline ? "osu! coach isn't running" : "Something went wrong"}
         action={
           onRetry && (

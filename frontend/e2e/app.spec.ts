@@ -132,6 +132,30 @@ test("settings are remembered: best replays and the level set by hand", async ({
   await expect.poll(async () => (await (await request.get("/api/settings")).json()).replay_set).toBe("all");
 });
 
+test("the sidebar navigates, folds with Ctrl+B and remembers it", async ({ page }) => {
+  await page.goto("/replays");
+  const nav = page.getByRole("navigation", { name: "Pages" });
+  await nav.getByRole("link", { name: "Aim" }).click();
+  await expect(page).toHaveURL(/\/aim$/);
+  await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Analysis");
+  await expect(nav.getByRole("link", { name: "Aim" })).toHaveClass(/active/);
+  await expect(page.getByRole("button", { name: "Back" })).toHaveCount(0);
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Analysis" }).click();
+  await expect(page).toHaveURL(/\/overview$/);
+  await nav.getByRole("link", { name: /^Replays/ }).click();
+  await expect(page).toHaveURL(/\/replays$/);
+  await page.keyboard.press("Control+b");
+  await expect(page.locator(".app")).toHaveClass(/is-rail/);
+  await page.reload();
+  await expect(page.locator(".app")).toHaveClass(/is-rail/);
+  await page.getByRole("button", { name: "Show sidebar" }).click();
+  await expect(page.locator(".app")).not.toHaveClass(/is-rail/);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await expect(nav).toBeHidden();
+  await page.getByRole("button", { name: "Menu" }).click();
+  await expect(nav.getByRole("link", { name: "Overview" })).toBeVisible();
+});
+
 test("the API reference and the installable app", async ({ page, request }) => {
   const docs = await request.get("/docs");
   expect(docs.ok()).toBe(true);

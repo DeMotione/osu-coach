@@ -1,106 +1,169 @@
-/* Design tokens. Dark is the default; light follows the system or the theme switch. */
+/* Design tokens. The look is osu! coach's own, with osu!'s squarer corners and translucent, blurred panels over
+ * a softly lit backdrop; otherwise osu! is in the accent and the data:
+ *  - one pink (osu!'s hue 333) for primary actions, the current page and the key numbers, nothing else;
+ *  - cool ink-violet neutrals (hue 255) instead of osu-web's plum, so pink reads as the one warm colour;
+ *  - rounded, soft-elevated cards on a flat canvas, and a circle language (hit circle, approach circle) for the
+ *    brand mark, loading and empty states.
+ * Every scale is defined once, up front; components only pick from it (Refactoring UI: "limit your choices").
+ * Dark is the default; light follows the system or the theme switch. Every theme-dependent token is a
+ * `light-dark(light, dark)` pair. The chart palette in `src/charts/palette.ts` mirrors these values (canvas
+ * cannot read CSS variables). */
 :root {
+  --hue: 333; /* osu! pink */
+  --ink: 255; /* the neutrals' hue: a cool violet-grey */
+
+  /* ---- type: one neutral family; data is set in tabular figures */
   --font: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font);
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 
-  /* one spacing unit: every gap between cards and tiles is the same, so rows line up edge to edge */
-  --gap: 20px;
-  --pad: 20px;
-  --radius: 14px;
-  --radius-sm: 9px;
-  --radius-xs: 6px;
-  --sidebar: 256px;
-  --topbar: 56px;
-  --content-max: 1480px;
+  /* type scale (px, never em, so nested text stays on the scale) */
+  --t-xs: 12px;
+  --t-sm: 13px;
+  --t-base: 14px;
+  --t-md: 16px;
+  --t-lg: 18px;
+  --t-xl: 22px;
+  --t-2xl: 28px;
+  --t-3xl: 36px;
 
-  --bg: #101017;
-  --surface: #181822;
-  --surface-2: #1f1f2b;
-  --surface-3: #282836;
-  --border: rgba(255, 255, 255, 0.07);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --text: #ecedf4;
-  --text-2: #b9bbca;
-  --muted: #8b8fa3;
-  --accent: #ff66aa;
-  --accent-hover: #ff7fb8;
-  --accent-soft: rgba(255, 102, 170, 0.14);
-  --on-accent: #22070f;
-  --good: #5fd3a0;
-  --good-soft: rgba(95, 211, 160, 0.14);
-  --bad: #ff5c7a;
-  --bad-soft: rgba(255, 92, 122, 0.14);
-  --warn: #f5b041;
-  --warn-soft: rgba(245, 176, 65, 0.15);
-  --info: #6fb7ff;
-  --info-soft: rgba(111, 183, 255, 0.14);
-  --focus: 0 0 0 3px rgba(255, 102, 170, 0.45);
-  --shadow: 0 1px 0 rgba(255, 255, 255, 0.025) inset, 0 10px 30px rgba(0, 0, 0, 0.28);
-  --overlay: rgba(6, 6, 10, 0.6);
+  /* spacing and sizing scale: no two steps closer than ~25% */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  /* page rhythm: one gap between blocks, one padding inside cards */
+  --gap: var(--s-5);
+  --pad: var(--s-5);
+
+  /* radii: tags / inner parts / controls / cards. Small and crisp, like osu!'s own panels; only the circle
+   * motif (hit circles, avatars, the toggle) is fully round. */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-btn: 4px;
+  --radius: 6px;
+
+  /* shell sizes */
+  --sidebar-w: 248px;
+  --rail-w: 68px;
+  --toolbar-h: 56px;
+  --status-h: 28px;
+  --content-max: 1240px;
+  --control-h: 36px;
+
+  /* ---- neutral scale (hue --ink), light to dark; saturation rises at both ends so the tint never washes out */
+  --n-50: hsl(var(--ink) 40% 98.5%);
+  --n-100: hsl(var(--ink) 30% 96%);
+  --n-200: hsl(var(--ink) 24% 92%);
+  --n-300: hsl(var(--ink) 18% 83%);
+  --n-400: hsl(var(--ink) 12% 66%);
+  --n-500: hsl(var(--ink) 9% 50%);
+  --n-600: hsl(var(--ink) 11% 38%);
+  --n-700: hsl(var(--ink) 15% 25%);
+  --n-800: hsl(var(--ink) 19% 19.5%);
+  --n-750: hsl(var(--ink) 17% 25%);
+  --n-850: hsl(var(--ink) 20% 15.5%);
+  --n-900: hsl(var(--ink) 21% 11%);
+  --n-950: hsl(var(--ink) 26% 6%);
+
+  /* ---- pink scale: the one brand colour; rotated a few degrees towards orange as it darkens */
+  --p-100: hsl(333 100% 96%);
+  --p-200: hsl(332 100% 91%);
+  --p-300: hsl(332 100% 83%);
+  --p-400: hsl(332 100% 72%);
+  --p-500: hsl(333 92% 61%);
+  --p-600: hsl(335 76% 47%);
+  --p-700: hsl(336 78% 38%);
+  --p-800: hsl(337 76% 28%);
+  --p-900: hsl(338 72% 19%);
+
+  /* ---- surfaces: lighter = closer to you. Cards float on the canvas; fields are wells cut into the card. */
+  --bg: light-dark(var(--n-100), var(--n-950));
+  --sidebar: light-dark(var(--n-50), var(--n-950));
+  --surface: light-dark(#fff, var(--n-850));
+  --surface-2: light-dark(var(--n-50), var(--n-800));
+  --surface-3: light-dark(var(--n-200), var(--n-750));
+  --raised: light-dark(#fff, hsl(var(--ink) 16% 30%));
+  --field: light-dark(var(--n-50), var(--n-950));
+  --border: light-dark(hsl(var(--ink) 30% 20% / 0.09), hsl(var(--ink) 40% 90% / 0.12));
+  --border-strong: light-dark(hsl(var(--ink) 30% 20% / 0.18), hsl(var(--ink) 40% 90% / 0.24));
+
+  --text: light-dark(var(--n-950), hsl(var(--ink) 40% 98%));
+  --text-2: light-dark(var(--n-700), hsl(var(--ink) 20% 85%));
+  --muted: light-dark(hsl(var(--ink) 9% 40%), hsl(var(--ink) 14% 72%));
+
+  --accent: light-dark(var(--p-600), var(--p-400));
+  --accent-hover: light-dark(var(--p-700), var(--p-300));
+  --accent-press: light-dark(var(--p-800), var(--p-500));
+  --accent-text: light-dark(var(--p-700), var(--p-300));
+  --accent-soft: light-dark(hsl(333 90% 50% / 0.09), hsl(332 100% 72% / 0.13));
+  --accent-line: light-dark(hsl(333 80% 47% / 0.4), hsl(332 100% 72% / 0.45));
+  --on-accent: light-dark(#fff, hsl(336 70% 12%));
+  --accent-2: light-dark(hsl(255 55% 50%), hsl(255 100% 80%)); /* violet: the second end of gradients */
+  --accent-3: light-dark(hsl(200 85% 36%), hsl(200 100% 70%)); /* osu! 300 blue */
+
+  --good: light-dark(#3f7d00, #9be34f);
+  --good-soft: light-dark(rgb(63 125 0 / 0.11), rgb(155 227 79 / 0.14));
+  --bad: light-dark(#c4112a, #ff6b81);
+  --bad-soft: light-dark(rgb(196 17 42 / 0.09), rgb(255 107 129 / 0.15));
+  --warn: light-dark(#9a6100, #ffcc22);
+  --warn-soft: light-dark(rgb(154 97 0 / 0.1), rgb(255 204 34 / 0.14));
+  --info: light-dark(#1d78ad, #66ccff);
+  --info-soft: light-dark(rgb(29 120 173 / 0.09), rgb(102 204 255 / 0.14));
+
+  /* osu! rank colours (data, as in the game) */
+  --rank-d: #ff5a5a;
+  --rank-c: #ff8e5d;
+  --rank-b: #e3b130;
+  --rank-a: #88da20;
+  --rank-s: #02b5c3;
+  --rank-ss: #de31ae;
+
+  /* ---- elevation: five steps. Two-part shadows (a soft ambient one and a tight contact one); the tight one
+   * fades with height. In the dark theme a hairline highlight on the top edge stands in for the light source. */
+  --elev-0: none;
+  --elev-1: inset 0 0 0 1px light-dark(transparent, rgb(255 255 255 / 0.07)), 0 1px 2px light-dark(rgb(30 20 70 / 0.1), rgb(0 0 0 / 0.4)), 0 2px 8px light-dark(rgb(30 20 70 / 0.05), rgb(0 0 0 / 0.18));
+  --elev-2: inset 0 0 0 1px light-dark(transparent, rgb(255 255 255 / 0.09)), 0 1px 2px light-dark(rgb(30 20 70 / 0.1), rgb(0 0 0 / 0.4)), 0 4px 14px light-dark(rgb(30 20 70 / 0.09), rgb(0 0 0 / 0.3));
+  --elev-3: 0 1px 2px light-dark(rgb(30 20 70 / 0.08), rgb(0 0 0 / 0.3)), 0 10px 28px light-dark(rgb(30 20 70 / 0.16), rgb(0 0 0 / 0.5));
+  --elev-4: 0 24px 64px light-dark(rgb(30 20 70 / 0.25), rgb(0 0 0 / 0.65));
+  --elev-glass: 0 1px 2px light-dark(rgb(30 20 70 / 0.08), rgb(0 0 0 / 0.3)), 0 8px 24px light-dark(rgb(30 20 70 / 0.08), rgb(0 0 0 / 0.28));
+  --shadow: var(--elev-1);
+  --shadow-pop: var(--elev-3);
+  --btn-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28), 0 1px 2px light-dark(rgb(120 10 60 / 0.35), rgb(0 0 0 / 0.45));
+  --focus: 0 0 0 2px var(--surface), 0 0 0 4px light-dark(hsl(335 76% 47% / 0.55), hsl(332 100% 72% / 0.7));
+  /* ---- glass: panels are translucent and blur what lies behind them, as osu!'s do over a beatmap background.
+   * The backdrop is a few soft pink and violet lights on the canvas; there is nothing to blur without it. */
+  --backdrop:
+    radial-gradient(760px 520px at 92% -6%, light-dark(hsl(333 100% 66% / 0.2), hsl(333 100% 58% / 0.2)), transparent 70%),
+    radial-gradient(680px 560px at 4% 38%, light-dark(hsl(262 100% 70% / 0.15), hsl(262 100% 62% / 0.16)), transparent 70%),
+    radial-gradient(720px 480px at 78% 108%, light-dark(hsl(200 100% 66% / 0.13), hsl(215 100% 60% / 0.13)), transparent 70%);
+  --glass: light-dark(rgb(255 255 255 / 0.62), hsl(var(--ink) 24% 15% / 0.82));
+  --glass-2: light-dark(rgb(255 255 255 / 0.5), hsl(var(--ink) 24% 21% / 0.72));
+  --glass-edge: inset 0 0 0 1px light-dark(rgb(255 255 255 / 0.75), rgb(255 255 255 / 0.09)), inset 0 1px 0 light-dark(rgb(255 255 255 / 0.9), rgb(255 255 255 / 0.12));
+  --blur: blur(18px) saturate(1.35);
+  --overlay: light-dark(rgb(30 20 70 / 0.35), rgb(5 3 12 / 0.65));
+
   color-scheme: dark;
-}
-
-:root[data-theme="light"] {
-  --bg: #f3f3f8;
-  --surface: #ffffff;
-  --surface-2: #f6f6fa;
-  --surface-3: #ececf3;
-  --border: rgba(20, 20, 40, 0.09);
-  --border-strong: rgba(20, 20, 40, 0.18);
-  --text: #1b1b26;
-  --text-2: #464858;
-  --muted: #6c6f82;
-  --accent: #d6337f;
-  --accent-hover: #c02670;
-  --accent-soft: rgba(214, 51, 127, 0.1);
-  --on-accent: #ffffff;
-  --good: #198a5b;
-  --good-soft: rgba(25, 138, 91, 0.1);
-  --bad: #d22c4c;
-  --bad-soft: rgba(210, 44, 76, 0.1);
-  --warn: #b26a00;
-  --warn-soft: rgba(178, 106, 0, 0.1);
-  --info: #1f6fc7;
-  --info-soft: rgba(31, 111, 199, 0.1);
-  --focus: 0 0 0 3px rgba(214, 51, 127, 0.3);
-  --shadow: 0 1px 2px rgba(20, 20, 40, 0.05), 0 8px 24px rgba(20, 20, 40, 0.05);
-  --overlay: rgba(20, 20, 40, 0.35);
-  color-scheme: light;
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --bg: #f3f3f8;
-    --surface: #ffffff;
-    --surface-2: #f6f6fa;
-    --surface-3: #ececf3;
-    --border: rgba(20, 20, 40, 0.09);
-    --border-strong: rgba(20, 20, 40, 0.18);
-    --text: #1b1b26;
-    --text-2: #464858;
-    --muted: #6c6f82;
-    --accent: #d6337f;
-    --accent-hover: #c02670;
-    --accent-soft: rgba(214, 51, 127, 0.1);
-    --on-accent: #ffffff;
-    --good: #198a5b;
-    --good-soft: rgba(25, 138, 91, 0.1);
-    --bad: #d22c4c;
-    --bad-soft: rgba(210, 44, 76, 0.1);
-    --warn: #b26a00;
-    --warn-soft: rgba(178, 106, 0, 0.1);
-    --info: #1f6fc7;
-    --info-soft: rgba(31, 111, 199, 0.1);
-    --focus: 0 0 0 3px rgba(214, 51, 127, 0.3);
-    --shadow: 0 1px 2px rgba(20, 20, 40, 0.05), 0 8px 24px rgba(20, 20, 40, 0.05);
-    --overlay: rgba(20, 20, 40, 0.35);
     color-scheme: light;
   }
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
 @media (max-width: 760px) {
   :root {
-    --gap: 14px;
-    --pad: 16px;
+    --gap: var(--s-4);
+    --pad: var(--s-4);
   }
 }

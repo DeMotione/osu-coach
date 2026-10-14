@@ -1,23 +1,27 @@
-/** Chart colours (the same in light and dark: they read on both) and theme-dependent text / grid colours. */
+/** Chart colours (the same in light and dark: they read on both). The osu! accents: pink, blue, purple, yellow, lime. */
 export const C = {
   accent: "#ff66aa",
-  good: "#5fd3a0",
-  bad: "#ff5c7a",
-  muted: "#8b8fa3",
-  info: "#6fb7ff",
+  good: "#88da20",
+  bad: "#ff5a6e",
+  muted: "#9994a8",
+  info: "#66ccff",
   missRed: "#ff3b3b",
-  warn: "#f5b041",
-  yellow: "#ffb020",
-  purple: "#c792ea",
-  orange: "#ff8c5a",
-  cyan: "#4dd0e1",
-  brown: "#a1887f",
+  warn: "#ffa51f",
+  yellow: "#ffcc22",
+  purple: "#aa88ff",
+  orange: "#ff8e5d",
+  cyan: "#2fd3df",
+  brown: "#c39a8c",
 } as const;
 
-/** Lines / bars of several series, in order. */
-export const SERIES = [C.accent, C.info, C.good, C.yellow, C.purple, C.orange, C.cyan, C.brown];
+/** Dark text on a bright bar, and the outline of a marker on a plot: the darkest neutral of the CSS tokens. */
+export const INK = "#14111c";
 
-export const RESULT_COLORS: Record<number, string> = { 300: C.good, 100: C.info, 50: C.yellow };
+/** Lines / bars of several series, in order. */
+export const SERIES = [C.accent, C.info, C.purple, C.yellow, C.good, C.orange, C.cyan, C.brown];
+
+/** Hit results as in the game: 300 blue, 100 green, 50 yellow. */
+export const RESULT_COLORS: Record<number, string> = { 300: C.info, 100: C.good, 50: C.yellow };
 
 export interface ChartTheme {
   dark: boolean;
@@ -31,29 +35,30 @@ export interface ChartTheme {
   heatLow: string;
 }
 
+/** Mirrors `--text`, `--muted`, `--surface` (the card) and `--raised` of `styles/tokens.css` (the ink neutrals, hue 255). */
 export function chartTheme(dark: boolean): ChartTheme {
   return dark
     ? {
         dark,
-        text: "#d9dae4",
-        muted: "#8b8fa3",
-        line: "rgba(255,255,255,0.18)",
-        split: "rgba(255,255,255,0.06)",
-        tooltipBg: "#282836",
-        tooltipBorder: "rgba(255,255,255,0.14)",
-        surface: "#181822",
-        heatLow: "rgba(128,128,160,0.14)",
+        text: "#f8f7fc",
+        muted: "#b7b3c6",
+        line: "rgba(225,220,250,0.26)",
+        split: "rgba(225,220,250,0.1)",
+        tooltipBg: "#46405a",
+        tooltipBorder: "rgba(225,220,250,0.16)",
+        surface: "#24202f",
+        heatLow: "rgba(150,140,185,0.16)",
       }
     : {
         dark,
-        text: "#2b2c38",
-        muted: "#6c6f82",
-        line: "rgba(20,20,40,0.22)",
-        split: "rgba(20,20,40,0.07)",
+        text: "#110f18",
+        muted: "#666175",
+        line: "rgba(40,30,90,0.2)",
+        split: "rgba(40,30,90,0.08)",
         tooltipBg: "#ffffff",
-        tooltipBorder: "rgba(20,20,40,0.14)",
+        tooltipBorder: "rgba(40,30,90,0.16)",
         surface: "#ffffff",
-        heatLow: "rgba(128,128,160,0.12)",
+        heatLow: "rgba(140,130,185,0.14)",
       };
 }
 
@@ -67,7 +72,7 @@ export function scoreColor(score: number | null | undefined): string {
 export function heat(t: number, theme: ChartTheme): string {
   const k = Math.max(0, Math.min(1, t));
   const a = 0.12 + 0.88 * k;
-  return theme.dark ? `rgba(255,102,170,${a.toFixed(3)})` : `rgba(214,51,127,${(a * 0.9).toFixed(3)})`;
+  return theme.dark ? `rgba(255,102,170,${a.toFixed(3)})` : `rgba(190,46,110,${(a * 0.9).toFixed(3)})`;
 }
 
 /** Text on a {@link heat} cell: white on strong colour, the theme's text colour on pale cells. */

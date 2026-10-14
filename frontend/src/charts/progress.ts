@@ -52,8 +52,8 @@ export function playedChart(rows: Row[], t: ChartTheme): Option {
       valueAxis(t, { name: "minutes", nameGap: 36, nameRotate: -90, position: "right", min: 0, splitLine: { show: false } }),
     ],
     series: [
-      { name: "plays", type: "bar", barMaxWidth: 26, data: rows.map((r) => r.plays), itemStyle: { color: C.accent, borderRadius: [4, 4, 0, 0] } },
-      { name: "new maps", type: "bar", barMaxWidth: 26, data: rows.map((r) => r.new_maps), itemStyle: { color: C.info, borderRadius: [4, 4, 0, 0] } },
+      { name: "plays", type: "bar", barMaxWidth: 26, data: rows.map((r) => r.plays), itemStyle: { color: C.accent, borderRadius: [3, 3, 0, 0] } },
+      { name: "new maps", type: "bar", barMaxWidth: 26, data: rows.map((r) => r.new_maps), itemStyle: { color: C.info, borderRadius: [3, 3, 0, 0] } },
       {
         name: "minutes played",
         type: "line",

@@ -38,7 +38,7 @@ export function tooltip(t: ChartTheme, extra: Obj = {}): Obj {
       borderWidth: 1,
       padding: [8, 11],
       textStyle: { color: t.text, fontSize: 12.5, fontFamily: FONT },
-      extraCssText: "border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.22);max-width:440px;white-space:normal;",
+      extraCssText: "border-radius:5px;box-shadow:0 10px 28px rgba(10,5,30,.28);max-width:440px;white-space:normal;",
     },
     extra,
   );

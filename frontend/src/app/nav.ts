@@ -17,9 +17,17 @@ export interface NavItem {
   path: string;
   label: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
+  /** Needs an analysed profile to show anything: dimmed in the sidebar until one exists. */
+  needsAnalysis?: boolean;
 }
 
-export const NAV: { group: string; items: NavItem[] }[] = [
+export interface NavGroup {
+  group: string;
+  items: NavItem[];
+}
+
+/** The sidebar, top to bottom: where replays come from, what they say, what to do about it. */
+export const NAV: NavGroup[] = [
   {
     group: "Replays",
     items: [
@@ -30,19 +38,32 @@ export const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "Analysis",
     items: [
-      { path: "/overview", label: "Overview", icon: IconGauge },
-      { path: "/progress", label: "Progress", icon: IconTrend },
-      { path: "/aim", label: "Aim", icon: IconTarget },
-      { path: "/tapping", label: "Tapping", icon: IconKeys },
-      { path: "/sliders-reading", label: "Sliders & Reading", icon: IconWave },
+      { path: "/overview", label: "Overview", icon: IconGauge, needsAnalysis: true },
+      { path: "/progress", label: "Progress", icon: IconTrend, needsAnalysis: true },
+      { path: "/aim", label: "Aim", icon: IconTarget, needsAnalysis: true },
+      { path: "/tapping", label: "Tapping", icon: IconKeys, needsAnalysis: true },
+      { path: "/sliders-reading", label: "Sliders & Reading", icon: IconWave, needsAnalysis: true },
     ],
   },
   {
     group: "Improve",
     items: [
-      { path: "/tips", label: "Tips & Setup", icon: IconBulb },
-      { path: "/maps", label: "Map Suggestion", icon: IconMap },
-      { path: "/skills", label: "Skill Development", icon: IconStairs },
+      { path: "/tips", label: "Tips & Setup", icon: IconBulb, needsAnalysis: true },
+      { path: "/maps", label: "Map Suggestion", icon: IconMap, needsAnalysis: true },
+      { path: "/skills", label: "Skill Development", icon: IconStairs, needsAnalysis: true },
     ],
   },
 ];
+
+/** The pages in sidebar order, for the Alt+number shortcuts. */
+export const PAGES: NavItem[] = NAV.flatMap((g) => g.items);
+
+export const isActive = (item: NavItem, pathname: string) => pathname === item.path || pathname.startsWith(`${item.path}/`);
+
+export function currentPage(pathname: string): { group: NavGroup; item: NavItem } | null {
+  for (const group of NAV) {
+    const item = group.items.find((i) => isActive(i, pathname));
+    if (item) return { group, item };
+  }
+  return null;
+}
