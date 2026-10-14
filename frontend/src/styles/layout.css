@@ -349,7 +349,7 @@
   top: 3px;
   left: 3px;
   width: var(--w);
-  height: 28px;
+  height: var(--h, 28px);
   border-radius: var(--radius-sm);
   background: var(--raised);
   box-shadow: var(--elev-1);
@@ -363,7 +363,7 @@
   align-items: center;
   justify-content: center;
   width: var(--w);
-  height: 28px;
+  height: var(--h, 28px);
   border-radius: var(--radius-sm);
   color: var(--muted);
   cursor: pointer;
@@ -400,6 +400,97 @@
   align-items: center;
   gap: var(--s-1);
   margin-left: auto;
+}
+
+/* desktop app: the toolbar is the window's title bar. It spans the whole window above the sidebar, and carries the
+ * brand, the window buttons in the corner and a drag region; everything below is offset by its height. */
+.is-desktop .app {
+  padding-top: var(--toolbar-h);
+}
+
+.is-desktop .sidebar {
+  top: var(--toolbar-h);
+  height: calc(100dvh - var(--toolbar-h));
+}
+
+.is-desktop .workspace {
+  min-height: calc(100dvh - var(--toolbar-h));
+}
+
+.toolbar--desktop {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 50;
+  padding: 0 0 0 var(--s-3);
+  background: color-mix(in srgb, var(--sidebar) 58%, var(--bg));
+  backdrop-filter: none;
+  user-select: none;
+}
+
+.toolbar--desktop .btn--icon {
+  width: 30px;
+  height: 30px;
+}
+
+.toolbar--desktop .themeswitch {
+  --w: 28px;
+  --h: 22px;
+}
+
+.toolbar__brand {
+  display: flex;
+  align-items: center;
+  margin-right: var(--s-2);
+}
+
+.toolbar__brand .brand {
+  gap: 8px;
+  font-size: var(--t-md);
+}
+
+.toolbar__brand .brand__mark {
+  width: 20px;
+  height: 20px;
+}
+
+/* the name stays in the title bar even when the sidebar is folded to its rail */
+.is-rail .toolbar__brand .brand__name {
+  display: revert;
+}
+
+.winctl {
+  display: flex;
+  align-self: stretch;
+  margin-left: var(--s-2);
+}
+
+.winctl__btn {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: default;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.winctl__btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.winctl__btn:hover {
+  background: var(--hover, color-mix(in srgb, var(--text) 8%, transparent));
+  color: var(--text);
+}
+
+.winctl__btn--close:hover {
+  background: #e5484d;
+  color: #fff;
 }
 
 .statusbar {
@@ -583,7 +674,10 @@
     display: inline-flex !important;
   }
 
-  .toolbar__fold,
+  .toolbar__fold {
+    display: none !important; /* .btn, loaded later, would otherwise win */
+  }
+
   .statusbar__version {
     display: none;
   }

@@ -14,7 +14,12 @@ import {
   IconSidebar,
   IconSun,
   IconWarn,
+  IconWinMaximize,
+  IconWinMinimize,
+  IconWinRestore,
+  IconX,
 } from "../components/icons";
+import { closeWindow, isDesktop, minimizeWindow, toggleMaximizeWindow, useWindowMaximized } from "../lib/desktop";
 import { stars } from "../lib/format";
 import { PageTitleProvider } from "../lib/pageTitle";
 import { usePageTitleVisible } from "../lib/pageTitleState";
@@ -116,16 +121,45 @@ function ThemeSwitch() {
   );
 }
 
+/** Minimise, maximise and close for the desktop app, whose window has no native title bar. */
+function WindowControls() {
+  const maximized = useWindowMaximized();
+  return (
+    <div className="winctl">
+      <button type="button" className="winctl__btn" aria-label="Minimise" title="Minimise" onClick={minimizeWindow}>
+        <IconWinMinimize />
+      </button>
+      <button
+        type="button"
+        className="winctl__btn"
+        aria-label={maximized ? "Restore" : "Maximise"}
+        title={maximized ? "Restore" : "Maximise"}
+        onClick={toggleMaximizeWindow}
+      >
+        {maximized ? <IconWinRestore /> : <IconWinMaximize />}
+      </button>
+      <button type="button" className="winctl__btn winctl__btn--close" aria-label="Close" title="Close" onClick={closeWindow}>
+        <IconX />
+      </button>
+    </div>
+  );
+}
+
 function Toolbar({ collapsed, onToggleSidebar, onOpenDrawer }: { collapsed: boolean; onToggleSidebar: () => void; onOpenDrawer: () => void }) {
   const meta = useMeta();
   const { pathname } = useLocation();
   const here = currentPage(pathname);
   const headingVisible = usePageTitleVisible();
   return (
-    <header className="toolbar">
+    <header className={`toolbar${isDesktop ? " toolbar--desktop" : ""}`} data-tauri-drag-region>
       <button type="button" className="btn btn--ghost btn--icon toolbar__drawer" aria-label="Menu" onClick={onOpenDrawer}>
         <IconMenu />
       </button>
+      {isDesktop && (
+        <div className="toolbar__brand">
+          <Brand />
+        </div>
+      )}
       <button
         type="button"
         className="btn btn--ghost btn--icon toolbar__fold"
@@ -137,7 +171,7 @@ function Toolbar({ collapsed, onToggleSidebar, onOpenDrawer }: { collapsed: bool
         <IconSidebar />
       </button>
       {here && (
-        <div className={`toolbar__title${headingVisible ? "" : " shown"}`} data-testid="toolbar-title" aria-hidden={headingVisible}>
+        <div className={`toolbar__title${headingVisible ? "" : " shown"}`} data-testid="toolbar-title" aria-hidden={headingVisible} data-tauri-drag-region>
           {here.item.label}
         </div>
       )}
@@ -149,6 +183,7 @@ function Toolbar({ collapsed, onToggleSidebar, onOpenDrawer }: { collapsed: bool
           </a>
         )}
       </div>
+      {isDesktop && <WindowControls />}
     </header>
   );
 }
@@ -259,9 +294,11 @@ function Shell() {
   return (
     <div className={cls}>
       <aside className="sidebar">
-        <div className="sidebar__head">
-          <Brand onClick={close} />
-        </div>
+        {!isDesktop && (
+          <div className="sidebar__head">
+            <Brand onClick={close} />
+          </div>
+        )}
         <SidebarNav onNavigate={close} />
         <div className="sidebar__foot">
           <PlayerCard onClick={close} />
