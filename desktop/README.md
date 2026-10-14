@@ -41,7 +41,10 @@ To use a specific server binary: `$env:OSU_COACH_API_BIN = "C:\path\to\osu-coach
 
 ## Build
 
+The installers bundle the frozen server (`packaging/osu-coach.spec`) as a resource, so they need no Python.
 From the repo root, with the venv active (`pip install -c constraints.txt -e ./backend pyinstaller`):
+
+### Windows (.exe setup, .msi)
 
 ```powershell
 cd frontend; npm ci; npm run build; cd ..
@@ -53,7 +56,37 @@ cd desktop
 npx tauri build --config src-tauri/tauri.release.conf.json
 ```
 
-The installer is `src-tauri\target\release\bundle\nsis\osu! coach_<version>_x64-setup.exe` and bundles the frozen server.
+The installers are `src-tauri\target\release\bundle\nsis\osu! coach_<version>_x64-setup.exe` and
+`src-tauri\target\release\bundle\msi\osu! coach_<version>_x64_en-US.msi`.
+
+### Linux (.deb)
+
+Needs the [Tauri Linux packages](https://tauri.app/start/prerequisites/#linux); on Debian / Ubuntu:
+
+```sh
+sudo apt install libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev build-essential
+```
+
+Then, from the repo root:
+
+```sh
+(cd frontend && npm ci && npm run build)
+python -m PyInstaller packaging/osu-coach.spec --noconfirm
+rm -rf desktop/src-tauri/resources/osu-coach && mkdir -p desktop/src-tauri/resources
+cp -a dist/osu-coach desktop/src-tauri/resources/osu-coach
+cd desktop && npm ci
+npx tauri build --bundles deb --config src-tauri/tauri.release.conf.json
+```
+
+The package is `src-tauri/target/release/bundle/deb/osu! coach_<version>_amd64.deb`; install it with
+`sudo apt install "./src-tauri/target/release/bundle/deb/osu! coach_<version>_amd64.deb"`. It puts the app in
+`/usr/bin/osu-coach-desktop` (menu entry *osu! coach*) and the server in `/usr/lib/osu! coach/`. A package built on
+an older distribution also runs on newer ones (the release builds it on Ubuntu 22.04).
+
+### Releases
+
+`.github/workflows/release.yml` builds all of this (plus the Inno Setup installer and the portable exe) when a tag
+`v<version>` is pushed, and publishes the files as a GitHub release.
 
 ## Other
 

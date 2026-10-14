@@ -21,7 +21,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
+    "targets": ["nsis", "msi", "deb"],
+    "publisher": "DeMotione",
+    "homepage": "https://github.com/DeMotione/osu-coach",
+    "license": "MIT",
+    "category": "Game",
+    "shortDescription": "Analyses your osu!standard replays and tells you what to work on",
+    "longDescription": "osu! coach reads your own osu!standard replays, replays every note against the beatmap and measures how you aim and tap: skill scores, miss causes, setup tips, map suggestions and practice playlists. Everything runs on your computer.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
