@@ -151,6 +151,11 @@
   color-scheme: dark;
 }
 
+/* desktop app: the toolbar is the window's title bar, so it is slimmer */
+:root.is-desktop {
+  --toolbar-h: 40px;
+}
+
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     color-scheme: light;

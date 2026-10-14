@@ -1,7 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The window only loads the local osu! coach server and needs no extra permissions.",
+  "description": "The window only loads the local osu! coach server. It has no native title bar, so the page may drag, minimise, maximise and close the window.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "remote": { "urls": ["http://127.0.0.1:*"] },
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close"
+  ]
 }

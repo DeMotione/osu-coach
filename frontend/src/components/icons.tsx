@@ -60,6 +60,15 @@ export const IconCheck = (p: P) => (
 export const IconX = (p: P) => (
   <I {...p}><path d="M6 6l12 12M18 6 6 18" /></I>
 );
+export const IconWinMinimize = (p: P) => (
+  <I {...p} strokeWidth={1.4}><path d="M6 12h12" /></I>
+);
+export const IconWinMaximize = (p: P) => (
+  <I {...p} strokeWidth={1.4}><rect x="6.5" y="6.5" width="11" height="11" rx="1.5" /></I>
+);
+export const IconWinRestore = (p: P) => (
+  <I {...p} strokeWidth={1.4}><rect x="5.5" y="9.5" width="9" height="9" rx="1.5" /><path d="M9.5 9.5v-2a1.5 1.5 0 0 1 1.5-1.5h6a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-2" /></I>
+);
 export const IconMenu = (p: P) => (
   <I {...p}><path d="M4 7h16M4 12h16M4 17h16" /></I>
 );
