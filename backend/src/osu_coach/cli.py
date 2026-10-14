@@ -590,13 +590,13 @@ def _print_check(a, cmp: dict) -> None:
 
 
 def cmd_ui(args) -> int:
-    """The app: the HTTP API (``osu-coach-api`` package) serving the web frontend. Imported lazily, so the
+    """The app: the HTTP API (``osu_coach.app``) serving the web frontend. Imported lazily, so the
     domain package doesn't depend on the web layer; without it only the command line is available."""
     try:
         from osu_coach.app.server import serve
     except ImportError:
         raise SystemExit(
-            "The app needs the osu-coach-api package (pip install -e api). "
+            "The app needs its web dependencies (pip install -c constraints.txt -e ./backend). "
             "The command line works without it: osu-coach analyze --help"
         ) from None
     return serve(port=args.port, open_browser=not args.no_browser)
@@ -656,7 +656,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--cache", help="cache folder (default: per-user cache dir)")
         p.add_argument("-q", "--quiet", action="store_true")
 
-    p = sub.add_parser("ui", help="open the app (needs the osu-coach-api package)")
+    p = sub.add_parser("ui", help="open the app (needs the web dependencies)")
     p.add_argument("--port", type=int, default=8501)
     p.add_argument("--no-browser", action="store_true", help="only start the server")
     p.set_defaults(func=cmd_ui)

@@ -1,4 +1,4 @@
-"""Chart-ready aggregations of a :class:`~osu_coach.profile.Profile` and of one play.
+"""Chart-ready aggregations of a :class:`~osu_coach.profile.domain.Profile` and of one play.
 
 These are the numbers behind the app's charts that aren't part of the profile itself: the playfield miss
 heat map, the hit-timing histogram, streams binned along the map / the session, slider misses by length
@@ -63,7 +63,7 @@ CLICK_RANGE = 2.4  # radii shown around the circle centre
 
 
 def click_sample(C: pd.DataFrame, n: int = CLICKS_DRAWN, seed: int = 0) -> pd.DataFrame:
-    """One random sample of ``n`` clicks (of :func:`~osu_coach.profile.click_points`), so the share of aim
+    """One random sample of ``n`` clicks (of :func:`~osu_coach.profile.domain.click_points`), so the share of aim
     misses in the picture is the real one. Plays far from the player's level are drawn less often, like
     they count less: weighted sampling without replacement (the ``n`` largest u^(1/w)). Clicks further
     than :data:`CLICK_RANGE` radii from the centre are left out."""
