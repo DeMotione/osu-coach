@@ -1,5 +1,4 @@
 """Finding replays, choosing which to analyse, analysing them."""
-import shutil
 
 import pytest
 
@@ -132,16 +131,3 @@ def test_a_second_scan_waits_for_the_first(tmp_path, client):
     assert isinstance(Busy("x"), Exception)
 
 
-def test_failed_plays_and_best_replays(tmp_path, client):
-    folder = plays_folder(tmp_path, ["mot1one__lazer_failed.osr"])
-    shutil.copy(folder / "mot1one__lazer_failed.osr", folder / "copy.osr")
-    scan(client, folder)
-    client.patch("/api/settings", json={"replay_set": "best"})
-    job = analyse(client)
-    assert job["result"]["profile_ready"] is False and "Best replays is empty" in job["result"]["warnings"][0]
-    status = client.get("/api/analysis").json()
-    assert status["best_empty"] and status["profile_replays"] is None
-    r = client.get("/api/profile/overview")
-    assert r.status_code == 409 and "Best replays" in r.json()["detail"]
-    client.patch("/api/settings", json={"replay_set": "all"})
-    assert client.get("/api/profile/summary").json()["replays"] == 1      # the copy is the same play

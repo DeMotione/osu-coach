@@ -103,7 +103,7 @@ name = "the shared web kernel knows no feature"
 type = "forbidden"
 source_modules = ["osu_coach.app.errors", "osu_coach.app.convert", "osu_coach.app.schemas"]
 forbidden_modules = [
-    "osu_coach.analysis", "osu_coach.beatmaps", "osu_coach.check", "osu_coach.dashboard", "osu_coach.exports",
+    "osu_coach.analyse", "osu_coach.analysis", "osu_coach.beatmaps", "osu_coach.check", "osu_coach.dashboard", "osu_coach.exports",
     "osu_coach.insights", "osu_coach.jobs", "osu_coach.library", "osu_coach.maps",
     "osu_coach.profile", "osu_coach.progress", "osu_coach.replays", "osu_coach.settings", "osu_coach.system",
     "osu_coach.tips",
@@ -115,10 +115,10 @@ type = "layers"
 containers = ["osu_coach"]
 layers = [
     "system | dashboard",
-    "tips | check",
+    "tips | check | analyse | exports",
     "insights | maps | progress",
     "library | profile",
-    "analysis | settings | exports",
+    "analysis | settings",
     "replays | beatmaps | jobs",
 ]
 # routes reach their feature's data through app.deps -> app.workspace, which composes every feature.

@@ -4,7 +4,7 @@ osu-coach analyzes osu! replays and gives coaching advice. Monorepo: Python 3.11
 
 ## Layout
 
-- `backend/src/osu_coach/` — one package per feature (e.g. `library`, `maps`, `profile`), plus `jobs/` (background jobs) and `app/` (web plumbing: `Workspace`, errors, deps, `server.py`, `openapi.py`), and `main.py`, `cli.py`, `config.py`. A feature holds its pure `domain.py` (a `domain/` package of topic modules when it grows, e.g. `profile`), disk/network/SQLite code (`repository.py`, parsers), `service.py`, `schemas.py` and `routes.py` — only those it needs.
+- `backend/src/osu_coach/` — one package per feature (e.g. `library`, `maps`, `profile`), plus `jobs/` (background jobs) and `app/` (web plumbing: `Workspace`, errors, deps, `server.py`, `openapi.py`), and `main.py`, `cli.py`, `config.py`. `analysis` is the per-replay engine; `analyse` is the use case that runs it on the scanned library (`POST /api/analysis`). A feature holds its pure `domain.py` (a `domain/` package of topic modules when it grows, e.g. `profile`), disk/network/SQLite code (`repository.py`, parsers), `service.py`, `schemas.py` and `routes.py` — only those it needs.
 - `backend/tests/` — `tests/<feature>/` mirrors the source (`test_domain.py`, `test_repository.py`, `test_routes.py`, plus topic files); fixtures in `tests/resources/` (indexed by `index.json`).
 - `backend/tools/` — maintenance scripts (pool building, test-data fetching, sim debugging/validation).
 - `frontend/src/` — `api/` (typed client, hooks, generated schema), `pages/`, `components/`, `charts/`, `lib/`, `styles/`, `app/`.

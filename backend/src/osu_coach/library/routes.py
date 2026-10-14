@@ -11,9 +11,6 @@ from osu_coach.jobs.schemas import job_view
 from osu_coach.library import service as svc
 from osu_coach.library import uploads
 from osu_coach.library.schemas import (
-    AnalysisJob,
-    AnalysisRequest,
-    AnalysisStatus,
     InstallOut,
     LibraryOut,
     RescanRequest,
@@ -79,12 +76,5 @@ def selection(ws: WorkspaceDep, player: str | None = None, latest: Annotated[Lat
         return svc.selection_out(ws, sel)
 
 
-@router.post("/analysis", summary="Analyse replays (background job)", status_code=202, responses=responses(409, 422))
-def analyse(req: AnalysisRequest, ws: WorkspaceDep) -> AnalysisJob:
-    svc.require_library(ws)
-    return job_view(AnalysisJob, ws.jobs.start("analysis", "Analysing replays", lambda report: svc.run_analysis(ws, req, report)))
 
 
-@router.get("/analysis", summary="The analysed replays")
-def analysis(ws: WorkspaceDep) -> AnalysisStatus:
-    return svc.analysis_status(ws)
