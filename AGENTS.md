@@ -21,7 +21,8 @@ Makefile targets are plain commands (use them or run the equivalents by hand; on
 | API server | `osu-coach-api` (restart after Python changes) |
 | Web dev server | `cd frontend && npm run dev` (proxies to :8501) |
 | Build web app | `cd frontend && npm run build` |
-| Python lint | `cd backend && ruff check . && lint-imports` |
+| Python lint | `cd backend && ruff check . && ruff format --check . && lint-imports` |
+| Python format | `cd backend && ruff format .` |
 | Web lint | `cd frontend && npm run typecheck && npm run lint` |
 | Python tests | `cd backend && python -m pytest` |
 | Web unit tests | `cd frontend && npm test` |
