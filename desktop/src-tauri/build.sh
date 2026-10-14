@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # Builds the desktop app for release (.deb) with the server embedded; output in desktop/src-tauri/target/release.
-# Needs .venv (./run.sh once), Node.js 22.12+, Rust and the Tauri system packages (see desktop/README.md).
+# Needs Node.js 22.12+, Rust and the Tauri system packages (see desktop/README.md); sets up .venv itself if missing.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-PY=${PY:-.venv/bin/python}
-$PY -c 'import osu_coach' 2>/dev/null || { echo "No Python with osu-coach installed: run ./run.sh once to set up .venv, or set PY." >&2; exit 1; }
+if [ -z "${PY:-}" ]; then
+  PY=.venv/bin/python
+  [ -x "$PY" ] || ./run.sh --setup
+fi
+$PY -c 'import osu_coach' 2>/dev/null || { echo "No Python with osu-coach installed: set PY to one, or delete .venv and run this again." >&2; exit 1; }
 
 $PY -m pip install --quiet -c constraints.txt pyinstaller
 (cd frontend && npm ci --no-audit --no-fund --loglevel=error && npm run build --silent)

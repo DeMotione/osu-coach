@@ -1,9 +1,9 @@
 @echo off
-rem Runs the desktop app in dev mode: the .venv's API server and the built web app (built here if missing).
+rem Runs the desktop app in dev mode: the .venv's API server and the built web app (both set up here if missing).
 cd /d "%~dp0..\.."
 if not exist ".venv\Scripts\osu-coach-api.exe" (
-  echo Run run.bat once first to set up .venv.
-  exit /b 1
+  echo Setting up .venv and the web app ^(first run only^)...
+  call run.bat --setup || exit /b 1
 )
 if not exist "frontend\dist\index.html" (
   pushd frontend

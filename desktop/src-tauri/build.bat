@@ -1,10 +1,13 @@
 @echo off
 rem Builds the desktop app for release (setup .exe, .msi, portable .exe) with the server embedded; output in
-rem desktop\src-tauri\target\release. Needs .venv (run.bat once), Node.js 22.12+ and Rust.
+rem desktop\src-tauri\target\release. Needs Node.js 22.12+ and Rust; sets up .venv itself if it is missing.
 cd /d "%~dp0..\.."
-if not defined PY set "PY=.venv\Scripts\python.exe"
+if not defined PY (
+  set "PY=.venv\Scripts\python.exe"
+  if not exist ".venv\Scripts\python.exe" call run.bat --setup || exit /b 1
+)
 %PY% -c "import osu_coach" 2>nul || (
-  echo No Python with osu-coach installed: run run.bat once to set up .venv, or set PY.
+  echo No Python with osu-coach installed: set PY to one, or delete .venv and run this again.
   exit /b 1
 )
 
