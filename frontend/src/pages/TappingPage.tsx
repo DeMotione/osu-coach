@@ -184,10 +184,10 @@ function StaminaRow({ fb }: { fb: Schemas["FallBehind"] }) {
         </Card>
       </Row>
     );
-  return (
-    <Row>
-      <Card
-        title="Stamina in long streams"
+  const hasSummary = bySpeed || !!fb.start_note || !!fb.comfort_notes || !!(fb.comfortable_maps && fb.practice_maps);
+  const chart = (
+    <Card
+      title="Stamina in long streams"
         sub={
           bySpeed
             ? "One line per 30-BPM speed. Height = how far off your taps were, as a share of the time between two notes — so a fast stream isn't worse just because it's fast. A line that climbs = your stamina gives in at that speed."
@@ -208,6 +208,11 @@ function StaminaRow({ fb }: { fb: Schemas["FallBehind"] }) {
       >
         <Chart build={build} height={340} label="Precision through long streams" />
       </Card>
+  );
+  if (!hasSummary) return chart;
+  return (
+    <Row>
+      {chart}
       <StaminaSummary fb={fb} bySpeed={bySpeed} />
     </Row>
   );
@@ -242,8 +247,9 @@ function StaminaSummary({ fb, bySpeed }: { fb: Schemas["FallBehind"]; bySpeed: b
         </p>
       ) : (
         <p>
-          <strong>Your precision holds</strong> through the streams measured — up to {fb.comfort_notes} notes{at} ({fb.streams} streams of 16+
-          notes). No point where it clearly gets worse.
+          <strong>Your precision holds</strong> through the streams measured
+          {fb.comfort_notes ? ` — up to ${fb.comfort_notes} notes${at}` : at} ({fb.streams} streams of 16+ notes). No point where it
+          clearly gets worse.
         </p>
       )}
       {fb.comfort_notes && fb.practice_notes && (

@@ -33,7 +33,6 @@
   overflow-x: hidden;
   overflow-y: auto;
   background: color-mix(in srgb, var(--sidebar) 58%, transparent);
-  backdrop-filter: var(--blur);
   border-right: 1px solid var(--border);
 }
 
@@ -314,49 +313,86 @@
   display: none !important;
 }
 
-.crumbs {
-  display: flex;
-  align-items: center;
-  gap: var(--s-1);
+.toolbar__title {
   min-width: 0;
   margin-left: var(--s-2);
-  white-space: nowrap;
-}
-
-.crumbs__group {
-  color: var(--muted);
-}
-
-.crumbs__link:hover {
-  color: var(--text);
-}
-
-.crumbs__sep {
-  width: 14px;
-  height: 14px;
-  color: var(--muted);
-  opacity: 0.7;
-}
-
-.crumbs__page {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 620;
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
-.toolbar__end .segmented {
-  flex-wrap: nowrap;
+.toolbar__title.shown {
+  opacity: 1;
+  transform: none;
+}
+
+.themeswitch {
+  --w: 34px;
+  position: relative;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: var(--radius-btn);
+  background: var(--field);
+  box-shadow: inset 0 1px 2px light-dark(rgb(30 20 70 / 0.08), rgb(0 0 0 / 0.45)), inset 0 0 0 1px var(--border);
+}
+
+/* one thumb that slides between the options */
+.themeswitch__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: var(--w);
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  box-shadow: var(--elev-1);
+  transform: translateX(calc(var(--i) * var(--w)));
+  transition: transform 0.28s cubic-bezier(0.34, 1.3, 0.5, 1);
 }
 
 .themeswitch__option {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  width: var(--w);
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.themeswitch__option:hover,
+.themeswitch__option.checked {
+  color: var(--text);
+}
+
+.themeswitch__option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.themeswitch__option:focus-within {
+  box-shadow: var(--focus);
 }
 
 .themeswitch__option svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
+  transition: transform 0.28s ease;
+}
+
+.themeswitch__option.checked svg {
+  transform: scale(1.12);
 }
 
 .toolbar__end {
@@ -547,10 +583,6 @@
     display: inline-flex !important;
   }
 
-  .themeswitch__text {
-    display: none;
-  }
-
   .toolbar__fold,
   .statusbar__version {
     display: none;
@@ -574,6 +606,17 @@
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+}
+
+/* opacity only: a transform here would make the sticky toolbar/headers inside misbehave */
+.route {
+  animation: route-in 0.18s ease-out;
+}
+
+@keyframes route-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /* page title and what the page is for: the content is the star, so the title is modest */

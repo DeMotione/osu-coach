@@ -421,7 +421,6 @@ input[type="range"] {
   min-width: 0;
   padding: var(--s-4) var(--s-5);
   background: var(--glass);
-  backdrop-filter: var(--blur);
   border-radius: var(--radius);
   box-shadow: var(--glass-edge), var(--elev-glass);
 }
@@ -429,7 +428,6 @@ input[type="range"] {
 .card .stat {
   padding: var(--s-3) var(--s-4);
   background: var(--glass-2);
-  backdrop-filter: none;
   box-shadow: var(--glass-edge);
   box-shadow: none;
   border-radius: var(--radius-btn);
@@ -1059,7 +1057,6 @@ details.disclosure > .disclosure__body {
   gap: 8px var(--gap);
   padding: var(--pad);
   background: var(--glass);
-  backdrop-filter: var(--blur);
   border-radius: var(--radius);
   /* the severity is a coloured edge along the top (and its name in the badge) */
   box-shadow:
@@ -1186,15 +1183,6 @@ details.disclosure > .disclosure__body {
 .mini__title {
   font-weight: 620;
   line-height: 1.35;
-}
-
-.segmented--icons {
-  flex-wrap: nowrap;
-}
-
-.segmented--icons .segmented__option {
-  height: 28px;
-  padding: 0 10px;
 }
 
 /* 8 × 6 playfield (512 × 384 osu!px: 4 : 3) */

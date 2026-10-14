@@ -90,12 +90,12 @@
   --surface-3: light-dark(var(--n-200), var(--n-750));
   --raised: light-dark(#fff, hsl(var(--ink) 16% 30%));
   --field: light-dark(var(--n-50), var(--n-950));
-  --border: light-dark(hsl(var(--ink) 30% 20% / 0.09), hsl(var(--ink) 40% 90% / 0.12));
-  --border-strong: light-dark(hsl(var(--ink) 30% 20% / 0.18), hsl(var(--ink) 40% 90% / 0.24));
+  --border: light-dark(hsl(var(--ink) 30% 20% / 0.09), hsl(var(--ink) 40% 90% / 0.14));
+  --border-strong: light-dark(hsl(var(--ink) 30% 20% / 0.18), hsl(var(--ink) 40% 90% / 0.38));
 
   --text: light-dark(var(--n-950), hsl(var(--ink) 40% 98%));
   --text-2: light-dark(var(--n-700), hsl(var(--ink) 20% 85%));
-  --muted: light-dark(hsl(var(--ink) 9% 40%), hsl(var(--ink) 14% 72%));
+  --muted: light-dark(hsl(var(--ink) 9% 40%), hsl(var(--ink) 14% 77%));
 
   --accent: light-dark(var(--p-600), var(--p-400));
   --accent-hover: light-dark(var(--p-700), var(--p-300));

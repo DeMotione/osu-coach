@@ -1,12 +1,13 @@
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
+
+import { prefetchPage } from "./prefetch";
 
 import { OFFLINE, isApiError } from "../api/client";
 import { useJobs } from "../api/jobs";
 import { useAnalysisStatus, useHealth, useMeta, useProfileSummary } from "../api/queries";
 import {
   IconBook,
-  IconChevronRight,
   IconMenu,
   IconMonitor,
   IconMoon,
@@ -14,8 +15,9 @@ import {
   IconSun,
   IconWarn,
 } from "../components/icons";
-import { Segmented } from "../components/ui";
 import { stars } from "../lib/format";
+import { PageTitleProvider } from "../lib/pageTitle";
+import { usePageTitleVisible } from "../lib/pageTitleState";
 import { useSidebarCollapsed } from "../lib/sidebar";
 import { useTheme, type ThemeChoice } from "../lib/theme";
 import { NAV, PAGES, currentPage } from "./nav";
@@ -73,6 +75,8 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                 key={path}
                 to={path}
                 onClick={onNavigate}
+                onPointerEnter={() => prefetchPage(path)}
+                onFocus={() => prefetchPage(path)}
                 title={label}
                 className={({ isActive: on }) => `sidenav__link${on ? " active" : ""}${pending ? " pending" : ""}`}
               >
@@ -94,25 +98,21 @@ const THEMES: { value: ThemeChoice; label: string; icon: ReactNode }[] = [
   { value: "dark", label: "Dark", icon: <IconMoon /> },
 ];
 
-/** All three theme choices at once, named, with the current one marked: nothing to decode or cycle through. */
+/** All three theme choices at once as icons (named for screen readers and on hover), the current one marked. */
 function ThemeSwitch() {
   const { choice, setChoice } = useTheme();
+  const index = THEMES.findIndex((t) => t.value === choice);
   return (
-    <Segmented
-      label="Theme"
-      icons
-      value={choice}
-      onChange={setChoice}
-      options={THEMES.map((t) => ({
-        value: t.value,
-        label: (
-          <span className="themeswitch__option" title={`${t.label} theme`}>
-            {t.icon}
-            <span className="themeswitch__text">{t.label}</span>
-          </span>
-        ),
-      }))}
-    />
+    <div className="themeswitch" role="radiogroup" aria-label="Theme" style={{ "--i": index } as CSSProperties}>
+      <span className="themeswitch__thumb" aria-hidden="true" />
+      {THEMES.map((t) => (
+        <label key={t.value} className={`themeswitch__option${t.value === choice ? " checked" : ""}`} title={`${t.label} theme`}>
+          <input type="radio" name="theme" checked={t.value === choice} onChange={() => setChoice(t.value)} />
+          {t.icon}
+          <span className="visually-hidden">{t.label}</span>
+        </label>
+      ))}
+    </div>
   );
 }
 
@@ -120,6 +120,7 @@ function Toolbar({ collapsed, onToggleSidebar, onOpenDrawer }: { collapsed: bool
   const meta = useMeta();
   const { pathname } = useLocation();
   const here = currentPage(pathname);
+  const headingVisible = usePageTitleVisible();
   return (
     <header className="toolbar">
       <button type="button" className="btn btn--ghost btn--icon toolbar__drawer" aria-label="Menu" onClick={onOpenDrawer}>
@@ -135,29 +136,11 @@ function Toolbar({ collapsed, onToggleSidebar, onOpenDrawer }: { collapsed: bool
       >
         <IconSidebar />
       </button>
-      <nav className="crumbs" aria-label="Breadcrumb">
-        {here ? (
-          <>
-            {here.group.group !== here.item.label && (
-              <>
-                {here.group.items[0].path === here.item.path ? (
-                  <span className="crumbs__group">{here.group.group}</span>
-                ) : (
-                  <Link className="crumbs__group crumbs__link" to={here.group.items[0].path}>
-                    {here.group.group}
-                  </Link>
-                )}
-                <IconChevronRight className="crumbs__sep" />
-              </>
-            )}
-            <span className="crumbs__page" aria-current="page">
-              {here.item.label}
-            </span>
-          </>
-        ) : (
-          <span className="crumbs__page">osu! coach</span>
-        )}
-      </nav>
+      {here && (
+        <div className={`toolbar__title${headingVisible ? "" : " shown"}`} data-testid="toolbar-title" aria-hidden={headingVisible}>
+          {here.item.label}
+        </div>
+      )}
       <div className="toolbar__end">
         <ThemeSwitch />
         {meta.data?.api_docs && (
@@ -217,7 +200,7 @@ function StatusBar() {
           </span>
           {s ? (
             <p className="statusbar__item status-line">
-              {s.player_label || "(no name)"} · {s.replays} {s.replay_set === "best" ? "best replays" : "replays"} · {s.notes.toLocaleString("en-US")} notes
+              {s.player_label || "(no name)"} · {s.replays} {s.replay_set === "best" ? "best replays" : "replays"}
             </p>
           ) : (
             <p className="statusbar__item status-line">No replays analysed yet</p>
@@ -253,6 +236,14 @@ function useShortcuts({ toggleSidebar, closeDrawer }: { toggleSidebar: () => voi
 }
 
 export function Layout() {
+  return (
+    <PageTitleProvider>
+      <Shell />
+    </PageTitleProvider>
+  );
+}
+
+function Shell() {
   const [open, setOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const { pathname } = useLocation();
@@ -281,7 +272,9 @@ export function Layout() {
         <Toolbar collapsed={collapsed} onToggleSidebar={toggleCollapsed} onOpenDrawer={() => setOpen(true)} />
         <main className="main">
           <Suspense fallback={<div className="page" />}>
-            <Outlet />
+            <div className="route" key={pathname}>
+              <Outlet />
+            </div>
           </Suspense>
         </main>
         <StatusBar />

@@ -21,8 +21,8 @@ export function base(t: ChartTheme, extra: Obj = {}): Obj {
     {
       backgroundColor: "transparent",
       textStyle: { fontFamily: FONT, color: t.text, fontSize: 12 },
-      animationDuration: 350,
-      animationDurationUpdate: 250,
+      animationDuration: 250,
+      animationDurationUpdate: 150,
       tooltip: tooltip(t),
     },
     extra,

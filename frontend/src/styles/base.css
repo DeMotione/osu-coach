@@ -125,6 +125,19 @@ h4 {
   white-space: nowrap;
 }
 
+/* set for a moment while the theme changes, so colours fade instead of snapping */
+.theme-fade *,
+.theme-fade *::before,
+.theme-fade *::after {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease,
+    fill 0.3s ease,
+    stroke 0.3s ease,
+    box-shadow 0.3s ease !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

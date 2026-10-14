@@ -137,10 +137,10 @@ test("the sidebar navigates, folds with Ctrl+B and remembers it", async ({ page 
   const nav = page.getByRole("navigation", { name: "Pages" });
   await nav.getByRole("link", { name: "Aim" }).click();
   await expect(page).toHaveURL(/\/aim$/);
-  await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Analysis");
+  await expect(page.getByTestId("toolbar-title")).not.toHaveClass(/shown/);
   await expect(nav.getByRole("link", { name: "Aim" })).toHaveClass(/active/);
   await expect(page.getByRole("button", { name: "Back" })).toHaveCount(0);
-  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Analysis" }).click();
+  await nav.getByRole("link", { name: "Overview" }).click();
   await expect(page).toHaveURL(/\/overview$/);
   await nav.getByRole("link", { name: /^Replays/ }).click();
   await expect(page).toHaveURL(/\/replays$/);

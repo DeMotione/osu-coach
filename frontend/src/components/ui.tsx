@@ -1,13 +1,16 @@
 import { Children, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
+import { useReportTitleVisibility } from "../lib/pageTitleState";
 import { IconCheck, IconHelp, IconInfo, IconUpload, IconWarn } from "./icons";
 
 // ------------------------------------------------------------------ page structure
 export function PageHeader({ title, sub, aside }: { title: string; sub?: ReactNode; aside?: ReactNode }) {
+  const h1 = useRef<HTMLHeadingElement>(null);
+  useReportTitleVisibility(h1);
   return (
     <header className="page-header">
       <div>
-        <h1>{title}</h1>
+        <h1 ref={h1}>{title}</h1>
         {sub && <p>{sub}</p>}
       </div>
       {aside && <div className="page-header__aside">{aside}</div>}
@@ -183,17 +186,15 @@ export function Segmented<T extends string | number>({
   onChange,
   label,
   block = false,
-  icons = false,
 }: {
   options: Option<T>[];
   value: T;
   onChange: (v: T) => void;
   label: string;
   block?: boolean;
-  icons?: boolean;
 }) {
   const name = useId();
-  const cls = ["segmented", block ? "segmented--block" : "", icons ? "segmented--icons" : ""].filter(Boolean).join(" ");
+  const cls = ["segmented", block ? "segmented--block" : ""].filter(Boolean).join(" ");
   return (
     <div className={cls} role="radiogroup" aria-label={label}>
       {options.map((o) => (
