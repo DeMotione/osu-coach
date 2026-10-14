@@ -24,16 +24,34 @@ Analyses your own osu!standard replays and tells you what to work on:
 Everything runs locally. The only network use is downloading beatmaps you don't have, by MD5 from
 osu.direct and osu.ppy.sh (verified), and downloading playlist maps from public mirrors.
 
-## Install (Windows)
+## Install
 
-Download `osu-coach-<version>-setup.exe` from the latest release on GitHub (**Releases**) and run it. No
-Python, no Node.js and no admin rights needed: it installs for your user, adds a Start menu (and optional desktop)
+Every [release](https://github.com/DeMotione/osu-coach/releases/latest) has these files (none of them needs Python
+or Node.js):
+
+| File | Runs on | |
+| --- | --- | --- |
+| `osu-coach-<version>-setup.exe` | Windows 10 / 11 | **Recommended.** Installs for your user, opens the app in your browser |
+| `osu-coach-<version>-x64.msi` | Windows 10 / 11 | The desktop app (its own window), installed for all users |
+| `osu-coach-<version>-portable.exe` | Windows 10 / 11 | One file, nothing to install |
+| `osu-coach_<version>_amd64.deb` | Ubuntu 22.04+, Debian 12+ | The desktop app (its own window) |
+
+**Windows setup:** no admin rights needed. It installs for your user, adds a Start menu (and optional desktop)
 shortcut, and opens the app in your browser. A small window stays open while osu! coach runs; close it to
 quit. Updating = installing a newer setup over it; your settings, replays cache and progress are kept.
 The installed `osu-coach.exe` also runs the command line, e.g. `osu-coach.exe analyze --latest 100`.
+The installers aren't code-signed yet: if SmartScreen says *Windows protected your PC*, choose **More info → Run
+anyway**.
+
+**Linux:** `sudo apt install ./osu-coach_<version>_amd64.deb`, then start **osu! coach** from the app menu
+(`sudo apt remove osu-coach` removes it). To build that package from the source code yourself and install it,
+run `bash packaging/build-deb.sh` (Debian / Ubuntu / Mint; it sets up everything else it needs). On other
+distributions, run it from source (below).
 
 The app is a progressive web app: in Chrome or Edge, *Install osu! coach* in the address bar gives it its own
 window and Start menu entry. Its pages open even while osu! coach isn't running and say so until you start it.
+
+osu! coach is open source under the [MIT license](LICENSE).
 
 ## Run from source
 
@@ -60,7 +78,8 @@ backend/    osu-coach        Python package, organised by feature: each package 
                              (FastAPI), API reference with Scalar at /docs, and it serves the built web app. The
                              `osu-coach` command line is `cli.py`
 frontend/   osu-coach-web    the web app: React + TypeScript progressive web app (Vite, TanStack Query, ECharts)
-packaging/                   Windows installer (PyInstaller + Inno Setup) and the app icons
+desktop/                     the desktop app (Tauri): a window around the web app; makes the .msi and the .deb
+packaging/                   frozen app (PyInstaller), Windows setup (Inno Setup), app icons, release notes
 ```
 
 ```
@@ -96,7 +115,13 @@ Python 3.11. `constraints.txt` pins the versions everything is tested with.
 Building the Windows installer: build the web app (`cd frontend && npm ci && npm run build`), then
 `pip install pyinstaller pillow`, `python packaging/make_icon.py`, `python -m PyInstaller packaging/osu-coach.spec
 --noconfirm` and (Inno Setup 6) `ISCC.exe /DAppVersion=0.9.0 packaging/installer.iss` →
-`dist/osu-coach-0.9.0-setup.exe`.
+`dist/osu-coach-0.9.0-setup.exe`. The desktop app's `.msi` and `.deb` are made by Tauri from the same frozen app:
+see `desktop/README.md`.
+
+Releasing: set the new version in the files `.github/workflows/release.yml` checks (backend, frontend, desktop),
+merge, then push a tag `v<version>`. The *Release* workflow builds every installer, checks that the `.deb` installs
+and starts, and publishes them with `packaging/release-notes.md` as the release notes. Pull requests that change
+`packaging/`, `desktop/` or that workflow build the installers too, without publishing.
 
 ### Where the replays come from
 

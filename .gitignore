@@ -23,7 +23,7 @@ frontend/dev-dist/
 frontend/test-results/
 frontend/playwright-report/
 *.tsbuildinfo
-# the built web app copied into the package for the installer / desktop app
+# the built web app copied into the package for the installers / desktop app
 backend/src/osu_coach/web/
 
 # desktop (Tauri)

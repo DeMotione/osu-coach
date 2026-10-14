@@ -65,3 +65,5 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs Python 3.11 and 3
 ## Packaging (Windows)
 
 After `cd frontend && npm ci && npm run build`: `python packaging/make_icon.py`, `python -m PyInstaller packaging/osu-coach.spec --noconfirm`, then `ISCC.exe /DAppVersion=<version> packaging/installer.iss`.
+
+Linux (.deb of the Tauri desktop app): `bash packaging/build-deb.sh --no-install` sets up the build (apt packages, Rust, `.venv`) and writes `dist/osu-coach_<version>_amd64.deb`; without `--no-install` it also installs it. A tag `v<version>` builds every installer (Windows setup / portable exe / msi, Linux deb) in `release.yml` and publishes them with `packaging/release-notes.md`; pull requests touching `packaging/`, `desktop/` or that workflow build them without publishing.
