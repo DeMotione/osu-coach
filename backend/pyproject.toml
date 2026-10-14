@@ -53,7 +53,7 @@ ignore = ["E501", "E731", "B905", "B007", "B023", "E741", "I001", "B008", "UP040
 # unused locals that predate the linter; left as they are so the analysis code stays untouched
 "src/osu_coach/analysis/domain.py" = ["F841"]
 "src/osu_coach/beatmaps/features.py" = ["F841"]
-"tests/domain/test_weighting.py" = ["F841"]
+"tests/profile/test_weighting.py" = ["F841"]
 
 [tool.importlinter]
 root_package = "osu_coach"

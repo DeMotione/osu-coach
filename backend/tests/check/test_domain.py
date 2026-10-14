@@ -12,7 +12,7 @@ from osu_coach.library.repository import analyze_files
 from osu_coach.beatmaps.parser import read_metadata
 from osu_coach.cli import main
 from tests.conftest import replay_and_map
-from tests.infrastructure.test_progress import MINE, _fake
+from tests.progress.test_repository import MINE, _fake
 
 UTC = dt.UTC
 

@@ -1,7 +1,11 @@
 """Health, labels, docs, serving the web app, and the local-only protections."""
-from tests.api.conftest import make_client
+from tests.conftest import make_client
 
 from osu_coach.profile.domain import SKILL_HELP, SKILL_LABELS
+
+import pytest
+
+pytestmark = pytest.mark.usefixtures("_isolated")
 
 
 def test_health(client):

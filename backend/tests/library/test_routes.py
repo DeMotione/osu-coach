@@ -1,10 +1,14 @@
 """Finding replays, choosing which to analyse, analysing them."""
 import shutil
 
-from tests.api.conftest import MOT1ONE, OTHERS, analyse, plays_folder, replay_and_map, scan, wait, workspace
+from tests.conftest import MOT1ONE, OTHERS, analyse, plays_folder, sample_paths, scan, wait, workspace
 
 from osu_coach.settings.repository import load_settings
 from osu_coach.app.errors import Busy
+
+import pytest
+
+pytestmark = pytest.mark.usefixtures("_isolated")
 
 
 def test_installs_without_osu_on_this_computer(client):
@@ -88,7 +92,7 @@ def test_missing_folder_is_a_warning_not_an_error(tmp_path, client):
 
 
 def test_only_dropped_files(tmp_path, client):
-    rp, mp = replay_and_map(MOT1ONE[0])
+    rp, mp = sample_paths(MOT1ONE[0])
     r = client.post("/api/uploads", files=[("files", (rp.name, rp.read_bytes())), ("files", ("map.osu", mp.read_bytes()))])
     assert r.status_code == 201, r.text
     ups = r.json()

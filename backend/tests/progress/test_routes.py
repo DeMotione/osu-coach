@@ -2,9 +2,12 @@
 import datetime as dt
 
 import pytest
-from tests.api.conftest import workspace
+from tests.conftest import workspace
 
 from osu_coach.settings.repository import load_settings, save_settings
+
+
+pytestmark = pytest.mark.usefixtures("_isolated")
 
 
 def test_nothing_saved_yet(client):

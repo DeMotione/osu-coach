@@ -5,11 +5,14 @@ import dataclasses
 import numpy as np
 import pandas as pd
 import pytest
-from tests.api.conftest import replay_and_map, workspace
+from tests.conftest import sample_paths, workspace
 
 from osu_coach.library.repository import analyze_files
 from osu_coach.settings.repository import load_settings, save_settings
 from osu_coach.profile.domain import SKILL_LABELS, build_profile, stream_fall_behind, stream_speed_profile
+
+
+pytestmark = pytest.mark.usefixtures("_isolated")
 
 PAGES = ["summary", "replays", "overview", "aim", "clicks", "tapping", "sliders-reading", "tips"]
 
@@ -85,7 +88,7 @@ def test_tapping_and_sliders_pages(analysed):
 
 # ------------------------------------------------------------------ choices that rebuild the profile
 def _two_plays_of_one_map():
-    rp, mp = replay_and_map("circlecore__legit__legit-12.osr")
+    rp, mp = sample_paths("circlecore__legit__legit-12.osr")
     a = analyze_files(rp, mp)
     b = copy.deepcopy(a)
     b.key = b.meta["key"] = "retry"
@@ -126,7 +129,7 @@ SAYO = {"keyboard": "sayo", "sayo_stroke_mm": 4.0, "sayo_trigger_mm": 0.4, "sayo
 @pytest.fixture(scope="module")
 def small_profile():
     names = ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr"]
-    return build_profile([analyze_files(*replay_and_map(n)) for n in names])
+    return build_profile([analyze_files(*sample_paths(n)) for n in names])
 
 
 def _with_profile(client, monkeypatch, prof):

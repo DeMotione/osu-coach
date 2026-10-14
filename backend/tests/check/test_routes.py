@@ -1,12 +1,16 @@
 """Detailed Map Analysis: one replay on its own."""
-from tests.api.conftest import plays_folder, replay_and_map, scan
+from tests.conftest import plays_folder, sample_paths, scan
 
 from osu_coach.progress import repository as progress
 from osu_coach.beatmaps.parser import read_metadata
 
+import pytest
+
+pytestmark = pytest.mark.usefixtures("_isolated")
+
 
 def _title(name):
-    return read_metadata(replay_and_map(name)[1])["Title"]
+    return read_metadata(sample_paths(name)[1])["Title"]
 
 
 def test_without_replays_says_what_to_do(client):
@@ -48,7 +52,7 @@ def test_opens_the_replay_chosen_elsewhere_with_its_maps_plays(tmp_path, client)
 
 
 def test_a_dropped_replay_is_checked_and_saved_in_the_history(tmp_path, client):
-    rp, mp = replay_and_map("mot1one__lazer_nm.osr")
+    rp, mp = sample_paths("mot1one__lazer_nm.osr")
     ups = client.post("/api/uploads", files=[("files", (rp.name, rp.read_bytes())),
                                              ("files", (mp.name, mp.read_bytes()))]).json()
     replay = next(u for u in ups if u["kind"] == "replay")
@@ -56,7 +60,7 @@ def test_a_dropped_replay_is_checked_and_saved_in_the_history(tmp_path, client):
     lst = client.get("/api/check/replays", params={"path": replay["path"]}).json()
     assert lst["available"] and lst["selected"] == replay["path"]
     # the map isn't in any library: the report finds it once it is added too
-    from tests.api.conftest import workspace
+    from tests.conftest import workspace
     workspace(client).check_library.add_files([beatmap["path"]])
     r = client.post("/api/check/report", json={"path": replay["path"], "online": False})
     assert r.status_code == 200, r.text
@@ -78,7 +82,7 @@ def test_bad_paths(tmp_path, client):
 
 
 def test_a_replay_without_its_map_offline(tmp_path, client):
-    rp, _ = replay_and_map("mot1one__lazer_nm.osr")
+    rp, _ = sample_paths("mot1one__lazer_nm.osr")
     up = client.post("/api/uploads", files=[("files", (rp.name, rp.read_bytes()))]).json()[0]
     r = client.post("/api/check/report", json={"path": up["path"], "online": False})
     assert r.status_code == 422 and r.json()["code"] == "check_failed" and "beatmap" in r.json()["detail"]
