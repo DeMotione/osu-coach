@@ -79,7 +79,7 @@ backend/    osu-coach        Python package, organised by feature: each package 
                              `osu-coach` command line is `cli.py`
 frontend/   osu-coach-web    the web app: React + TypeScript progressive web app (Vite, TanStack Query, ECharts)
 desktop/                     the desktop app (Tauri): a window around the web app; makes the .msi and the .deb
-packaging/                   frozen app (PyInstaller), Windows setup (Inno Setup), app icons, release notes
+packaging/                   frozen server (PyInstaller, embedded in the desktop app), app icons, release notes
 ```
 
 ```
@@ -112,11 +112,10 @@ make openapi        # after changing an API schema: regenerate the web app's typ
 The same commands without `make` are in the `Makefile`; CI (`.github/workflows/ci.yml`) runs all of them, also on
 Python 3.11. `constraints.txt` pins the versions everything is tested with.
 
-Building the Windows installer: build the web app (`cd frontend && npm ci && npm run build`), then
+Building the installers: build the web app (`cd frontend && npm ci && npm run build`), then
 `pip install pyinstaller pillow`, `python packaging/make_icon.py`, `python -m PyInstaller packaging/osu-coach.spec
---noconfirm` and (Inno Setup 6) `ISCC.exe /DAppVersion=<version> packaging/installer.iss` →
-`dist/osu-coach-<version>-setup.exe`. The desktop app's `.msi`, portable zip and `.deb` are made by Tauri from the
-same frozen app: see `desktop/README.md`.
+--noconfirm` and `python packaging/make_server_zip.py`. Tauri embeds that frozen server in the desktop app and makes
+the setup `.exe`, `.msi`, portable `.exe` and `.deb`: see `desktop/README.md`.
 
 Releasing:
 

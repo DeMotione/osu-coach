@@ -32,6 +32,7 @@ call npm run build --silent || goto npmfail
 popd
 
 :run
+if /i "%~1"=="--setup" exit /b 0
 ".venv\Scripts\osu-coach.exe" ui %*
 exit /b
 

@@ -10,25 +10,76 @@ use std::time::Duration;
 use tauri::{Manager, RunEvent};
 
 const HOST: Ipv4Addr = Ipv4Addr::LOCALHOST;
+const SERVER_NAME: &str = if cfg!(windows) { "osu-coach.exe" } else { "osu-coach" };
 
 struct Server(Mutex<Option<Child>>);
 
-/// `OSU_COACH_API_BIN` (osu-coach-api), else the bundled `osu-coach` app, else `osu-coach-api` on PATH.
-fn server_command(resources: Option<PathBuf>, port: u16) -> Command {
+#[cfg(feature = "embedded-server")]
+static SERVER_ZIP: &[u8] = include_bytes!("../server.zip");
+
+/// Unpacks the server baked into this executable (once per version) and returns its path.
+#[cfg(feature = "embedded-server")]
+fn embedded_server(data_dir: &std::path::Path) -> Result<PathBuf, String> {
+    let version = env!("CARGO_PKG_VERSION");
+    let runtime = data_dir.join("runtime");
+    let dir = runtime.join(version);
+    let exe = dir.join(SERVER_NAME);
+    if dir.join(".complete").exists() && exe.exists() {
+        return Ok(exe);
+    }
+    // other versions' folders (a running older instance may keep its own; that removal just fails)
+    if let Ok(entries) = std::fs::read_dir(&runtime) {
+        for e in entries.flatten().filter(|e| e.file_name() != version) {
+            let _ = std::fs::remove_dir_all(e.path());
+        }
+    }
+    let tmp = runtime.join(format!("{version}.tmp"));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let err = |e: &dyn std::fmt::Display| format!("cannot unpack the server to {}: {e}", dir.display());
+    std::fs::create_dir_all(&tmp).map_err(|e| err(&e))?;
+    zip::ZipArchive::new(std::io::Cursor::new(SERVER_ZIP))
+        .and_then(|mut z| z.extract(&tmp))
+        .map_err(|e| err(&e))?;
+    std::fs::write(tmp.join(".complete"), version).map_err(|e| err(&e))?;
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::rename(&tmp, &dir).map_err(|e| err(&e))?;
+    Ok(exe)
+}
+
+/// `OSU_COACH_API_BIN` (osu-coach-api), else the server baked into this executable, else a bundled `osu-coach`
+/// folder in the resources, else `osu-coach-api` on PATH.
+fn server_command(data_dir: Option<PathBuf>, resources: Option<PathBuf>, port: u16) -> Result<Command, String> {
     let port = port.to_string();
     if let Some(p) = std::env::var_os("OSU_COACH_API_BIN") {
         let mut cmd = Command::new(p);
         cmd.args(["--port", &port]);
-        return cmd;
+        return Ok(cmd);
     }
-    let name = if cfg!(windows) { "osu-coach.exe" } else { "osu-coach" };
+    #[cfg(feature = "embedded-server")]
+    {
+        let data_dir = data_dir.ok_or("no local data folder")?;
+        let _ = resources;
+        let mut cmd = Command::new(embedded_server(&data_dir)?);
+        cmd.args(["ui", "--port", &port, "--no-browser"]);
+        return Ok(cmd);
+    }
+    #[cfg(not(feature = "embedded-server"))]
+    {
+        let _ = data_dir;
+        Ok(resource_or_path_command(resources, &port))
+    }
+}
+
+#[cfg(not(feature = "embedded-server"))]
+fn resource_or_path_command(resources: Option<PathBuf>, port: &str) -> Command {
+    let name = SERVER_NAME;
     if let Some(bundled) = resources.map(|r| r.join("osu-coach").join(name)).filter(|p| p.exists()) {
         let mut cmd = Command::new(bundled);
-        cmd.args(["ui", "--port", &port, "--no-browser"]);
+        cmd.args(["ui", "--port", port, "--no-browser"]);
         return cmd;
     }
     let mut cmd = Command::new("osu-coach-api");
-    cmd.args(["--port", &port]);
+    cmd.args(["--port", port]);
     cmd
 }
 
@@ -40,8 +91,8 @@ fn free_port() -> std::io::Result<u16> {
     Ok(listener.local_addr()?.port())
 }
 
-fn spawn_api(resources: Option<PathBuf>, port: u16) -> std::io::Result<Child> {
-    let mut cmd = server_command(resources, port);
+fn spawn_api(data_dir: Option<PathBuf>, resources: Option<PathBuf>, port: u16) -> Result<Child, String> {
+    let mut cmd = server_command(data_dir, resources, port)?;
     cmd.stdin(Stdio::null());
     if !cfg!(debug_assertions) {
         cmd.env("OSU_COACH_API_DOCS", "false");
@@ -51,7 +102,7 @@ fn spawn_api(resources: Option<PathBuf>, port: u16) -> std::io::Result<Child> {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
-    cmd.spawn()
+    cmd.spawn().map_err(|e| format!("cannot start the osu! coach server ({e}); set OSU_COACH_API_BIN"))
 }
 
 fn is_healthy(port: u16) -> bool {
@@ -70,11 +121,19 @@ fn main() {
         .manage(Server(Mutex::new(None)))
         .setup(|app| {
             let port = free_port()?;
-            let child = spawn_api(app.path().resource_dir().ok(), port).map_err(|e| format!("cannot start osu-coach-api ({e}); set OSU_COACH_API_BIN"))?;
-            *app.state::<Server>().0.lock().unwrap() = Some(child);
-
             let window = app.get_webview_window("main").expect("main window");
+            let handle = app.handle().clone();
+            let data_dir = app.path().app_local_data_dir().ok();
+            let resources = app.path().resource_dir().ok();
+            // off the main thread: the first launch unpacks the server, which takes a few seconds
             std::thread::spawn(move || {
+                match spawn_api(data_dir, resources, port) {
+                    Ok(child) => *handle.state::<Server>().0.lock().unwrap() = Some(child),
+                    Err(e) => {
+                        let _ = window.eval(&format!("document.body.textContent = {e:?}"));
+                        return;
+                    }
+                }
                 for _ in 0..300 {
                     if is_healthy(port) {
                         let _ = window.navigate(format!("http://127.0.0.1:{port}").parse().unwrap());
