@@ -7,8 +7,6 @@ from fastapi import Depends, Request
 
 from osu_coach.domain.profile import Profile
 
-from osu_coach.api.state.jobs import Job
-from osu_coach.api.schemas.jobs import JOB_MODELS
 from osu_coach.api.state.workspace import Workspace
 
 
@@ -24,8 +22,3 @@ def get_profile(ws: Annotated[Workspace, Depends(get_workspace)]) -> Profile:
 WorkspaceDep = Annotated[Workspace, Depends(get_workspace)]
 ProfileDep = Annotated[Profile, Depends(get_profile)]
 
-
-def job_view(job: Job):
-    return JOB_MODELS[job.kind](id=job.id, kind=job.kind, status=job.status, progress=job.progress,
-                                message=job.message, error=job.error, created_at=job.created_at,
-                                finished_at=job.finished_at, result=job.result)

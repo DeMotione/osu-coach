@@ -1,12 +1,25 @@
 from __future__ import annotations
 
 import datetime as dt
+from enum import IntEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from osu_coach.api.schemas.common import Count, Request
-from osu_coach.api.schemas.settings import DateRange, Latest, SourceMode
+from osu_coach.api.schemas.jobs import JobBase
+
+
+class Latest(IntEnum):
+    """How many of the newest replays to read; 0 = all of them."""
+    newest_100 = 100
+    newest_500 = 500
+    newest_1000 = 1000
+    all = 0
+
+
+DateRange = Literal["all", "session", "7d", "30d", "custom"]
+SourceMode = Literal["library", "files"]
 
 
 class InstallOut(BaseModel):
@@ -108,3 +121,13 @@ class AnalysisStatus(BaseModel):
     best_empty: bool
     skipped: list[SkippedReplay] = Field(description="First 200 skipped replays.")
     skipped_total: int
+
+
+class ScanJob(JobBase):
+    kind: Literal["scan"]
+    result: ScanResult | None
+
+
+class AnalysisJob(JobBase):
+    kind: Literal["analysis"]
+    result: AnalysisResult | None

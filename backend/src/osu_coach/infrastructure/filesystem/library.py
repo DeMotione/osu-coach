@@ -1,5 +1,5 @@
 """Replay library: discovery -> beatmap lookup (local first, then online) ->
-cached, parallel analysis. Also stores the app settings (player setup).
+cached, parallel analysis.
 """
 from __future__ import annotations
 
@@ -9,10 +9,10 @@ import json
 import multiprocessing
 import os
 import pickle
-import sys
 from collections import Counter
 from pathlib import Path
 
+from osu_coach.config import default_cache_dir
 from osu_coach.infrastructure.filesystem import locate
 from osu_coach.infrastructure.http import sources
 from osu_coach.domain import replay_selection
@@ -20,18 +20,6 @@ from osu_coach.domain.analysis import ANALYSIS_VERSION, ReplayAnalysis, Unsuppor
 from osu_coach.domain.replay_selection import analysable
 from osu_coach.infrastructure.filesystem.beatmap import parse_beatmap_bytes
 from osu_coach.infrastructure.filesystem.osr import parse_replay
-
-
-def default_cache_dir() -> Path:
-    if os.environ.get("OSU_COACH_CACHE"):
-        return Path(os.environ["OSU_COACH_CACHE"])
-    if os.name == "nt":
-        base = Path(os.environ.get("LOCALAPPDATA") or Path.home())
-    elif sys.platform == "darwin":
-        base = Path.home() / "Library" / "Caches"
-    else:
-        base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
-    return base / "osu-coach"
 
 
 def analyze_bytes(replay, osu_bytes: bytes, raw_replay: bytes | None = None) -> ReplayAnalysis:
@@ -308,17 +296,3 @@ class Library:
             if progress:
                 progress(len(done) + len(errors), total, item[0].get("path", ""))
         return done, errors
-
-
-# ------------------------------------------------------------------ settings
-def load_settings(cache_dir=None) -> dict:
-    try:
-        return json.loads((Path(cache_dir or default_cache_dir()) / "settings.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-
-
-def save_settings(settings: dict, cache_dir=None) -> None:
-    p = Path(cache_dir or default_cache_dir())
-    p.mkdir(parents=True, exist_ok=True)
-    (p / "settings.json").write_text(json.dumps(settings, indent=2), encoding="utf-8")

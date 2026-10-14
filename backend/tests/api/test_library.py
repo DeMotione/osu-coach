@@ -3,7 +3,7 @@ import shutil
 
 from tests.api.conftest import MOT1ONE, OTHERS, analyse, plays_folder, replay_and_map, scan, wait, workspace
 
-from osu_coach.infrastructure.filesystem.library import load_settings
+from osu_coach.infrastructure.filesystem.settings_store import load_settings
 from osu_coach.api.errors import Busy
 
 

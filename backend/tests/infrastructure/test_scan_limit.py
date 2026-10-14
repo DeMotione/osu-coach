@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 from osu_coach.infrastructure.filesystem import locate
-from osu_coach.domain.analysis import UNSUPPORTED_LAZER_MODS
+from osu_coach.domain.replay import UNSUPPORTED_LAZER_MODS
 from osu_coach.cli import main
 from osu_coach.domain.replay_selection import analysable, skip_reason
 from osu_coach.infrastructure.filesystem.library import Library

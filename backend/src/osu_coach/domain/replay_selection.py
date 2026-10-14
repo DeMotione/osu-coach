@@ -3,8 +3,7 @@ from __future__ import annotations
 
 from collections import Counter
 
-from osu_coach.domain.analysis import UNSUPPORTED_LAZER_MODS
-from osu_coach.domain.replay import MOD_BITS
+from osu_coach.domain.replay import MOD_BITS, UNSUPPORTED_LAZER_MODS
 
 # relax / autopilot / autoplay / cinema / target practice: not the player's own aim+tapping
 EXCLUDE_MODS = MOD_BITS["RX"] | MOD_BITS["AP"] | MOD_BITS["AT"] | (1 << 22) | (1 << 23)

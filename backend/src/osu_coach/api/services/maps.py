@@ -25,9 +25,8 @@ from osu_coach.domain.profile import Profile
 from osu_coach.api.convert import integer, num, text
 from osu_coach.api.errors import ApiError, Invalid, NotFound
 from osu_coach.api.state.jobs import Reporter
-from osu_coach.api.schemas.common import MapRow
 from osu_coach.api.schemas.exports import ExportPreview, ExportRequest, LazerPackResult, OszResult, StableMergeResult
-from osu_coach.api.schemas.maps import Playlist, PlaylistSkill, PlaylistStage, Suggestions, SuggestionSection
+from osu_coach.api.schemas.maps import MapRow, Playlist, PlaylistSkill, PlaylistStage, Suggestions, SuggestionSection
 from osu_coach.api.state.workspace import Workspace
 
 SUGGESTIONS_PER_SKILL = 5

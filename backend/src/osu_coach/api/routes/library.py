@@ -5,20 +5,23 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Query, UploadFile
 
-from osu_coach.api.deps import WorkspaceDep, job_view
+from osu_coach.api.deps import WorkspaceDep
 from osu_coach.api.errors import ApiError, responses
-from osu_coach.api.schemas.jobs import AnalysisJob, ScanJob
+from osu_coach.api.schemas.jobs import job_view
 from osu_coach.api.schemas.library import (
+    AnalysisJob,
     AnalysisRequest,
     AnalysisStatus,
+    DateRange,
     InstallOut,
+    Latest,
     LibraryOut,
     RescanRequest,
+    ScanJob,
     ScanRequest,
     SelectionOut,
     UploadedFile,
 )
-from osu_coach.api.schemas.settings import DateRange, Latest
 from osu_coach.api.services import library as svc
 
 router = APIRouter(tags=["Replays"])
@@ -43,7 +46,7 @@ def scan(req: ScanRequest, ws: WorkspaceDep) -> ScanJob:
     else:
         ws.update_settings(source_mode=req.mode)
     latest = 0 if args.only else int(req.latest)
-    return job_view(ws.jobs.start("scan", "Scanning for replays", lambda report: svc.run_scan(ws, args, latest, report)))
+    return job_view(ScanJob, ws.jobs.start("scan", "Scanning for replays", lambda report: svc.run_scan(ws, args, latest, report)))
 
 
 @router.post("/library/rescan", summary="Read the same sources further back (background job)", status_code=202,
@@ -58,7 +61,7 @@ def rescan(req: RescanRequest, ws: WorkspaceDep) -> ScanJob:
         raise ApiError(409, "nothing_to_rescan", "The last scan already read that many replays.")
     ws.update_settings(latest=latest)
     args = ws.scan_args
-    return job_view(ws.jobs.start("scan", "Scanning for replays",
+    return job_view(ScanJob, ws.jobs.start("scan", "Scanning for replays",
                                   lambda report: svc.run_scan(ws, args, latest, report)))
 
 
@@ -79,7 +82,7 @@ def selection(ws: WorkspaceDep, player: str | None = None, latest: Annotated[Lat
 @router.post("/analysis", summary="Analyse replays (background job)", status_code=202, responses=responses(409, 422))
 def analyse(req: AnalysisRequest, ws: WorkspaceDep) -> AnalysisJob:
     svc.require_library(ws)
-    return job_view(ws.jobs.start("analysis", "Analysing replays", lambda report: svc.run_analysis(ws, req, report)))
+    return job_view(AnalysisJob, ws.jobs.start("analysis", "Analysing replays", lambda report: svc.run_analysis(ws, req, report)))
 
 
 @router.get("/analysis", summary="The analysed replays")

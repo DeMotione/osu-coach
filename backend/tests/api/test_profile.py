@@ -8,7 +8,7 @@ import pytest
 from tests.api.conftest import replay_and_map, workspace
 
 from osu_coach.infrastructure.filesystem.library import analyze_files
-from osu_coach.infrastructure.filesystem.library import load_settings, save_settings
+from osu_coach.infrastructure.filesystem.settings_store import load_settings, save_settings
 from osu_coach.domain.profile import SKILL_LABELS, build_profile, stream_fall_behind, stream_speed_profile
 
 PAGES = ["summary", "replays", "overview", "aim", "clicks", "tapping", "sliders-reading", "tips"]

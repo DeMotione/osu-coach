@@ -3,18 +3,15 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-import pandas as pd
 from pydantic import ValidationError
 
 from osu_coach.domain import insights
-from osu_coach.domain.advice import Setup, Tip, aim_calibration, make_tips, practice_plan, sayo_settings, suggest_tablet_area
+from osu_coach.domain.advice import Tip, aim_calibration, make_tips, practice_plan, sayo_settings, suggest_tablet_area
+from osu_coach.domain.setup import Setup
 from osu_coach.domain.map_recommendations import stream_length_maps, targets_from_profile
 from osu_coach.domain.profile import (
-    CLICK_BANDS,
     SKILL_LABELS,
     Profile,
-    click_points,
-    click_summary,
     top_comparison,
     weight_table,
 )
@@ -28,7 +25,6 @@ from osu_coach.api.services.maps import map_rows
 DIR_ANGLE = {"right": 0, "up-right": 45, "up": 90, "up-left": 135, "left": 180, "down-left": 225, "down": 270,
              "down-right": 315}
 TOP_TIPS = 3
-CLICKS_MIN = 30
 
 
 # ------------------------------------------------------------------ summary and replays
@@ -238,24 +234,6 @@ def aim(ws: Workspace, p: Profile) -> S.AimPage:
                                   offset_y=float(reg["offset_y"]))
     return S.AimPage(kpis=kpis, worst_quadrant=worst, quadrants=quadrants, grid=grid, directions=directions,
                      distances=distances, angles=angles, regression=regression)
-
-
-def clicks(objects: pd.DataFrame, view: str) -> S.Clicks:
-    """Where clicks land (a weighted random sample) and the summary of all of them."""
-    C = click_points(objects, view)
-    if len(C) < CLICKS_MIN:
-        return S.Clicks(view=view, enough=False, n=len(C), drawn=0, x=[], y=[], hit=[], summary=None)
-    s = click_summary(C)
-    drawn = insights.click_sample(C)
-    labels = [label for _, _, label in CLICK_BANDS]
-    summary_out = S.ClickSummary(
-        n=int(s["n"]), mean_px=[num(s["mean_px"][0]), num(s["mean_px"][1])],
-        mean_r=[num(s["mean_r"][0]), num(s["mean_r"][1])], ci_px=num(s["ci_px"]),
-        sd_px=[num(s["sd_px"][0]), num(s["sd_px"][1])], radius=num(s["radius"]),
-        bands=[S.ClickBand(label=k, share=num(s["bands"].get(k))) for k in labels])
-    return S.Clicks(view=view, enough=True, n=len(C), drawn=len(drawn),
-                    x=[round(float(v), 4) for v in drawn["x"]], y=[round(float(v), 4) for v in drawn["y"]],
-                    hit=[bool(v) for v in drawn["hit"]], summary=summary_out)
 
 
 # ------------------------------------------------------------------ tapping

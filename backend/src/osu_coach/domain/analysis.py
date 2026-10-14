@@ -19,22 +19,9 @@ from osu_coach.domain.beatmap import Beatmap, PlayableBeatmap
 from osu_coach.domain.features import object_features
 from osu_coach.domain.judge import simulate
 from osu_coach.domain.judge_lazer import lazer_mod_settings
-from osu_coach.domain.replay import MOD_BITS, Replay, mods_to_string
+from osu_coach.domain.replay import MOD_BITS, UNSUPPORTED_LAZER_MODS, Replay, mods_to_string
 
 ANALYSIS_VERSION = 7
-
-# lazer mods whose effect the simulation can't reproduce (speed or note positions change during the
-# map, extra input rules): such replays are skipped with this reason
-UNSUPPORTED_LAZER_MODS = {
-    "WU": "Wind Up changes the speed during the map", "WD": "Wind Down changes the speed during the map",
-    "AS": "Adaptive Speed changes the speed during the map", "RD": "Random moves the notes",
-    "WG": "Wiggle moves the notes", "TR": "Transform moves the notes", "MG": "Magnetised moves the cursor",
-    "RP": "Repel moves the cursor", "BR": "Barrel Roll rotates the playfield", "DP": "Depth moves the notes",
-    "GR": "Grow changes the note size", "DF": "Deflate changes the note size", "SI": "Spin In changes the notes",
-    "TP": "Target Practice replaces the map", "AL": "Alternate blocks some presses",
-    "SG": "Single Tap blocks some presses", "ST": "Strict Tracking changes slider rules",
-}
-
 
 class UnsupportedReplay(ValueError):
     """A replay osu-coach can't analyse faithfully (reason in the message)."""

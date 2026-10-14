@@ -1,25 +1,15 @@
 from __future__ import annotations
 
 import datetime as dt
-from enum import IntEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from osu_coach.api.schemas.common import Request
+from osu_coach.api.schemas.library import DateRange, Latest, SourceMode
 
 
-class Latest(IntEnum):
-    """How many of the newest replays to read; 0 = all of them."""
-    newest_100 = 100
-    newest_500 = 500
-    newest_1000 = 1000
-    all = 0
-
-
-DateRange = Literal["all", "session", "7d", "30d", "custom"]
 ReplaySet = Literal["all", "best"]
-SourceMode = Literal["library", "files"]
 
 
 class AppSettings(BaseModel):

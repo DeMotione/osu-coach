@@ -32,6 +32,18 @@ class Settings(BaseSettings):
     """Processes for replay analysis; None = CPU count − 1, at most 8."""
 
 
+def default_cache_dir() -> Path:
+    if os.environ.get("OSU_COACH_CACHE"):
+        return Path(os.environ["OSU_COACH_CACHE"])
+    if os.name == "nt":
+        base = Path(os.environ.get("LOCALAPPDATA") or Path.home())
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Caches"
+    else:
+        base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+    return base / "osu-coach"
+
+
 def find_web_dir() -> Path | None:
     """The built web app: ``OSU_COACH_WEB_DIR``, the copy bundled into the package / the installed .exe, or
     ``frontend/dist`` of a source checkout."""

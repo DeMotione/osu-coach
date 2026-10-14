@@ -32,7 +32,7 @@ from osu_coach.api.schemas.check import (
     TimingMark,
 )
 from osu_coach.api.state.workspace import Workspace
-from osu_coach.api.services.pages import clicks
+from osu_coach.api.services.insights import clicks
 
 CHECK_LATEST = 100      # replays read when nothing was scanned yet
 CHECK_LIST = 300        # replays listed

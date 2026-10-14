@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from osu_coach.config import default_cache_dir
 from osu_coach.domain.progress import mark_full_combos, month_of, period_metrics, period_of, summarize_periods, utc
 
 DB_FILE = "progress.sqlite"
@@ -47,7 +48,6 @@ CREATE TABLE IF NOT EXISTS month_metrics (
 """
 
 def db_path(cache_dir=None) -> Path:
-    from osu_coach.infrastructure.filesystem.library import default_cache_dir
     return Path(cache_dir or default_cache_dir()) / DB_FILE
 
 

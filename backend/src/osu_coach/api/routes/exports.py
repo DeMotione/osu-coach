@@ -5,10 +5,17 @@ from urllib.parse import quote
 from fastapi import APIRouter
 from fastapi.responses import Response
 
-from osu_coach.api.deps import WorkspaceDep, job_view
+from osu_coach.api.deps import WorkspaceDep
 from osu_coach.api.errors import responses
-from osu_coach.api.schemas.exports import ExportPreview, ExportRequest, OszRequest, StableMergeResult
-from osu_coach.api.schemas.jobs import LazerPackJob, OszJob
+from osu_coach.api.schemas.exports import (
+    ExportPreview,
+    ExportRequest,
+    LazerPackJob,
+    OszJob,
+    OszRequest,
+    StableMergeResult,
+)
+from osu_coach.api.schemas.jobs import job_view
 from osu_coach.api.services import maps as svc
 
 router = APIRouter(prefix="/exports", tags=["Get maps into osu!"])
@@ -50,7 +57,7 @@ def lazer_zip(req: ExportRequest) -> Response:
              responses=responses(409))
 def lazer_pack(req: ExportRequest, ws: WorkspaceDep) -> LazerPackJob:
     """In Downloads/osu-coach lazer import/<name>: the collection plus the maps lazer doesn't have yet."""
-    return job_view(ws.jobs.start("lazer_pack", "Making the lazer import folder",
+    return job_view(LazerPackJob, ws.jobs.start("lazer_pack", "Making the lazer import folder",
                                   lambda report: svc.build_lazer_pack(ws, req, report)))
 
 
@@ -63,5 +70,5 @@ def stable_collection(req: ExportRequest, ws: WorkspaceDep) -> StableMergeResult
 @router.post("/osz", summary="Download the maps (.osz) into a folder (background job)", status_code=202,
              responses=responses(422))
 def osz(req: OszRequest, ws: WorkspaceDep) -> OszJob:
-    return job_view(ws.jobs.start("osz_download", "Downloading maps",
+    return job_view(OszJob, ws.jobs.start("osz_download", "Downloading maps",
                                   lambda report: svc.download_osz(req.folder, req.set_ids, report), exclusive=False))

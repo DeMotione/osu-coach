@@ -5,7 +5,7 @@ import datetime as dt
 from fastapi import APIRouter
 from pydantic import ValidationError
 
-from osu_coach.domain.advice import Setup
+from osu_coach.domain.setup import Setup
 
 from osu_coach.api.deps import WorkspaceDep
 from osu_coach.api.errors import responses

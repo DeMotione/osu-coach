@@ -42,7 +42,7 @@ def test_locate_runs(capsys):
 
 
 def test_analyze_only_these_files_best_and_level(tmp_path, capsys):
-    from osu_coach.infrastructure.filesystem.library import load_settings
+    from osu_coach.infrastructure.filesystem.settings_store import load_settings
     folder = _folder(tmp_path, ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr"])
     cache = tmp_path / "cache"
     one = folder / "circlecore__legit__legit-12.osr"

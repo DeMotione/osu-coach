@@ -18,11 +18,13 @@ from osu_coach.domain import check, selection
 from osu_coach.infrastructure.filesystem import lazer_import, locate
 from osu_coach.infrastructure.database import progress
 from osu_coach.infrastructure.http import sources
-from osu_coach.domain.advice import Setup, make_tips, practice_plan
+from osu_coach.domain.advice import make_tips, practice_plan
+from osu_coach.domain.setup import Setup
 from osu_coach.infrastructure.filesystem.collection_db import merge_into, write_collection_db
 from osu_coach.domain.collection_policy import sets_to_download
 from osu_coach.domain.replay_selection import EXCLUDE_MODS, skip_reason
-from osu_coach.infrastructure.filesystem.library import Library, load_settings, save_settings
+from osu_coach.infrastructure.filesystem.library import Library
+from osu_coach.infrastructure.filesystem.settings_store import load_settings, save_settings
 from osu_coach.domain.map_recommendations import SKILLS, Targets, build_playlist, collection_name, recommendations, skill_label, \
     targets_from_profile
 from osu_coach.infrastructure.filesystem.map_pool import load_pool

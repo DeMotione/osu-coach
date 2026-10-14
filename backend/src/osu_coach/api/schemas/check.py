@@ -4,7 +4,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from osu_coach.api.schemas.common import Request
-from osu_coach.api.schemas.profile import Clicks
+from osu_coach.api.schemas.insights import Clicks
 
 
 class CheckReplay(BaseModel):

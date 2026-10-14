@@ -8,7 +8,8 @@ from fastapi import APIRouter
 from osu_coach.api.deps import ProfileDep, WorkspaceDep
 from osu_coach.api.errors import responses
 from osu_coach.api.schemas import profile as S
-from osu_coach.api.services import pages
+from osu_coach.api.schemas.insights import Clicks
+from osu_coach.api.services import insights, pages
 
 router = APIRouter(prefix="/profile", tags=["Analysis"], responses=responses(409))
 
@@ -34,10 +35,10 @@ def aim(ws: WorkspaceDep, p: ProfileDep) -> S.AimPage:
 
 
 @router.get("/clicks", summary="Where your clicks land")
-def clicks(ws: WorkspaceDep, p: ProfileDep, view: Literal["screen", "movement"] = "screen") -> S.Clicks:
+def clicks(ws: WorkspaceDep, p: ProfileDep, view: Literal["screen", "movement"] = "screen") -> Clicks:
     """``screen``: as on screen (a constant offset shows); ``movement``: jumps only, turned so every jump goes right
     (over / undershoot)."""
-    return ws.memo(f"clicks:{view}", lambda: pages.clicks(p.objects, view))
+    return ws.memo(f"clicks:{view}", lambda: insights.clicks(p.objects, view))
 
 
 @router.get("/tapping", summary="Tapping: timing, stream speed, stamina, keys")

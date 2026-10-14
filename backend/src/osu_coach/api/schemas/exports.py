@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from osu_coach.api.schemas.common import Request
+from osu_coach.api.schemas.jobs import JobBase
 
 MD5 = Field(pattern=r"^[0-9a-f]{32}$")
 
@@ -50,3 +51,13 @@ class OszResult(BaseModel):
     folder: str
     downloaded: int
     failed: list[int]
+
+
+class LazerPackJob(JobBase):
+    kind: Literal["lazer_pack"]
+    result: LazerPackResult | None
+
+
+class OszJob(JobBase):
+    kind: Literal["osz_download"]
+    result: OszResult | None
