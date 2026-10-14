@@ -14,7 +14,7 @@ import sys
 import time
 from pathlib import Path
 
-from osu_coach.beatmaps import sources
+from osu_coach.infrastructure.http import sources
 
 out = Path(sys.argv[1])
 pages = int(sys.argv[2]) if len(sys.argv) > 2 else 120

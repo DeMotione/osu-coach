@@ -26,10 +26,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from osu_coach.beatmaps import sources  # noqa: E402
-from osu_coach.library.repository import analyze_bytes  # noqa: E402
-from osu_coach.replays.osr import parse_replay  # noqa: E402
-from osu_coach.profile.domain import SKILL_LABELS, build_profile  # noqa: E402
+from osu_coach.infrastructure.http import sources  # noqa: E402
+from osu_coach.infrastructure.filesystem.library import analyze_bytes   # noqa: E402
+from osu_coach.infrastructure.filesystem.osr import parse_replay             # noqa: E402
+from osu_coach.domain.profile import SKILL_LABELS, build_profile   # noqa: E402
 
 SKILL_KEY = {"aim": "aim", "flow": "flow_aim", "speed": "speed", "stamina": "stamina", "acc": "accuracy",
              "slider": "sliders", "reading": "reading", "cons": "consistency"}
