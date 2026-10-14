@@ -6,12 +6,11 @@ import os
 import shutil
 from pathlib import Path
 
-
+from osu_coach.cli import main
+from osu_coach.library.repository import Library
 from osu_coach.replays import locate
 from osu_coach.replays.domain import UNSUPPORTED_LAZER_MODS
-from osu_coach.cli import main
 from osu_coach.replays.eligibility import analysable, skip_reason
-from osu_coach.library.repository import Library
 from osu_coach.replays.osr import lazer_info, lazer_mod_acronyms, parse_header
 from tests.conftest import replay_and_map
 

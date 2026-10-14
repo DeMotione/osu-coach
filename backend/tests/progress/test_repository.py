@@ -6,12 +6,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from osu_coach.progress import repository as progress
-from osu_coach.progress import domain as domain_progress
 from osu_coach.analysis.domain import ReplayAnalysis
-from osu_coach.library.repository import analyze_files
 from osu_coach.cli import main
-from osu_coach.library.repository import Library
+from osu_coach.library.repository import Library, analyze_files
+from osu_coach.progress import domain as domain_progress
+from osu_coach.progress import repository as progress
 from tests.conftest import replay_and_map
 
 UTC = dt.UTC

@@ -16,8 +16,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from osu_coach.maps.domain import map_stats
 from osu_coach.beatmaps.parser import parse_beatmap_bytes
+from osu_coach.maps.domain import map_stats
 
 POOL_PATH = Path(__file__).parent / "data" / "pool.json.gz"
 

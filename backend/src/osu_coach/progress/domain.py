@@ -14,11 +14,11 @@ import pandas as pd
 
 from osu_coach.profile.domain import (
     SKILL_LABELS,
-    played_notes,
-    compute_skills,
     build_profile,
     clean_pass,
     comfort_stars,
+    compute_skills,
+    played_notes,
 )
 
 FEW_PLAYS = 5   # periods with fewer plays are shown, but marked as uncertain

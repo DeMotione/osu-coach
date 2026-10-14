@@ -1,10 +1,9 @@
 import hashlib
 import shutil
 
-
 from osu_coach.library import repository as libmod
-from osu_coach.replays import locate
 from osu_coach.library.repository import Library
+from osu_coach.replays import locate
 from osu_coach.replays.osr import parse_header, parse_replay_file
 from tests.conftest import replay_and_map
 

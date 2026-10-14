@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import math
+
 import numpy as np
 import pandas as pd
 
-from osu_coach.profile.domain.ranking import ranked_mean, _n_replays
+from osu_coach.profile.domain.ranking import _n_replays, ranked_mean
 from osu_coach.profile.domain.stamina import stamina_ref_bpm
-from osu_coach.profile.domain.stats import played_notes, _clip, _map_key, _rate, _ur, _w, _wmean, _wquantile
-
+from osu_coach.profile.domain.stats import _clip, _map_key, _rate, _ur, _w, _wmean, _wquantile, played_notes
 
 STREAM_PROFILE_COLUMNS = ["bpm_bin", "objects", "miss_rate", "tap_miss_rate", "speed_aim_rate", "non300_rate", "ur",
                           "ur_best", "ur_plays", "ur_pooled", "mean_err", "ur_trend", "weak"]

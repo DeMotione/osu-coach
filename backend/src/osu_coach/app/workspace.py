@@ -12,20 +12,18 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
 
-from osu_coach.progress import repository as progress
-from osu_coach.replays import locate
-from osu_coach.replays import scope
-from osu_coach.settings.domain import Setup
 from osu_coach.analysis.domain import ReplayAnalysis
+from osu_coach.app.errors import NoProfile
+from osu_coach.config import Settings, default_cache_dir
+from osu_coach.jobs.manager import BusyGate, JobManager
 from osu_coach.library.repository import Library
 from osu_coach.library.service import ScanArgs
-from osu_coach.settings.repository import load_settings, save_settings
 from osu_coach.maps.repository import load_pool
 from osu_coach.profile.domain import Profile, build_profile
-
-from osu_coach.config import Settings, default_cache_dir
-from osu_coach.app.errors import NoProfile
-from osu_coach.jobs.manager import BusyGate, JobManager
+from osu_coach.progress import repository as progress
+from osu_coach.replays import locate, scope
+from osu_coach.settings.domain import Setup
+from osu_coach.settings.repository import load_settings, save_settings
 
 T = TypeVar("T")
 

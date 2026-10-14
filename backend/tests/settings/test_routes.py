@@ -1,9 +1,8 @@
 """Remembered choices and the player's setup (shared with the command line through settings.json)."""
-from tests.conftest import workspace
+import pytest
 
 from osu_coach.settings.repository import load_settings, save_settings
-
-import pytest
+from tests.conftest import workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
 

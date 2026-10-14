@@ -3,10 +3,10 @@ import io
 import zipfile
 from pathlib import Path
 
-from osu_coach.exports.domain import sets_to_download
-from osu_coach.exports import lazer_import
 from osu_coach.cli import main
+from osu_coach.exports import lazer_import
 from osu_coach.exports.collection_db import loads, read_collection_db
+from osu_coach.exports.domain import sets_to_download
 
 MD5S = ["0" * 32, "1" * 32]
 

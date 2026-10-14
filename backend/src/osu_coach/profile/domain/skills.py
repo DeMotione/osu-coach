@@ -2,16 +2,17 @@
 from __future__ import annotations
 
 import math
+
 import numpy as np
 import pandas as pd
 
 from osu_coach.profile.domain.aim import (
     AIM_POINTS,
-    aim_ref,
-    aim_score,
     FLOW_POINTS,
     FLOW_REF,
     FLOW_REF_STEP,
+    aim_ref,
+    aim_score,
     flow_score,
 )
 from osu_coach.profile.domain.consistency import consistency_score
@@ -24,10 +25,10 @@ from osu_coach.profile.domain.constants import (
     SKILL_LABELS,
 )
 from osu_coach.profile.domain.misses import TYPICAL_CHAIN_RATIO
-from osu_coach.profile.domain.ranking import difficulty_weights, _n_replays
+from osu_coach.profile.domain.ranking import _n_replays, difficulty_weights
 from osu_coach.profile.domain.reading import READ_POINTS, READ_REF, reading_score
 from osu_coach.profile.domain.sliders import SLIDER_POINTS, slider_ref, slider_score
-from osu_coach.profile.domain.stamina import STAMINA_POINTS, stamina_ref_bpm, stamina_score, STAMINA_WINDOW_SHARE
+from osu_coach.profile.domain.stamina import STAMINA_POINTS, STAMINA_WINDOW_SHARE, stamina_ref_bpm, stamina_score
 from osu_coach.profile.domain.stats import _clip
 from osu_coach.profile.domain.tapping import SPEED_POINTS, speed_score
 

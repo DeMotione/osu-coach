@@ -1,21 +1,16 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-
 from fastapi import APIRouter
-
-from osu_coach.settings.domain import Setup
 
 from osu_coach.app.deps import WorkspaceDep
 from osu_coach.app.errors import responses
+from osu_coach.settings.domain import Setup
 from osu_coach.settings.schemas import AppSettings, SettingsPatch, SetupModel, SetupUpdate
 from osu_coach.settings.service import NULLABLE, app_settings, setup_model
 
-if TYPE_CHECKING:
-    pass
-
 router = APIRouter(tags=["Settings"])
+
+
 @router.get("/settings", summary="Remembered choices")
 def get_settings(ws: WorkspaceDep) -> AppSettings:
     return app_settings(ws)

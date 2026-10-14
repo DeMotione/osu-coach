@@ -1,8 +1,6 @@
 """Skill names, help texts and the thresholds the profile modules share."""
 from __future__ import annotations
 
-
-
 QUADRANTS = ["top-left", "top-right", "bottom-left", "bottom-right"]
 DIR8 = ["right", "down-right", "down", "down-left", "left", "up-left", "up", "up-right"]
 SKILL_LABELS = {

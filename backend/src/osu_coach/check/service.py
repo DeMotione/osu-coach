@@ -2,25 +2,17 @@
 of the map)."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import math
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from osu_coach.check import domain as check
-from osu_coach.insights import domain as insights
-from osu_coach.replays import locate
-from osu_coach.progress import repository as progress
-from osu_coach.beatmaps.parser import read_metadata
-from osu_coach.replays.eligibility import EXCLUDE_MODS, analysable, skip_reason
-from osu_coach.library.repository import Library
-from osu_coach.profile.domain import build_profile
-
 from osu_coach.app.convert import flag, integer, iso, num, text
 from osu_coach.app.errors import ApiError, Invalid
+from osu_coach.beatmaps.parser import read_metadata
+from osu_coach.check import domain as check
 from osu_coach.check.schemas import (
     CheckEvent,
     CheckList,
@@ -34,7 +26,13 @@ from osu_coach.check.schemas import (
     SectionReason,
     TimingMark,
 )
+from osu_coach.insights import domain as insights
 from osu_coach.insights.service import clicks
+from osu_coach.library.repository import Library
+from osu_coach.profile.domain import build_profile
+from osu_coach.progress import repository as progress
+from osu_coach.replays import locate
+from osu_coach.replays.eligibility import EXCLUDE_MODS, analysable, skip_reason
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace

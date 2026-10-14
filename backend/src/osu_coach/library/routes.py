@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, Query, UploadFile
 from osu_coach.app.deps import WorkspaceDep
 from osu_coach.app.errors import ApiError, responses
 from osu_coach.jobs.schemas import job_view
+from osu_coach.library import service as svc
 from osu_coach.library.schemas import (
     AnalysisJob,
     AnalysisRequest,
@@ -21,7 +22,6 @@ from osu_coach.library.schemas import (
     UploadedFile,
 )
 from osu_coach.replays.schemas import DateRange, Latest
-from osu_coach.library import service as svc
 
 router = APIRouter(tags=["Replays"])
 

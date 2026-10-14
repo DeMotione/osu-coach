@@ -9,24 +9,17 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import Counter
 import math
 import sys
+from collections import Counter
 from pathlib import Path
 
-from osu_coach.check import domain as check
-from osu_coach.replays import scope
-from osu_coach.exports import lazer_import
-from osu_coach.replays import locate
-from osu_coach.progress import repository as progress
 from osu_coach.beatmaps import sources
-from osu_coach.tips.domain import make_tips, practice_plan
-from osu_coach.settings.domain import Setup
+from osu_coach.check import domain as check
+from osu_coach.exports import lazer_import
 from osu_coach.exports.collection_db import merge_into, write_collection_db
 from osu_coach.exports.domain import sets_to_download
-from osu_coach.replays.eligibility import EXCLUDE_MODS, skip_reason
 from osu_coach.library.repository import Library
-from osu_coach.settings.repository import load_settings, save_settings
 from osu_coach.maps.domain import (
     PLAYLIST_SKILLS,
     Targets,
@@ -38,6 +31,12 @@ from osu_coach.maps.domain import (
 )
 from osu_coach.maps.repository import load_pool
 from osu_coach.profile.domain import MISS_LABELS, build_profile
+from osu_coach.progress import repository as progress
+from osu_coach.replays import locate, scope
+from osu_coach.replays.eligibility import EXCLUDE_MODS, skip_reason
+from osu_coach.settings.domain import Setup
+from osu_coach.settings.repository import load_settings, save_settings
+from osu_coach.tips.domain import make_tips, practice_plan
 
 SEVERITY = {3: "HIGH", 2: "MED ", 1: "LOW "}
 

@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import math
+
 import numpy as np
 import pandas as pd
 
 from osu_coach.profile.domain.constants import FEW_MISSES, FEW_MISSES_NOTES
-from osu_coach.profile.domain.misses import miss_chain_ratio, TYPICAL_CHAIN_RATIO
+from osu_coach.profile.domain.misses import TYPICAL_CHAIN_RATIO, miss_chain_ratio
 from osu_coach.profile.domain.ranking import _weighted
 from osu_coach.profile.domain.stats import _clip, _rate, _w
 

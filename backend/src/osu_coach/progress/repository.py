@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS month_metrics (
 );
 """
 
+
 def db_path(cache_dir=None) -> Path:
     return Path(cache_dir or default_cache_dir()) / DB_FILE
 

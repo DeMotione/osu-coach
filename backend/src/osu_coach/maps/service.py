@@ -3,9 +3,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-
 import pandas as pd
 
+from osu_coach.app.convert import integer, num, text
+from osu_coach.app.errors import ApiError, Invalid
 from osu_coach.maps.domain import (
     PLAYLIST_SKILLS,
     SKILLS,
@@ -16,19 +17,14 @@ from osu_coach.maps.domain import (
     skill_label,
     targets_from_profile,
 )
-from osu_coach.profile.domain import Profile
-
-from osu_coach.app.convert import integer, num, text
-from osu_coach.app.errors import ApiError, Invalid
 from osu_coach.maps.schemas import MapRow, Playlist, PlaylistSkill, PlaylistStage, Suggestions, SuggestionSection
+from osu_coach.profile.domain import Profile
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
 
 
 SUGGESTIONS_PER_SKILL = 5
-
-
 
 
 def map_rows(df: pd.DataFrame | None) -> list[MapRow]:

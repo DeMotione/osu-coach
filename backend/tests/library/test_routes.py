@@ -1,12 +1,11 @@
 """Finding replays, choosing which to analyse, analysing them."""
 import shutil
 
-from tests.conftest import MOT1ONE, OTHERS, analyse, plays_folder, sample_paths, scan, wait, workspace
-
-from osu_coach.settings.repository import load_settings
-from osu_coach.app.errors import Busy
-
 import pytest
+
+from osu_coach.app.errors import Busy
+from osu_coach.settings.repository import load_settings
+from tests.conftest import MOT1ONE, OTHERS, analyse, plays_folder, sample_paths, scan, wait, workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
 

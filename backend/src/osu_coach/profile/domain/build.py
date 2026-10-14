@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import math
+
 import numpy as np
 import pandas as pd
-from osu_coach.analysis.domain import ReplayAnalysis
 
+from osu_coach.analysis.domain import ReplayAnalysis
 from osu_coach.profile.domain.aim import (
     aim_regression,
     aim_split,
@@ -17,13 +18,13 @@ from osu_coach.profile.domain.aim import (
     worst_quadrant,
 )
 from osu_coach.profile.domain.consistency import _consistency_metrics
-from osu_coach.profile.domain.levels import clean_pass, detect_level, LEVEL_BAND, LEVEL_SIGMA, replay_weight, _levels
-from osu_coach.profile.domain.misses import fit_miss_model, miss_causes, _local_eq
+from osu_coach.profile.domain.levels import LEVEL_BAND, LEVEL_SIGMA, _levels, clean_pass, detect_level, replay_weight
+from osu_coach.profile.domain.misses import _local_eq, fit_miss_model, miss_causes
 from osu_coach.profile.domain.model import Profile
 from osu_coach.profile.domain.reading import _reading_metrics, _reading_ratios
-from osu_coach.profile.domain.skills import compute_skills, _rank_skills
+from osu_coach.profile.domain.skills import _rank_skills, compute_skills
 from osu_coach.profile.domain.stamina import STAMINA_REACH
-from osu_coach.profile.domain.stats import played_notes, _n, _rate, _ur, _w, _wmean, _wquantile
+from osu_coach.profile.domain.stats import _n, _rate, _ur, _w, _wmean, _wquantile, played_notes
 from osu_coach.profile.domain.tapping import stream_fall_behind, stream_limits, stream_speed_profile, tapping_metrics
 
 

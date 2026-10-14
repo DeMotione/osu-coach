@@ -5,12 +5,11 @@ import dataclasses
 import numpy as np
 import pandas as pd
 import pytest
-from tests.conftest import sample_paths, workspace
 
 from osu_coach.library.repository import analyze_files
-from osu_coach.settings.repository import load_settings, save_settings
 from osu_coach.profile.domain import SKILL_LABELS, build_profile, stream_fall_behind, stream_speed_profile
-
+from osu_coach.settings.repository import load_settings, save_settings
+from tests.conftest import sample_paths, workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
 

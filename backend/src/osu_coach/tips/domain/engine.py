@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import math
-from osu_coach.profile.domain import Profile, SKILL_LABELS
-from osu_coach.settings.domain import Setup
 
+from osu_coach.profile.domain import SKILL_LABELS, Profile
+from osu_coach.settings.domain import Setup
 from osu_coach.tips.domain.aim import _direction_tips, _distance_angle_tips, _miss_cause_tip, _quadrant_tips
 from osu_coach.tips.domain.common import Tip
 from osu_coach.tips.domain.keyboard import _keyboard_tips

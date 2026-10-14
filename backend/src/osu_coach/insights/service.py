@@ -3,11 +3,10 @@ from __future__ import annotations
 
 import pandas as pd
 
-from osu_coach.insights import domain as insights
-from osu_coach.profile.domain import CLICK_BANDS, click_points, click_summary
-
 from osu_coach.app.convert import num
+from osu_coach.insights import domain as insights
 from osu_coach.insights.schemas import ClickBand, Clicks, ClickSummary
+from osu_coach.profile.domain import CLICK_BANDS, click_points, click_summary
 
 CLICKS_MIN = 30
 

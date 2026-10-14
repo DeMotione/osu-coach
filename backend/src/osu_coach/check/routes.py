@@ -4,8 +4,8 @@ from fastapi import APIRouter
 
 from osu_coach.app.deps import WorkspaceDep
 from osu_coach.app.errors import responses
-from osu_coach.check.schemas import CheckList, CheckReport, CheckRequest
 from osu_coach.check import service as svc
+from osu_coach.check.schemas import CheckList, CheckReport, CheckRequest
 
 router = APIRouter(prefix="/check", tags=["Detailed Map Analysis"])
 

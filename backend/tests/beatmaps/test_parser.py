@@ -3,9 +3,9 @@ import math
 import pytest
 import rosu_pp_py as rosu
 
+from osu_coach.beatmaps.curves import SliderPath
 from osu_coach.beatmaps.domain import PlayableBeatmap
 from osu_coach.beatmaps.parser import parse_beatmap, parse_beatmap_file
-from osu_coach.beatmaps.curves import SliderPath
 
 FD = "maps/da8aae79c8f3306b5d65ec951874a7fb.osu"  # xi - FREEDOM DiVE [FOUR DIMENSIONS]
 

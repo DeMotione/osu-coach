@@ -1,20 +1,16 @@
 """Finding replays (scan), choosing which to analyse (selection) and analysing them."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import datetime as dt
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-
-from osu_coach.replays import locate
-from osu_coach.replays import scope
-from osu_coach.library.repository import Library
+from typing import TYPE_CHECKING
 
 from osu_coach.app.errors import ApiError, Invalid, NotFound
-from osu_coach.jobs.manager import Reporter
 from osu_coach.app.schemas import Count
+from osu_coach.jobs.manager import Reporter
+from osu_coach.library.repository import Library
 from osu_coach.library.schemas import (
     AnalysisRequest,
     AnalysisResult,
@@ -28,9 +24,11 @@ from osu_coach.library.schemas import (
     SkippedReplay,
     UploadedFile,
 )
+from osu_coach.replays import locate, scope
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
+
 
 @dataclass
 class ScanArgs:

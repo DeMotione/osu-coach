@@ -1,10 +1,9 @@
 """Detailed Map Analysis: one replay on its own."""
-from tests.conftest import plays_folder, sample_paths, scan
-
-from osu_coach.progress import repository as progress
-from osu_coach.beatmaps.parser import read_metadata
-
 import pytest
+
+from osu_coach.beatmaps.parser import read_metadata
+from osu_coach.progress import repository as progress
+from tests.conftest import plays_folder, sample_paths, scan
 
 pytestmark = pytest.mark.usefixtures("_isolated")
 

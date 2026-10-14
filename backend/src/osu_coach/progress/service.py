@@ -1,18 +1,16 @@
 """Progress by month / week / day (the saved history) and skill goals."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import datetime as dt
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from osu_coach.progress import goals
-from osu_coach.progress import repository as progress
-from osu_coach.profile.domain import SKILL_LABELS
-
 from osu_coach.app.convert import integer, iso, num, text
 from osu_coach.app.errors import Invalid, NoProfile, NotFound
+from osu_coach.profile.domain import SKILL_LABELS
+from osu_coach.progress import goals
+from osu_coach.progress import repository as progress
 from osu_coach.progress.schemas import (
     GoalCreate,
     GoalHistory,

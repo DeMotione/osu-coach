@@ -4,12 +4,12 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from tests.conftest import wait, workspace
 
-from osu_coach.exports import lazer_import
 from osu_coach.beatmaps import sources
+from osu_coach.exports import lazer_import
 from osu_coach.exports.collection_db import loads
 from osu_coach.maps.repository import POOL_PATH
+from tests.conftest import wait, workspace
 
 pytestmark = [pytest.mark.usefixtures("_isolated"), pytest.mark.skipif(not POOL_PATH.exists(), reason="bundled pool not built")]
 

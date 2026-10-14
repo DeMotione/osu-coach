@@ -12,8 +12,8 @@ import datetime as dt
 import math
 from collections import Counter
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from osu_coach.analysis.domain import ReplayAnalysis
 

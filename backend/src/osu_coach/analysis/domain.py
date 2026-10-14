@@ -14,11 +14,11 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
+from osu_coach.analysis.judge import simulate
+from osu_coach.analysis.judge_lazer import lazer_mod_settings
 from osu_coach.beatmaps import difficulty
 from osu_coach.beatmaps.domain import Beatmap, PlayableBeatmap
 from osu_coach.beatmaps.features import object_features
-from osu_coach.analysis.judge import simulate
-from osu_coach.analysis.judge_lazer import lazer_mod_settings
 from osu_coach.replays.domain import MOD_BITS, UNSUPPORTED_LAZER_MODS, Replay, mods_to_string
 
 # 8: modules moved (osu_coach.domain.analysis -> osu_coach.analysis.domain), so older pickled analyses can't be read

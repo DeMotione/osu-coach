@@ -4,7 +4,6 @@ from __future__ import annotations
 import math
 from dataclasses import asdict, dataclass, field
 
-
 PLAYFIELD_SCREEN_FRACTION = 0.8   # osu! playfield height = 80 % of screen height
 
 

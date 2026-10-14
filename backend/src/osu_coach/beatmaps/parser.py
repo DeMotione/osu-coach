@@ -6,8 +6,8 @@ import hashlib
 import math
 from pathlib import Path
 
-from osu_coach.beatmaps.domain import LEGACY_LAST_TICK_OFFSET, Beatmap, HitObject, SliderEvent, TimingPoint
 from osu_coach.beatmaps.curves import SliderPath
+from osu_coach.beatmaps.domain import LEGACY_LAST_TICK_OFFSET, Beatmap, HitObject, SliderEvent, TimingPoint
 
 
 # --------------------------------------------------------------------------- parsing

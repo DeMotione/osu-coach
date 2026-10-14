@@ -47,7 +47,7 @@ extend-exclude = ["tools"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "B", "I", "UP"]
-ignore = ["E501", "E731", "B905", "B007", "B023", "E741", "I001", "B008", "UP040"]
+ignore = ["E501", "E731", "B905", "B007", "B023", "E741", "B008", "UP040"]
 
 [tool.ruff.lint.per-file-ignores]
 # unused locals that predate the linter; left as they are so the analysis code stays untouched

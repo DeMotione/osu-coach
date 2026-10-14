@@ -55,6 +55,7 @@ def test_dt_errors_are_converted_to_real_time():
 def test_replay_without_results_falls_back_to_simulation():
     """Some tools write .osr files with all-zero result counts."""
     from pathlib import Path
+
     from osu_coach.library.repository import analyze_bytes
     from osu_coach.replays.osr import parse_replay_file
     rp, mp, _ = replay_and_map("circlecore__legit__legit-12.osr")

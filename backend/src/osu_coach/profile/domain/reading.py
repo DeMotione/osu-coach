@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import math
+
 import numpy as np
 import pandas as pd
 
-from osu_coach.profile.domain.ranking import ranked_mean, _n_replays
+from osu_coach.profile.domain.ranking import _n_replays, ranked_mean
 from osu_coach.profile.domain.stats import _clip, _map_key, _rate, _w
 
 

@@ -2,10 +2,10 @@ import dataclasses
 
 import pytest
 
-from osu_coach.tips.domain import make_tips, mm_per_osu_px, practice_plan, rt_baseline, suggest_tablet_area
-from osu_coach.settings.domain import Setup
 from osu_coach.library.repository import analyze_files
 from osu_coach.profile.domain import build_profile
+from osu_coach.settings.domain import Setup
+from osu_coach.tips.domain import make_tips, mm_per_osu_px, practice_plan, rt_baseline, suggest_tablet_area
 from tests.conftest import replay_and_map
 
 REG = {"n": 500, "scale_x": 1.0, "scale_y": 1.0, "rotation_deg": 0.0, "offset_x": 0.0, "offset_y": 0.0,

@@ -6,8 +6,8 @@ from fastapi import APIRouter, Query
 
 from osu_coach.app.deps import ProfileDep, WorkspaceDep
 from osu_coach.app.errors import responses
-from osu_coach.maps.schemas import HideMaps, Playlist, Suggestions
 from osu_coach.maps import service as svc
+from osu_coach.maps.schemas import HideMaps, Playlist, Suggestions
 
 router = APIRouter(tags=["Maps"])
 

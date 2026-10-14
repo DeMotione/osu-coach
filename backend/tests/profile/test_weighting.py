@@ -7,22 +7,22 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from osu_coach.replays import scope
 from osu_coach.library.repository import analyze_files
+from osu_coach.maps.domain import Targets, stream_length_maps
+from osu_coach.maps.repository import load_pool
 from osu_coach.profile.domain import (
     build_profile,
     detect_level,
     miss_causes,
     replay_weight,
+    stamina_ref_bpm,
     stamina_score,
     stream_fall_behind,
     stream_limits,
     stream_speed_profile,
 )
+from osu_coach.replays import scope
 from tests.conftest import replay_and_map
-from osu_coach.maps.domain import Targets, stream_length_maps
-from osu_coach.maps.repository import load_pool
-from osu_coach.profile.domain import stamina_ref_bpm
 
 
 # ------------------------------------------------------------------ weights
@@ -457,7 +457,7 @@ def _jumps(key, n, dist, dt, combo=1.0, completed=True, md5=None):
 
 
 def test_aim_is_distance_times_speed_times_combo():
-    from osu_coach.profile.domain import aim_values, aim_score
+    from osu_coach.profile.domain import aim_score, aim_values
     V = aim_values(pd.DataFrame(_jumps("a", 40, 3.0, 200) + _jumps("b", 40, 3.0, 150)
                                 + _jumps("c", 40, 4.0, 200) + _jumps("d", 40, 4.0, 200, combo=0.5)
                                 + _jumps("e", 40, 9.0, 100, completed=False))).set_index("replay_key")
@@ -487,7 +487,7 @@ def _read_play(key, ar, acc, stars=6.0, bpm_changes=0, hit_after=True, hidden=Fa
 
 
 def test_reading_counts_low_ar_accuracy_and_bpm_changes():
-    from osu_coach.profile.domain import reading_values, reading_score, usual_ar
+    from osu_coach.profile.domain import reading_score, reading_values, usual_ar
     assert float(usual_ar(6.0)) == 9.5
     V = reading_values(pd.DataFrame(_read_play("usual", 9.5, 0.95) + _read_play("low", 6.5, 0.95)
                                     + _read_play("low_hd", 6.5, 0.95, hidden=True) + _read_play("sloppy", 6.5, 0.85)

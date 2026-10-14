@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import datetime as _dt
 import math
+
 import numpy as np
 import pandas as pd
-
 
 LEVEL_BAND = 0.5         # ★: replays within ± this of the player's level count fully
 LEVEL_SIGMA = 0.5        # ★: Gaussian fall-off outside the band

@@ -1,5 +1,6 @@
 """Web plumbing: the API reference, serving the web app, the local-only protections and the error shape."""
 import pytest
+
 from tests.conftest import make_client
 
 pytestmark = pytest.mark.usefixtures("_isolated")

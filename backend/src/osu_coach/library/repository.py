@@ -12,13 +12,12 @@ import pickle
 from collections import Counter
 from pathlib import Path
 
-from osu_coach.config import default_cache_dir
-from osu_coach.replays import locate
-from osu_coach.beatmaps import sources
-from osu_coach.replays import eligibility
 from osu_coach.analysis.domain import ANALYSIS_VERSION, ReplayAnalysis, UnsupportedReplay, analyze
-from osu_coach.replays.eligibility import analysable
+from osu_coach.beatmaps import sources
 from osu_coach.beatmaps.parser import parse_beatmap_bytes
+from osu_coach.config import default_cache_dir
+from osu_coach.replays import eligibility, locate
+from osu_coach.replays.eligibility import analysable
 from osu_coach.replays.osr import parse_replay
 
 

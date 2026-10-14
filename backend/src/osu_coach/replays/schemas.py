@@ -5,8 +5,6 @@ from enum import IntEnum
 from typing import Literal
 
 
-
-
 class Latest(IntEnum):
     """How many of the newest replays to read; 0 = all of them."""
     newest_100 = 100

@@ -31,7 +31,6 @@ import re
 
 import numpy as np
 
-from osu_coach.beatmaps.domain import HitObject, PlayableBeatmap
 from osu_coach.analysis.judge import (
     CLICK,
     HITTABLE_RANGE,
@@ -43,6 +42,7 @@ from osu_coach.analysis.judge import (
     SimResult,
     classify_miss_reason,
 )
+from osu_coach.beatmaps.domain import HitObject, PlayableBeatmap
 from osu_coach.replays.domain import KEY_K1, KEY_K2, KEY_M1, KEY_M2, MOD_BITS, Replay
 
 LEFT, RIGHT = 1, 2

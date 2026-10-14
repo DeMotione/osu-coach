@@ -9,8 +9,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from osu_coach.main import create_app
 from osu_coach.config import Settings
+from osu_coach.main import create_app
 
 
 def document() -> dict:

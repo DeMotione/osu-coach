@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 from pydantic import ValidationError
 
 from osu_coach.settings.domain import Setup
-
 from osu_coach.settings.schemas import AppSettings, SetupModel
 
 if TYPE_CHECKING:

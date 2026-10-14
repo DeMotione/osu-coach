@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import math
+
 from osu_coach.profile.domain import Profile
 from osu_coach.settings.domain import Setup
-
 from osu_coach.tips.domain.common import Tip, _nan, _pct
 
 

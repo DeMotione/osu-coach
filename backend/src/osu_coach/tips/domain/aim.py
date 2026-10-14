@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import math
+
 import pandas as pd
+
 from osu_coach.profile.domain import Profile
 from osu_coach.settings.domain import Setup
-
 from osu_coach.tips.domain.common import Tip, _nan, _pct
 from osu_coach.tips.domain.tablet import mm_per_osu_px
 

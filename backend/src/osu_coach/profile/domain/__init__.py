@@ -19,10 +19,10 @@ Every statistic is weighted by the replay weight (column ``w`` on the objects an
 from __future__ import annotations
 
 from osu_coach.profile.domain.aim import (
+    CLICK_BANDS,
     aim_regression,
     aim_score,
     aim_values,
-    CLICK_BANDS,
     click_points,
     click_summary,
     quadrant_stats,
@@ -32,11 +32,11 @@ from osu_coach.profile.domain.build import build_profile
 from osu_coach.profile.domain.consistency import consistency_score
 from osu_coach.profile.domain.constants import MISS_LABELS, SKILL_HELP, SKILL_LABELS
 from osu_coach.profile.domain.levels import (
+    LEVEL_BAND,
+    LEVEL_SIGMA,
     clean_pass,
     comfort_stars,
     detect_level,
-    LEVEL_BAND,
-    LEVEL_SIGMA,
     replay_weight,
     weight_table,
 )

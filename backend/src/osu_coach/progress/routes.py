@@ -7,8 +7,8 @@ from fastapi import APIRouter, Query
 
 from osu_coach.app.deps import WorkspaceDep
 from osu_coach.app.errors import responses
-from osu_coach.progress.schemas import GoalCreate, GoalsOut, Period, ProgressOut, ProgressPlay, ProgressPlayer
 from osu_coach.progress import service as svc
+from osu_coach.progress.schemas import GoalCreate, GoalsOut, Period, ProgressOut, ProgressPlay, ProgressPlayer
 
 router = APIRouter(tags=["Progress & goals"])
 

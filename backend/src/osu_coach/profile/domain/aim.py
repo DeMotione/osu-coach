@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import math
+
 import numpy as np
 import pandas as pd
 
 from osu_coach.profile.domain.constants import DIR8, QUADRANTS
 from osu_coach.profile.domain.misses import fast_pattern
-from osu_coach.profile.domain.ranking import rank_weights, ranked_mean, _n_replays
-from osu_coach.profile.domain.stats import played_notes, _clip, _map_key, _rate, _w, _wmean, _wquantile, _wstd
+from osu_coach.profile.domain.ranking import _n_replays, rank_weights, ranked_mean
+from osu_coach.profile.domain.stats import _clip, _map_key, _rate, _w, _wmean, _wquantile, _wstd, played_notes
 
 
 def quadrant_stats(O: pd.DataFrame) -> pd.DataFrame:

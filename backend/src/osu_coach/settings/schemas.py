@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field, field_validator
 from osu_coach.app.schemas import Request
 from osu_coach.replays.schemas import DateRange, Latest, SourceMode
 
-
 ReplaySet = Literal["all", "best"]
 
 

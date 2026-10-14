@@ -1,17 +1,14 @@
 """The tips page: tips, calibration and the practice plan."""
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import TYPE_CHECKING
 
-from dataclasses import asdict
-
-
-from osu_coach.tips.domain import Tip, aim_calibration, make_tips, practice_plan, sayo_settings, suggest_tablet_area
-from osu_coach.settings.domain import Setup
 from osu_coach.profile.domain import Profile
-
-from osu_coach.tips import schemas as S
+from osu_coach.settings.domain import Setup
 from osu_coach.settings.service import setup_model
+from osu_coach.tips import schemas as S
+from osu_coach.tips.domain import Tip, aim_calibration, make_tips, practice_plan, sayo_settings, suggest_tablet_area
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace

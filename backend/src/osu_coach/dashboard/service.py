@@ -3,17 +3,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-
-
+from osu_coach.app.convert import flag, integer, iso, num, nums, text
+from osu_coach.dashboard import schemas as S
 from osu_coach.insights import domain as insights
 from osu_coach.insights import service as insights_service
 from osu_coach.insights.schemas import Clicks
 from osu_coach.maps.domain import stream_length_maps, targets_from_profile
-from osu_coach.profile.domain import SKILL_LABELS, Profile, top_comparison, weight_table
-
-from osu_coach.app.convert import flag, integer, iso, num, nums, text
-from osu_coach.dashboard import schemas as S
 from osu_coach.maps.service import map_rows
+from osu_coach.profile.domain import SKILL_LABELS, Profile, top_comparison, weight_table
 from osu_coach.tips.service import tip_out, tips
 
 if TYPE_CHECKING:

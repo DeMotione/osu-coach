@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 
 from osu_coach.beatmaps.domain import PlayableBeatmap
-from osu_coach.beatmaps.parser import parse_beatmap
 from osu_coach.beatmaps.features import object_features
+from osu_coach.beatmaps.parser import parse_beatmap
 
 HEADER = """osu file format v14
 
