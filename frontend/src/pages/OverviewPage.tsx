@@ -51,20 +51,18 @@ function OverviewBody({ ov }: { ov: Overview }) {
         <Stat label="Misses / 100 notes" value={fmt(k.misses_per_100, 1)} />
         <Stat label="Accuracy" value={pct(k.accuracy)} />
       </Tiles>
-      <Row>
-        <Card
-          title="Skills vs players at your level"
-          sub={`Experimental replay ratings, 0–100; 50 = expected performance at your ${stars(k.comfort_stars, 1)} comfort level under assumed curves. Best play per map/mod counts; grey = unmeasured or insufficient challenge.`}
-        >
-          <Chart build={skillsChart} height={skillsHeight} label="Skill scores against your level" />
-        </Card>
-        <Card
-          title="Skills vs top players"
-          sub={`The same replay measures against a 10★ baseline${k.comfort_stars === null ? "" : ` (${(10 - k.comfort_stars).toFixed(1)}★ above your comfort)`}. 50 = expected performance under assumed curves; ◆ = the maximum 100-point score.`}
-        >
-          <Chart build={topChart} height={skillsHeight} label="Skill scores against top players" />
-        </Card>
-      </Row>
+      <Card
+        title="Skills vs players at your level"
+        sub={`Experimental replay ratings, 0–100; 50 = expected performance at your ${stars(k.comfort_stars, 1)} comfort level under assumed curves. Best play per map/mod counts; grey = unmeasured or insufficient challenge.`}
+      >
+        <Chart build={skillsChart} height={skillsHeight} label="Skill scores against your level" />
+      </Card>
+      <Card
+        title="Skills vs top players"
+        sub={`The same replay measures against a 10★ baseline${k.comfort_stars === null ? "" : ` (${(10 - k.comfort_stars).toFixed(1)}★ above your comfort)`}. 50 = expected performance under assumed curves; ◆ = the maximum 100-point score.`}
+      >
+        <Chart build={topChart} height={skillsHeight} label="Skill scores against top players" />
+      </Card>
       <Row>
         <Card
           title="Why you miss"
