@@ -151,6 +151,23 @@
   color-scheme: dark;
 }
 
+/* desktop app: the toolbar is the window's title bar, so it is slimmer */
+:root.is-desktop {
+  --toolbar-h: 40px;
+}
+
+/* Windows Mica provides the wallpaper-tinted material behind this transparent WebView. */
+:root.is-mica-desktop {
+  --bg: transparent;
+  --sidebar: transparent;
+  --backdrop: none;
+  --blur: none; /* there is nothing in the page to blur: the material is behind the window */
+  /* bars that content scrolls under: nearly opaque, as they cannot blur what is behind them */
+  --bar: light-dark(hsl(var(--ink) 40% 98.5% / 0.88), hsl(var(--ink) 26% 6% / 0.88));
+  --glass: light-dark(rgb(255 255 255 / 0.58), hsl(var(--ink) 24% 15% / 0.64));
+  --glass-2: light-dark(rgb(255 255 255 / 0.42), hsl(var(--ink) 24% 21% / 0.5));
+}
+
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     color-scheme: light;

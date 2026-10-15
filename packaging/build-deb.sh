@@ -60,17 +60,18 @@ step "Python packages (.venv)"
 .venv/bin/python -m pip install --quiet --upgrade pip
 .venv/bin/python -m pip install --quiet -c constraints.txt -e ./backend pyinstaller
 
+step "Cleaning previous build output"
+rm -rf build dist frontend/dist desktop/src-tauri/target desktop/src-tauri/server.zip
+
 step "Web app"
 (cd frontend && npm ci --no-audit --no-fund --loglevel=error && npm run build)
 
 step "Server (PyInstaller)"
-.venv/bin/python -m PyInstaller packaging/osu-coach.spec --noconfirm
+.venv/bin/python -m PyInstaller packaging/osu-coach.spec --noconfirm --clean
+.venv/bin/python packaging/make_server_zip.py
 
 step "Desktop app (Tauri)"
-rm -rf desktop/src-tauri/resources/osu-coach
-mkdir -p desktop/src-tauri/resources
-cp -a dist/osu-coach desktop/src-tauri/resources/osu-coach
-(cd desktop && npm ci --no-audit --no-fund --loglevel=error && npx tauri build --bundles deb --config src-tauri/tauri.release.conf.json)
+(cd desktop && npm ci --no-audit --no-fund --loglevel=error && npx tauri build --bundles deb --features embedded-server)
 deb="dist/osu-coach_${version}_amd64.deb"
 cp desktop/src-tauri/target/release/bundle/deb/*_"${version}"_amd64.deb "$deb"
 

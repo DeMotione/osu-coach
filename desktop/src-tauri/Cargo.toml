@@ -9,3 +9,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+
+[features]
+# bakes server.zip (the frozen server, packaging/make_server_zip.py) into the executable
+embedded-server = ["dep:zip"]

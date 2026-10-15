@@ -41,28 +41,25 @@ To use a specific server binary: `$env:OSU_COACH_API_BIN = "C:\path\to\osu-coach
 
 ## Build
 
-The installers bundle the frozen server (`packaging/osu-coach.spec`) as a resource, so they need no Python.
+The installers embed the frozen server (`packaging/osu-coach.spec`) in the app's executable, so they need no Python
+and the executable alone is the whole app: on first start it unpacks the server to its local data folder.
 From the repo root, with the venv active (`pip install -c constraints.txt -e ./backend pyinstaller`):
 
-### Windows (.exe setup, .msi)
+### Windows (.exe setup, .msi, portable .exe)
 
 ```powershell
 cd frontend; npm ci; npm run build; cd ..
 python -m PyInstaller packaging/osu-coach.spec --noconfirm
-New-Item -ItemType Directory desktop\src-tauri\resources -Force
-Remove-Item desktop\src-tauri\resources\osu-coach -Recurse -Force -ErrorAction SilentlyContinue
-Copy-Item dist\osu-coach desktop\src-tauri\resources\osu-coach -Recurse
+python packaging/make_server_zip.py
 cd desktop
-npx tauri build --config src-tauri/tauri.release.conf.json
+npx tauri build --bundles nsis,msi --features embedded-server
 ```
 
 The installers are `src-tauri\target\release\bundle\nsis\osu! coach_<version>_x64-setup.exe` and
 `src-tauri\target\release\bundle\msi\osu! coach_<version>_x64_en-US.msi`.
 
-Portable (what the release zips): the app also runs without installing, because on Windows it looks for its
-resources next to its own `.exe`. A folder with `src-tauri\target\release\osu-coach-desktop.exe` (renamed
-`osu! coach.exe` in the release) and `dist\osu-coach` copied in as `osu-coach\` is the whole app. It needs Microsoft's
-WebView2 runtime, which Windows 11 has and Windows 10 gets with Edge.
+Portable (what the release ships): `src-tauri\target\release\osu-coach-desktop.exe` runs on its own from any folder.
+It needs Microsoft's WebView2 runtime, which Windows 11 has and Windows 10 gets with Edge.
 
 ### Linux (.deb)
 
@@ -87,20 +84,19 @@ Then, from the repo root:
 ```sh
 (cd frontend && npm ci && npm run build)
 python -m PyInstaller packaging/osu-coach.spec --noconfirm
-rm -rf desktop/src-tauri/resources/osu-coach && mkdir -p desktop/src-tauri/resources
-cp -a dist/osu-coach desktop/src-tauri/resources/osu-coach
+python packaging/make_server_zip.py
 cd desktop && npm ci
-npx tauri build --bundles deb --config src-tauri/tauri.release.conf.json
+npx tauri build --bundles deb --features embedded-server
 ```
 
 The package is `src-tauri/target/release/bundle/deb/osu! coach_<version>_amd64.deb`; install it with
 `sudo apt install "./src-tauri/target/release/bundle/deb/osu! coach_<version>_amd64.deb"`. It puts the app in
-`/usr/bin/osu-coach-desktop` (menu entry *osu! coach*) and the server in `/usr/lib/osu! coach/`. A package built on
+`/usr/bin/osu-coach-desktop` (menu entry *osu! coach*); the server is inside that binary. A package built on
 an older distribution also runs on newer ones (the release builds it on Ubuntu 22.04).
 
 ### Releases
 
-`.github/workflows/release.yml` builds all of this (plus the Inno Setup installer) when a tag
+`.github/workflows/release.yml` builds all of this when a tag
 `v<version>` is pushed, and publishes the files as a GitHub release.
 
 ## Other

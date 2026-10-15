@@ -19,4 +19,5 @@ if [ ! -f frontend/dist/index.html ] || \
   echo "Building the web app..."
   (cd frontend && npm ci --no-audit --no-fund --loglevel=error && npm run build --silent)
 fi
+if [ "${1:-}" = "--setup" ]; then exit 0; fi # only set up (the desktop dev/build scripts use this)
 exec .venv/bin/osu-coach ui "$@"
