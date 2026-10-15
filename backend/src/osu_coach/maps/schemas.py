@@ -96,3 +96,6 @@ class Playlist(BaseModel):
     skill_adjusted_stars: float | None = None
     experimental: bool = True
     abilities: dict[str, float] = Field(default_factory=dict)
+    measured_abilities: dict[str, float] = Field(
+        default_factory=dict, description="Replay-derived skill ratings before manual overrides."
+    )
