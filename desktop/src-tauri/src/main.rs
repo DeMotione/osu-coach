@@ -14,42 +14,6 @@ const SERVER_NAME: &str = if cfg!(windows) { "osu-coach.exe" } else { "osu-coach
 
 struct Server(Mutex<Option<Child>>);
 
-#[tauri::command]
-fn windows_supports_mica() -> bool {
-    #[cfg(windows)]
-    {
-        #[repr(C)]
-        struct OsVersionInfoW {
-            size: u32,
-            major: u32,
-            minor: u32,
-            build: u32,
-            platform_id: u32,
-            service_pack: [u16; 128],
-        }
-
-        #[link(name = "ntdll")]
-        extern "system" {
-            fn RtlGetVersion(info: *mut OsVersionInfoW) -> i32;
-        }
-
-        let mut version = OsVersionInfoW {
-            size: std::mem::size_of::<OsVersionInfoW>() as u32,
-            major: 0,
-            minor: 0,
-            build: 0,
-            platform_id: 0,
-            service_pack: [0; 128],
-        };
-        // Mica is supported starting with Windows 11 (build 22000).
-        unsafe { RtlGetVersion(&mut version) == 0 && version.major == 10 && version.build >= 22000 }
-    }
-    #[cfg(not(windows))]
-    {
-        false
-    }
-}
-
 #[cfg(feature = "embedded-server")]
 static SERVER_ZIP: &[u8] = include_bytes!("../server.zip");
 
@@ -160,7 +124,6 @@ fn is_healthy(port: u16) -> bool {
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![windows_supports_mica])
         .manage(Server(Mutex::new(None)))
         .setup(|app| {
             let port = free_port()?;

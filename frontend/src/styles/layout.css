@@ -1,6 +1,6 @@
 /* App shell and page grid, like a desktop app: a fixed sidebar on the left, a toolbar over the page, a status bar
- * along the bottom. The window scrolls (so the browser keeps scroll positions); the sidebar, toolbar and status bar
- * stay put. The page itself follows the symmetry rules:
+ * along the bottom. Only the content and sidebar scroll; their scrollbars stay between the surrounding bars.
+ * The page itself follows the symmetry rules:
  *  - a page is a single column of blocks, all as wide as the content;
  *  - a block is either one full-width card, a `.row` of two equal cards, or a `.tiles` grid of equal tiles;
  *  - cards in a row stretch to the same height and their content (charts, tables) grows to fill it;
@@ -9,10 +9,12 @@
  */
 
 .app {
+  --sidebar-motion: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-  min-height: 100dvh;
-  transition: grid-template-columns 0.2s ease;
+  height: 100dvh;
+  overflow: hidden;
+  transition: grid-template-columns var(--sidebar-motion);
 }
 
 .app.is-rail {
@@ -28,12 +30,14 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
-  height: 100dvh;
+  min-height: 0;
+  height: 100%;
   padding: var(--s-4) var(--s-3);
   overflow-x: hidden;
   overflow-y: auto;
   background: color-mix(in srgb, var(--sidebar) 58%, transparent);
   border-right: 1px solid var(--border);
+  transition: padding-inline var(--sidebar-motion);
 }
 
 .sidebar__head {
@@ -41,6 +45,7 @@
   align-items: center;
   height: 40px;
   padding: 0 var(--s-2);
+  transition: padding var(--sidebar-motion);
 }
 
 .brand {
@@ -51,6 +56,7 @@
   font-size: var(--t-lg);
   letter-spacing: -0.02em;
   white-space: nowrap;
+  transition: gap var(--sidebar-motion);
 }
 
 .brand:hover {
@@ -104,12 +110,21 @@
 
 /* small, spaced capitals: a label, not a heading */
 .sidenav__label {
+  max-height: 24px;
+  overflow: hidden;
+  white-space: nowrap;
   padding: 0 var(--s-3) var(--s-1);
   color: var(--muted);
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  transition:
+    max-height var(--sidebar-motion),
+    margin var(--sidebar-motion),
+    padding var(--sidebar-motion),
+    color var(--sidebar-motion),
+    background-color var(--sidebar-motion);
 }
 
 .sidenav__link {
@@ -125,7 +140,9 @@
   white-space: nowrap;
   transition:
     background 0.12s,
-    color 0.12s;
+    color 0.12s,
+    padding var(--sidebar-motion),
+    gap var(--sidebar-motion);
 }
 
 /* the icon is heavier than the text next to it, so it is the softer one */
@@ -203,6 +220,9 @@
   border-radius: var(--radius-btn);
   color: var(--text);
   min-width: 0;
+  transition:
+    padding var(--sidebar-motion),
+    gap var(--sidebar-motion);
 }
 
 .player:hover {
@@ -242,44 +262,75 @@
   font-size: var(--t-xs);
 }
 
-/* the folded sidebar: icons only; the names are in the tooltips */
-.is-rail .sidebar {
-  padding-inline: var(--s-2);
+.sidebar .brand__name,
+.sidenav__text,
+.sidenav__start,
+.player__text {
+  opacity: 1;
+  max-width: var(--sidebar-w);
+  transition:
+    opacity var(--sidebar-motion),
+    max-width var(--sidebar-motion),
+    padding var(--sidebar-motion);
 }
 
-.is-rail .brand__name,
-.is-rail .sidenav__text,
-.is-rail .sidenav__start,
-.is-rail .player__text {
-  display: none;
-}
-
-.is-rail .sidenav__label {
-  height: 1px;
-  margin: var(--s-1) var(--s-3);
-  padding: 0;
+.sidenav__text,
+.sidenav__start,
+.player__text {
   overflow: hidden;
-  background: var(--border);
-  color: transparent;
+  white-space: nowrap;
 }
 
-.is-rail .sidenav__link {
-  justify-content: center;
-  padding: 0;
-}
+/* the folded sidebar: icons only; the names are in the tooltips */
+@media (min-width: 961px) {
+  .is-rail .sidebar {
+    padding-inline: var(--s-2);
+  }
 
-.is-rail .sidenav__link.active::after {
-  right: 6px;
-  top: 6px;
-}
+  .is-rail .sidebar .brand__name,
+  .is-rail .sidenav__text,
+  .is-rail .sidenav__start,
+  .is-rail .player__text {
+    opacity: 0;
+    max-width: 0;
+    pointer-events: none;
+  }
 
-.is-rail .sidebar__head {
-  justify-content: center;
-  padding: 0;
-}
+  .is-rail .sidenav__start {
+    padding-inline: 0;
+  }
 
-.is-rail .player {
-  justify-content: center;
+  .is-rail .sidebar .brand,
+  .is-rail .sidenav__link,
+  .is-rail .player {
+    gap: 0;
+  }
+
+  .is-rail .sidenav__label {
+    max-height: 1px;
+    margin: var(--s-1) var(--s-3);
+    padding: 0;
+    overflow: hidden;
+    background: var(--border);
+    color: transparent;
+  }
+
+  .is-rail .sidenav__link {
+    padding-inline: var(--s-4);
+  }
+
+  .is-rail .sidenav__link.active::after {
+    right: 6px;
+    top: 6px;
+  }
+
+  .is-rail .sidebar__head {
+    padding-inline: 10px;
+  }
+
+  .is-rail .player {
+    padding-inline: 9px;
+  }
 }
 
 /* ------------------------------------------------------------------ workspace: toolbar, page, status bar */
@@ -287,7 +338,16 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 100dvh;
+  min-height: 0;
+  height: 100%;
+}
+
+.workspace__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
 }
 
 .toolbar {
@@ -298,6 +358,7 @@
   align-items: center;
   gap: var(--s-1);
   height: var(--toolbar-h);
+  flex-shrink: 0;
   padding: 0 var(--s-4);
   background: color-mix(in srgb, var(--bg) 86%, transparent);
   backdrop-filter: blur(12px);
@@ -416,11 +477,6 @@
 
 .is-desktop .sidebar {
   top: var(--toolbar-h);
-  height: calc(100dvh - var(--toolbar-h));
-}
-
-.is-desktop .workspace {
-  min-height: calc(100dvh - var(--toolbar-h));
 }
 
 .toolbar--desktop {
@@ -507,6 +563,7 @@
   align-items: center;
   gap: var(--s-4);
   height: var(--status-h);
+  flex-shrink: 0;
   padding: 0 var(--s-4);
   background: color-mix(in srgb, var(--sidebar) 86%, transparent);
   backdrop-filter: var(--blur);
@@ -629,6 +686,7 @@
     position: fixed;
     inset: 0 auto 0 0;
     width: min(86vw, 300px);
+    height: 100dvh;
     transform: translateX(-102%);
     /* closed: out of the tab order and the accessibility tree once it has slid away */
     visibility: hidden;
@@ -638,28 +696,8 @@
     box-shadow: var(--elev-4);
   }
 
-  /* the drawer is never a rail */
-  .is-rail .brand__name,
-  .is-rail .sidenav__text,
-  .is-rail .player__text {
-    display: revert;
-  }
-
-  .is-rail .sidenav__start {
-    display: revert;
-  }
-
-  .is-rail .sidenav__label {
-    height: auto;
-    margin: 0;
-    padding: 0 var(--s-3) var(--s-1);
-    background: none;
-    color: var(--muted);
-  }
-
-  .is-rail .sidenav__link {
-    justify-content: flex-start;
-    padding: 0 var(--s-3);
+  .is-desktop .sidebar {
+    height: calc(100dvh - var(--toolbar-h));
   }
 
   .app.nav-open .sidebar {
@@ -695,7 +733,6 @@
 
 /* ------------------------------------------------------------------ content */
 .main {
-  flex: 1;
   width: min(100%, var(--content-max));
   min-width: 0;
   margin: 0 auto;

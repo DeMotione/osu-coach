@@ -51,6 +51,9 @@ src/
 
 ## Layout rules
 
+The shell stays within the viewport: page content scrolls between the toolbar and status bar, and the sidebar scrolls
+independently. Sidebar folding animates its width and labels; reduced-motion preferences disable these transitions.
+
 Every page is one column of blocks as wide as the content area. A block is a full-width card, a row of **two equal
 cards** (`<Row>`, which takes exactly two children) or a grid of **equal tiles** (`<Tiles n>`, with `n` in 1, 2, 3, 4,
 6, 8 — counts whose columns divide evenly at every width, so no row is half empty). Cards in a row stretch to the same
