@@ -60,11 +60,14 @@ step "Python packages (.venv)"
 .venv/bin/python -m pip install --quiet --upgrade pip
 .venv/bin/python -m pip install --quiet -c constraints.txt -e ./backend pyinstaller
 
+step "Cleaning previous build output"
+rm -rf build dist frontend/dist desktop/src-tauri/target desktop/src-tauri/server.zip
+
 step "Web app"
 (cd frontend && npm ci --no-audit --no-fund --loglevel=error && npm run build)
 
 step "Server (PyInstaller)"
-.venv/bin/python -m PyInstaller packaging/osu-coach.spec --noconfirm
+.venv/bin/python -m PyInstaller packaging/osu-coach.spec --noconfirm --clean
 .venv/bin/python packaging/make_server_zip.py
 
 step "Desktop app (Tauri)"
