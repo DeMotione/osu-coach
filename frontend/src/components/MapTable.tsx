@@ -27,7 +27,7 @@ const COLUMNS: Column<MapRow>[] = [
     header: "Link",
     cell: (m) =>
       m.url ? (
-        <a href={m.url} target="_blank" rel="noreferrer noopener" onClick={(e) => e.stopPropagation()}>
+        <a href={m.url} target="_blank" rel="noreferrer noopener">
           open ↗
         </a>
       ) : (
