@@ -73,6 +73,7 @@ function GoalsTab() {
             {g.done.map((x) => (
               <li key={x.id}>
                 <strong>{x.label}</strong> {fmt(x.start, 0)} → {x.target.toFixed(0)}, reached {x.done} (set {x.created})
+                {x.score_source === "legacy" && " · previous rating scale"}
               </li>
             ))}
           </ul>
@@ -95,6 +96,7 @@ function GoalRow({ goal }: { goal: Schemas["GoalOut"] }) {
         <span className="goal__meta">
           <span>{goal.days_left >= 0 ? `${goal.days_left} days left` : `${-goal.days_left} days overdue`}</span>
           {goal.left !== null && goal.left > 0 && <span>{goal.left.toFixed(0)} points to go</span>}
+          {goal.score_source === "legacy" && <span>Previous rating scale</span>}
         </span>
       </div>
       <button type="button" className="btn btn--ghost btn--sm btn--danger" onClick={() => remove.mutate(goal.id)} disabled={remove.isPending}>
@@ -110,7 +112,7 @@ function HistoryCard({ history }: { history: Schemas["GoalHistory"][] }) {
   return (
     <Card
       title="Goal skills day by day"
-      sub="Solid lines: your score each day you analysed replays; dotted: the path from where you started to the target by the deadline. Above the dotted line = ahead of plan."
+      sub="Previous-scale goals only. Solid lines: your score each day you analysed replays; dotted: the path from where you started to the target by the deadline. Above the dotted line = ahead of plan."
     >
       <Chart build={build} height={320} label="Goal skills day by day" />
     </Card>
@@ -166,7 +168,7 @@ function AddGoalCard({ goals }: { goals: Schemas["GoalsOut"] }) {
 function PlanCard({ goals }: { goals: Schemas["GoalsOut"] }) {
   const plan = useAddPlan();
   return (
-    <Card title="A 4-week plan" sub="Your 3 weakest skills, each with a target 10 points higher.">
+    <Card title="A 4-week plan" sub="Up to 3 measured skills below your comfort level, each with a target 10 points higher.">
       {goals.suggested.length ? (
         <ul className="list">
           {goals.suggested.map((s) => (
@@ -178,7 +180,7 @@ function PlanCard({ goals }: { goals: Schemas["GoalsOut"] }) {
           ))}
         </ul>
       ) : (
-        <EmptyState title="No scored skills yet" />
+        <EmptyState title={goals.skills.length ? "No measured weak skills without a goal" : "No measured skill ratings yet"} />
       )}
       {goals.weak_without_goal.length > 0 && (
         <p className="small muted">
