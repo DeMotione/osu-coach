@@ -1452,6 +1452,12 @@ export interface components {
              * @enum {string}
              */
             state: "done" | "on track" | "behind" | "overdue" | "no data";
+            /**
+             * Score Source
+             * @description Rating scale used when the goal was created.
+             * @enum {string}
+             */
+            score_source: "experimental" | "legacy";
         };
         /** GoalsOut */
         GoalsOut: {
@@ -1470,7 +1476,7 @@ export interface components {
             skills: components["schemas"]["SkillValue"][];
             /**
              * Suggested
-             * @description A 4-week plan for the 3 weakest skills.
+             * @description A 4-week plan for up to 3 measured skills rated 45 or lower in Overview, without open goals.
              */
             suggested: components["schemas"]["SuggestedGoal"][];
             /** Weak Without Goal */

@@ -4287,6 +4287,15 @@
               "no data"
             ],
             "title": "State"
+          },
+          "score_source": {
+            "type": "string",
+            "enum": [
+              "experimental",
+              "legacy"
+            ],
+            "title": "Score Source",
+            "description": "Rating scale used when the goal was created."
           }
         },
         "type": "object",
@@ -4303,7 +4312,8 @@
           "progress",
           "left",
           "days_left",
-          "state"
+          "state",
+          "score_source"
         ],
         "title": "GoalOut"
       },
@@ -4345,7 +4355,7 @@
             },
             "type": "array",
             "title": "Suggested",
-            "description": "A 4-week plan for the 3 weakest skills."
+            "description": "A 4-week plan for up to 3 measured skills rated 45 or lower in Overview, without open goals."
           },
           "weak_without_goal": {
             "items": {

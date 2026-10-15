@@ -12,7 +12,14 @@ import math
 import uuid
 
 
-def new_goal(skill: str, start: float | None, target: float, deadline: dt.date, today: dt.date | None = None) -> dict:
+def new_goal(
+    skill: str,
+    start: float | None,
+    target: float,
+    deadline: dt.date,
+    today: dt.date | None = None,
+    score_source: str = "legacy",
+) -> dict:
     today = today or dt.date.today()
     return {
         "id": uuid.uuid4().hex[:8],
@@ -22,6 +29,7 @@ def new_goal(skill: str, start: float | None, target: float, deadline: dt.date, 
         "created": today.isoformat(),
         "deadline": deadline.isoformat(),
         "done": None,
+        "score_source": score_source,
     }
 
 
