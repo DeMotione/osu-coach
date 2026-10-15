@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Schemas } from "../api/client";
 import { clock, fmt, mapName } from "../lib/format";
@@ -40,6 +40,68 @@ const COLUMNS: Column<MapRow>[] = [
 /** For narrow cards: preserve the compact map columns and add formula details. */
 const COMPACT = COLUMNS.filter((c) => ["map", "stars", "bpm", "length", "demand", "score", "breakdown", "link"].includes(c.key));
 
+type PageItem = number | "left-gap" | "right-gap";
+
+function pageItems(page: number, pages: number): PageItem[] {
+  if (pages <= 7) return Array.from({ length: pages }, (_, index) => index + 1);
+  if (page <= 3) return [1, 2, 3, "right-gap", pages];
+  if (page >= pages - 2) return [1, "left-gap", pages - 2, pages - 1, pages];
+  return [1, "left-gap", page - 1, page, page + 1, "right-gap", pages];
+}
+
+function MapPagination({ page, pages, total, onPageChange }: {
+  page: number;
+  pages: number;
+  total: number;
+  onPageChange: (page: number) => void;
+}) {
+  const [openGap, setOpenGap] = useState<"left-gap" | "right-gap" | null>(null);
+  const [jump, setJump] = useState("");
+  const [invalid, setInvalid] = useState(false);
+  const jumpInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (openGap) jumpInput.current?.focus();
+  }, [openGap]);
+
+  const choosePage = (next: number) => {
+    onPageChange(next);
+    setOpenGap(null);
+    setJump("");
+    setInvalid(false);
+  };
+
+  return (
+    <nav className="map-pagination" aria-label="Map pages">
+      <span className="map-pagination__count">Showing {(page - 1) * 5 + 1}–{Math.min(page * 5, total)} of {total} maps</span>
+      <div className="map-pagination__links">
+        <button type="button" className="map-pagination__step" disabled={page === 1} onClick={() => choosePage(page - 1)}>‹ Previous</button>
+        {pageItems(page, pages).map((item) => typeof item === "number" ? (
+          <button key={item} type="button" className={`map-pagination__page${item === page ? " is-current" : ""}`}
+            aria-label={`Page ${item}`} aria-current={item === page ? "page" : undefined} onClick={() => choosePage(item)}>{item}</button>
+        ) : openGap === item ? (
+          <input key={item} ref={jumpInput} className="map-pagination__jump" type="text" inputMode="numeric"
+            aria-label={`Page number, 1 to ${pages}; press Enter to go`} aria-invalid={invalid} value={jump}
+            onChange={(event) => { setJump(event.target.value.replace(/\D/g, "")); setInvalid(false); }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") { setOpenGap(null); setJump(""); setInvalid(false); }
+              if (event.key === "Enter") {
+                const next = Number(jump);
+                if (jump && Number.isInteger(next) && next >= 1 && next <= pages) choosePage(next);
+                else setInvalid(true);
+              }
+            }}
+          />
+        ) : (
+          <button key={item} type="button" className="map-pagination__gap" aria-label="Enter a page number"
+            title="Enter a page number" onClick={() => { setOpenGap(item); setJump(""); setInvalid(false); }}>…</button>
+        ))}
+        <button type="button" className="map-pagination__step" disabled={page === pages} onClick={() => choosePage(page + 1)}>Next ›</button>
+      </div>
+    </nav>
+  );
+}
+
 /** Maps with the same columns everywhere (``compact``: fewer, for half-width cards); ``onHide`` adds a button to
  * never suggest a map again. */
 export function MapTable({ maps, maxHeight, onHide, compact = false }: {
@@ -77,14 +139,7 @@ export function MapTable({ maps, maxHeight, onHide, compact = false }: {
       maxHeight={maxHeight}
       empty={<EmptyState title="No maps found for this." />}
     />
-    {maps.length > 5 && <div className="controls" style={{ marginTop: 12, alignItems: "center" }}>
-      <span className="small muted">Maps {(shownPage - 1) * 5 + 1}–{Math.min(shownPage * 5, maps.length)} of {maps.length}</span>
-      <button type="button" className="btn btn--sm" disabled={shownPage === 1} onClick={() => setPage(shownPage - 1)}>Previous</button>
-      <label className="small">Page <select className="select" value={shownPage} onChange={(e) => setPage(Number(e.target.value))}>
-        {Array.from({ length: pages }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1} of {pages}</option>)}
-      </select></label>
-      <button type="button" className="btn btn--sm" disabled={shownPage === pages} onClick={() => setPage(shownPage + 1)}>Next</button>
-    </div>}
+    {maps.length > 5 && <MapPagination page={shownPage} pages={pages} total={maps.length} onPageChange={setPage} />}
     </div>
   );
 }

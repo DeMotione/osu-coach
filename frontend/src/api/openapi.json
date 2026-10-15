@@ -6245,6 +6245,14 @@
             },
             "type": "object",
             "title": "Abilities"
+          },
+          "measured_abilities": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Measured Abilities",
+            "description": "Replay-derived skill ratings before manual overrides."
           }
         },
         "type": "object",

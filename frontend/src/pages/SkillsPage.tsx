@@ -206,7 +206,7 @@ function PlaylistTab() {
   if (!pl) return null;
   return (
     <>
-      <RecommendationControls current={pl.skill} abilities={pl.abilities ?? {}} comfort={pl.comfort} onApply={setOptions} />
+      <RecommendationControls current={pl.skill} measured={pl.measured_abilities ?? {}} comfort={pl.comfort} onApply={setOptions} />
       <Card>
         {!pl.has_profile && <Alert tone="info">No replays analysed yet — enter comfort stars and player ratings to get a personal playlist.</Alert>}
         <p className="muted">

@@ -2095,6 +2095,13 @@ export interface components {
             abilities?: {
                 [key: string]: number;
             };
+            /**
+             * Measured Abilities
+             * @description Replay-derived skill ratings before manual overrides.
+             */
+            measured_abilities?: {
+                [key: string]: number;
+            };
         };
         /** PlaylistSkill */
         PlaylistSkill: {

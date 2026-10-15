@@ -100,7 +100,7 @@ def _options(
     target = skill or default
     if target not in SKILLS:
         raise Invalid(f"Unknown skill {target}.", "unknown_skill")
-    checked = tuple(dict.fromkeys(assessed.split(",") if assessed is not None else [target, *abilities]))
+    checked = tuple(dict.fromkeys(assessed.split(",") if assessed is not None else [target]))
     if not checked or target not in checked or set(checked) - set(SKILLS):
         raise Invalid("Assessed skills must include the target skill.", "invalid_assessed_skills")
     if (
@@ -230,4 +230,9 @@ def playlist(
         preferred_client=ws.preferred_client(),
         skill_adjusted_stars=ranked["skill_adjusted_stars"],
         abilities=abilities,
+        measured_abilities={
+            key: float(row["score"])
+            for key, row in (p.experimental_skills.items() if p else [])
+            if key in SKILLS and row.get("score") is not None
+        },
     )
