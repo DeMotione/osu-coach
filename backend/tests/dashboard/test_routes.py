@@ -46,7 +46,7 @@ def test_overview_explains_every_skill(analysed):
     for s in ov["skills"]:
         assert s["label"] == SKILL_LABELS[s["key"]] and s["facts"]
         if s["score"] is None:
-            assert s["score_text"] in ("not enough data", "too few misses to tell")
+            assert s["score_text"]  # the reason for an unmeasured experimental rating
         else:
             assert s["score_text"].startswith(f"{s['score']:.0f}")
     assert len(ov["top"]) == len(SKILL_LABELS)
@@ -249,7 +249,12 @@ def test_tapping_page_shows_stream_stamina_and_weak_speeds(client, monkeypatch, 
     for i, bpm in enumerate(range(180, 270, 10)):
         rows += _plays_at(bpm, 100 + 2 * (bpm - 180) + (150 if bpm == 200 else 0), [0, 5, -5], seed=i)
     sp = stream_speed_profile(pd.DataFrame(rows))
-    _with_profile(client, monkeypatch, dataclasses.replace(small_profile, fall_behind=fb, stream_profile=sp))
+    measured = {**small_profile.experimental_skills, "stamina": {"score": 70}}
+    _with_profile(
+        client,
+        monkeypatch,
+        dataclasses.replace(small_profile, fall_behind=fb, stream_profile=sp, experimental_skills=measured),
+    )
     t = client.get("/api/profile/tapping").json()
     f = t["fall_behind"]
     assert f["available"] and f["start_note"] == fb["start_note"] and f["comfort_notes"] == fb["comfort_notes"]

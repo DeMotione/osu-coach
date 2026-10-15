@@ -78,7 +78,7 @@ def http(monkeypatch, sleeps):
 def make_osz(size=2048):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("map.osu", b"x" * size)
+        z.writestr(zipfile.ZipInfo("map.osu", date_time=(2020, 1, 1, 0, 0, 0)), b"x" * size)
     return buf.getvalue()
 
 
