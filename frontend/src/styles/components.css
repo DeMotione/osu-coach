@@ -838,6 +838,55 @@ input[type="range"] {
   font-weight: 560;
 }
 
+.map-table { container-type: inline-size; min-width: 0; }
+
+.stamina-chart-card .chart {
+  flex: none;
+  height: var(--chart-h, 320px);
+}
+
+@container (max-width: 1120px) {
+  .map-table:not(.map-table--compact) .table-wrap { overflow: visible; max-height: none; box-shadow: none; }
+  .map-table:not(.map-table--compact) .table,
+  .map-table:not(.map-table--compact) tbody,
+  .map-table:not(.map-table--compact) tr,
+  .map-table:not(.map-table--compact) td { display: block; width: 100%; }
+  .map-table:not(.map-table--compact) thead { display: none; }
+  .map-table:not(.map-table--compact) tr { margin-bottom: var(--s-3); border: 1px solid var(--border); border-radius: var(--radius-btn); }
+  .map-table:not(.map-table--compact) td { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
+  .map-table:not(.map-table--compact) td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--t-xs); margin-bottom: 3px; }
+  .map-table:not(.map-table--compact) td.num { text-align: left; }
+  .map-suggestion-card .map-table tr {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .map-suggestion-card .map-table td:first-child,
+  .map-suggestion-card .map-table td:nth-child(6) { grid-column: 1 / -1; }
+}
+
+@container (max-width: 600px) {
+  .map-suggestion-card .map-table tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@container (max-width: 760px) {
+  .map-table--compact .table-wrap { overflow: visible; max-height: none; box-shadow: none; }
+  .map-table--compact .table,
+  .map-table--compact tbody,
+  .map-table--compact td { display: block; width: 100%; }
+  .map-table--compact thead { display: none; }
+  .map-table--compact tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: var(--s-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-btn);
+  }
+  .map-table--compact td:first-child { grid-column: 1 / -1; }
+  .map-table--compact td { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
+  .map-table--compact td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--t-xs); margin-bottom: 3px; }
+  .map-table--compact td.num { text-align: left; }
+}
+
 .cell-bar {
   display: flex;
   align-items: center;

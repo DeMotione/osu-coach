@@ -88,6 +88,7 @@ export function DataTable<T>({ rows, columns, rowKey, selected, onSelect, maxHei
                 {columns.map((c) => (
                   <td
                     key={c.key}
+                    data-label={typeof c.header === "string" ? c.header : undefined}
                     className={[c.align === "right" ? "num" : "", c.wrap ? "wrap" : "", c.strong ? "strong" : ""]
                       .join(" ")
                       .trim() || undefined}
