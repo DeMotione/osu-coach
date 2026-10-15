@@ -22,11 +22,7 @@ export const MISS_SHORT: Record<string, string> = {
 export function skillHover(s: Skill, help?: SkillMeta): string {
   const p = (text: string, cls = "") => `<div style="margin-top:6px${cls}">${esc(text)}</div>`;
   let html = `<b>${esc(s.label)}: ${esc(s.score_text)}</b>`;
-  if (s.too_few_misses)
-    html += p(
-      "You barely miss on these notes, so there is nothing to compare: this score counts misses against what the difficulty predicts. That is a good sign, not a gap.",
-    );
-  if (help) html += p(help.what) + p(help.how);
+  if (help) html += p(help.what);
   html += p(`You: ${s.facts.join("; ")}`);
   if (help) html += p(`To raise it: ${help.practise}`);
   return html;
@@ -49,7 +45,7 @@ export function skillBars(skills: Skill[], help: SkillMeta[], t: ChartTheme): Op
   return responsive(
     base(t, {
       grid: grid({ right: 96, bottom: 8 }),
-      xAxis: valueAxis(t, { min: 0, max: 100, interval: 25, name: "50 = typical for your level · higher is better", nameGap: 26 }),
+      xAxis: valueAxis(t, { min: 0, max: 100, interval: 25, name: "50 = assumed comfort baseline · higher is better", nameGap: 26 }),
       yAxis: SKILL_AXIS(
         t,
         skills.map((s) => s.label),
@@ -76,7 +72,7 @@ export function skillBars(skills: Skill[], help: SkillMeta[], t: ChartTheme): Op
             position: "right",
             color: t.text,
             fontSize: 12,
-            formatter: (p: unknown) => skills[params(p)[0].dataIndex].score_text,
+            formatter: (p: unknown) => skills[params(p)[0].dataIndex].score?.toFixed(0) ?? "–",
           },
           markLine: refLine(t, { xAxis: 50 }),
         },
@@ -90,7 +86,7 @@ export function topBars(top: Schemas["TopSkill"][], t: ChartTheme): Option {
   return responsive(
     base(t, {
       grid: grid({ right: 34, bottom: 8 }),
-      xAxis: valueAxis(t, { min: 0, max: 100, interval: 25, name: "50 = typical for a 10★ player · ◆ = top players", nameGap: 26 }),
+      xAxis: valueAxis(t, { min: 0, max: 100, interval: 25, name: "50 = assumed 10★ baseline · ◆ = 100-point ceiling", nameGap: 26 }),
       yAxis: SKILL_AXIS(
         t,
         top.map((s) => s.label),
@@ -103,7 +99,7 @@ export function topBars(top: Schemas["TopSkill"][], t: ChartTheme): Option {
           const s = top[params(p)[0].dataIndex];
           const you = s.score === null ? "not enough data" : s.score.toFixed(0);
           const tp = s.top === null ? "–" : s.top.toFixed(0);
-          return `<b>${esc(s.label)}</b><br>you ${esc(you)} · top players ${esc(tp)} (50 = typical 10★ player)`;
+          return `<b>${esc(s.label)}</b><br>you ${esc(you)} · skill ceiling ${esc(tp)} (50 = assumed 10★ baseline)`;
         },
       }),
       series: [
@@ -125,7 +121,7 @@ export function topBars(top: Schemas["TopSkill"][], t: ChartTheme): Option {
         },
         {
           type: "scatter",
-          name: "top players",
+          name: "100-point ceiling",
           symbol: "diamond",
           symbolSize: 13,
           itemStyle: { color: t.muted },

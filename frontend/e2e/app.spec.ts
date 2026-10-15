@@ -64,7 +64,7 @@ test.describe.configure({ mode: "serial" });
 
 test("pages explain what to do before anything is analysed", async ({ page }) => {
   await page.goto("/overview");
-  await expect(page.getByText("No replays analysed yet", { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText("No replays analysed yet", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Go to Replays" }).click();
   await expect(page).toHaveURL(/\/replays$/);
   await expect(page.getByText("Scan for replays first")).toBeVisible();
