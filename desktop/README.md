@@ -2,6 +2,8 @@
 
 A native window around the local web app. On start it launches `osu-coach-api` on a free port, waits for `/api/health`, then loads the app from it. On exit it stops the server.
 
+Web links that open a new tab (including beatmap links and the dev API reference) open in the system's default browser via Tauri's opener plugin. Navigation between app pages stays in the desktop window.
+
 ## Prerequisites
 
 - Rust (stable) and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) (WebView2 on Windows)
