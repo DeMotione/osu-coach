@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import type { Effect } from "@tauri-apps/api/window";
 
 /** Whether the page runs inside the desktop app (Tauri), which has no native title bar. */
@@ -6,12 +7,26 @@ export const isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" 
 
 // styles (the title bar height, the sidebar's offset) key off this class on <html>
 if (isDesktop) document.documentElement.classList.add("is-desktop");
-if (isDesktop && navigator.userAgent.includes("Windows")) {
-  document.documentElement.classList.add("is-mica-desktop");
-}
+const isWindowsDesktop = isDesktop && navigator.userAgent.includes("Windows");
 
 // loaded on demand: the web app never needs it
 const currentWindow = () => import("@tauri-apps/api/window").then((m) => m.getCurrentWindow());
+
+const micaAvailable = isWindowsDesktop
+  ? invoke<boolean>("windows_supports_mica")
+      .then(async (supported) => {
+        if (supported) {
+          document.documentElement.classList.add("is-mica-desktop");
+        } else {
+          await currentWindow().then((w) => w.setEffects({ effects: [] }));
+        }
+        return supported;
+      })
+      .catch((error: unknown) => {
+        console.error("Could not configure the Windows window backdrop.", error);
+        return false;
+      })
+  : Promise.resolve(false);
 
 export const minimizeWindow = () => void currentWindow().then((w) => w.minimize());
 export const toggleMaximizeWindow = () => void currentWindow().then((w) => w.toggleMaximize());
@@ -19,10 +34,15 @@ export const closeWindow = () => void currentWindow().then((w) => w.close());
 
 /** Makes the window's Mica material light or dark like the app (it does not follow the page's own theme). */
 export const setWindowMica = (dark: boolean) => {
-  if (!isDesktop) return;
-  // "micaDark" / "micaLight" exist in Tauri's Rust enum but are missing from its JS typings
-  const effect = (dark ? "micaDark" : "micaLight") as Effect;
-  void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setEffects({ effects: [effect] }));
+  if (!isWindowsDesktop) return;
+  void micaAvailable
+    .then((supported) => {
+      if (!supported) return;
+      // "micaDark" / "micaLight" exist in Tauri's Rust enum but are missing from its JS typings
+      const effect = (dark ? "micaDark" : "micaLight") as Effect;
+      return currentWindow().then((w) => w.setEffects({ effects: [effect] }));
+    })
+    .catch((error: unknown) => console.error("Could not update the Windows Mica backdrop.", error));
 };
 
 /** Whether the desktop window is maximized (always false in a browser). */
