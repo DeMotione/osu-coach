@@ -47,19 +47,17 @@ test("sidebar animates both ways and respects reduced motion", async ({ page }) 
       const sidebar = document.querySelector<HTMLElement>(".sidebar")!;
       const app = document.querySelector<HTMLElement>(".app")!;
       const before = sidebar.getBoundingClientRect().width;
-      const ended = new Promise<void>((resolve) => {
-        const onEnd = (event: TransitionEvent) => {
-          if (event.target === app && event.propertyName === "grid-template-columns") {
-            app.removeEventListener("transitionend", onEnd);
-            resolve();
-          }
-        };
-        app.addEventListener("transitionend", onEnd);
-      });
       document.querySelector<HTMLButtonElement>(".toolbar__fold")!.click();
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      // hold the running transition at its midpoint instead of sampling by wall-clock time, which is flaky on slow runners
+      const transition = app
+        .getAnimations()
+        .find((a): a is CSSTransition => a instanceof CSSTransition && a.transitionProperty === "grid-template-columns");
+      if (!transition) throw new Error("the sidebar width is not animated");
+      transition.pause();
+      transition.currentTime = Number(transition.effect!.getComputedTiming().duration) / 2;
       const during = sidebar.getBoundingClientRect().width;
-      await ended;
+      transition.finish();
       return { before, during, after: sidebar.getBoundingClientRect().width };
     });
     expect(widths.after).toBe(collapsed ? 68 : 248);
