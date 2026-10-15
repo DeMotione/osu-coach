@@ -103,12 +103,17 @@ def _top_skills() -> dict:
 
 
 def top_comparison(skills: dict, level: float = TOP_LEVEL) -> dict:
-    """Your skills measured against the top players' level instead of your own: ``score`` = the same formula with
-    ``level`` (10 stars) as the yardstick, so 50 = typical for a 10-star player and it is never above your score
-    against your own level; ``top`` = the top players' reference plays on the same scale (where you are headed)."""
+    """Your skills on the specialist-replay 10-star scale; the marker is its 100-point ceiling."""
     you = skills_at_level(skills, level)
-    top = skills_at_level(_top_skills(), level)
-    return {k: {"score": you.get(k), "top": top.get(k), "label": SKILL_LABELS.get(k, k)} for k in SKILL_LABELS}
+    references = skills_at_level(_top_skills(), level)
+    return {
+        k: {
+            "score": you.get(k),
+            "top": 100.0 if references.get(k) is not None else None,
+            "label": SKILL_LABELS.get(k, k),
+        }
+        for k in SKILL_LABELS
+    }
 
 
 def compute_skills(
