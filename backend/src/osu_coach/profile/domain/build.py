@@ -19,6 +19,8 @@ from osu_coach.profile.domain.aim import (
     worst_quadrant,
 )
 from osu_coach.profile.domain.consistency import _consistency_metrics
+from osu_coach.profile.domain.experimental import comfort as experimental_comfort
+from osu_coach.profile.domain.experimental import ratings as experimental_ratings
 from osu_coach.profile.domain.levels import LEVEL_BAND, LEVEL_SIGMA, _levels, clean_pass, detect_level, replay_weight
 from osu_coach.profile.domain.misses import _local_eq, fit_miss_model, miss_causes
 from osu_coach.profile.domain.model import Profile
@@ -29,7 +31,9 @@ from osu_coach.profile.domain.stats import _n, _rate, _ur, _w, _wmean, _wquantil
 from osu_coach.profile.domain.tapping import stream_fall_behind, stream_limits, stream_speed_profile, tapping_metrics
 
 
-def build_profile(analyses: list[ReplayAnalysis], level: float | None = None, weighted: bool = True) -> Profile:
+def build_profile(
+    analyses: list[ReplayAnalysis], level: float | None = None, weighted: bool = True, experimental: bool = True
+) -> Profile:
     """Profile of these replays. The player's level is detected from the recent replays
     (:func:`detect_level`) unless ``level`` (★) is given; with ``weighted`` every replay counts by how close
     its star rating is to that level (:func:`replay_weight`), otherwise all count fully."""
@@ -162,6 +166,12 @@ def build_profile(analyses: list[ReplayAnalysis], level: float | None = None, we
         level_sigma=LEVEL_SIGMA,
         weighted=bool(weighted),
     )
+    experimental_skills = {}
+    if experimental:
+        lab_comfort = experimental_comfort(metas)
+        levels["comfort_stars"] = float(level) if override else lab_comfort
+        levels["comfort_source"] = "Manual override" if override else "Recent successful map/mod configurations"
+        experimental_skills = experimental_ratings(O, metas, float(level) if override else lab_comfort)
     return Profile(
         overview=overview,
         replays=metas,
@@ -189,4 +199,5 @@ def build_profile(analyses: list[ReplayAnalysis], level: float | None = None, we
         model=model,
         miss_breakdown_raw=miss_breakdown_raw,
         fall_behind=fall,
+        experimental_skills=experimental_skills,
     )
