@@ -528,8 +528,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Maps for your weakest skills
-         * @description From the bundled pool of popular ranked maps around your level; maps you played or hid are left out.
+         * Comfort-level maps for measured weak skills
+         * @description Rank comfort-level maps for skills below the player's expected level.
          */
         get: operations["suggestions_api_maps_suggestions_get"];
         put?: never;
@@ -570,7 +570,7 @@ export interface paths {
         };
         /**
          * A staged playlist (warm-up / core / push) for one skill
-         * @description ``skill`` defaults to your weakest one; ``comfort``: your level without analysed replays.
+         * @description ``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data.
          */
         get: operations["playlist_api_playlists_get"];
         put?: never;
@@ -1669,6 +1669,10 @@ export interface components {
             max_notes: number;
             /** Maps */
             maps: components["schemas"]["MapRow"][];
+            /** Excluded */
+            excluded?: {
+                [key: string]: number;
+            };
         };
         /** MapPlay */
         MapPlay: {
@@ -1777,6 +1781,28 @@ export interface components {
              * @description What to aim for on this stage.
              */
             goal?: string | null;
+            /**
+             * Skill Demand
+             * @description Experimental map demand on the 0–100 skill scale.
+             */
+            skill_demand?: number | null;
+            /**
+             * Relevance
+             * @description Target skill training relevance, 0–1.
+             */
+            relevance?: number | null;
+            /**
+             * Formula Score
+             * @description F(m), comparable within one goal.
+             */
+            formula_score?: number | null;
+            /**
+             * Breakdown
+             * @description JSON calculation terms and experimental inputs.
+             */
+            breakdown?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * Meta
@@ -2040,6 +2066,11 @@ export interface components {
             has_profile: boolean;
             /** Comfort */
             comfort: number;
+            /**
+             * Comfort Source
+             * @description Replay comfort, manual input, recent level fallback, or stated assumption.
+             */
+            comfort_source: string;
             /** Stream Bpm */
             stream_bpm: number | null;
             /** Maps */
@@ -2053,6 +2084,17 @@ export interface components {
              * @enum {string}
              */
             preferred_client: "stable" | "lazer";
+            /** Skill Adjusted Stars */
+            skill_adjusted_stars?: number | null;
+            /**
+             * Experimental
+             * @default true
+             */
+            experimental: boolean;
+            /** Abilities */
+            abilities?: {
+                [key: string]: number;
+            };
         };
         /** PlaylistSkill */
         PlaylistSkill: {
@@ -2071,6 +2113,19 @@ export interface components {
             goal: string;
             /** Maps */
             maps: components["schemas"]["MapRow"][];
+            /** Target Stars */
+            target_stars?: number | null;
+            /** Target Demand */
+            target_demand?: number | null;
+            /**
+             * Eligible
+             * @default 0
+             */
+            eligible: number;
+            /** Excluded */
+            excluded?: {
+                [key: string]: number;
+            };
         };
         /** PracticeSection */
         PracticeSection: {
@@ -2788,11 +2843,31 @@ export interface components {
             score: number | null;
             /** Maps */
             maps: components["schemas"]["MapRow"][];
+            /** Target Stars */
+            target_stars?: number | null;
+            /** Target Demand */
+            target_demand?: number | null;
+            /** Skill Adjusted Stars */
+            skill_adjusted_stars?: number | null;
+            /**
+             * Eligible
+             * @default 0
+             */
+            eligible: number;
+            /** Excluded */
+            excluded?: {
+                [key: string]: number;
+            };
         };
         /** Suggestions */
         Suggestions: {
             /** Comfort */
             comfort: number;
+            /**
+             * Comfort Source
+             * @description Replay comfort, manual input, recent level fallback, or stated assumption.
+             */
+            comfort_source: string;
             /** Pool Size */
             pool_size: number;
             /** Hidden */
@@ -2806,6 +2881,18 @@ export interface components {
              * @enum {string}
              */
             preferred_client: "stable" | "lazer";
+            /**
+             * Experimental
+             * @default true
+             */
+            experimental: boolean;
+            /**
+             * Has Profile
+             * @default false
+             */
+            has_profile: boolean;
+            /** Unmeasured Skills */
+            unmeasured_skills?: string[];
         };
         /** TabletArea */
         TabletArea: {
@@ -4058,7 +4145,10 @@ export interface operations {
     };
     suggestions_api_maps_suggestions_get: {
         parameters: {
-            query?: never;
+            query?: {
+                kappa?: number;
+                min_relevance?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4074,8 +4164,8 @@ export interface operations {
                     "application/json": components["schemas"]["Suggestions"];
                 };
             };
-            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
-            409: {
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4142,8 +4232,12 @@ export interface operations {
         parameters: {
             query?: {
                 skill?: string | null;
-                maps?: number;
                 comfort?: number | null;
+                assessed?: string | null;
+                ratings?: string | null;
+                kappa?: number;
+                min_relevance?: number;
+                exclude_played?: boolean;
             };
             header?: never;
             path?: never;
