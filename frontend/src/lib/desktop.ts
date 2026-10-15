@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import type { Effect } from "@tauri-apps/api/window";
 
 /** Whether the page runs inside the desktop app (Tauri), which has no native title bar. */
@@ -12,8 +11,19 @@ const isWindowsDesktop = isDesktop && navigator.userAgent.includes("Windows");
 // loaded on demand: the web app never needs it
 const currentWindow = () => import("@tauri-apps/api/window").then((m) => m.getCurrentWindow());
 
+/**
+ * Mica exists from Windows 11, which WebView2 reports as platform version 13 or higher (Windows 10 reports 10).
+ * Read from the page: Tauri does not let remote pages call the app's own commands.
+ */
+async function windowsSupportsMica(): Promise<boolean> {
+  const data = (navigator as Navigator & { userAgentData?: { getHighEntropyValues(hints: string[]): Promise<{ platformVersion?: string }> } })
+    .userAgentData;
+  const version = await data?.getHighEntropyValues(["platformVersion"]);
+  return parseInt(version?.platformVersion ?? "0", 10) >= 13;
+}
+
 const micaAvailable = isWindowsDesktop
-  ? invoke<boolean>("windows_supports_mica")
+  ? windowsSupportsMica()
       .then(async (supported) => {
         if (supported) {
           document.documentElement.classList.add("is-mica-desktop");

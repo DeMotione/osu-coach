@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 
 import { prefetchPage } from "./prefetch";
@@ -279,6 +279,7 @@ export function Layout() {
 }
 
 function Shell() {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const { pathname } = useLocation();
@@ -287,7 +288,7 @@ function Shell() {
 
   // a page starts at its top
   useEffect(() => {
-    window.scrollTo(0, 0); // not returned: newer browsers give back a promise, which React would take for a cleanup
+    scrollRef.current?.scrollTo(0, 0);
   }, [pathname]);
 
   const cls = ["app", open ? "nav-open" : "", collapsed ? "is-rail" : ""].filter(Boolean).join(" ");
@@ -307,13 +308,15 @@ function Shell() {
       <div className="scrim" onClick={close} />
       <div className="workspace">
         <Toolbar collapsed={collapsed} onToggleSidebar={toggleCollapsed} onOpenDrawer={() => setOpen(true)} />
-        <main className="main">
-          <Suspense fallback={<div className="page" />}>
-            <div className="route" key={pathname}>
-              <Outlet />
-            </div>
-          </Suspense>
-        </main>
+        <div className="workspace__scroll" ref={scrollRef}>
+          <main className="main">
+            <Suspense fallback={<div className="page" />}>
+              <div className="route" key={pathname}>
+                <Outlet />
+              </div>
+            </Suspense>
+          </main>
+        </div>
         <StatusBar />
       </div>
     </div>
