@@ -51,7 +51,8 @@ def scan(req: ScanRequest, ws: WorkspaceDep) -> ScanJob:
         ws.update_settings(source_mode=req.mode)
     latest = 0 if args.only else int(req.latest)
     return job_view(
-        ScanJob, ws.jobs.start("scan", "Scanning for replays", lambda report: svc.run_scan(ws, args, latest, report))
+        ScanJob,
+        ws.jobs.start("scan", "Scanning for replays", lambda report: session.run_scan(ws, args, latest, report)),
     )
 
 
@@ -72,7 +73,8 @@ def rescan(req: RescanRequest, ws: WorkspaceDep) -> ScanJob:
     ws.update_settings(latest=latest)
     args = ws.scan_args
     return job_view(
-        ScanJob, ws.jobs.start("scan", "Scanning for replays", lambda report: svc.run_scan(ws, args, latest, report))
+        ScanJob,
+        ws.jobs.start("scan", "Scanning for replays", lambda report: session.run_scan(ws, args, latest, report)),
     )
 
 
