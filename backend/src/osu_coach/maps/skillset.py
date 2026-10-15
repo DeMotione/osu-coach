@@ -16,7 +16,7 @@ from osu_coach.maps.domain import SKILLS, map_url, why
 
 FEATURE_POINTS = dict(zip(SKILLS, (12, 12, 20, 15, 15, 12, 12, 12)))
 GOALS = {
-    "Warm-up": (-1.0, -15.0, -10.0),
+    "Warm-up": (-0.5, -15.0, -10.0),
     "Comfort": (0.0, -5.0, 0.0),
     "Push": (0.3, 5.0, 0.0),
 }
