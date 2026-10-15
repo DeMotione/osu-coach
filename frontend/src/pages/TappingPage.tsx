@@ -175,18 +175,19 @@ function StaminaRow({ fb }: { fb: Schemas["FallBehind"] }) {
   const build = useCallback((th: ChartTheme) => (bySpeed ? fallBehindSpeedChart(fb, th) : fallBehindChart(fb, th)), [fb, bySpeed]);
   if (!fb.available)
     return (
-      <Row>
+      <>
         <Card title="Stamina in long streams" sub="How precise your taps stay from the first note of a long stream to the last.">
           <EmptyState title="Not enough long streams yet">Streams of 16+ notes: not enough of them in these replays yet.</EmptyState>
         </Card>
         <Card title="Stream lengths to practise" sub="Comfortable stream length and maps to train stamina.">
           <EmptyState title="Comes with long streams">Once there are streams of 16+ notes, this shows how long you can stream and maps to practise.</EmptyState>
         </Card>
-      </Row>
+      </>
     );
   const hasSummary = bySpeed || !!fb.start_note || !!fb.comfort_notes || !!(fb.comfortable_maps && fb.practice_maps);
   const chart = (
     <Card
+      className="stamina-chart-card"
       title="Stamina in long streams"
         sub={
           bySpeed
@@ -206,15 +207,15 @@ function StaminaRow({ fb }: { fb: Schemas["FallBehind"] }) {
           />
         }
       >
-        <Chart build={build} height={340} label="Precision through long streams" />
+        <Chart build={build} height={320} label="Precision through long streams" />
       </Card>
   );
   if (!hasSummary) return chart;
   return (
-    <Row>
+    <>
       {chart}
       <StaminaSummary fb={fb} bySpeed={bySpeed} />
-    </Row>
+    </>
   );
 }
 
@@ -277,7 +278,11 @@ function StaminaSummary({ fb, bySpeed }: { fb: Schemas["FallBehind"]; bySpeed: b
             value={tab}
             onChange={setTab}
           />
-          <MapTable compact maps={(tab === "push" ? fb.practice_maps! : fb.comfortable_maps!).maps} maxHeight={300} />
+          <MapTable key={tab} compact maps={(tab === "push" ? fb.practice_maps! : fb.comfortable_maps!).maps} maxHeight={300} />
+          <p className="small muted">Map demand scores are experimental. Lists keep the stated stream-length range and exclude maps in your replay dataset.</p>
+          {!(tab === "push" ? fb.practice_maps! : fb.comfortable_maps!).maps.length && <p className="small muted">
+            {Object.entries((tab === "push" ? fb.practice_maps! : fb.comfortable_maps!).excluded ?? {}).map(([reason, count]) => `${reason}: ${count}`).join(" · ")}
+          </p>}
         </>
       )}
     </Card>

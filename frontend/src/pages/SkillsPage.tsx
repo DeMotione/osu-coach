@@ -2,17 +2,17 @@ import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import type { Schemas } from "../api/client";
-import { useAddGoal, useAddPlan, useGoals, usePatchSettings, usePlaylist, useRemoveGoal, useSettings } from "../api/queries";
+import { useAddGoal, useAddPlan, useGoals, usePlaylist, useRemoveGoal } from "../api/queries";
 import { Chart } from "../charts/Chart";
 import type { ChartTheme } from "../charts/palette";
 import { goalsChart } from "../charts/progress";
 import { ExportPanel } from "../components/ExportPanel";
 import { IconPlus, IconTrash } from "../components/icons";
 import { MapTable } from "../components/MapTable";
+import { RecommendationControls, type RecommendationOptions } from "../components/RecommendationControls";
 import { EmptyState, ErrorCard, LoadingPage } from "../components/states";
 import { Alert, Badge, Card, Field, Page, Progress, Row, Stat, Tabs, Tiles } from "../components/ui";
 import { fmt, isoDay } from "../lib/format";
-import { useDebouncedEffect } from "../lib/hooks";
 
 type Tab = "goals" | "playlist";
 
@@ -20,7 +20,7 @@ export default function SkillsPage() {
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get("tab") === "playlist" ? "playlist" : "goals";
   return (
-    <Page title="Skill Development" sub="Set goals for your skills and follow them, and get a staged playlist (warm-up / core / push) for any skill.">
+    <Page title="Skill Development" sub="Set goals for your skills and follow them, or browse a staged playlist (warm-up / comfort / push) for any skill.">
       <Tabs
         tabs={[
           { value: "goals", label: "Training plan & goals" },
@@ -196,58 +196,21 @@ function PlanCard({ goals }: { goals: Schemas["GoalsOut"] }) {
 
 // ------------------------------------------------------------------ playlist
 function PlaylistTab() {
-  const settings = useSettings();
-  const patch = usePatchSettings();
-  const [skill, setSkill] = useState<string | undefined>(undefined);
-  const [maps, setMaps] = useState(15);
-  const [comfortText, setComfortText] = useState<string | null>(null);
-  const saved = settings.data?.manual_comfort ?? 2.5;
-  const comfort = comfortText !== null && Number.isFinite(Number(comfortText)) ? Number(comfortText) : saved;
-  const q = usePlaylist({ skill, maps, comfort: Math.min(8, Math.max(1, comfort)) });
-  useDebouncedEffect(comfortText, 600, (v) => {
-    const n = Number(v);
-    if (v !== null && n >= 1 && n <= 8) patch.mutate({ manual_comfort: n });
-  });
+  const [options, setOptions] = useState<RecommendationOptions>({});
+  const q = usePlaylist(options);
   const pl = q.data;
-  const all = useMemo(() => pl?.stages.flatMap((s) => s.maps) ?? [], [pl]);
+  const all = useMemo(() => [...new Map((pl?.stages.flatMap((s) => s.maps) ?? []).map((m) => [m.md5, m])).values()], [pl]);
 
   if (q.isPending) return <LoadingPage tiles={2} />;
   if (q.error && !pl) return <ErrorCard error={q.error} onRetry={() => void q.refetch()} />;
   if (!pl) return null;
   return (
     <>
+      <RecommendationControls current={pl.skill} abilities={pl.abilities ?? {}} comfort={pl.comfort} onApply={setOptions} />
       <Card>
-        {!pl.has_profile && <Alert tone="info">No replays analysed yet — set your level by hand, or analyse replays for a personal playlist.</Alert>}
-        <div className="controls">
-          <Field label="Skill">
-            <select className="select" value={pl.skill} onChange={(e) => setSkill(e.target.value)}>
-              {pl.skills.map((s) => (
-                <option key={s.key} value={s.key}>
-                  {s.label}
-                  {s.score !== null ? ` · your score ${s.score.toFixed(0)}` : ""}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label={`Maps: ${maps}`}>
-            <input type="range" min={6} max={30} step={3} value={maps} onChange={(e) => setMaps(Number(e.target.value))} />
-          </Field>
-          {!pl.has_profile && (
-            <Field label="Star rating you can pass comfortably">
-              <input
-                className="input"
-                type="number"
-                min={1}
-                max={8}
-                step={0.1}
-                value={comfortText ?? String(saved)}
-                onChange={(e) => setComfortText(e.target.value)}
-              />
-            </Field>
-          )}
-        </div>
+        {!pl.has_profile && <Alert tone="info">No replays analysed yet — enter comfort stars and player ratings to get a personal playlist.</Alert>}
         <p className="muted">
-          Your level ≈ <strong>{pl.comfort.toFixed(1)}★</strong>
+          Your comfort level ≈ <strong>{pl.comfort.toFixed(1)}★</strong> ({pl.comfort_source})
           {(pl.skill === "speed" || pl.skill === "stamina") && pl.stream_bpm ? (
             <>
               {" "}
@@ -256,11 +219,13 @@ function PlaylistTab() {
           ) : null}{" "}
           · collection name: <code>{pl.collection_name}</code>
         </p>
+        <p className="small muted">Skill-adjusted target: {pl.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★. Map demands and coefficients are experimental.</p>
       </Card>
       {pl.stages.length ? (
         pl.stages.map((st) => (
-          <Card key={st.stage} title={st.stage} sub={st.goal}>
-            <MapTable maps={st.maps} />
+          <Card key={st.stage} title={st.stage} sub={`${st.eligible} eligible · target ${st.target_stars?.toFixed(2) ?? "unknown"}★ · target demand ${st.target_demand?.toFixed(1) ?? "unknown"}`}>
+            <MapTable key={`${st.stage}:${st.eligible}:${st.maps[0]?.md5 ?? ""}:${pl.skill_adjusted_stars}`} maps={st.maps} />
+            {!st.eligible && <p className="small muted">{Object.entries(st.excluded ?? {}).map(([reason, count]) => `${reason}: ${count}`).join(" · ")}</p>}
           </Card>
         ))
       ) : (
