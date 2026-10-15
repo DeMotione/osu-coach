@@ -17,7 +17,7 @@ class ExportMap(Request):
 
 class ExportRequest(Request):
     name: str = Field(min_length=1, max_length=200, description="Collection name.")
-    maps: list[ExportMap] = Field(min_length=1, max_length=500)
+    maps: list[ExportMap] = Field(min_length=1, max_length=10000)
 
 
 class ExportPreview(BaseModel):
@@ -44,7 +44,7 @@ class StableMergeResult(BaseModel):
 
 class OszRequest(Request):
     folder: str = Field(min_length=1, max_length=1000)
-    set_ids: list[int] = Field(min_length=1, max_length=500)
+    set_ids: list[int] = Field(min_length=1, max_length=10000)
 
 
 class OszResult(BaseModel):

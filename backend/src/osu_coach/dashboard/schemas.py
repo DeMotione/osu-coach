@@ -289,6 +289,7 @@ class MapList(BaseModel):
     min_notes: int
     max_notes: int
     maps: list[MapRow]
+    excluded: dict[str, int] = Field(default_factory=dict)
 
 
 class FallBehind(BaseModel):
