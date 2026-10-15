@@ -13,13 +13,17 @@ if not defined PY (
 
 %PY% -m pip install --quiet -c constraints.txt pyinstaller pillow || exit /b 1
 
+rem Always a clean build: drop every previous build output and cache first.
+for %%D in (build dist frontend\dist desktop\src-tauri\target) do if exist "%%D" rmdir /s /q "%%D"
+if exist desktop\src-tauri\server.zip del /q desktop\src-tauri\server.zip
+
 pushd frontend
 call npm ci --no-audit --no-fund --loglevel=error || (popd & exit /b 1)
 call npm run build --silent || (popd & exit /b 1)
 popd
 
 %PY% packaging\make_icon.py || exit /b 1
-%PY% -m PyInstaller packaging\osu-coach.spec --noconfirm || exit /b 1
+%PY% -m PyInstaller packaging\osu-coach.spec --noconfirm --clean || exit /b 1
 %PY% packaging\make_server_zip.py || exit /b 1
 
 cd desktop

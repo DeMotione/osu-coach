@@ -1,6 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- the provider and its hook belong together */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { setWindowMica } from "./desktop";
+
 export type ThemeChoice = "system" | "light" | "dark";
 const KEY = "osu-coach:theme";
 
@@ -50,6 +52,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     else root.dataset.theme = choice;
   }, [choice]);
 
+  const dark = choice === "system" ? sysDark : choice === "dark";
+  useEffect(() => setWindowMica(dark), [dark]);
+
   const setChoice = useCallback((c: ThemeChoice) => {
     setChoiceState(c);
     try {
@@ -61,8 +66,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ choice, dark: choice === "system" ? sysDark : choice === "dark", setChoice }),
-    [choice, sysDark, setChoice],
+    () => ({ choice, dark, setChoice }),
+    [choice, dark, setChoice],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

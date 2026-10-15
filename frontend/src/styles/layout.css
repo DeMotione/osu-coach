@@ -304,6 +304,12 @@
   border-bottom: 1px solid var(--border);
 }
 
+.is-mica-desktop .toolbar,
+.is-mica-desktop .statusbar {
+  background: var(--bar);
+  backdrop-filter: none;
+}
+
 .toolbar .btn--icon {
   width: 34px;
   height: 34px;

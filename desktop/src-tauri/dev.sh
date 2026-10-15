@@ -4,7 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 [ -x .venv/bin/osu-coach-api ] || ./run.sh --setup
-[ -f frontend/dist/index.html ] || (cd frontend && npm ci --no-audit --no-fund --loglevel=error && npm run build --silent)
+[ -d frontend/node_modules ] || (cd frontend && npm ci --no-audit --no-fund --loglevel=error)
+(cd frontend && npm run build --silent)
 
 export OSU_COACH_API_BIN="$PWD/.venv/bin/osu-coach-api"
 export OSU_COACH_WEB_DIR="$PWD/frontend/dist"

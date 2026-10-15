@@ -17,10 +17,15 @@ struct Server(Mutex<Option<Child>>);
 #[cfg(feature = "embedded-server")]
 static SERVER_ZIP: &[u8] = include_bytes!("../server.zip");
 
-/// Unpacks the server baked into this executable (once per version) and returns its path.
+/// Unpacks the server baked into this executable (once per build) and returns its path.
 #[cfg(feature = "embedded-server")]
 fn embedded_server(data_dir: &std::path::Path) -> Result<PathBuf, String> {
-    let version = env!("CARGO_PKG_VERSION");
+    use std::hash::{Hash, Hasher};
+    // keyed on the zip contents too, so a rebuild with an unchanged version never reuses an older unpacked server
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    SERVER_ZIP.hash(&mut hasher);
+    let version = format!("{}-{:016x}", env!("CARGO_PKG_VERSION"), hasher.finish());
+    let version = version.as_str();
     let runtime = data_dir.join("runtime");
     let dir = runtime.join(version);
     let exe = dir.join(SERVER_NAME);
