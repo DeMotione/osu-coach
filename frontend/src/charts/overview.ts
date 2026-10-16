@@ -99,7 +99,8 @@ export function topBars(top: Schemas["TopSkill"][], t: ChartTheme): Option {
           const s = top[params(p)[0].dataIndex];
           const you = s.score === null ? "not enough data" : s.score.toFixed(0);
           const tp = s.top === null ? "–" : s.top.toFixed(0);
-          return `<b>${esc(s.label)}</b><br>you ${esc(you)} · skill ceiling ${esc(tp)} (50 = assumed 10★ baseline)`;
+          const facts = s.facts?.length ? `<br>${esc(s.facts.join("; "))}` : "";
+          return `<b>${esc(s.label)}</b><br>you ${esc(you)} · skill ceiling ${esc(tp)} (50 = assumed 10★ baseline)${facts}`;
         },
       }),
       series: [

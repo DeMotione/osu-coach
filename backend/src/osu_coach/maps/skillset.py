@@ -159,13 +159,33 @@ def recommend(
     for key, value in abilities.items():
         if key not in SKILLS or not math.isfinite(value) or not 0 <= value <= 100:
             raise ValueError(f"Invalid player rating: {key}.")
+    low_accuracy = skill == "accuracy" and theta < 5.5
+    od_min = min(8.5, 3.0 + theta) if low_accuracy else None
     adjusted = theta + kappa * (abilities[skill] - 50) / 50 if skill in abilities else None
+    if low_accuracy and adjusted is not None:
+        adjusted = max(1.5, adjusted)  # Keep the warm-up target positive for new players.
     candidates, rejected = _candidates(pool, theta, assessed)
     result = {}
     for goal, (star_offset, skill_offset, margin) in GOALS.items():
         target = adjusted + star_offset if adjusted is not None else None
         if target is not None and target <= 0:
             raise ValueError("The adjusted target stars must be positive.")
+        star_window = STAR_WINDOW
+        if low_accuracy and target is not None:
+            # Widen only when the narrower window has no usable timing map.
+            for width in (STAR_WINDOW, 0.5, 1.0):
+                star_window = width
+                if any(
+                    candidate["row"]["md5"] not in played
+                    and _number(candidate["row"].get("od")) is not None
+                    and candidate["row"]["od"] >= od_min
+                    and abs(candidate["row"]["stars"] - target) <= width + 1e-12
+                    and skill in candidate["demands"]
+                    and candidate["relevance"].get(skill, -1) >= min_relevance
+                    and all(other in abilities and other in candidate["demands"] for other in assessed)
+                    for candidate in candidates
+                ):
+                    break
         excluded: dict[str, int] = dict(rejected)
         ranked = []
         for candidate in candidates:
@@ -178,7 +198,9 @@ def recommend(
                 reason = "Target player rating unknown"
             elif any(other not in abilities for other in assessed):
                 reason = "Assessed player rating unknown"
-            elif target is None or abs(stars - target) > STAR_WINDOW + 1e-12:
+            elif low_accuracy and (_number(row.get("od")) is None or row["od"] < od_min):
+                reason = f"Timing OD below {od_min:g}"
+            elif target is None or abs(stars - target) > star_window + 1e-12:
                 reason = "Outside star window"
             elif skill not in demands or skill not in relevance:
                 reason = "Target demand or relevance unknown"
@@ -236,7 +258,7 @@ def recommend(
                         "target_stars": target,
                         "target_demand": abilities[skill] + skill_offset,
                         "kappa_s": kappa,
-                        "star_window": STAR_WINDOW,
+                        "star_window": star_window,
                         "star_scale": STAR_SCALE,
                         "skill_scale": SKILL_SCALE,
                         "other_margin": margin,
@@ -249,11 +271,13 @@ def recommend(
                 }
             )
         ranked.sort(key=lambda row: (-row["formula_score"], str(row["md5"]) + "@NM"))
+        if low_accuracy and not ranked and target is not None and all(other in abilities for other in assessed):
+            excluded["No qualified timing map within 1★ of target"] = 1
         result[goal] = {
             "target_stars": target,
             "target_demand": abilities[skill] + skill_offset if skill in abilities else None,
-            "star_min": target - STAR_WINDOW if target is not None else None,
-            "star_max": target + STAR_WINDOW if target is not None else None,
+            "star_min": target - star_window if target is not None else None,
+            "star_max": target + star_window if target is not None else None,
             "eligible": len(ranked),
             "excluded": excluded,
             "maps": ranked,

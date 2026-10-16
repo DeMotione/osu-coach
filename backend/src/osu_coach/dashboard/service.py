@@ -159,11 +159,20 @@ def score_text(v: dict) -> str:
     return "too few misses to tell" if v.get("too_few_misses") else "not enough data"
 
 
-def experimental_facts(row: dict) -> list[str]:
+def experimental_facts(skill: str, row: dict) -> list[str]:
     facts = [f"{row.get('maps', 0)} relevant map/mod configurations"]
     measured, expected = num(row.get("measured")), num(row.get("expected"))
     if measured is not None and expected is not None:
-        facts.append(f"measured {measured:.3g} vs assumed reference {expected:.3g}")
+        if skill == "accuracy":
+            if row.get("hit_single_notes") is not None:
+                facts.append(f"{row['hit_single_notes']:,} hit single notes")
+            facts.append(f"{100 * (1 - measured):.3g}% hit as 300s")
+            facts.append(
+                f"non-300 rate on hit single notes (lower is better): "
+                f"{100 * measured:.3g}% vs assumed {100 * expected:.3g}%"
+            )
+        else:
+            facts.append(f"measured {measured:.3g} vs assumed reference {expected:.3g}")
     if row.get("parts"):
         facts.append("measured durations: " + ", ".join(f"{p['duration']} s" for p in row["parts"]))
     if row.get("reason"):
@@ -214,7 +223,7 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
             low_data=relative_scores.get(k) is not None and (p.experimental_skills.get(k) or {}).get("maps", 0) < 10,
             too_few_misses=False,
             n=int(v.get("n") or 0),
-            facts=experimental_facts(p.experimental_skills.get(k) or {}),
+            facts=experimental_facts(k, p.experimental_skills.get(k) or {}),
         )
         for k, v in p.skills.items()
     ]
@@ -229,7 +238,17 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
     top_scores = experimental_at_level(p.experimental_skills, 10.0)
     top = top_comparison(p.skills)
     top_rows = [
-        S.TopSkill(key=k, label=top[k]["label"], score=num(top_scores.get(k)), top=num(top[k]["top"]))
+        S.TopSkill(
+            key=k,
+            label=top[k]["label"],
+            score=num(top_scores.get(k)),
+            top=num(top[k]["top"]),
+            facts=experimental_facts(
+                k, {**p.experimental_skills[k], "expected": p.experimental_skills[k].get("expected_top")}
+            )
+            if k == "accuracy" and k in p.experimental_skills
+            else [],
+        )
         for k in p.skills
         if k in top
     ]

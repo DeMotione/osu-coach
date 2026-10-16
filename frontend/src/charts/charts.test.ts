@@ -58,7 +58,7 @@ const skill = (key: string, score: number | null): Schemas["SkillScore"] => ({
 describe("overview charts", () => {
   it("explains a skill with what it measures, the player's numbers and what raises it", () => {
     const html = skillHover(skill("aim", null), { key: "aim", label: "Jump aim", what: "W <b>", how: "H", practise: "P" });
-    expect(html).toContain("You barely miss on these notes");
+    expect(html).toContain("not enough data");
     expect(html).toContain("W &lt;b&gt;");
     expect(html).toContain("You: 100 notes");
     expect(html).toContain("To raise it: P");

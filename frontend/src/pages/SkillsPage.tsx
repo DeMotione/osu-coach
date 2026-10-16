@@ -41,6 +41,7 @@ const STATE: Record<Schemas["GoalOut"]["state"], ["good" | "info" | "warn" | "ba
   behind: ["warn", "behind"],
   overdue: ["bad", "overdue"],
   "no data": ["muted", "no data"],
+  paused: ["muted", "paused · previous accuracy scale"],
 };
 
 function GoalsTab() {
@@ -90,19 +91,21 @@ function GoalRow({ goal }: { goal: Schemas["GoalOut"] }) {
     <div className="goal">
       <div className="stack" style={{ gap: 4 }}>
         <span className="goal__title">
-          {goal.label}: {fmt(goal.start, 0)} → {goal.target.toFixed(0)} by {goal.deadline} · now {fmt(goal.current, 0)}{" "}
+          {goal.label}: {fmt(goal.start, 0)} → {goal.target.toFixed(0)} by {goal.deadline}
+          {goal.state !== "paused" && ` · now ${fmt(goal.current, 0)}`} {" "}
           <Badge tone={tone}>{word}</Badge>
         </span>
         <span className="goal__meta">
-          <span>{goal.days_left >= 0 ? `${goal.days_left} days left` : `${-goal.days_left} days overdue`}</span>
+          <span>{goal.state === "paused" ? `Original deadline ${goal.deadline}` : goal.days_left >= 0 ? `${goal.days_left} days left` : `${-goal.days_left} days overdue`}</span>
           {goal.left !== null && goal.left > 0 && <span>{goal.left.toFixed(0)} points to go</span>}
+          {goal.state === "paused" && <span>Create a new goal to track the recalibrated score.</span>}
           {goal.score_source === "legacy" && <span>Previous rating scale</span>}
         </span>
       </div>
       <button type="button" className="btn btn--ghost btn--sm btn--danger" onClick={() => remove.mutate(goal.id)} disabled={remove.isPending}>
         <IconTrash /> Remove
       </button>
-      <Progress value={goal.progress} text={`${Math.round(goal.progress * 100)}% of the way`} />
+      {goal.progress !== null && <Progress value={goal.progress} text={`${Math.round(goal.progress * 100)}% of the way`} />}
     </div>
   );
 }

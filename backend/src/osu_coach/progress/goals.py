@@ -19,9 +19,10 @@ def new_goal(
     deadline: dt.date,
     today: dt.date | None = None,
     score_source: str = "legacy",
+    score_version: int | None = None,
 ) -> dict:
     today = today or dt.date.today()
-    return {
+    goal = {
         "id": uuid.uuid4().hex[:8],
         "skill": skill,
         "start": None if start is None else round(float(start), 1),
@@ -31,6 +32,9 @@ def new_goal(
         "done": None,
         "score_source": score_source,
     }
+    if score_version is not None:
+        goal["score_version"] = score_version
+    return goal
 
 
 def _num(v) -> float | None:

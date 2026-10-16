@@ -56,9 +56,10 @@ SKILL_HELP = {
         "when accuracy drops; make the stretches longer first, then faster.",
     ),
     "accuracy": (
-        "Hit timing on single notes (not in streams): how many of them you hit as 300s.",
-        "Score: (300 share − 50%) ÷ 49% × 100, so 99% 300s = 100 and 50% = 0 (top players' plays on "
-        "single notes: 95–100%). Needs 60+ single notes.",
+        "Hit timing on single notes (not in streams): the share of hit notes that were not 300s. Lower is better.",
+        "Score: 50 − level-dependent points × log2(non-300 rate ÷ assumed OD- and comfort-matched rate), "
+        "clipped to 0–100. At 4.5★ and OD 8, 90% 300s scores 50 and 80% scores 20; from 5.5★ up "
+        "the previous reference and slope apply. Needs 60+ hit single notes.",
         "Play maps you can full-combo and aim for 300s, not the combo. If your hits lean early or late "
         "(Tapping page), fix your offset first.",
     ),

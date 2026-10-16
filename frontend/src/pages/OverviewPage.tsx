@@ -52,13 +52,13 @@ function OverviewBody({ ov }: { ov: Overview }) {
         <Stat label="Accuracy" value={pct(k.accuracy)} />
       </Tiles>
       <Card
-        title="Skills vs players at your level"
-        sub={`Experimental replay ratings, 0–100; 50 = expected performance at your ${stars(k.comfort_stars, 1)} comfort level under assumed curves. Best play per map/mod counts; grey = unmeasured or insufficient challenge.`}
+        title="Skills at your comfort level"
+        sub={`Experimental replay ratings, 0–100; 50 = expected performance at your ${stars(k.comfort_stars, 1)} comfort level under assumed curves. Most skills use the best play per map/mod; Timing accuracy uses weighted hit single notes from all selected replays. Grey = unmeasured or insufficient challenge.`}
       >
         <Chart build={skillsChart} height={skillsHeight} label="Skill scores against your level" />
       </Card>
       <Card
-        title="Skills vs top players"
+        title="Skills against a 10★ reference"
         sub={`The same replay measures against a 10★ baseline${k.comfort_stars === null ? "" : ` (${(10 - k.comfort_stars).toFixed(1)}★ above your comfort)`}. 50 = expected performance under assumed curves; ◆ = the maximum 100-point score.`}
       >
         <Chart build={topChart} height={skillsHeight} label="Skill scores against top players" />

@@ -3,7 +3,8 @@
 import pytest
 
 from osu_coach.maps.domain import SKILLS
-from osu_coach.maps.repository import POOL_PATH
+from osu_coach.maps.repository import POOL_PATH, load_pool
+from osu_coach.maps.skillset import recommend
 
 pytestmark = [
     pytest.mark.usefixtures("_isolated"),
@@ -53,3 +54,33 @@ def test_playlist_follows_the_profile(analysed):
     assert all(s["score"] is None for s in pl["skills"])  # only two maps: no invented replay ability
     supplied = analysed.get("/api/playlists", params={"skill": "aim", "ratings": '{"aim":70}'}).json()
     assert supplied["abilities"]["aim"] == 70
+
+
+def test_lower_level_accuracy_playlist_requires_timing_od(client):
+    pl = client.get(
+        "/api/playlists",
+        params={"skill": "accuracy", "comfort": 4.5, "ratings": '{"accuracy":13}', "assessed": "accuracy"},
+    ).json()
+    assert pl["maps"] > 0
+    assert all(row["od"] >= 7.5 for stage in pl["stages"] for row in stage["maps"])
+    assert all(row["breakdown"]["star_window"] <= 1.0 for stage in pl["stages"] for row in stage["maps"])
+
+
+def test_sparse_lower_level_accuracy_stage_widens_star_window(client):
+    pl = client.get(
+        "/api/playlists",
+        params={"skill": "accuracy", "comfort": 2.5, "ratings": '{"accuracy":13}', "assessed": "accuracy"},
+    ).json()
+    warmup = next(stage for stage in pl["stages"] if stage["stage"] == "Warm-up")
+    assert warmup["maps"]
+    assert warmup["maps"][0]["breakdown"]["star_window"] > 0.2
+    assert all(row["od"] >= 5.5 for row in warmup["maps"])
+
+
+def test_lower_level_accuracy_reports_when_no_od_qualified_maps():
+    pool = load_pool()
+    low_od_only = pool.nsmallest(1, "od")
+    result = recommend(low_od_only, 4.5, {"accuracy": 13}, "accuracy", ("accuracy",))
+    for stage in result["goals"].values():
+        assert stage["maps"] == []
+        assert stage["excluded"]["No qualified timing map within 1★ of target"] == 1

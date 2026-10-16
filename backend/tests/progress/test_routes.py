@@ -148,3 +148,36 @@ def test_a_reached_goal_is_marked_done(analysed):
     g = analysed.get("/api/goals").json()
     assert g["open"] == [] and g["done"][0]["id"] == "g1" and g["done"][0]["state"] == "done"
     assert load_settings(ws.cache_dir)["goals"][0]["done"] == dt.date.today().isoformat()
+
+
+def test_old_lower_level_accuracy_goal_is_paused_and_new_goal_uses_new_scale(analysed):
+    _measured_profile(analysed)
+    ws = workspace(analysed)
+    ws.profile().levels["comfort_stars"] = 4.5
+    save_settings(
+        {
+            **load_settings(ws.cache_dir),
+            "goals": [
+                {
+                    "id": "old-acc",
+                    "skill": "accuracy",
+                    "start": 0.0,
+                    "target": 10.0,
+                    "created": "2026-01-01",
+                    "deadline": "2026-02-01",
+                    "done": None,
+                    "score_source": "experimental",
+                }
+            ],
+        },
+        ws.cache_dir,
+    )
+    old = analysed.get("/api/goals").json()["open"][0]
+    assert old["state"] == "paused" and old["progress"] is None and old["current"] is None
+    assert load_settings(ws.cache_dir)["goals"][0]["done"] is None
+    deadline = (dt.date.today() + dt.timedelta(days=14)).isoformat()
+    response = analysed.post("/api/goals", json={"skill": "accuracy", "target": 60, "deadline": deadline})
+    assert response.status_code == 201
+    new = next(g for g in response.json()["open"] if g["id"] != "old-acc")
+    assert new["state"] != "paused" and new["current"] == 33
+    assert next(g for g in load_settings(ws.cache_dir)["goals"] if g["id"] == new["id"])["score_version"] == 2

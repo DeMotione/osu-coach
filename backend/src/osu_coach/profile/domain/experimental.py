@@ -34,6 +34,8 @@ POINTS = {
 }
 STAMINA_SHARES = {10: 0.55, 30: 0.47, 60: 0.41, 120: 0.38, 300: 0.33}
 ACCURACY_SIGMA_MS = (79.5 - 6 * 8) / 1.959963984540054
+ACCURACY_LOW_SIGMA_MS = (79.5 - 6 * 8) / 1.6448536269514722
+ACCURACY_TRANSITION_STARS = 5.5
 
 
 def comfort(metas: pd.DataFrame) -> float | None:
@@ -75,6 +77,30 @@ def _score(skill: str, value: float | None, expected: float, *, inverse: bool = 
         return None
     ratio = max(value, 1e-6) / expected
     return round(float(np.clip(50 + (-1 if inverse else 1) * POINTS[skill] * math.log2(ratio), 0, 100)), 1)
+
+
+def _accuracy_sigma(theta: float) -> float:
+    """At 4.5★/OD 8, assume 90% 300s; retain the old reference from 5.5★ up."""
+    low_stars = max(0.0, ACCURACY_TRANSITION_STARS - theta)
+    return ACCURACY_SIGMA_MS * (ACCURACY_LOW_SIGMA_MS / ACCURACY_SIGMA_MS) ** low_stars
+
+
+def _accuracy_expected(windows: list[tuple[float, float]], theta: float) -> float:
+    sigma = _accuracy_sigma(theta)
+    return float(
+        np.average(
+            [math.erfc(window / (math.sqrt(2) * sigma)) for window, _ in windows],
+            weights=[weight for _, weight in windows],
+        )
+    )
+
+
+def _accuracy_score(value: float | None, expected: float, theta: float) -> float | None:
+    if value is None or not math.isfinite(value) or not math.isfinite(expected) or expected <= 0:
+        return None
+    low_blend = min(1.0, max(0.0, ACCURACY_TRANSITION_STARS - theta))
+    points = POINTS["accuracy"] + 5 * low_blend
+    return round(float(np.clip(50 - points * math.log2(max(value, 1e-6) / expected), 0, 100)), 1)
 
 
 def _aggregate(rows: list[dict]) -> tuple[float | None, list[dict]]:
@@ -205,12 +231,19 @@ def ratings(objects: pd.DataFrame, metas: pd.DataFrame, theta: float | None) -> 
         error = float(np.average(singles["head_result"] != 300, weights=w))
         od = singles["replay_key"].map(unique_metas["od"]).astype(float)
         window = np.maximum(0.0, 79.5 - 6 * od.to_numpy())
-        expected = float(np.average([math.erfc(x / (math.sqrt(2) * ACCURACY_SIGMA_MS)) for x in window], weights=w))
+        window_weights = (
+            pd.DataFrame({"window": window, "weight": w.to_numpy()}).groupby("window", sort=True)["weight"].sum()
+        )
+        windows = [(float(hit_window), float(weight)) for hit_window, weight in window_weights.items()]
+        expected = _accuracy_expected(windows, theta) if windows else math.nan
         result["accuracy"] = {
-            "score": _score("accuracy", error, expected, inverse=True) if len(singles) >= 60 else None,
+            "score": _accuracy_score(error, expected, theta) if len(singles) >= 60 else None,
             "maps": int(singles["map_md5"].nunique()),
+            "hit_single_notes": len(singles),
             "measured": error,
             "expected": expected,
+            "expected_top": _accuracy_expected(windows, 10.0) if windows else math.nan,
+            "od_windows": windows,
             "reason": "Effective-OD-matched non-300 share on hit single heads",
         }
     ratio = miss_chain_ratio(P)
@@ -237,7 +270,14 @@ def at_level(rows: dict[str, dict], theta: float) -> dict[str, float | None]:
                 ):
                     scores.append(_score(skill, part["measured"], expected))
             out[skill] = round(float(np.mean(scores)), 1) if scores else None
-        elif skill in ("accuracy", "reading", "consistency"):
+        elif skill == "accuracy":
+            windows = row.get("od_windows")
+            out[skill] = (
+                _accuracy_score(row.get("measured"), _accuracy_expected(windows, theta), theta)
+                if row.get("score") is not None and windows
+                else row.get("score")
+            )
+        elif skill in ("reading", "consistency"):
             out[skill] = row.get("score")
         elif row.get("maps", 0) < MIN_MAPS:
             out[skill] = None

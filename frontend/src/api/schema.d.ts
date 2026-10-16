@@ -1442,7 +1442,7 @@ export interface components {
             /** Current */
             current: number | null;
             /** Progress */
-            progress: number;
+            progress: number | null;
             /** Left */
             left: number | null;
             /** Days Left */
@@ -1451,7 +1451,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "done" | "on track" | "behind" | "overdue" | "no data";
+            state: "done" | "on track" | "behind" | "overdue" | "no data" | "paused";
             /**
              * Score Source
              * @description Rating scale used when the goal was created.
@@ -3045,6 +3045,11 @@ export interface components {
              * @description Top players' reference plays on the same scale.
              */
             top: number | null;
+            /**
+             * Facts
+             * @description Measured and assumed values behind this row.
+             */
+            facts?: string[];
         };
         /** UploadedFile */
         UploadedFile: {

@@ -4259,7 +4259,14 @@
             "title": "Current"
           },
           "progress": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Progress"
           },
           "left": {
@@ -4284,7 +4291,8 @@
               "on track",
               "behind",
               "overdue",
-              "no data"
+              "no data",
+              "paused"
             ],
             "title": "State"
           },
@@ -9219,6 +9227,14 @@
             ],
             "title": "Top",
             "description": "Top players' reference plays on the same scale."
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Facts",
+            "description": "Measured and assumed values behind this row."
           }
         },
         "type": "object",

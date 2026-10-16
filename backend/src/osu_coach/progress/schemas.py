@@ -62,10 +62,10 @@ class GoalOut(BaseModel):
     deadline: dt.date
     done: dt.date | None
     current: float | None
-    progress: float
+    progress: float | None
     left: float | None
     days_left: int
-    state: Literal["done", "on track", "behind", "overdue", "no data"]
+    state: Literal["done", "on track", "behind", "overdue", "no data", "paused"]
     score_source: Literal["experimental", "legacy"] = Field(description="Rating scale used when the goal was created.")
 
 
