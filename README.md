@@ -85,8 +85,12 @@ packaging/                   frozen server (PyInstaller, embedded in the desktop
 ```
  browser (PWA)  ──HTTP /api──►  backend/…/routes (FastAPI)  ──Python──►  services, domain, repositories
    frontend/                       localhost only                        replays, beatmaps, settings.json,
-                                   background jobs                       analysis cache, progress.sqlite
+                                   background jobs                       session.json, analysis cache,
+                                                                         progress.sqlite
 ```
+
+The last scan and the analysed replays are remembered in `session.json`: on the next start the profile is back at
+once (from the analysis cache) and the same scan is repeated in the background.
 
 * **domain code** (`*/domain.py`) knows nothing about the web. `osu_coach.insights` holds the chart aggregations, so the API only translates.
 * **api** keeps the state of the session (scanned library, analysed replays, the profile built from them) in one

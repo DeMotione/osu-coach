@@ -42,6 +42,18 @@ def _error_text(exc: Exception) -> str:
     return str(exc) if isinstance(exc, UnsupportedReplay) else f"analysis failed: {exc}"
 
 
+def load_cached_analyses(cache: Path, keys) -> list[ReplayAnalysis]:
+    """Analyses saved by earlier runs, by replay key (those not in the cache are skipped)."""
+    out = []
+    for key in keys:
+        try:
+            with open(cache / "analyses" / f"{key}-v{ANALYSIS_VERSION}.pkl", "rb") as fh:
+                out.append(pickle.load(fh))
+        except Exception:  # noqa: BLE001 - missing / stale entry
+            continue
+    return out
+
+
 class Library:
     def __init__(self, cache_dir=None):
         self.cache = Path(cache_dir or default_cache_dir())
@@ -234,14 +246,7 @@ class Library:
 
     def load_cached(self, keys) -> list[ReplayAnalysis]:
         """Analyses of earlier runs, by replay key (those not in the cache are skipped)."""
-        out = []
-        for key in keys:
-            try:
-                with open(self._cache_path(key), "rb") as fh:
-                    out.append(pickle.load(fh))
-            except Exception:  # noqa: BLE001 - missing / stale entry
-                continue
-        return out
+        return load_cached_analyses(self.cache, keys)
 
     def analyze(
         self, refs: list[dict], workers: int | None = None, progress=None

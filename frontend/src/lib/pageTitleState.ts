@@ -12,15 +12,14 @@ export function usePageTitleVisible(): boolean {
   return useContext(PageTitleContext).visible;
 }
 
-/** Reports whether the heading is below the sticky toolbar, so the toolbar can show the title once it has scrolled away. */
+/** Shows the toolbar title once the page heading has left the content's scroll area. */
 export function useReportTitleVisibility(ref: RefObject<Element | null>) {
   const { setVisible } = useContext(PageTitleContext);
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
-    const toolbar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--toolbar-h")) || 56;
     const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), {
-      rootMargin: `-${toolbar}px 0px 0px 0px`,
+      root: el.closest(".workspace__scroll"),
     });
     observer.observe(el);
     return () => {

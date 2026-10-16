@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from scalar_fastapi import AgentScalarConfig, get_scalar_api_reference
 
 from osu_coach import __version__
-from osu_coach.app import errors, jobs, web
+from osu_coach.app import errors, jobs, session, web
 from osu_coach.app.security import LocalOnlyMiddleware
 from osu_coach.app.workspace import Workspace
 from osu_coach.check import routes as check
@@ -72,6 +72,7 @@ def create_app(config: Settings | None = None) -> FastAPI:
     )
     app.state.api_docs = config.api_docs
     app.state.workspace = Workspace(config)
+    session.start_restore(app.state.workspace)
     web_dir = config.web_dir if config.web_dir is not None else find_web_dir()
     app.state.web_dir = web_dir if web_dir is not None and (web_dir / "index.html").is_file() else None
     errors.install(app)

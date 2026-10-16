@@ -123,6 +123,7 @@ fn is_healthy(port: u16) -> bool {
 
 fn main() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .manage(Server(Mutex::new(None)))
         .setup(|app| {
             let port = free_port()?;
