@@ -78,3 +78,27 @@ test("sidebar animates both ways and respects reduced motion", async ({ page }) 
   await expect(page.locator(".sidenav__text").first()).toHaveCSS("opacity", "1");
   await expect(page.getByRole("navigation", { name: "Pages" })).toBeVisible();
 });
+
+for (const desktop of [false, true]) {
+  test(`small window: the menu button opens and closes an opaque sidebar, the version stays (${desktop ? "desktop" : "browser"} shell, #28)`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 700 });
+    await page.goto("/overview");
+    if (desktop) {
+      // Windows 11's Mica shell, whose sidebar colour is see-through
+      await page.locator("html").evaluate((el) => el.classList.add("is-desktop", "is-mica-desktop"));
+      await page.locator(".toolbar").evaluate((el) => el.classList.add("toolbar--desktop"));
+    }
+    const menu = page.getByRole("button", { name: "Menu" });
+    const nav = page.getByRole("navigation", { name: "Pages" });
+    await expect(page.locator(".statusbar__version")).toBeVisible();
+    await expect(menu).toHaveAttribute("aria-expanded", "false");
+    await menu.click();
+    await expect(nav).toBeVisible();
+    await expect(menu).toHaveAttribute("aria-expanded", "true");
+    // opaque: rgb(), not rgba() or a colour with an alpha
+    expect(await page.locator(".sidebar").evaluate((el) => getComputedStyle(el).backgroundColor)).toMatch(/^rgb\(/);
+    await menu.click();
+    await expect(nav).toBeHidden();
+    await expect(menu).toHaveAttribute("aria-expanded", "false");
+  });
+}

@@ -606,12 +606,25 @@
   margin-left: auto;
 }
 
+/* never squeezed: whether the app is connected, and its version; the player line and a job's message give way */
+.statusbar > .statusbar__item:first-child,
+.statusbar__version {
+  flex: none;
+}
+
+.statusbar__msg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .statusbar__job + .statusbar__version {
   margin-left: 0;
 }
 
 .statusbar__bar {
   position: relative;
+  flex: none;
   width: 120px;
   height: 4px;
   overflow: hidden;
@@ -682,11 +695,14 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* a panel over the page, so it is opaque (Mica's see-through sidebar colour would show the page through it), and
+   * under the toolbar, whose menu button closes it again */
   .sidebar {
     position: fixed;
-    inset: 0 auto 0 0;
+    inset: var(--toolbar-h) auto 0 0;
     width: min(86vw, 300px);
-    height: 100dvh;
+    height: auto;
+    background: light-dark(var(--n-50), var(--n-900));
     transform: translateX(-102%);
     /* closed: out of the tab order and the accessibility tree once it has slid away */
     visibility: hidden;
@@ -694,10 +710,6 @@
       transform 0.22s ease,
       visibility 0s 0.22s;
     box-shadow: var(--elev-4);
-  }
-
-  .is-desktop .sidebar {
-    height: calc(100dvh - var(--toolbar-h));
   }
 
   .app.nav-open .sidebar {
@@ -709,7 +721,7 @@
   .app.nav-open .scrim {
     display: block;
     position: fixed;
-    inset: 0;
+    inset: var(--toolbar-h) 0 0;
     z-index: 35;
     background: var(--overlay);
   }
@@ -722,11 +734,14 @@
     display: none !important; /* .btn, loaded later, would otherwise win */
   }
 
-  .statusbar__version {
-    display: none;
+  .statusbar__bar {
+    width: 64px;
   }
+}
 
-  .statusbar .status-line {
+/* a phone: while a job runs, its progress takes the place of the player line */
+@media (max-width: 600px) {
+  .statusbar:has(.statusbar__job) .status-line {
     display: none;
   }
 }

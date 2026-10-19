@@ -150,13 +150,15 @@ function WindowControls() {
 function Toolbar({
   collapsed,
   onToggleSidebar,
-  onOpenDrawer,
+  drawerOpen,
+  onToggleDrawer,
   onOpenGuide,
   inert,
 }: {
   collapsed: boolean;
   onToggleSidebar: () => void;
-  onOpenDrawer: () => void;
+  drawerOpen: boolean;
+  onToggleDrawer: () => void;
   onOpenGuide: () => void;
   inert?: boolean;
 }) {
@@ -166,8 +168,16 @@ function Toolbar({
   const headingVisible = usePageTitleVisible();
   return (
     <header className={`toolbar${isDesktop ? " toolbar--desktop" : ""}`} data-tauri-drag-region inert={inert}>
-      <button type="button" className="btn btn--ghost btn--icon toolbar__drawer" aria-label="Menu" onClick={onOpenDrawer}>
-        <IconMenu />
+      <button
+        type="button"
+        className="btn btn--ghost btn--icon toolbar__drawer"
+        aria-label="Menu"
+        aria-controls="sidebar"
+        aria-expanded={drawerOpen}
+        title={drawerOpen ? "Close menu" : "Open menu"}
+        onClick={onToggleDrawer}
+      >
+        {drawerOpen ? <IconX /> : <IconMenu />}
       </button>
       {isDesktop && (
         <div className="toolbar__brand">
@@ -215,7 +225,7 @@ function JobIndicator() {
   return (
     <span className="statusbar__item statusbar__job" role="status">
       <span className="approach" aria-hidden="true" />
-      <span>{job.message || label}</span>
+      <span className="statusbar__msg">{job.message || label}</span>
       <span
         className={known ? "statusbar__bar" : "statusbar__bar indeterminate"}
         role="progressbar"
@@ -316,7 +326,7 @@ function Shell() {
   const cls = ["app", open ? "nav-open" : "", collapsed ? "is-rail" : ""].filter(Boolean).join(" ");
   return (
     <div className={cls}>
-      <aside className="sidebar" inert={guide}>
+      <aside id="sidebar" className="sidebar" inert={guide}>
         {!isDesktop && (
           <div className="sidebar__head">
             <Brand onClick={close} />
@@ -333,7 +343,8 @@ function Shell() {
         <Toolbar
           collapsed={collapsed}
           onToggleSidebar={toggleCollapsed}
-          onOpenDrawer={() => setOpen(true)}
+          drawerOpen={open}
+          onToggleDrawer={() => setOpen((o) => !o)}
           onOpenGuide={() => setGuideOpened(true)}
           inert={guide && !isDesktop}
         />
