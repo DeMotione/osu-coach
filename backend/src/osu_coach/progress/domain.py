@@ -1,9 +1,9 @@
 """Progress over time: period keys, per-period skill numbers and per-period play statistics.
 
-Skill scores are measured against ONE miss model fitted on all of the player's replays — 50 = your all-time
-average at that difficulty, more = fewer misses than usual in that period — so periods can be compared.
-(The profile's own scores compare each skill with the player's level in the same replays, so they can't
-show progress.)
+Skill scores are the Overview's skill ratings (``experimental_skills``: 50 = expected performance at a comfort
+level), each period's measured against ONE reference — the comfort level of all of the player's replays, the
+one the Overview uses — so periods can be compared: playing better than that level expects shows as a rise.
+(Rating each period at its own comfort level would put every period near 50.)
 """
 
 from __future__ import annotations
@@ -13,17 +13,14 @@ from collections import defaultdict
 
 import pandas as pd
 
-from osu_coach.profile.domain import (
-    SKILL_LABELS,
-    build_profile,
-    clean_pass,
-    comfort_stars,
-    compute_skills,
-    played_notes,
-)
+from osu_coach.profile.domain import SKILL_LABELS, build_profile, clean_pass, comfort_stars
+from osu_coach.profile.domain.experimental import comfort as experimental_comfort
 
 FEW_PLAYS = 5  # periods with fewer plays are shown, but marked as uncertain
 PERIODS = ("month", "week", "day")
+# Saved with a period's skill scores: the comfort level (★) they were rated at. Its presence also marks scores of
+# this rating scale; scores saved by older versions (a miss model) have none and are not shown.
+SKILL_REFERENCE = "skill_reference_stars"
 
 
 def utc(date) -> dt.datetime:
@@ -59,16 +56,13 @@ def full_combo(df: pd.DataFrame) -> pd.Series:
 
 
 def period_metrics(analyses, tz=None) -> dict[str, list[tuple[str, float | None, int]] | None]:
-    """Skill scores and stream speed per period key (see :func:`metric_key`) as (name, value, n) rows.
-    ``None`` for a period with too few plays (stale numbers should go); periods that can't be
-    modelled are left out. Empty if the whole history can't be modelled."""
+    """Skill scores and stream speed per period key (see :func:`metric_key`) as (name, value, n) rows; for a skill
+    ``n`` is how many map/mod configurations it was measured on. ``None`` for a period with too few plays (stale
+    numbers should go); periods that can't be analysed are left out."""
     if not analyses:
         return {}
-    try:
-        full = build_profile(analyses, weighted=False, experimental=False)  # period scores use the existing model
-    except Exception:  # noqa: BLE001 - too little data for a model
-        return {}
-    threshold = full.reading.get("dense_threshold")
+    metas = pd.DataFrame([a.meta for a in analyses])
+    reference = experimental_comfort(metas)  # the Overview's comfort level: one yardstick for every period
     groups = defaultdict(list)
     for a in analyses:
         for period in PERIODS:  # months, ISO weeks and days, each kept under its own key
@@ -79,24 +73,17 @@ def period_metrics(analyses, tz=None) -> dict[str, list[tuple[str, float | None,
             out[key] = None
             continue
         try:
-            mp = build_profile(group, weighted=False, experimental=False)
-            reading = dict(mp.reading)
-            if threshold is not None:
-                reading["dense_threshold"] = threshold
-            skills = compute_skills(
-                played_notes(mp.objects),
-                full.model,
-                mp.tapping,
-                mp.sliders,
-                reading,
-                mp.consistency,
-                level=full.levels.get("level_stars"),  # one stamina yardstick for all periods
-                presses=mp.presses,
-            )
+            # level=reference: the ratings are measured against it, not against the period's own comfort
+            mp = build_profile(group, level=reference, weighted=False, experimental=reference is not None)
         except Exception:  # noqa: BLE001 - a period with too little data keeps no skill numbers
             continue
-        rows = [(f"skill_{k}", v.get("score"), int(v.get("n") or 0)) for k, v in skills.items()]
+        ratings = mp.experimental_skills
+        rows = [
+            (f"skill_{k}", (ratings.get(k) or {}).get("score"), int((ratings.get(k) or {}).get("maps") or 0))
+            for k in SKILL_LABELS
+        ]
         rows += [
+            (SKILL_REFERENCE, reference, 0),
             ("stream_bpm", mp.tapping.get("comfort_bpm"), int(mp.tapping.get("n") or 0)),
             ("ur_single", mp.tapping.get("ur_single"), 0),
             ("aim_err", mp.aim.get("aim_err_median"), 0),
@@ -151,8 +138,11 @@ def summarize_periods(
         mm = mm[mm["month"].str.startswith(prefix)].assign(month=lambda d: d["month"].str[len(prefix) :])
     else:
         mm = mm[~mm["month"].str.contains(":")]
-    for name in [f"skill_{k}" for k in SKILL_LABELS] + ["stream_bpm", "ur_single", "aim_err"]:
+    rated = set(mm.loc[mm["name"] == SKILL_REFERENCE, "month"])  # skill scores of this rating scale
+    for name in [f"skill_{k}" for k in SKILL_LABELS] + [SKILL_REFERENCE, "stream_bpm", "ur_single", "aim_err"]:
         vals = mm[mm["name"] == name].set_index("month")["value"]
+        if name.startswith("skill_"):
+            vals = vals[vals.index.isin(rated)]
         out[name] = vals.reindex(out.index).astype(float)
     out["few_plays"] = out["plays"] < FEW_PLAYS
     return out.sort_index().reset_index().rename(columns={"index": "month"})

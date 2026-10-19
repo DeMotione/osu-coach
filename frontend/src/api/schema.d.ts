@@ -2025,7 +2025,7 @@ export interface components {
             few_plays: boolean;
             /**
              * Skills
-             * @description Skill scores (50 = all-time average at that difficulty).
+             * @description The Overview's skill ratings, 0–100: 50 = expected at the reference comfort level (``skill_reference_stars``).
              */
             skills: {
                 [key: string]: number | null;
@@ -2209,6 +2209,11 @@ export interface components {
              * @description Day of the first saved play.
              */
             first_day: string | null;
+            /**
+             * Skill Reference Stars
+             * @description The comfort level (★) every period's skill ratings are measured against; null = none saved.
+             */
+            skill_reference_stars: number | null;
             /** Rows */
             rows: components["schemas"]["PeriodRow"][];
         };

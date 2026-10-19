@@ -6076,7 +6076,7 @@
             },
             "type": "object",
             "title": "Skills",
-            "description": "Skill scores (50 = all-time average at that difficulty)."
+            "description": "The Overview's skill ratings, 0–100: 50 = expected at the reference comfort level (``skill_reference_stars``)."
           }
         },
         "type": "object",
@@ -6570,6 +6570,18 @@
             "title": "First Day",
             "description": "Day of the first saved play."
           },
+          "skill_reference_stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Reference Stars",
+            "description": "The comfort level (★) every period's skill ratings are measured against; null = none saved."
+          },
           "rows": {
             "items": {
               "$ref": "#/components/schemas/PeriodRow"
@@ -6583,6 +6595,7 @@
           "player",
           "period",
           "first_day",
+          "skill_reference_stars",
           "rows"
         ],
         "title": "ProgressOut"

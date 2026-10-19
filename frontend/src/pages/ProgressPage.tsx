@@ -10,7 +10,7 @@ import { DataTable } from "../components/DataTable";
 import { IconTrend } from "../components/icons";
 import { EmptyState, ErrorCard, LoadingPage } from "../components/states";
 import { Card, Delta, Field, Page, Row, Segmented, Stat, Tiles } from "../components/ui";
-import { fmt, int, isoDay, localTime, pct, shortLabel } from "../lib/format";
+import { fmt, int, isoDay, localTime, pct, shortLabel, stars as starsText } from "../lib/format";
 
 type Period = Schemas["ProgressOut"]["period"];
 type PRow = Schemas["PeriodRow"];
@@ -84,7 +84,7 @@ export default function ProgressPage() {
           </div>
         </Card>
         {q.data.rows.length ? (
-          <ProgressBody rows={q.data.rows} period={period} player={q.data.player} />
+          <ProgressBody rows={q.data.rows} period={period} player={q.data.player} reference={q.data.skill_reference_stars} />
         ) : (
           <Card>
             <EmptyState icon={<IconTrend />} title="No plays saved in that range" />
@@ -111,7 +111,7 @@ function delta(last: PRow, prev: PRow | undefined, key: keyof PRow, digits: numb
   return <Delta value={d} text={`${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(digits)}`} />;
 }
 
-function ProgressBody({ rows, period, player }: { rows: PRow[]; period: Period; player: string }) {
+function ProgressBody({ rows, period, player, reference }: { rows: PRow[]; period: Period; player: string; reference: number | null }) {
   const meta = useMeta();
   const word = WORD[period];
   const last = rows[rows.length - 1];
@@ -151,13 +151,13 @@ function ProgressBody({ rows, period, player }: { rows: PRow[]; period: Period; 
       </Row>
       <Card
         title={`Skills by ${word}`}
-        sub={`50 = your all-time average at the same difficulty; higher = fewer misses than usual that ${word}. Click a skill in the legend to hide or show it. Hollow points: fewer than 5 plays.`}
+        sub={`The same skill ratings as the Overview's chart, every ${word} rated at your comfort level${reference !== null ? ` (${starsText(reference, 1)})` : ""}: 50 = what that level expects, higher = you played the skill better that ${word}. Click a skill in the legend to hide or show it. Hollow points: fewer than 5 plays.`}
       >
         {hasSkills ? (
           <Chart build={skillChart} height={360} label="Skill scores by period" />
         ) : (
           <EmptyState title="No skill scores yet">
-            {period === "month" ? "Skill scores need 5+ plays in a month." : "Skill scores per day / week are saved from now on, each time you analyse replays."}
+            {`Skill ratings need 5+ plays in a ${word}, with 3+ different maps for a skill. Scores saved by an earlier version aren't shown: analyse your replays again (Replays page) to rate every ${word}.`}
           </EmptyState>
         )}
       </Card>

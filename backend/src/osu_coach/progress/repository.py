@@ -5,10 +5,9 @@ when replays or the analysis cache are deleted later. Per month and player:
 
 * from those rows: plays, maps (and maps played for the first time), play time, star rating (average,
   comfortable, hardest clean pass / full combo), accuracy, misses, UR;
-* from the analyses themselves (months with 5+ plays): skill scores and stream speed. Skill scores are
-  measured against ONE miss model fitted on all of the player's replays — 50 = your all-time average at
-  that difficulty, more = fewer misses than usual that month — so months can be compared. (The profile's
-  own scores compare each skill with the player's level in the same replays, so they can't show progress.)
+* from the analyses themselves (months with 5+ plays): skill scores and stream speed. Skill scores are the
+  Overview's skill ratings, every month's measured against ONE reference (the comfort level of all the
+  player's replays) so months can be compared; see :mod:`osu_coach.progress.domain`.
 """
 
 from __future__ import annotations
@@ -143,7 +142,7 @@ def players(conn: sqlite3.Connection) -> list[tuple[str, int]]:
 
 
 def rebuild_months(conn: sqlite3.Connection, player: str, analyses, tz=None) -> None:
-    """Skill scores (against one model fitted on all of ``analyses``) and stream speed per month."""
+    """Skill scores (rated at the comfort level of all of ``analyses``) and stream speed per month."""
     analyses = [a for a in analyses if (a.meta.get("player") or "") == (player or "")]
     now = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
     for month, rows in period_metrics(analyses, tz).items():

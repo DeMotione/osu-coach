@@ -180,10 +180,12 @@ Every analysis is also saved in `progress.sqlite` in the osu! coach data folder,
 the history stays even after replays are deleted. The **Progress** page (or `osu-coach progress`) shows,
 per month, ISO week or day (*Group by*), for any date range you pick: plays, maps and maps played for the first time, play time, star rating (comfortable level,
 average, hardest clean pass = finished with at most 5 misses per 100 notes, hardest full combo),
-accuracy, UR, stream speed and the skills. Monthly skill scores are measured against one miss model
-fitted on all your replays — 50 = your all-time average at the same difficulty, higher = fewer misses
-than usual that month — and need 5+ plays in a month. Analyse with *All* once to fill in older months;
-after that *Latest N* is enough (older analyses are reused from the cache).
+accuracy, UR, stream speed and the skills. The skills are the Overview's skill ratings, every period rated
+at the same reference — your comfort level from all your replays, the one the Overview shows — so 50 = what
+that level expects and a rise means you played the skill better; they need 5+ plays in a period (and, like on
+the Overview, 3+ different map/mod setups per skill). Analyse with *All* once to fill in older months; after
+that *Latest N* is enough (older analyses are reused from the cache). Skill numbers saved by versions before
+this rating scale are not shown: analysing again rates every period anew.
 
 ### Difficulty weighting and your level
 
