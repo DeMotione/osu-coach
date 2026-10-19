@@ -3,16 +3,47 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+const RES = path.resolve("..", "backend", "tests", "resources");
+const INDEX = JSON.parse(fs.readFileSync(path.join(RES, "index.json"), "utf-8")) as { replay: string; md5: string }[];
+
 /** The sample replays of the core tests, with their beatmaps, copied into a folder to scan. */
 function playsFolder(): string {
-  const res = path.resolve("..", "backend", "tests", "resources");
-  const index = JSON.parse(fs.readFileSync(path.join(res, "index.json"), "utf-8")) as { replay: string; md5: string }[];
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "osu-coach-plays-"));
-  for (const r of index) {
-    fs.copyFileSync(path.join(res, "replays", r.replay), path.join(dir, r.replay));
-    fs.copyFileSync(path.join(res, "maps", `${r.md5}.osu`), path.join(dir, `${r.replay}.osu`));
+  for (const r of INDEX) {
+    fs.copyFileSync(path.join(RES, "replays", r.replay), path.join(dir, r.replay));
+    fs.copyFileSync(path.join(RES, "maps", `${r.md5}.osu`), path.join(dir, `${r.replay}.osu`));
   }
   return dir;
+}
+
+/** An osu!stable folder with the sample replays in Data/r and their beatmaps in Songs, where detection won't look. */
+function stableInstall(): string {
+  const root = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "osu-coach-stable-")), "osu!");
+  fs.mkdirSync(path.join(root, "Data", "r"), { recursive: true });
+  for (const r of INDEX) {
+    fs.copyFileSync(path.join(RES, "replays", r.replay), path.join(root, "Data", "r", r.replay));
+    fs.mkdirSync(path.join(root, "Songs", r.md5), { recursive: true });
+    fs.copyFileSync(path.join(RES, "maps", `${r.md5}.osu`), path.join(root, "Songs", r.md5, `${r.md5}.osu`));
+  }
+  return root;
+}
+
+/** The setup guide's dialog fits the window: nothing scrolls sideways, in the page or in the step. */
+async function guideProblems(page: Page): Promise<string[]> {
+  const problems: string[] = [];
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 800 });
+    problems.push(
+      ...(await page.evaluate((w) => {
+        const out: string[] = [];
+        if (document.documentElement.scrollWidth > window.innerWidth + 1) out.push(`page scrolls sideways at ${w}px`);
+        for (const el of Array.from(document.querySelectorAll<HTMLElement>(".onboarding__dialog, .onboarding__content, .onboarding__foot")))
+          if (el.scrollWidth > el.clientWidth + 1) out.push(`${el.className} overflows at ${w}px (${el.scrollWidth} > ${el.clientWidth})`);
+        return out;
+      }, width)),
+    );
+  }
+  return problems;
 }
 
 /**
@@ -62,107 +93,212 @@ const PAGES = [
 
 test.describe.configure({ mode: "serial" });
 
-test("pages explain what to do before anything is analysed", async ({ page }) => {
-  await page.goto("/overview");
-  await expect(page.getByRole("main").getByText("No replays analysed yet", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Go to Replays" }).click();
-  await expect(page).toHaveURL(/\/replays$/);
-  await expect(page.getByText("Scan for replays first")).toBeVisible();
-});
-
-test("scan, analyse and read every page", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(e.message));
-  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
-
+test("the setup guide opens on the first start and can be skipped", async ({ page, request }) => {
   await page.goto("/replays");
-  await page.getByLabel("Extra folders (one per line)").fill(playsFolder());
-  await page.getByRole("button", { name: "Scan" }).click();
-  await expect(page.getByText(/10 osu!standard replays/)).toBeVisible({ timeout: 120_000 });
-  await page.getByLabel("Player").selectOption("*");
-  await expect(page.getByText(/10 replays of all players will be analysed/)).toBeVisible();
-  await page.getByRole("button", { name: "Analyse replays" }).click();
-  await expect(page.getByText(/^Analysed 10 replays/)).toBeVisible({ timeout: 300_000 });
-  await expect(page.getByRole("heading", { name: "Analysed replays (10)" })).toBeVisible();
-  await expect(page.locator(".status-line")).toContainText("10 replays");
-
-  for (const width of [1440, 390]) {
-    await page.setViewportSize({ width, height: 900 });
-    for (const [url, title] of PAGES) {
-      await page.goto(url);
-      await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
-      await expect(page.locator(".skeleton")).toHaveCount(0, { timeout: 60_000 });
-      await page.waitForTimeout(400);       // charts lay out after their card has its size
-      const chartHeights = () => page.locator(".chart").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
-      const before = await chartHeights();
-      await page.waitForTimeout(1000);
-      expect(await chartHeights(), `charts grew on ${url} at ${width}px`).toEqual(before);
-      expect(await layoutProblems(page), `${url} at ${width}px`).toEqual([]);
-    }
-  }
-  expect(errors).toEqual([]);
-});
-
-test("open a replay from the list in Detailed Map Analysis", async ({ page }) => {
-  await page.goto("/replays");
-  await page.getByRole("row", { name: /Miraie/ }).click();
-  await page.getByRole("button", { name: "Detailed map analysis" }).click();
-  await expect(page).toHaveURL(/\/check\?path=/);
-  await expect(page.getByRole("heading", { name: "Misses and combo breaks" })).toBeVisible({ timeout: 120_000 });
-  await expect(page.getByText(/30 misses/)).toBeVisible();
-  await expect(page.getByLabel("Only plays of this map")).toBeChecked();
-  await expect(page.getByRole("heading", { name: "Timing through the map" })).toBeVisible();
-  expect(await layoutProblems(page)).toEqual([]);
-});
-
-test("settings are remembered: best replays and the level set by hand", async ({ page, request }) => {
-  await page.goto("/replays");
-  await page.getByText("Best replays", { exact: true }).click();
-  await expect.poll(async () => (await (await request.get("/api/settings")).json()).replay_set).toBe("best");
-  await page.goto("/overview");
-  const manual = page.locator("label.switch", { hasText: "Set my level by hand" });
-  await manual.click();
-  await expect(page.getByLabel("Set my level by hand")).toBeChecked();
-  await expect.poll(async () => (await (await request.get("/api/settings")).json()).level_override).not.toBeNull();
-  await expect(page.getByText(/^Set by you\./)).toBeVisible();
-  await manual.click();
-  await expect.poll(async () => (await (await request.get("/api/settings")).json()).level_override).toBeNull();
-  await page.goto("/replays");
-  await page.getByText("All replays", { exact: true }).click();
-  await expect.poll(async () => (await (await request.get("/api/settings")).json()).replay_set).toBe("all");
-});
-
-test("the sidebar navigates, folds with Ctrl+B and remembers it", async ({ page }) => {
-  await page.goto("/replays");
-  const nav = page.getByRole("navigation", { name: "Pages" });
-  await nav.getByRole("link", { name: "Aim" }).click();
-  await expect(page).toHaveURL(/\/aim$/);
-  await expect(page.getByTestId("toolbar-title")).not.toHaveClass(/shown/);
-  await expect(nav.getByRole("link", { name: "Aim" })).toHaveClass(/active/);
-  await expect(page.getByRole("button", { name: "Back" })).toHaveCount(0);
-  await nav.getByRole("link", { name: "Overview" }).click();
-  await expect(page).toHaveURL(/\/overview$/);
-  await nav.getByRole("link", { name: /^Replays/ }).click();
-  await expect(page).toHaveURL(/\/replays$/);
-  await page.keyboard.press("Control+b");
-  await expect(page.locator(".app")).toHaveClass(/is-rail/);
+  const guide = page.getByRole("dialog", { name: "Set up osu! coach" });
+  await expect(guide.getByRole("heading", { name: "Which osu! do you play?" })).toBeVisible();
+  expect(await guideProblems(page)).toEqual([]);
+  await guide.getByRole("button", { name: "Skip setup" }).click();
+  await expect(guide).toHaveCount(0);
+  expect((await (await request.get("/api/settings")).json()).onboarded).toBe(true);
   await page.reload();
-  await expect(page.locator(".app")).toHaveClass(/is-rail/);
-  await page.getByRole("button", { name: "Show sidebar" }).click();
-  await expect(page.locator(".app")).not.toHaveClass(/is-rail/);
-  await page.setViewportSize({ width: 390, height: 800 });
-  await expect(nav).toBeHidden();
-  await page.getByRole("button", { name: "Menu" }).click();
-  await expect(nav.getByRole("link", { name: "Overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Your replays" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
-test("the API reference and the installable app", async ({ page, request }) => {
-  const docs = await request.get("/docs");
-  expect(docs.ok()).toBe(true);
-  expect(await docs.text()).toContain("/api/openapi.json");
-  const manifest = await request.get("/manifest.webmanifest");
-  expect(manifest.headers()["content-type"]).toBe("application/manifest+json");
-  expect((await manifest.json()).icons).toHaveLength(3);
-  await page.goto("/overview");
-  await expect.poll(() => page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())), { timeout: 30_000 }).toBe(true);
+test.describe("after the setup", () => {
+  test.beforeEach(async ({ request }) => {
+    await request.patch("/api/settings", { data: { onboarded: true } });
+  });
+
+  test("pages explain what to do before anything is analysed", async ({ page }) => {
+    await page.goto("/overview");
+    await expect(page.getByRole("main").getByText("No replays analysed yet", { exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Go to Replays" }).click();
+    await expect(page).toHaveURL(/\/replays$/);
+    await expect(page.getByText("Scan for replays first")).toBeVisible();
+  });
+
+  test("scan, analyse and read every page", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+
+    await page.goto("/replays");
+    await page.getByLabel("Extra folders (one per line)").fill(playsFolder());
+    await page.getByRole("button", { name: "Scan" }).click();
+    await expect(page.getByText(/10 osu!standard replays/)).toBeVisible({ timeout: 120_000 });
+    await page.getByLabel("Player").selectOption("*");
+    await expect(page.getByText(/10 replays of all players will be analysed/)).toBeVisible();
+    await page.getByRole("button", { name: "Analyse replays" }).click();
+    await expect(page.getByText(/^Analysed 10 replays/)).toBeVisible({ timeout: 300_000 });
+    await expect(page.getByRole("heading", { name: "Analysed replays (10)" })).toBeVisible();
+    await expect(page.locator(".status-line")).toContainText("10 replays");
+
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const [url, title] of PAGES) {
+        await page.goto(url);
+        await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+        await expect(page.locator(".skeleton")).toHaveCount(0, { timeout: 60_000 });
+        await page.waitForTimeout(400);       // charts lay out after their card has its size
+        const chartHeights = () => page.locator(".chart").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+        const before = await chartHeights();
+        await page.waitForTimeout(1000);
+        expect(await chartHeights(), `charts grew on ${url} at ${width}px`).toEqual(before);
+        expect(await layoutProblems(page), `${url} at ${width}px`).toEqual([]);
+      }
+    }
+    expect(errors).toEqual([]);
+  });
+
+  test("open a replay from the list in Detailed Map Analysis", async ({ page }) => {
+    await page.goto("/replays");
+    await page.getByRole("row", { name: /Miraie/ }).click();
+    await page.getByRole("button", { name: "Detailed map analysis" }).click();
+    await expect(page).toHaveURL(/\/check\?path=/);
+    await expect(page.getByRole("heading", { name: "Misses and combo breaks" })).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText(/30 misses/)).toBeVisible();
+    await expect(page.getByLabel("Only plays of this map")).toBeChecked();
+    await expect(page.getByRole("heading", { name: "Timing through the map" })).toBeVisible();
+    expect(await layoutProblems(page)).toEqual([]);
+  });
+
+  test("settings are remembered: best replays and the level set by hand", async ({ page, request }) => {
+    await page.goto("/replays");
+    await page.getByText("Best replays", { exact: true }).click();
+    await expect.poll(async () => (await (await request.get("/api/settings")).json()).replay_set).toBe("best");
+    await page.goto("/overview");
+    const manual = page.locator("label.switch", { hasText: "Set my level by hand" });
+    await manual.click();
+    await expect(page.getByLabel("Set my level by hand")).toBeChecked();
+    await expect.poll(async () => (await (await request.get("/api/settings")).json()).level_override).not.toBeNull();
+    await expect(page.getByText(/^Set by you\./)).toBeVisible();
+    await manual.click();
+    await expect.poll(async () => (await (await request.get("/api/settings")).json()).level_override).toBeNull();
+    await page.goto("/replays");
+    await page.getByText("All replays", { exact: true }).click();
+    await expect.poll(async () => (await (await request.get("/api/settings")).json()).replay_set).toBe("all");
+  });
+
+  test("the sidebar navigates, folds with Ctrl+B and remembers it", async ({ page }) => {
+    await page.goto("/replays");
+    const nav = page.getByRole("navigation", { name: "Pages" });
+    await nav.getByRole("link", { name: "Aim" }).click();
+    await expect(page).toHaveURL(/\/aim$/);
+    await expect(page.getByTestId("toolbar-title")).not.toHaveClass(/shown/);
+    await expect(nav.getByRole("link", { name: "Aim" })).toHaveClass(/active/);
+    await expect(page.getByRole("button", { name: "Back" })).toHaveCount(0);
+    await nav.getByRole("link", { name: "Overview" }).click();
+    await expect(page).toHaveURL(/\/overview$/);
+    await nav.getByRole("link", { name: /^Replays/ }).click();
+    await expect(page).toHaveURL(/\/replays$/);
+    await page.keyboard.press("Control+b");
+    await expect(page.locator(".app")).toHaveClass(/is-rail/);
+    await page.reload();
+    await expect(page.locator(".app")).toHaveClass(/is-rail/);
+    await page.getByRole("button", { name: "Show sidebar" }).click();
+    await expect(page.locator(".app")).not.toHaveClass(/is-rail/);
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expect(nav).toBeHidden();
+    await page.getByRole("button", { name: "Menu" }).click();
+    await expect(nav.getByRole("link", { name: "Overview" })).toBeVisible();
+  });
+
+  test("the API reference and the installable app", async ({ page, request }) => {
+    const docs = await request.get("/docs");
+    expect(docs.ok()).toBe(true);
+    expect(await docs.text()).toContain("/api/openapi.json");
+    const manifest = await request.get("/manifest.webmanifest");
+    expect(manifest.headers()["content-type"]).toBe("application/manifest+json");
+    expect((await manifest.json()).icons).toHaveLength(3);
+    await page.goto("/overview");
+    await expect.poll(() => page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())), { timeout: 30_000 }).toBe(true);
+  });
+
+  test("a big drop of replay files names only the first 15 (#37)", async ({ page }) => {
+    await page.goto("/replays");
+    const files = INDEX.flatMap((r) => [path.join(RES, "replays", r.replay), path.join(RES, "maps", `${r.md5}.osu`)]);
+    await page.locator(".dropzone input[type=file]").setInputFiles(files);
+    await expect(page.getByText(`and ${files.length - 15} more`)).toBeVisible();
+    await expect(page.locator(".file-list .chip")).toHaveCount(16);
+    expect(await layoutProblems(page)).toEqual([]);
+  });
+});
+
+test("the setup guide: osu! folder, playstyle, replays, tour", async ({ page, request }) => {
+  await request.patch("/api/settings", { data: { onboarded: false } });
+  await page.setViewportSize({ width: 1440, height: 800 });
+  await page.goto("/replays");
+  const guide = page.getByRole("dialog", { name: "Set up osu! coach" });
+
+  // 1 · osu! version, and its folder, which wasn't found automatically
+  await expect(guide.getByRole("heading", { name: "Which osu! do you play?" })).toBeVisible();
+  await guide.getByText("osu!stable", { exact: true }).click();
+  await expect(guide.getByText(/osu!stable wasn't found automatically/)).toBeVisible();
+  const folder = guide.getByLabel("osu!stable folder");
+  await folder.fill(path.join(os.tmpdir(), "no-osu-here"));
+  await guide.getByRole("button", { name: "Check folder" }).click();
+  await expect(guide.getByText(/^No osu! found in/)).toBeVisible();
+  const osu = stableInstall();
+  await folder.fill(osu);
+  await guide.getByRole("button", { name: "Check folder" }).click();
+  await expect(guide.getByText(/^Found osu!stable/).first()).toBeVisible();
+  expect(await guideProblems(page)).toEqual([]);
+  await guide.getByRole("button", { name: "Continue", exact: true }).click();
+
+  // 2 · playstyle and its settings
+  await expect(guide.getByRole("heading", { name: "How do you play?" })).toBeVisible();
+  await guide.getByText("Mouse", { exact: true }).click();
+  await guide.getByText("Rapid trigger keyboard", { exact: true }).click();
+  await expect(guide.getByRole("radio", { name: "Rapid trigger keyboard" })).toBeChecked();
+  await guide.getByRole("spinbutton", { name: "Mouse DPI" }).fill("1600");
+  await guide.getByRole("spinbutton", { name: "osu! sensitivity" }).fill("0.8");
+  await guide.getByRole("spinbutton", { name: "Actuation point (mm)" }).fill("0.4");
+  expect(await guideProblems(page)).toEqual([]);
+  await guide.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(guide.getByRole("heading", { name: "Find your replays" })).toBeVisible();
+  expect(await (await request.get("/api/setup")).json()).toMatchObject({
+    client: "stable",
+    device: "mouse",
+    keyboard: "rapid_trigger",
+    mouse_dpi: 1600,
+    ingame_sens: 0.8,
+    actuation_mm: 0.4,
+  });
+
+  // 3 · the folder from step 1 is read, then analysed by itself
+  await expect(guide.getByLabel(`osu!stable – ${osu}`)).toBeChecked();
+  expect(await guideProblems(page)).toEqual([]);
+  await guide.getByRole("button", { name: "Find and analyse my replays" }).click();
+  await expect(guide.getByText(/^Analysed \d+ replays/)).toBeVisible({ timeout: 300_000 }); // of the player chosen last
+  await guide.getByRole("button", { name: "Continue", exact: true }).click();
+
+  // 4 · the tour
+  await guide.getByRole("button", { name: "Show me around" }).click();
+  for (const group of ["Replays", "Analysis"]) {
+    await expect(guide.getByRole("heading", { name: group, exact: true })).toBeVisible();
+    expect(await guideProblems(page)).toEqual([]);
+    await guide.getByRole("button", { name: "Next", exact: true }).click();
+  }
+  await expect(guide.getByText("Skill Development")).toBeVisible();
+  await guide.getByRole("button", { name: "Finish the tour" }).click();
+
+  // 5 · done: on to the Overview, and the guide stays closed
+  await expect(guide.getByRole("heading", { name: "You're all set!" })).toBeVisible();
+  await expect(guide.getByText("Mouse · 1,600 DPI, sensitivity 0.8")).toBeVisible();
+  await guide.getByRole("button", { name: "Start using osu! coach" }).click();
+  await expect(page).toHaveURL(/\/overview$/);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect((await (await request.get("/api/settings")).json()).onboarded).toBe(true);
+
+  // what was entered is on Tips & Setup; the guide opens again from the toolbar
+  await page.goto("/tips");
+  await page.getByText("Your setup", { exact: true }).click();
+  await expect(page.getByRole("spinbutton", { name: "Mouse DPI" })).toHaveValue("1600");
+  await expect(page.getByRole("spinbutton", { name: "Actuation point (mm)" })).toHaveValue("0.4");
+  await page.getByRole("button", { name: "Setup guide" }).click();
+  await expect(page.getByRole("dialog", { name: "Setup guide" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });

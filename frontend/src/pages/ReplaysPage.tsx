@@ -17,7 +17,7 @@ import {
 import { DataTable, type Column } from "../components/DataTable";
 import { IconMagnify, IconPlay, IconSearch } from "../components/icons";
 import { EmptyState, JobStatus } from "../components/states";
-import { Alert, Card, Dropzone, Field, Meter, Page, Row, Segmented, Switch, type Option } from "../components/ui";
+import { Alert, Card, Dropzone, Field, FileChips, Meter, Page, Row, Segmented, Switch, type Option } from "../components/ui";
 import { fmt, int, localTime, pct } from "../lib/format";
 
 type Settings = Schemas["AppSettings"];
@@ -166,15 +166,7 @@ function FindCard({ settings }: { settings: Settings }) {
           </Field>
         </>
       )}
-      {uploads.length > 0 && (
-        <div className="file-list">
-          {uploads.map((u) => (
-            <span key={u.id} className="chip" title={u.path}>
-              {u.name}
-            </span>
-          ))}
-        </div>
-      )}
+      <FileChips files={uploads} />
       {uploadError && <Alert tone="bad">{uploadError}</Alert>}
       <div className="grow" />
       <JobStatus

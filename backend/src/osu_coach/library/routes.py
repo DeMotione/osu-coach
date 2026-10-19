@@ -16,6 +16,7 @@ from osu_coach.library.schemas import (
     AnalysisRequest,
     AnalysisStatus,
     InstallOut,
+    InstallPath,
     LibraryOut,
     RescanRequest,
     ScanJob,
@@ -31,6 +32,14 @@ router = APIRouter(tags=["Replays"])
 @router.get("/installs", summary="osu! installs found on this computer")
 def installs(ws: WorkspaceDep, refresh: bool = False) -> list[InstallOut]:
     return [svc.install_out(i) for i in ws.installs(refresh=refresh)]
+
+
+@router.post(
+    "/installs", summary="Add an osu! folder that wasn't found automatically", status_code=201, responses=responses(422)
+)
+def add_install(req: InstallPath, ws: WorkspaceDep) -> InstallOut:
+    """The folder is remembered: from now on it is listed in ``GET /api/installs`` and scanned like the others."""
+    return svc.install_out(svc.add_install_path(ws, req.path))
 
 
 @router.post("/uploads", summary="Add replay (.osr) / beatmap (.osu) files", status_code=201, responses=responses(422))

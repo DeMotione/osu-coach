@@ -22,6 +22,14 @@ class InstallOut(BaseModel):
     collection_db: str | None
 
 
+class InstallPath(Request):
+    path: str = Field(
+        min_length=1,
+        max_length=1000,
+        description="An osu!stable folder (with osu!.exe and Songs) or an osu!lazer data folder (with files/).",
+    )
+
+
 class UploadedFile(BaseModel):
     id: str = Field(description="Use this in a scan request (``files``).")
     name: str

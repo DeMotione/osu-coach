@@ -1,5 +1,6 @@
 import { Children, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
+import { int } from "../lib/format";
 import { useReportTitleVisibility } from "../lib/pageTitleState";
 import { IconCheck, IconHelp, IconInfo, IconUpload, IconWarn } from "./icons";
 
@@ -351,6 +352,25 @@ export function Dropzone({
           e.target.value = "";
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * The files added with a {@link Dropzone}, as chips: only the first ``max`` by name and then how many more, so a big
+ * drop of replays doesn't stretch the card.
+ */
+export function FileChips({ files, max = 15 }: { files: { id: string; name: string; path: string }[]; max?: number }) {
+  if (!files.length) return null;
+  const more = files.length - max;
+  return (
+    <div className="file-list">
+      {files.slice(0, max).map((f) => (
+        <span key={f.id} className="chip" title={f.path}>
+          {f.name}
+        </span>
+      ))}
+      {more > 0 && <span className="chip chip--more">and {int(more)} more</span>}
     </div>
   );
 }

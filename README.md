@@ -134,12 +134,24 @@ checks that the portable app and the `.deb` start their server, and publishes th
 as the release notes. Pull requests that change `packaging/`, `desktop/` or that workflow build the installers too,
 without publishing.
 
+### First start: the setup guide
+
+The app opens with a five-step guide the first time (a new data folder; anyone with settings from an earlier
+version skips it): **osu! version** (stable or lazer, and its folder if it wasn't found), **playstyle** (mouse or
+tablet; keyboard, rapid-trigger keyboard or SayoDevice, with the same settings as Tips & Setup, where they show
+afterwards), **replays** (found automatically or added by hand, then scanned and analysed right away, with the
+time left once the analysis is under way), an optional **tour** of the sections, and **done**. *Skip setup* closes
+it for good; the compass button in the toolbar opens it again. Finished or skipped is `onboarded` in
+`settings.json`.
+
 ### Where the replays come from
 
 - **osu!stable**: found automatically (`%LOCALAPPDATA%\osu!`, `C:\osu!`, common Wine prefixes).
   Uses `Data/r` (every local score's replay is saved there automatically) and `Replays`.
 - **osu!lazer**: found automatically (`%APPDATA%\osu`, `~/.local/share/osu`, or a moved data
   folder from `storage.ini`). Replays and beatmaps are recognised inside lazer's file store.
+- An osu! folder that wasn't found can be entered in the setup guide (`POST /api/installs`); it is remembered
+  (`install_paths` in `settings.json`) and listed and scanned like the others.
 - Any folder with `.osr` files, or drag and drop files into the app.
 
 ### Playlists in osu!lazer

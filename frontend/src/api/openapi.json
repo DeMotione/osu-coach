@@ -213,6 +213,46 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Replays"
+        ],
+        "summary": "Add an osu! folder that wasn't found automatically",
+        "description": "The folder is remembered: from now on it is listed in ``GET /api/installs`` and scanned like the others.",
+        "operationId": "add_install_api_installs_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallPath"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/uploads": {
@@ -2715,6 +2755,12 @@
             "type": "boolean",
             "title": "Setup Saved",
             "default": false
+          },
+          "onboarded": {
+            "type": "boolean",
+            "title": "Onboarded",
+            "description": "The first-start setup guide was finished or skipped.",
+            "default": false
           }
         },
         "type": "object",
@@ -4587,6 +4633,23 @@
           "collection_db"
         ],
         "title": "InstallOut"
+      },
+      "InstallPath": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Path",
+            "description": "An osu!stable folder (with osu!.exe and Songs) or an osu!lazer data folder (with files/)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "InstallPath"
       },
       "KeyShare": {
         "properties": {
@@ -7347,6 +7410,17 @@
               }
             ],
             "title": "Manual Comfort"
+          },
+          "onboarded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onboarded"
           }
         },
         "additionalProperties": false,

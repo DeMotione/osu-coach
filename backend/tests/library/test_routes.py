@@ -15,6 +15,26 @@ def test_installs_without_osu_on_this_computer(client):
     assert client.get("/api/installs").json() == []
 
 
+def test_add_an_osu_folder_that_wasnt_found(tmp_path, client):
+    root = tmp_path / "osu!"
+    (root / "Songs").mkdir(parents=True)
+    (root / "Data" / "r").mkdir(parents=True)
+    r = client.post("/api/installs", json={"path": f'"{root}"'})  # pasted with quotes, as Windows copies paths
+    assert r.status_code == 201, r.text
+    assert r.json()["kind"] == "stable" and r.json()["root"] == str(root)
+    assert client.post("/api/installs", json={"path": str(root)}).status_code == 201  # again: listed once
+    assert [i["root"] for i in client.get("/api/installs").json()] == [str(root)]
+    assert load_settings(workspace(client).cache_dir)["install_paths"] == [str(root)]
+
+
+def test_add_install_refuses_a_folder_without_osu(tmp_path, client):
+    r = client.post("/api/installs", json={"path": str(tmp_path)})
+    assert r.status_code == 422 and r.json()["code"] == "not_osu_folder"
+    assert client.post("/api/installs", json={"path": ""}).json()["code"] == "validation_error"
+    assert client.post("/api/installs", json={"path": ' "" '}).json()["code"] == "not_osu_folder"
+    assert client.get("/api/installs").json() == []
+
+
 def test_nothing_scanned_yet(client):
     lib = client.get("/api/library").json()
     assert lib == {"scanned": False, "mode": None, "sources": [], "scan_limit": None, "replays": 0, "players": []}

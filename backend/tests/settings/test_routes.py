@@ -3,7 +3,7 @@
 import pytest
 
 from osu_coach.settings.repository import load_settings, save_settings
-from tests.conftest import workspace
+from tests.conftest import make_client, workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
 
@@ -89,3 +89,20 @@ def test_setup_zero_means_unknown_and_ranges_are_checked(client):
     assert client.put("/api/setup", json={**setup, "screen_w_px": 100}).status_code == 422
     assert client.put("/api/setup", json={**setup, "device": "joystick"}).status_code == 422
     assert client.put("/api/setup", json={**setup, "colour": "pink"}).status_code == 422
+
+
+def test_the_setup_guide_is_shown_once(client):
+    assert client.get("/api/settings").json()["onboarded"] is False
+    assert client.patch("/api/settings", json={"onboarded": True}).json()["onboarded"] is True
+    assert load_settings(workspace(client).cache_dir)["onboarded"] is True
+
+
+def test_earlier_users_skip_the_setup_guide(tmp_path):
+    save_settings({"latest": 1000}, tmp_path / "used")
+    with make_client(tmp_path / "used") as c:
+        assert c.get("/api/settings").json()["onboarded"] is True
+    with make_client(tmp_path / "new") as c:  # a new data folder: the guide
+        assert c.get("/api/settings").json()["onboarded"] is False
+        c.put("/api/setup", json=c.get("/api/setup").json())  # saved during the guide, which isn't finished
+    with make_client(tmp_path / "new") as c:
+        assert c.get("/api/settings").json()["onboarded"] is False

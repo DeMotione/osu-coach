@@ -51,6 +51,28 @@ def install_out(inst: detect.Install) -> InstallOut:
     )
 
 
+def add_install_path(ws: Workspace, path: str) -> detect.Install:
+    """Remember an osu! folder that wasn't found automatically (``install_paths``); it is listed and scanned like
+    the ones that were."""
+    raw = path.strip().strip('"').strip()
+    if not raw:
+        raise Invalid("Enter the folder osu! is in.", "not_osu_folder")
+    root = Path(raw).expanduser()
+    inst = detect.install_at(root)
+    if inst is None:
+        raise Invalid(
+            f"No osu! found in {root}. For osu!stable choose the folder with osu!.exe and Songs in it; "
+            "for osu!lazer its data folder (the one with files and client.realm in it).",
+            "not_osu_folder",
+        )
+    saved = ws.settings().get("install_paths")
+    saved = [p for p in saved if isinstance(p, str)] if isinstance(saved, list) else []
+    if str(inst.root) not in saved:
+        ws.update_settings(install_paths=[*saved, str(inst.root)])
+    ws.installs(refresh=True)
+    return inst
+
+
 # ------------------------------------------------------------------ scan
 def scan_args(ws: Workspace, req: ScanRequest) -> ScanArgs:
     only = req.mode == "files"

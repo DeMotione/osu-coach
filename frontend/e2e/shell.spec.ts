@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+test.beforeEach(async ({ request }) => {
+  await request.patch("/api/settings", { data: { onboarded: true } });
+});
+
 for (const desktop of [false, true]) {
   for (const width of [1440, 390]) {
     test(`content scrolls between the bars (${desktop ? "desktop shell" : "browser shell"}, ${width}px)`, async ({ page }) => {

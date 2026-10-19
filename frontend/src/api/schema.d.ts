@@ -84,7 +84,11 @@ export interface paths {
         /** osu! installs found on this computer */
         get: operations["installs_api_installs_get"];
         put?: never;
-        post?: never;
+        /**
+         * Add an osu! folder that wasn't found automatically
+         * @description The folder is remembered: from now on it is listed in ``GET /api/installs`` and scanned like the others.
+         */
+        post: operations["add_install_api_installs_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -946,6 +950,12 @@ export interface components {
              * @default false
              */
             setup_saved: boolean;
+            /**
+             * Onboarded
+             * @description The first-start setup guide was finished or skipped.
+             * @default false
+             */
+            onboarded: boolean;
         };
         /** ArMissRow */
         ArMissRow: {
@@ -1555,6 +1565,14 @@ export interface components {
             files_dir: string | null;
             /** Collection Db */
             collection_db: string | null;
+        };
+        /** InstallPath */
+        InstallPath: {
+            /**
+             * Path
+             * @description An osu!stable folder (with osu!.exe and Songs) or an osu!lazer data folder (with files/).
+             */
+            path: string;
         };
         /** KeyShare */
         KeyShare: {
@@ -2462,6 +2480,8 @@ export interface components {
             player?: string | null;
             /** Manual Comfort */
             manual_comfort?: number | null;
+            /** Onboarded */
+            onboarded?: boolean | null;
         };
         /**
          * SetupModel
@@ -3256,6 +3276,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstallOut"][];
+                };
+            };
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_install_api_installs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstallPath"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallOut"];
                 };
             };
             /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */

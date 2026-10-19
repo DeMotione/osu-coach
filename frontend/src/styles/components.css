@@ -651,6 +651,20 @@ input[type="range"] {
   white-space: nowrap;
 }
 
+/* added files: long replay names are cut (the whole path shows on hover), so several fit on a line */
+.file-list .chip {
+  display: inline-block;
+  max-width: min(100%, 210px);
+  line-height: 26px;
+}
+
+/* "and 85 more" after the first files of a big drop: a count, not a file */
+.chip--more {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--muted);
+}
+
 /* ------------------------------------------------------------------ progress */
 .progress {
   display: flex;

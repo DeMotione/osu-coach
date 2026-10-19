@@ -123,3 +123,27 @@ export const IconArrowLeft = (p: P) => (
 export const IconChevronRight = (p: P) => (
   <I {...p}><path d="m9 6 6 6-6 6" /></I>
 );
+export const IconArrowRight = (p: P) => (
+  <I {...p}><path d="M5 12h14M13 6l6 6-6 6" /></I>
+);
+export const IconMouse = (p: P) => (
+  <I {...p}><rect x="6" y="3" width="12" height="18" rx="6" /><path d="M12 7v3.5" /></I>
+);
+export const IconPen = (p: P) => (
+  <I {...p}><path d="M15.5 4.5 19.5 8.5 9 19H5v-4z" /><path d="m13 7 4 4" /></I>
+);
+export const IconBolt = (p: P) => (
+  <I {...p}><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z" /></I>
+);
+export const IconKeypad = (p: P) => (
+  <I {...p}><rect x="3" y="6" width="18" height="12" rx="3" /><rect x="6.5" y="9.5" width="4.5" height="5" rx="1" /><rect x="13" y="9.5" width="4.5" height="5" rx="1" /></I>
+);
+export const IconCompass = (p: P) => (
+  <I {...p}><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5z" /></I>
+);
+export const IconOsu = (p: P) => (
+  <I {...p}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4.5" /></I>
+);
+export const IconTriangles = (p: P) => (
+  <I {...p}><path d="M12 3.5 21 19H3z" /><path d="m12 11 3.5 6h-7z" /></I>
+);

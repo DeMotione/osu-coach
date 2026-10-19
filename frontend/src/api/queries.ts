@@ -96,6 +96,15 @@ export function useSaveSetup() {
 export const useInstalls = () =>
   useQuery({ queryKey: keys.installs, queryFn: () => unwrap(api.GET("/api/installs")), staleTime: Infinity });
 
+/** Remember an osu! folder that wasn't found automatically; it is listed with the found installs from then on. */
+export function useAddInstall() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (path: string) => unwrap(api.POST("/api/installs", { body: { path } })),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.installs }),
+  });
+}
+
 export const useLibrary = () => useQuery({ queryKey: keys.library, queryFn: () => unwrap(api.GET("/api/library")) });
 
 export type SelectionParams = {
