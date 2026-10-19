@@ -69,7 +69,8 @@ export function usePatchSettings() {
     },
     onSuccess: (settings, patch) => {
       qc.setQueryData(keys.settings, settings);
-      if ("replay_set" in patch || "level_override" in patch) void invalidateResults(qc);
+      // the change is done once the pages built from the profile have been recalculated: until then it is pending
+      if ("replay_set" in patch || "level_override" in patch) return invalidateResults(qc);
     },
   });
 }

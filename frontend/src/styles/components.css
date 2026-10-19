@@ -1368,6 +1368,41 @@ details.disclosure > .disclosure__body {
   }
 }
 
+/* a value typed in and applied with a button, e.g. the level set by hand */
+.apply-form {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.apply-form .input {
+  width: 96px;
+}
+
+/* what a change is doing: recalculating (spinner), applied (✓), waiting for Apply, or why it can't be applied */
+.apply-status {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 20px;
+  color: var(--muted);
+  font-size: var(--t-sm);
+}
+
+.apply-status svg,
+.apply-status .spinner {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.apply-status--good {
+  color: var(--good);
+}
+
+.apply-status--bad {
+  color: var(--bad);
+}
+
 .spinner {
   width: 16px;
   height: 16px;
