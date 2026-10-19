@@ -213,6 +213,46 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Replays"
+        ],
+        "summary": "Add an osu! folder that wasn't found automatically",
+        "description": "The folder is remembered: from now on it is listed in ``GET /api/installs`` and scanned like the others.",
+        "operationId": "add_install_api_installs_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallPath"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/uploads": {
@@ -266,6 +306,7 @@
           "Replays"
         ],
         "summary": "Find replays (background job)",
+        "description": "Every replay of the sources is read; how many of them to analyse is chosen afterwards (``latest`` of\n``GET /api/library/selection`` and ``POST /api/analysis``).",
         "operationId": "scan_api_library_scan_post",
         "requestBody": {
           "content": {
@@ -321,58 +362,6 @@
         }
       }
     },
-    "/api/library/rescan": {
-      "post": {
-        "tags": [
-          "Replays"
-        ],
-        "summary": "Read the same sources further back (background job)",
-        "description": "After choosing more replays than the last scan read (*Replays to read*), the same sources are scanned again.",
-        "operationId": "rescan_api_library_rescan_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RescanRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ScanJob"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/library": {
       "get": {
         "tags": [
@@ -387,6 +376,38 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LibraryOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library/files": {
+      "delete": {
+        "tags": [
+          "Replays"
+        ],
+        "summary": "Forget the replay files added by hand",
+        "description": "Their replays leave the library now; analyse again to leave them out of the analysis too.",
+        "operationId": "forget_files_api_library_files_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -2432,6 +2453,7 @@
           },
           "latest": {
             "$ref": "#/components/schemas/Latest",
+            "description": "Analyse only the newest N of the found replays; 0 = all.",
             "default": 500
           },
           "date_range": {
@@ -2633,7 +2655,7 @@
           },
           "latest": {
             "$ref": "#/components/schemas/Latest",
-            "description": "Newest replays to read; 0 = all.",
+            "description": "Newest of the found replays to analyse; 0 = all.",
             "default": 500
           },
           "date_range": {
@@ -2714,6 +2736,12 @@
           "setup_saved": {
             "type": "boolean",
             "title": "Setup Saved",
+            "default": false
+          },
+          "onboarded": {
+            "type": "boolean",
+            "title": "Onboarded",
+            "description": "The first-start setup guide was finished or skipped.",
             "default": false
           }
         },
@@ -4588,6 +4616,23 @@
         ],
         "title": "InstallOut"
       },
+      "InstallPath": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Path",
+            "description": "An osu!stable folder (with osu!.exe and Songs) or an osu!lazer data folder (with files/)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "InstallPath"
+      },
       "KeyShare": {
         "properties": {
           "key": {
@@ -4667,7 +4712,7 @@
           0
         ],
         "title": "Latest",
-        "description": "How many of the newest replays to read; 0 = all of them."
+        "description": "How many of the newest found replays to analyse; 0 = all of them."
       },
       "LazerPackJob": {
         "properties": {
@@ -4904,17 +4949,6 @@
             "type": "array",
             "title": "Sources"
           },
-          "scan_limit": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Scan Limit"
-          },
           "replays": {
             "type": "integer",
             "title": "Replays"
@@ -4925,6 +4959,14 @@
             },
             "type": "array",
             "title": "Players"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/UploadedFile"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "Replay and beatmap files added by hand: kept, so the next scan adds to them."
           }
         },
         "type": "object",
@@ -4932,9 +4974,9 @@
           "scanned",
           "mode",
           "sources",
-          "scan_limit",
           "replays",
-          "players"
+          "players",
+          "files"
         ],
         "title": "LibraryOut"
       },
@@ -5436,7 +5478,7 @@
             },
             "type": "array",
             "title": "Latest Choices",
-            "description": "Replay counts to read; 0 = all."
+            "description": "Replay counts to analyse; 0 = all."
           },
           "periods": {
             "items": {
@@ -6013,7 +6055,7 @@
             },
             "type": "object",
             "title": "Skills",
-            "description": "Skill scores (50 = all-time average at that difficulty)."
+            "description": "The Overview's skill ratings, 0–100: 50 = expected at the reference comfort level (``skill_reference_stars``)."
           }
         },
         "type": "object",
@@ -6507,6 +6549,18 @@
             "title": "First Day",
             "description": "Day of the first saved play."
           },
+          "skill_reference_stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Reference Stars",
+            "description": "The comfort level (★) every period's skill ratings are measured against; null = none saved."
+          },
           "rows": {
             "items": {
               "$ref": "#/components/schemas/PeriodRow"
@@ -6520,6 +6574,7 @@
           "player",
           "period",
           "first_day",
+          "skill_reference_stars",
           "rows"
         ],
         "title": "ProgressOut"
@@ -6837,19 +6892,6 @@
         ],
         "title": "Regression"
       },
-      "RescanRequest": {
-        "properties": {
-          "latest": {
-            "$ref": "#/components/schemas/Latest"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "latest"
-        ],
-        "title": "RescanRequest"
-      },
       "SayoRow": {
         "properties": {
           "setting": {
@@ -7023,12 +7065,7 @@
             "type": "array",
             "maxItems": 2000,
             "title": "Files",
-            "description": "Ids of uploaded files."
-          },
-          "latest": {
-            "$ref": "#/components/schemas/Latest",
-            "description": "Read only the newest N replays; 0 = all.",
-            "default": 500
+            "description": "Ids of uploaded files, added to the ones added by earlier scans (``LibraryOut.files``)."
           }
         },
         "additionalProperties": false,
@@ -7040,23 +7077,11 @@
           "replays": {
             "type": "integer",
             "title": "Replays",
-            "description": "osu!standard replays found."
+            "description": "osu!standard replays found: every one in the sources."
           },
           "players": {
             "type": "integer",
             "title": "Players"
-          },
-          "scan_limit": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Scan Limit",
-            "description": "Newest replays read per source; null = all."
           },
           "warnings": {
             "items": {
@@ -7070,7 +7095,6 @@
         "required": [
           "replays",
           "players",
-          "scan_limit",
           "warnings"
         ],
         "title": "ScanResult"
@@ -7176,11 +7200,6 @@
             "title": "Empty Range",
             "description": "No replays in the chosen time range."
           },
-          "older_hint": {
-            "type": "boolean",
-            "title": "Older Hint",
-            "description": "A limited scan may have missed older replays of this player."
-          },
           "left_out": {
             "items": {
               "$ref": "#/components/schemas/Count"
@@ -7207,7 +7226,6 @@
           "date_from",
           "date_to",
           "empty_range",
-          "older_hint",
           "left_out",
           "left_out_total"
         ],
@@ -7347,6 +7365,17 @@
               }
             ],
             "title": "Manual Comfort"
+          },
+          "onboarded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onboarded"
           }
         },
         "additionalProperties": false,

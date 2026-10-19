@@ -10,6 +10,7 @@ import pytest
 from osu_coach.analysis.domain import ReplayAnalysis
 from osu_coach.cli import main
 from osu_coach.library.repository import Library, analyze_files
+from osu_coach.profile.domain import build_profile
 from osu_coach.progress import domain as domain_progress
 from osu_coach.progress import repository as progress
 from tests.conftest import replay_and_map
@@ -142,17 +143,53 @@ def _copy(a, key, date, miss_share=0.0, seed=0):
     return ReplayAnalysis(key, meta, o, a.presses.copy())
 
 
-def test_skills_by_month_show_improvement(tmp_path, nm):
-    # same maps, more aim misses in August: measured against one model, September's aim is better.
-    # (Scoring each month against its own model would put both months near 50.)
+def _months(nm):
+    """August: the sample play five times with 15% of its jumps missed; September: five times clean."""
     early = [_copy(nm, f"e{i}", dt.datetime(2026, 8, 10 + i), miss_share=0.15, seed=i) for i in range(5)]
     late = [_copy(nm, f"l{i}", dt.datetime(2026, 9, 10 + i)) for i in range(5)]
+    return early, late
+
+
+def test_skills_by_month_show_improvement(tmp_path, nm):
+    # same maps, more aim misses in August: rated at one comfort level, September's aim is better.
+    # (Rating each month at its own comfort level would put both months near 50.)
+    early, late = _months(nm)
     conn = progress.connect(tmp_path)
     progress.record(conn, early + late, UTC)
     progress.rebuild_months(conn, "Mot1one", early + late, UTC)
     m = progress.monthly(conn, "Mot1one").set_index("month")
-    assert m.loc["2026-09", "skill_aim"] > m.loc["2026-08", "skill_aim"] + 10
+    assert m.loc["2026-09", "skill_aim"] > m.loc["2026-08", "skill_aim"] + 3
+    assert m.loc["2026-09", "skill_speed"] == m.loc["2026-08", "skill_speed"]  # the misses were jumps only
     assert m.loc["2026-09", "stream_bpm"] == m.loc["2026-08", "stream_bpm"] or m["stream_bpm"].isna().all()
+
+
+def test_skills_by_month_are_the_overviews_ratings(tmp_path, nm):
+    """A month's skills are the ratings the Overview shows for its plays, at the comfort level of all plays (#34)."""
+    early, late = _months(nm)
+    conn = progress.connect(tmp_path)
+    progress.record(conn, early + late, UTC)
+    progress.rebuild_months(conn, "Mot1one", early + late, UTC)
+    m = progress.monthly(conn, "Mot1one").set_index("month")
+    overview = build_profile(early + late)  # the Overview of every play
+    reference = overview.levels["comfort_stars"]
+    assert m["skill_reference_stars"].tolist() == [reference, reference]
+    september = build_profile(late, level=reference).experimental_skills
+    for skill, rating in september.items():
+        saved = m.loc["2026-09", f"skill_{skill}"]
+        assert (saved != saved and rating["score"] is None) or saved == rating["score"], skill
+
+
+def test_skills_saved_by_older_versions_are_not_shown(tmp_path):
+    """Scores of the earlier rating scale (no reference saved with them) would mix two scales in one chart."""
+    conn = _two_months(tmp_path)
+    with conn:
+        conn.executemany(
+            "INSERT INTO month_metrics VALUES ('P', ?, ?, ?, 0, '')",
+            [("2026-08", "skill_aim", 70.0), ("2026-09", "skill_aim", 40.0), ("2026-09", "skill_reference_stars", 5.0)],
+        )
+    m = progress.monthly(conn, "P").set_index("month")
+    assert m.loc["2026-08", "skill_aim"] != m.loc["2026-08", "skill_aim"]  # NaN: the old scale
+    assert m.loc["2026-09", "skill_aim"] == 40.0 and m.loc["2026-09", "skill_reference_stars"] == 5.0
 
 
 def test_skills_need_a_few_plays_in_a_month(tmp_path, nm):
@@ -190,7 +227,7 @@ def test_update_uses_earlier_analyses_from_the_cache(tmp_path, monkeypatch):
     progress.update(lib.cache, [newest], lib.load_cached, UTC)  # later run: only the newest replay
     after = progress.monthly(progress.connect(lib.cache), "Mot1one")
     pd.testing.assert_frame_equal(before, after)
-    assert before["plays"].sum() == 3 and before["skill_accuracy"].notna().any()
+    assert before["plays"].sum() == 3 and before["ur_single"].notna().any()
 
 
 # ------------------------------------------------------------------ command line and app

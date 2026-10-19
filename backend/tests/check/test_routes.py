@@ -1,16 +1,33 @@
 """Detailed Map Analysis: one replay on its own."""
 
+import hashlib
+
 import pytest
 
 from osu_coach.beatmaps.parser import read_metadata
 from osu_coach.progress import repository as progress
-from tests.conftest import plays_folder, sample_paths, scan
+from tests.conftest import MOT1ONE, plays_folder, sample_paths, scan, wait
 
 pytestmark = pytest.mark.usefixtures("_isolated")
 
 
 def _title(name):
     return read_metadata(sample_paths(name)[1])["Title"]
+
+
+def _lazer(tmp_path):
+    """A lazer data folder: its replays and maps are in the file store, named by their SHA-256, without .osr."""
+    root = tmp_path / "lazer"
+    (root / "files").mkdir(parents=True)
+    (root / "client.realm").write_bytes(b"")
+    for name in MOT1ONE:
+        for p in sample_paths(name):
+            data = p.read_bytes()
+            h = hashlib.sha256(data).hexdigest()
+            stored = root / "files" / h[0] / h[:2] / h
+            stored.parent.mkdir(parents=True, exist_ok=True)
+            stored.write_bytes(data)
+    return root
 
 
 def test_without_replays_says_what_to_do(client):
@@ -49,6 +66,36 @@ def test_opens_the_replay_chosen_elsewhere_with_its_maps_plays(tmp_path, client)
     lst = client.get("/api/check/replays", params={"path": path, "only_map": True}).json()
     assert lst["selected"] == path and lst["only_map"]
     assert len(lst["replays"]) == 1 and _title("mot1one__lazer_dthd_spinner.osr") in lst["replays"][0]["map"]
+
+
+def test_scanned_lazer_replays_are_checked(tmp_path, client):
+    """Replays in lazer's file store have no .osr in their names; the scanned ones open all the same (#17)."""
+    root = _lazer(tmp_path)
+    assert client.post("/api/installs", json={"path": str(root)}).status_code == 201
+    r = client.post("/api/library/scan", json={"mode": "library", "installs": [str(root)]})
+    assert wait(client, r.json())["result"]["replays"] == 3
+    lst = client.get("/api/check/replays").json()
+    assert len(lst["replays"]) == 3 and not lst["replays"][0]["path"].endswith(".osr")
+    oldest = lst["replays"][-1]["path"]
+    opened = client.get("/api/check/replays", params={"path": oldest, "only_map": True})  # from the Replays page
+    assert opened.status_code == 200, opened.text
+    assert opened.json()["selected"] == oldest and opened.json()["only_map"]
+    report = client.post("/api/check/report", json={"path": oldest, "online": False})
+    assert report.status_code == 200, report.text
+    assert _title("mot1one__lazer_nm.osr") in report.json()["summary"]["map"]
+
+
+def test_a_lazer_replay_read_before_the_scan_still_opens(tmp_path, client):
+    """Found by the quick look at the installs before any scan, then a scan of other sources: it still opens."""
+    client.post("/api/installs", json={"path": str(_lazer(tmp_path))})
+    path = client.get("/api/check/replays").json()["selected"]  # nothing scanned: the newest replays of the installs
+    folder = plays_folder(tmp_path)
+    r = client.post("/api/library/scan", json={"mode": "library", "installs": [], "folders": [str(folder)]})
+    assert wait(client, r.json())["status"] == "succeeded"
+    lst = client.get("/api/check/replays", params={"path": path})
+    assert lst.status_code == 200 and lst.json()["selected"] == path
+    report = client.post("/api/check/report", json={"path": path, "online": False})
+    assert report.status_code == 200, report.text
 
 
 def test_a_dropped_replay_is_checked_and_saved_in_the_history(tmp_path, client):

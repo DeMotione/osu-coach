@@ -114,12 +114,10 @@ def _replay(ref: dict, lib: Library) -> CheckReplay:
 
 
 def _require_replay_file(ws: Workspace, path: str) -> Path:
-    """The replay file a request names: only one the library already knows or one in the uploads folder (the
-    API hands out those paths itself), never an arbitrary location. The returned path comes from there, not
-    from the request."""
+    """The replay file a request names: only one the library already knows (lazer's are in its file store, named
+    without .osr) or an .osr in the uploads folder (the API hands out those paths itself), never an arbitrary
+    location. The returned path comes from there, not from the request."""
     wanted = Path(path)
-    if wanted.suffix.lower() != ".osr":
-        raise Invalid("Not a replay file (.osr).", "not_a_replay")
     known = next(
         (
             Path(r["path"])
@@ -131,6 +129,8 @@ def _require_replay_file(ws: Workspace, path: str) -> Path:
         None,
     )
     if known is None:
+        if wanted.suffix.lower() != ".osr":
+            raise Invalid("Not a replay file (.osr).", "not_a_replay")
         uploaded = uploads_dir(ws) / safe_upload_name(wanted.name)
         known = uploaded if same_file(uploaded, wanted) else None
     if known is None or not known.is_file():

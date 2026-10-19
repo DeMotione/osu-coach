@@ -82,8 +82,11 @@ class Workspace:
 
     # -------------------------------------------------------------- installs and the map pool
     def installs(self, refresh: bool = False) -> list[detect.Install]:
+        """The osu! installs found on this computer and the folders the player entered (``install_paths``)."""
         if self._installs is None or refresh:
-            self._installs = detect.find_installs()
+            extra = self.settings().get("install_paths")
+            extra = [p for p in extra if isinstance(p, str)] if isinstance(extra, list) else []
+            self._installs = detect.find_installs(extra=[Path(p) for p in extra])
         return self._installs
 
     @staticmethod

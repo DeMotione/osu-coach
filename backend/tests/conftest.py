@@ -115,8 +115,8 @@ def plays_folder(tmp_path: Path, names=MOT1ONE) -> Path:
     return folder
 
 
-def scan(client: TestClient, folder: Path, latest: int = 500) -> dict:
-    r = client.post("/api/library/scan", json={"mode": "library", "folders": [str(folder)], "latest": latest})
+def scan(client: TestClient, folder: Path) -> dict:
+    r = client.post("/api/library/scan", json={"mode": "library", "folders": [str(folder)]})
     assert r.status_code == 202, r.text
     job = wait(client, r.json())
     assert job["status"] == "succeeded", job

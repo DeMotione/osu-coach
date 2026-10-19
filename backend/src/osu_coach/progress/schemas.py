@@ -30,13 +30,18 @@ class PeriodRow(BaseModel):
     ur: float | None
     stream_bpm: float | None
     few_plays: bool
-    skills: dict[str, float | None] = Field(description="Skill scores (50 = all-time average at that difficulty).")
+    skills: dict[str, float | None] = Field(
+        description="The Overview's skill ratings, 0–100: 50 = expected at the reference comfort level (``skill_reference_stars``)."
+    )
 
 
 class ProgressOut(BaseModel):
     player: str
     period: Period
     first_day: dt.date | None = Field(description="Day of the first saved play.")
+    skill_reference_stars: float | None = Field(
+        description="The comfort level (★) every period's skill ratings are measured against; null = none saved."
+    )
     rows: list[PeriodRow]
 
 

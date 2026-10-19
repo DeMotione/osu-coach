@@ -5,9 +5,10 @@ import { prefetchPage } from "./prefetch";
 
 import { OFFLINE, isApiError } from "../api/client";
 import { useJobs } from "../api/jobs";
-import { useAnalysisStatus, useHealth, useMeta, useProfileSummary } from "../api/queries";
+import { useAnalysisStatus, useHealth, useMeta, useProfileSummary, useSettings } from "../api/queries";
 import {
   IconBook,
+  IconCompass,
   IconMenu,
   IconMonitor,
   IconMoon,
@@ -19,6 +20,7 @@ import {
   IconWinRestore,
   IconX,
 } from "../components/icons";
+import { Onboarding } from "../components/onboarding/Onboarding";
 import { closeWindow, isDesktop, minimizeWindow, toggleMaximizeWindow, useWindowMaximized } from "../lib/desktop";
 import { stars } from "../lib/format";
 import { PageTitleProvider } from "../lib/pageTitle";
@@ -145,15 +147,37 @@ function WindowControls() {
   );
 }
 
-function Toolbar({ collapsed, onToggleSidebar, onOpenDrawer }: { collapsed: boolean; onToggleSidebar: () => void; onOpenDrawer: () => void }) {
+function Toolbar({
+  collapsed,
+  onToggleSidebar,
+  drawerOpen,
+  onToggleDrawer,
+  onOpenGuide,
+  inert,
+}: {
+  collapsed: boolean;
+  onToggleSidebar: () => void;
+  drawerOpen: boolean;
+  onToggleDrawer: () => void;
+  onOpenGuide: () => void;
+  inert?: boolean;
+}) {
   const meta = useMeta();
   const { pathname } = useLocation();
   const here = currentPage(pathname);
   const headingVisible = usePageTitleVisible();
   return (
-    <header className={`toolbar${isDesktop ? " toolbar--desktop" : ""}`} data-tauri-drag-region>
-      <button type="button" className="btn btn--ghost btn--icon toolbar__drawer" aria-label="Menu" onClick={onOpenDrawer}>
-        <IconMenu />
+    <header className={`toolbar${isDesktop ? " toolbar--desktop" : ""}`} data-tauri-drag-region inert={inert}>
+      <button
+        type="button"
+        className="btn btn--ghost btn--icon toolbar__drawer"
+        aria-label="Menu"
+        aria-controls="sidebar"
+        aria-expanded={drawerOpen}
+        title={drawerOpen ? "Close menu" : "Open menu"}
+        onClick={onToggleDrawer}
+      >
+        {drawerOpen ? <IconX /> : <IconMenu />}
       </button>
       {isDesktop && (
         <div className="toolbar__brand">
@@ -176,6 +200,9 @@ function Toolbar({ collapsed, onToggleSidebar, onOpenDrawer }: { collapsed: bool
         </div>
       )}
       <div className="toolbar__end">
+        <button type="button" className="btn btn--ghost btn--icon" title="Setup guide" aria-label="Setup guide" onClick={onOpenGuide}>
+          <IconCompass />
+        </button>
         <ThemeSwitch />
         {meta.data?.api_docs && (
           <a className="btn btn--ghost btn--icon" href="/docs" target="_blank" rel="noreferrer" title="API reference" aria-label="API reference">
@@ -198,7 +225,7 @@ function JobIndicator() {
   return (
     <span className="statusbar__item statusbar__job" role="status">
       <span className="approach" aria-hidden="true" />
-      <span>{job.message || label}</span>
+      <span className="statusbar__msg">{job.message || label}</span>
       <span
         className={known ? "statusbar__bar" : "statusbar__bar indeterminate"}
         role="progressbar"
@@ -214,14 +241,14 @@ function JobIndicator() {
   );
 }
 
-function StatusBar() {
+function StatusBar({ inert }: { inert?: boolean }) {
   const health = useHealth();
   const has = useHasAnalysis();
   const summary = useProfileSummary(has);
   const offline = health.isError && isApiError(health.error, OFFLINE);
   const s = has ? summary.data : undefined;
   return (
-    <footer className="statusbar">
+    <footer className="statusbar" inert={inert}>
       {offline ? (
         <span className="statusbar__item statusbar__offline" role="alert">
           <IconWarn width={14} height={14} />
@@ -285,6 +312,11 @@ function Shell() {
   const { pathname } = useLocation();
   const close = () => setOpen(false);
   useShortcuts({ toggleSidebar: toggleCollapsed, closeDrawer: close });
+  // the setup guide: by itself until it is finished or skipped, and whenever it is opened from the toolbar
+  const settings = useSettings();
+  const [guideOpened, setGuideOpened] = useState(false);
+  const firstStart = settings.data?.onboarded === false;
+  const guide = guideOpened || firstStart;
 
   // a page starts at its top
   useEffect(() => {
@@ -294,7 +326,7 @@ function Shell() {
   const cls = ["app", open ? "nav-open" : "", collapsed ? "is-rail" : ""].filter(Boolean).join(" ");
   return (
     <div className={cls}>
-      <aside className="sidebar">
+      <aside id="sidebar" className="sidebar" inert={guide}>
         {!isDesktop && (
           <div className="sidebar__head">
             <Brand onClick={close} />
@@ -307,8 +339,16 @@ function Shell() {
       </aside>
       <div className="scrim" onClick={close} />
       <div className="workspace">
-        <Toolbar collapsed={collapsed} onToggleSidebar={toggleCollapsed} onOpenDrawer={() => setOpen(true)} />
-        <div className="workspace__scroll" ref={scrollRef}>
+        {/* the desktop app's toolbar is its title bar: it stays usable (move, close) while the guide is open */}
+        <Toolbar
+          collapsed={collapsed}
+          onToggleSidebar={toggleCollapsed}
+          drawerOpen={open}
+          onToggleDrawer={() => setOpen((o) => !o)}
+          onOpenGuide={() => setGuideOpened(true)}
+          inert={guide && !isDesktop}
+        />
+        <div className="workspace__scroll" ref={scrollRef} inert={guide}>
           <main className="main">
             <Suspense fallback={<div className="page" />}>
               <div className="route" key={pathname}>
@@ -317,8 +357,9 @@ function Shell() {
             </Suspense>
           </main>
         </div>
-        <StatusBar />
+        <StatusBar inert={guide} />
       </div>
+      {guide && <Onboarding first={firstStart} onClose={() => setGuideOpened(false)} />}
     </div>
   );
 }

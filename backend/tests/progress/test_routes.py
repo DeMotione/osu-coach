@@ -21,6 +21,7 @@ def test_progress_by_period(analysed):
     m = analysed.get("/api/progress").json()
     assert m["player"] == "Mot1one" and m["period"] == "month"
     assert m["first_day"].startswith("2026-09")
+    assert "skill_reference_stars" in m  # null here: three plays are too few for skill ratings
     row = m["rows"][-1]
     assert row["key"] == "2026-09" and row["plays"] == 3 and row["few_plays"]
     assert set(row["skills"]) >= {"aim", "speed", "accuracy"}
@@ -94,7 +95,8 @@ def test_plan_add_and_remove_goals(analysed):
         assert goal["current"] is not None and goal["target"] > goal["start"]
     saved = load_settings(workspace(analysed).cache_dir)["goals"]
     assert all({"id", "skill", "start", "target", "created", "deadline", "done"} <= set(x) for x in saved)
-    assert g["history"] == []  # Saved daily scores use the previous rating scale.
+    # the saved daily scores are on the goals' rating scale (#34), so each goal has its history
+    assert [h["goal_id"] for h in g["history"]] == [goal["id"] for goal in g["open"]]
     again = analysed.post("/api/goals/plan").json()  # no second goal for a skill that has one
     assert len(again["open"]) == len(g["open"])
     removed = analysed.delete(f"/api/goals/{g['open'][0]['id']}").json()

@@ -16,7 +16,7 @@ class AppSettings(BaseModel):
 
     source_mode: SourceMode = "library"
     folders: str = Field("", description="Extra replay folders, one per line.")
-    latest: Latest = Field(Latest.newest_500, description="Newest replays to read; 0 = all.")
+    latest: Latest = Field(Latest.newest_500, description="Newest of the found replays to analyse; 0 = all.")
     date_range: DateRange = "all"
     date_from: dt.date | None = None
     date_to: dt.date | None = None
@@ -25,6 +25,7 @@ class AppSettings(BaseModel):
     player: str | None = Field(None, description="Player analysed last; '*' = all players.")
     manual_comfort: float = Field(2.5, description="Star rating for playlists without analysed replays.")
     setup_saved: bool = False
+    onboarded: bool = Field(False, description="The first-start setup guide was finished or skipped.")
 
 
 class SettingsPatch(Request):
@@ -40,6 +41,7 @@ class SettingsPatch(Request):
     level_override: float | None = Field(None, ge=1.0, le=12.0)
     player: str | None = Field(None, max_length=200)
     manual_comfort: float | None = Field(None, ge=1.0, le=8.0)
+    onboarded: bool | None = None
 
 
 class SetupModel(BaseModel):

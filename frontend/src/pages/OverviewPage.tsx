@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import type { Schemas } from "../api/client";
@@ -6,10 +6,10 @@ import { useMeta, useOverview, usePatchSettings, useSettings } from "../api/quer
 import { Chart } from "../charts/Chart";
 import { missCauses, skillBars, topBars } from "../charts/overview";
 import type { ChartTheme } from "../charts/palette";
+import { IconCheck } from "../components/icons";
 import { QueryView } from "../components/states";
 import { Alert, Badge, Card, Page, Row, Stat, Switch, Tiles, type TileCount } from "../components/ui";
 import { fmt, int, pct, span, stars } from "../lib/format";
-import { useDebouncedEffect } from "../lib/hooks";
 
 type Overview = Schemas["Overview"];
 
@@ -91,16 +91,29 @@ function OverviewBody({ ov }: { ov: Overview }) {
   );
 }
 
+/** A level to one decimal, as it is set by hand. */
+const tenth = (v: number) => Math.round(v * 10) / 10;
+
 function LevelCard({ ov }: { ov: Overview }) {
   const lv = ov.level;
   const settings = useSettings();
   const patch = usePatchSettings();
-  const manual = settings.data?.level_override !== null && settings.data?.level_override !== undefined;
-  const [value, setValue] = useState<string>(() => String(settings.data?.level_override ?? (lv.detected ?? lv.stars ?? 4).toFixed(1)));
-  useDebouncedEffect(value, 500, (v) => {
-    const n = Number(v);
-    if (manual && Number.isFinite(n) && n >= 1 && n <= 12) patch.mutate({ level_override: Math.round(n * 10) / 10 });
-  });
+  const applied = settings.data?.level_override ?? null; // null = the detected level
+  const detected = tenth(lv.detected ?? lv.stars ?? 4);
+  // the switch and the typed level are only what the player is editing; nothing changes until Apply
+  const [byHandInput, setByHand] = useState<boolean | null>(null);
+  const [draftInput, setDraft] = useState<string | null>(null);
+  const [done, setDone] = useState<number | "detected" | null>(null); // what the last change applied
+  const byHand = byHandInput ?? applied !== null;
+  const draft = draftInput ?? (applied ?? detected).toFixed(1);
+  const n = Number(draft);
+  const value = draft.trim() !== "" && Number.isFinite(n) && n >= 1 && n <= 12 ? tenth(n) : null;
+  const changed = value !== null && value !== applied;
+
+  const apply = (level: number | null) => {
+    setDone(null);
+    patch.mutate({ level_override: level }, { onSuccess: () => setDone(level ?? "detected") });
+  };
 
   if (lv.stars === null)
     return (
@@ -110,6 +123,30 @@ function LevelCard({ ov }: { ov: Overview }) {
         </p>
       </Card>
     );
+
+  const target = patch.variables?.level_override;
+  let status: ReactNode = null;
+  if (patch.isPending)
+    status = (
+      <>
+        <span className="spinner" aria-hidden="true" />
+        Recalculating your numbers with {target === null || target === undefined ? "the detected level" : stars(target, 1)}…
+      </>
+    );
+  else if (patch.isError) status = patch.error.message;
+  else if (byHand && value === null) status = "Enter a level from 1 to 12★.";
+  else if (byHand && changed) status = "Not applied yet: press Apply.";
+  else if (done !== null)
+    status = (
+      <>
+        <IconCheck />
+        {done === "detected"
+          ? `Back to the detected level: every number on this page uses ${stars(lv.stars, 1)} again.`
+          : `Applied: every number on this page now uses ${stars(done, 1)}.`}
+      </>
+    );
+  const tone = patch.isPending ? "" : patch.isError || (byHand && value === null) ? " apply-status--bad" : done !== null && !changed ? " apply-status--good" : "";
+
   return (
     <Card>
       <div className="split" style={{ alignItems: "stretch" }}>
@@ -126,33 +163,50 @@ function LevelCard({ ov }: { ov: Overview }) {
           <div className="grow" />
           <div className="controls">
             <Switch
-              checked={manual}
+              checked={byHand}
+              disabled={patch.isPending}
               label="Set my level by hand"
-              hint="If the detected level is off (e.g. you only played easy maps lately)."
+              hint="If the detected level is off (e.g. you only played easy maps lately). Type a level and press Apply: every number is recalculated with it."
               onChange={(on) => {
-                if (on) {
-                  const v = Math.round((lv.detected ?? lv.stars ?? 4) * 10) / 10;
-                  setValue(v.toFixed(1));
-                  patch.mutate({ level_override: v });
-                } else patch.mutate({ level_override: null });
+                setByHand(on);
+                setDraft(null);
+                setDone(null);
+                if (!on && applied !== null) apply(null);
               }}
             />
-            {manual ? (
-              <input
-                className="input"
-                style={{ maxWidth: 120 }}
-                aria-label="My level (★)"
-                type="number"
-                min={1}
-                max={12}
-                step={0.1}
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-              />
+            {byHand ? (
+              <form
+                className="apply-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (changed && !patch.isPending) apply(value);
+                }}
+              >
+                <input
+                  className="input"
+                  aria-label="My level (★)"
+                  aria-invalid={value === null}
+                  type="number"
+                  min={1}
+                  max={12}
+                  step={0.1}
+                  value={draft}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    setDone(null);
+                  }}
+                />
+                <button type="submit" className="btn btn--primary" disabled={!changed || patch.isPending}>
+                  Apply
+                </button>
+              </form>
             ) : (
               lv.detected !== null && <span className="muted small">Detected: {stars(lv.detected)}</span>
             )}
           </div>
+          <p className={`apply-status${tone}`} role="status">
+            {status}
+          </p>
         </div>
         <Tiles n={4}>
           {lv.weights.slice(0, 4).map((w) => (

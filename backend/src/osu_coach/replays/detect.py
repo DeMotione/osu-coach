@@ -142,9 +142,21 @@ def lazer_install(root: Path) -> Install | None:
     return Install("lazer", root, None, replay_dirs, root / "files", None)
 
 
-def find_installs(stable_roots=None, lazer_roots=None) -> list[Install]:
-    """osu! installs on this computer.  Set ``OSU_COACH_NO_AUTODETECT=1`` to skip the
-    automatic search (only explicitly given roots are checked; used by the tests)."""
+def install_at(root: Path) -> Install | None:
+    """The stable install or lazer data folder at ``root`` (a path to osu!.exe counts as its folder)."""
+    root = Path(root)
+    try:
+        if root.is_file():
+            root = root.parent
+    except OSError:
+        return None
+    return stable_install(root) or lazer_install(root)
+
+
+def find_installs(stable_roots=None, lazer_roots=None, extra=()) -> list[Install]:
+    """osu! installs on this computer, plus the folders in ``extra`` (entered by the player; either kind).
+    Set ``OSU_COACH_NO_AUTODETECT=1`` to skip the automatic search (only explicitly given roots are checked;
+    used by the tests)."""
     if os.environ.get("OSU_COACH_NO_AUTODETECT", "").strip() not in ("", "0"):
         stable_roots = stable_roots if stable_roots is not None else []
         lazer_roots = lazer_roots if lazer_roots is not None else []
@@ -152,6 +164,7 @@ def find_installs(stable_roots=None, lazer_roots=None) -> list[Install]:
     for roots, fn in (
         (stable_roots if stable_roots is not None else stable_candidates(), stable_install),
         (lazer_roots if lazer_roots is not None else lazer_candidates(), lazer_install),
+        (extra, install_at),
     ):
         for r in roots:
             try:

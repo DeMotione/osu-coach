@@ -19,10 +19,14 @@ export interface NavItem {
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   /** Needs an analysed profile to show anything: dimmed in the sidebar until one exists. */
   needsAnalysis?: boolean;
+  /** What the page is for, in a sentence (the setup guide's tour). */
+  about: string;
 }
 
 export interface NavGroup {
   group: string;
+  /** What the group's pages have in common (the setup guide's tour). */
+  about: string;
   items: NavItem[];
 }
 
@@ -30,27 +34,88 @@ export interface NavGroup {
 export const NAV: NavGroup[] = [
   {
     group: "Replays",
+    about: "Where it starts: the replays osu! coach reads, and single plays up close.",
     items: [
-      { path: "/replays", label: "Replays", icon: IconFolder },
-      { path: "/check", label: "Detailed Map Analysis", icon: IconMagnify },
+      {
+        path: "/replays",
+        label: "Replays",
+        icon: IconFolder,
+        about: "Find and analyse your replays. Come back after you have played to analyse again: every page updates.",
+      },
+      {
+        path: "/check",
+        label: "Detailed Map Analysis",
+        icon: IconMagnify,
+        about: "One play on its own: every miss and combo break with its time in the map, and your timing through it.",
+      },
     ],
   },
   {
     group: "Analysis",
+    about: "What your replays say about how you play, measured note by note.",
     items: [
-      { path: "/overview", label: "Overview", icon: IconGauge, needsAnalysis: true },
-      { path: "/progress", label: "Progress", icon: IconTrend, needsAnalysis: true },
-      { path: "/aim", label: "Aim", icon: IconTarget, needsAnalysis: true },
-      { path: "/tapping", label: "Tapping", icon: IconKeys, needsAnalysis: true },
-      { path: "/sliders-reading", label: "Sliders & Reading", icon: IconWave, needsAnalysis: true },
+      {
+        path: "/overview",
+        label: "Overview",
+        icon: IconGauge,
+        needsAnalysis: true,
+        about: "Your level, your skills and why you miss, at a glance. The best place to start.",
+      },
+      {
+        path: "/progress",
+        label: "Progress",
+        icon: IconTrend,
+        needsAnalysis: true,
+        about: "Every analysis is saved, so you can see how you improve by month, week or day.",
+      },
+      {
+        path: "/aim",
+        label: "Aim",
+        icon: IconTarget,
+        needsAnalysis: true,
+        about: "Where and how your aim misses: screen areas, jump directions and distances, over- and underaim.",
+      },
+      {
+        path: "/tapping",
+        label: "Tapping",
+        icon: IconKeys,
+        needsAnalysis: true,
+        about: "Timing spread and bias, how fast you can stream, your stamina and how you use your keys.",
+      },
+      {
+        path: "/sliders-reading",
+        label: "Sliders & Reading",
+        icon: IconWave,
+        needsAnalysis: true,
+        about: "Slider control, and how approach rate and dense parts change your misses.",
+      },
     ],
   },
   {
     group: "Improve",
+    about: "What to do about it: tips, settings to try and maps to practise on.",
     items: [
-      { path: "/tips", label: "Tips & Setup", icon: IconBulb, needsAnalysis: true },
-      { path: "/maps", label: "Map Suggestion", icon: IconMap, needsAnalysis: true },
-      { path: "/skills", label: "Skill Development", icon: IconStairs, needsAnalysis: true },
+      {
+        path: "/tips",
+        label: "Tips & Setup",
+        icon: IconBulb,
+        needsAnalysis: true,
+        about: "Concrete tips from your numbers, a practice plan, and changes to try in your setup (area, sensitivity, keys).",
+      },
+      {
+        path: "/maps",
+        label: "Map Suggestion",
+        icon: IconMap,
+        needsAnalysis: true,
+        about: "Maps at your comfort level that train your weak skills, ready to put into osu! as a collection.",
+      },
+      {
+        path: "/skills",
+        label: "Skill Development",
+        icon: IconStairs,
+        needsAnalysis: true,
+        about: "Goals for your skills, and playlists (warm-up, comfort, push) to train one skill at a time.",
+      },
     ],
   },
 ];

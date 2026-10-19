@@ -1,15 +1,15 @@
 import { useState } from "react";
 
 import type { Schemas } from "../api/client";
-import { useSaveSetup, useTips } from "../api/queries";
+import { useSaveSetup, useSettings, useSetup, useTips } from "../api/queries";
 import { DataTable } from "../components/DataTable";
 import { IconSliders } from "../components/icons";
+import { SetupDetails, setupToSave, type Setup } from "../components/SetupForm";
 import { EmptyState, QueryView } from "../components/states";
-import { Alert, Badge, Card, Field, Page, Segmented, Stat, Switch, Tiles } from "../components/ui";
+import { Alert, Badge, Card, Field, Page, Segmented, Stat, Tiles } from "../components/ui";
 import { signed } from "../lib/format";
 import { Md } from "../lib/markdown";
 
-type Setup = Schemas["SetupModel"];
 type Tip = Schemas["TipOut"];
 
 const SEVERITY: Record<number, [string, "bad" | "warn" | "muted"]> = {
@@ -20,15 +20,18 @@ const SEVERITY: Record<number, [string, "bad" | "warn" | "muted"]> = {
 
 export default function TipsPage() {
   const q = useTips();
+  const setup = useSetup();
+  const settings = useSettings();
   return (
     <Page
       title="Tips & Setup"
       sub="Concrete tips from your numbers, most important first — each with the evidence it is based on — and setup changes to try (tablet area / sensitivity, keys)."
     >
+      {/* the setup doesn't need analysed replays: what was entered (here or in the setup guide) is always shown */}
+      {setup.data && settings.data && <SetupCard key={JSON.stringify(setup.data)} setup={setup.data} open={!settings.data.setup_saved} />}
       <QueryView query={q}>
         {(page) => (
           <>
-            <SetupCard key={JSON.stringify(page.setup)} setup={page.setup} open={!page.setup_saved} />
             <CalibrationCard page={page} />
             <Card title="Tips" sub="Red = biggest impact, orange = medium, grey = nice to know.">
               {page.tips.length ? (
@@ -54,58 +57,10 @@ export default function TipsPage() {
 }
 
 // ------------------------------------------------------------------ setup
-type NumKey = { [K in keyof Setup]-?: Setup[K] extends number | null | undefined ? K : never }[keyof Setup];
-
-function NumberField({ label, value, onChange, step, min, max, hint, placeholder = "unknown" }: {
-  label: string;
-  value: number | null | undefined;
-  onChange: (v: number | null) => void;
-  step: number;
-  min: number;
-  max: number;
-  hint?: string;
-  placeholder?: string;
-}) {
-  return (
-    <Field label={label} hint={hint}>
-      <input
-        className="input"
-        type="number"
-        inputMode="decimal"
-        step={step}
-        min={min}
-        max={max}
-        placeholder={placeholder}
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-      />
-    </Field>
-  );
-}
-
-const SAYO: [string, keyof Setup, "mm" | "toggle", string][][] = [
-  [
-    ["Stroke", "sayo_stroke_mm", "mm", "Full travel of your switches (4.0 mm for most magnetic switches)."],
-    ["Trigger", "sayo_trigger_mm", "mm", "Fixed press depth (actuation point)."],
-    ["Release", "sayo_release_mm", "mm", "Fixed reset depth — must be above (smaller than) Trigger."],
-  ],
-  [
-    ["RT Mode", "sayo_rt", "toggle", "Rapid trigger on/off."],
-    ["RT Trigger", "sayo_rt_trigger_mm", "mm", "Inside the RT zone: press again after moving down this far (≤ RT Release)."],
-    ["RT Release", "sayo_rt_release_mm", "mm", "Inside the RT zone: release after moving up this far."],
-  ],
-  [
-    ["Full Stroke", "sayo_full_stroke", "toggle", "Rapid trigger over the whole stroke (ignores the bounds)."],
-    ["RT Upper Bound", "sayo_rt_upper_mm", "mm", "Depth where rapid trigger starts working."],
-    ["RT Lower Bound", "sayo_rt_lower_mm", "mm", "Depth where rapid trigger stops working (keep it a bit above the full stroke)."],
-  ],
-];
-
 function SetupCard({ setup, open }: { setup: Setup; open: boolean }) {
   const [s, setS] = useState<Setup>(setup);
   const save = useSaveSetup();
   const set = <K extends keyof Setup>(k: K, v: Setup[K]) => setS((x) => ({ ...x, [k]: v }));
-  const num = (k: NumKey) => (v: number | null) => set(k, v as Setup[typeof k]);
   return (
     <details className="card disclosure-card" open={open}>
       <summary className="card__head">
@@ -136,75 +91,10 @@ function SetupCard({ setup, open }: { setup: Setup; open: boolean }) {
             />
           </Field>
         </div>
-        <div className="form-grid">
-          <Field label="Pen / mouse hand">
-            <Segmented label="Hand" block value={s.handedness} onChange={(v) => set("handedness", v)} options={[{ value: "right", label: "Right" }, { value: "left", label: "Left" }]} />
-          </Field>
-          <Field label="osu! client">
-            <Segmented label="osu! client" block value={s.client} onChange={(v) => set("client", v)} options={[{ value: "stable", label: "stable" }, { value: "lazer", label: "lazer" }]} />
-          </Field>
-          <NumberField label="Screen width (px)" value={s.screen_w_px} onChange={(v) => set("screen_w_px", v ?? 1920)} step={1} min={640} max={7680} placeholder="1920" />
-          <NumberField label="Screen height (px)" value={s.screen_h_px} onChange={(v) => set("screen_h_px", v ?? 1080)} step={1} min={480} max={4320} placeholder="1080" />
-          {s.device === "tablet" ? (
-            <>
-              <NumberField label="Area width (mm)" value={s.area_w_mm} onChange={num("area_w_mm")} step={1} min={0} max={500} />
-              <NumberField label="Area height (mm)" value={s.area_h_mm} onChange={num("area_h_mm")} step={1} min={0} max={500} />
-              <NumberField label="Area X (mm)" value={s.area_x_mm} onChange={num("area_x_mm")} step={0.1} min={0} max={500} hint="Where the area sits on the tablet: OpenTabletDriver → Output → X (the centre of the area)." />
-              <NumberField label="Area Y (mm)" value={s.area_y_mm} onChange={num("area_y_mm")} step={0.1} min={0} max={500} hint="OpenTabletDriver → Output → Y." />
-            </>
-          ) : (
-            <>
-              <div className="span-2">
-                <NumberField label="Mouse DPI" value={s.mouse_dpi} onChange={num("mouse_dpi")} step={50} min={0} max={50000} />
-              </div>
-              <div className="span-2">
-                <NumberField label="osu! sensitivity" value={s.ingame_sens} onChange={num("ingame_sens")} step={0.05} min={0} max={10} placeholder="1.0" />
-              </div>
-            </>
-          )}
-        </div>
-        {s.keyboard === "rapid_trigger" && (
-          <div className="split">
-            <NumberField label="Actuation point (mm)" value={s.actuation_mm} onChange={num("actuation_mm")} step={0.05} min={0} max={4} />
-            <NumberField
-              label="Rapid-trigger sensitivity (mm)"
-              value={s.rt_release_mm}
-              onChange={(v) => setS((x) => ({ ...x, rt_press_mm: v, rt_release_mm: v }))}
-              step={0.05}
-              min={0}
-              max={2}
-            />
-          </div>
-        )}
-        {s.keyboard === "sayo" && (
-          <div className="section">
-            <h3 className="section__title">SayoDevice — the values from its configurator (sayodevice.com → Key stroke); leave empty what you don't know</h3>
-            <div className="sayo-grid">
-              {SAYO.flat().map(([label, key, kind, hint]) =>
-                kind === "toggle" ? (
-                  <div key={key} className="field sayo-toggle">
-                    <Switch
-                      label={label}
-                      hint={hint}
-                      checked={key === "sayo_rt" ? s.sayo_rt ?? true : !!s[key]}
-                      onChange={(v) => set(key, v as Setup[typeof key])}
-                    />
-                  </div>
-                ) : (
-                  <NumberField key={key} label={`${label} (mm)`} hint={hint} value={s[key] as number | null} onChange={(v) => set(key, v as Setup[typeof key])} step={0.05} min={0} max={6} />
-                ),
-              )}
-            </div>
-          </div>
-        )}
+        <SetupDetails value={s} onChange={(patch) => setS((x) => ({ ...x, ...patch }))} />
         {save.isError && <Alert tone="bad">{save.error.message}</Alert>}
         <div className="btn-row">
-          <button
-            type="button"
-            className="btn btn--primary"
-            disabled={save.isPending}
-            onClick={() => save.mutate({ ...s, sayo_rt: s.keyboard === "sayo" ? s.sayo_rt ?? true : s.sayo_rt })}
-          >
+          <button type="button" className="btn btn--primary" disabled={save.isPending} onClick={() => save.mutate(setupToSave(s))}>
             {save.isPending ? "Saving…" : "Save setup"}
           </button>
         </div>

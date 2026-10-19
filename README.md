@@ -134,12 +134,24 @@ checks that the portable app and the `.deb` start their server, and publishes th
 as the release notes. Pull requests that change `packaging/`, `desktop/` or that workflow build the installers too,
 without publishing.
 
+### First start: the setup guide
+
+The app opens with a five-step guide the first time (a new data folder; anyone with settings from an earlier
+version skips it): **osu! version** (stable or lazer, and its folder if it wasn't found), **playstyle** (mouse or
+tablet; keyboard, rapid-trigger keyboard or SayoDevice, with the same settings as Tips & Setup, where they show
+afterwards), **replays** (found automatically or added by hand, then scanned and analysed right away, with the
+time left once the analysis is under way), an optional **tour** of the sections, and **done**. *Skip setup* closes
+it for good; the compass button in the toolbar opens it again. Finished or skipped is `onboarded` in
+`settings.json`.
+
 ### Where the replays come from
 
 - **osu!stable**: found automatically (`%LOCALAPPDATA%\osu!`, `C:\osu!`, common Wine prefixes).
   Uses `Data/r` (every local score's replay is saved there automatically) and `Replays`.
 - **osu!lazer**: found automatically (`%APPDATA%\osu`, `~/.local/share/osu`, or a moved data
   folder from `storage.ini`). Replays and beatmaps are recognised inside lazer's file store.
+- An osu! folder that wasn't found can be entered in the setup guide (`POST /api/installs`); it is remembered
+  (`install_paths` in `settings.json`) and listed and scanned like the others.
 - Any folder with `.osr` files, or drag and drop files into the app.
 
 ### Playlists in osu!lazer
@@ -168,10 +180,12 @@ Every analysis is also saved in `progress.sqlite` in the osu! coach data folder,
 the history stays even after replays are deleted. The **Progress** page (or `osu-coach progress`) shows,
 per month, ISO week or day (*Group by*), for any date range you pick: plays, maps and maps played for the first time, play time, star rating (comfortable level,
 average, hardest clean pass = finished with at most 5 misses per 100 notes, hardest full combo),
-accuracy, UR, stream speed and the skills. Monthly skill scores are measured against one miss model
-fitted on all your replays — 50 = your all-time average at the same difficulty, higher = fewer misses
-than usual that month — and need 5+ plays in a month. Analyse with *All* once to fill in older months;
-after that *Latest N* is enough (older analyses are reused from the cache).
+accuracy, UR, stream speed and the skills. The skills are the Overview's skill ratings, every period rated
+at the same reference — your comfort level from all your replays, the one the Overview shows — so 50 = what
+that level expects and a rise means you played the skill better; they need 5+ plays in a period (and, like on
+the Overview, 3+ different map/mod setups per skill). Analyse with *All* once to fill in older months; after
+that *Latest N* is enough (older analyses are reused from the cache). Skill numbers saved by versions before
+this rating scale are not shown: analysing again rates every period anew.
 
 ### Difficulty weighting and your level
 

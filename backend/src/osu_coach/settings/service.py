@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import os
 from dataclasses import asdict
 from typing import TYPE_CHECKING
@@ -14,6 +15,8 @@ from osu_coach.settings.schemas import AppSettings, SetupModel
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
+
+log = logging.getLogger("osu_coach.settings.service")
 
 
 # ------------------------------------------------------------------ tips & setup
@@ -53,6 +56,7 @@ def app_settings(ws: Workspace) -> AppSettings:
         "player": s.get("player"),
         "manual_comfort": s.get("manual_comfort"),
         "setup_saved": bool(s.get("setup_saved")),
+        "onboarded": bool(s.get("onboarded")),
     }
     out = {}
     for k, v in raw.items():
@@ -64,3 +68,16 @@ def app_settings(ws: Workspace) -> AppSettings:
             continue
         out[k] = v
     return AppSettings.model_validate(out)
+
+
+def settle_onboarding(ws: Workspace) -> None:
+    """Whether the setup guide is still to come, written down at the first start: a new data folder gets the guide;
+    settings saved by a version without it (or by the command line) mean osu! coach is set up already. Settings
+    saved during the guide (the setup) don't count, as the flag is in the file by then."""
+    s = ws.settings()
+    if "onboarded" in s:
+        return
+    try:
+        ws.update_settings(onboarded=bool(s))
+    except OSError:  # a data folder that can't be written: the guide shows, and asks again next time
+        log.warning("could not save settings.json", exc_info=True)

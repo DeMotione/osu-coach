@@ -22,6 +22,14 @@ class InstallOut(BaseModel):
     collection_db: str | None
 
 
+class InstallPath(Request):
+    path: str = Field(
+        min_length=1,
+        max_length=1000,
+        description="An osu!stable folder (with osu!.exe and Songs) or an osu!lazer data folder (with files/).",
+    )
+
+
 class UploadedFile(BaseModel):
     id: str = Field(description="Use this in a scan request (``files``).")
     name: str
@@ -34,18 +42,16 @@ class ScanRequest(Request):
     mode: SourceMode = Field("library", description="library = osu! installs and folders; files = only uploads.")
     installs: list[str] | None = Field(None, description="Roots of the installs to scan; null = all found.")
     folders: list[str] = Field(default_factory=list, max_length=50)
-    files: list[str] = Field(default_factory=list, max_length=2000, description="Ids of uploaded files.")
-    latest: Latest = Field(Latest.newest_500, description="Read only the newest N replays; 0 = all.")
-
-
-class RescanRequest(Request):
-    latest: Latest
+    files: list[str] = Field(
+        default_factory=list,
+        max_length=2000,
+        description="Ids of uploaded files, added to the ones added by earlier scans (``LibraryOut.files``).",
+    )
 
 
 class ScanResult(BaseModel):
-    replays: int = Field(description="osu!standard replays found.")
+    replays: int = Field(description="osu!standard replays found: every one in the sources.")
     players: int
-    scan_limit: int | None = Field(description="Newest replays read per source; null = all.")
     warnings: list[str]
 
 
@@ -58,9 +64,11 @@ class LibraryOut(BaseModel):
     scanned: bool
     mode: SourceMode | None
     sources: list[str]
-    scan_limit: int | None
     replays: int
     players: list[PlayerCount]
+    files: list[UploadedFile] = Field(
+        description="Replay and beatmap files added by hand: kept, so the next scan adds to them."
+    )
 
 
 class SelectionOut(BaseModel):
@@ -77,7 +85,6 @@ class SelectionOut(BaseModel):
     date_from: dt.date | None
     date_to: dt.date | None
     empty_range: bool = Field(description="No replays in the chosen time range.")
-    older_hint: bool = Field(description="A limited scan may have missed older replays of this player.")
     left_out: list[Count] = Field(description="Replays that can't be analysed, by reason (top 3).")
     left_out_total: int
 
@@ -89,7 +96,7 @@ class ScanJob(JobBase):
 
 class AnalysisRequest(Request):
     player: str | None = Field(None, description="Player to analyse; '*' = all; null = the one with most replays.")
-    latest: Latest = Latest.newest_500
+    latest: Latest = Field(Latest.newest_500, description="Analyse only the newest N of the found replays; 0 = all.")
     date_range: DateRange = "all"
     date_from: dt.date | None = None
     date_to: dt.date | None = None

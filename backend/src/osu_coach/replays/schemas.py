@@ -7,7 +7,7 @@ from typing import Literal
 
 
 class Latest(IntEnum):
-    """How many of the newest replays to read; 0 = all of them."""
+    """How many of the newest found replays to analyse; 0 = all of them."""
 
     newest_100 = 100
     newest_500 = 500

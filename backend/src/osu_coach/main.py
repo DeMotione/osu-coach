@@ -19,6 +19,7 @@ from osu_coach.library import routes as library
 from osu_coach.maps import routes as maps
 from osu_coach.progress import routes as progress
 from osu_coach.settings import routes as settings
+from osu_coach.settings.service import settle_onboarding
 from osu_coach.system import routes as system
 from osu_coach.tips import routes as tips
 
@@ -72,6 +73,7 @@ def create_app(config: Settings | None = None) -> FastAPI:
     )
     app.state.api_docs = config.api_docs
     app.state.workspace = Workspace(config)
+    settle_onboarding(app.state.workspace)
     session.start_restore(app.state.workspace)
     web_dir = config.web_dir if config.web_dir is not None else find_web_dir()
     app.state.web_dir = web_dir if web_dir is not None and (web_dir / "index.html").is_file() else None

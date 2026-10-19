@@ -437,11 +437,13 @@ def cmd_progress(args) -> int:
             v = row.get(col)
             cells.append(("–" if v is None or (isinstance(v, float) and math.isnan(v)) else fmt.format(v)).rjust(w))
         print(f"{row['month']}{'*' if row['few_plays'] else ' '} " + " ".join(cells))
+    refs = m["skill_reference_stars"].dropna() if "skill_reference_stars" in m else []
+    level = f" ({refs.iloc[-1]:.1f}★)" if len(refs) else ""
     print(
         "\n* fewer than 5 plays that month (no skill numbers then). Comfort★ = 75% of your clean finished plays "
         "(≤ 2 misses per 100 notes) are at or below it. Passed★ = hardest map finished with ≤ 5 misses per 100 "
-        "notes. Skills (Aim … Cons): 50 = your all-time average at the same difficulty, higher = fewer misses "
-        "than usual that month."
+        "notes. Skills (Aim … Cons): the skill ratings of the Overview, every month rated at your comfort level"
+        f"{level}: 50 = what that level expects, higher = you played the skill better that month."
     )
     return 0
 

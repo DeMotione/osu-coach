@@ -38,9 +38,7 @@ def _save(ws: Workspace, **sections: dict) -> None:
         log.warning("could not save the session", exc_info=True)
 
 
-def run_scan(ws: Workspace, args: ScanArgs, latest: int, report: Reporter) -> ScanResult:
-    """The scan job; what it read is remembered for the next start."""
-    result = library.run_scan(ws, args, latest, report)
+def _save_scan(ws: Workspace, args: ScanArgs) -> None:
     _save(
         ws,
         scan={
@@ -49,10 +47,22 @@ def run_scan(ws: Workspace, args: ScanArgs, latest: int, report: Reporter) -> Sc
             "folders": args.folders,
             "files": args.files,
             "only": args.only,
-            "latest": latest,
         },
     )
+
+
+def run_scan(ws: Workspace, args: ScanArgs, report: Reporter) -> ScanResult:
+    """The scan job; what it read is remembered for the next start."""
+    result = library.run_scan(ws, args, report)
+    _save_scan(ws, args)
     return result
+
+
+def forget_files(ws: Workspace) -> None:
+    """Forget the files added by hand, also for the next start."""
+    library.forget_files(ws)
+    if ws.scan_args is not None:
+        _save_scan(ws, ws.scan_args)
 
 
 def start_restore(ws: Workspace) -> None:
@@ -78,7 +88,7 @@ def start_restore(ws: Workspace) -> None:
             only=only,
             map_installs=[i for i in installs if str(i.root) in maps],
         )
-        return run_scan(ws, args, int(scan.get("latest") or 0), report)
+        return run_scan(ws, args, report)  # every replay, also when an older version saved a limit ("latest")
 
     ws.jobs.start("scan", "Restoring your last session", work)
 

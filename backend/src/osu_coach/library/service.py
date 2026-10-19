@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,8 +20,9 @@ from osu_coach.library.schemas import (
     ScanRequest,
     ScanResult,
     SelectionOut,
+    UploadedFile,
 )
-from osu_coach.library.uploads import resolve_upload
+from osu_coach.library.uploads import UPLOAD_SUFFIXES, resolve_upload
 from osu_coach.replays import detect, scope
 
 if TYPE_CHECKING:
@@ -30,7 +31,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class ScanArgs:
-    """What the last scan read, so it can be repeated further back (more replays)."""
+    """What the last scan read, so it can be repeated (new files added, the next start)."""
 
     installs: list[detect.Install] = field(default_factory=list)
     folders: list[str] = field(default_factory=list)
@@ -51,10 +52,39 @@ def install_out(inst: detect.Install) -> InstallOut:
     )
 
 
+def add_install_path(ws: Workspace, path: str) -> detect.Install:
+    """Remember an osu! folder that wasn't found automatically (``install_paths``); it is listed and scanned like
+    the ones that were."""
+    raw = path.strip().strip('"').strip()
+    if not raw:
+        raise Invalid("Enter the folder osu! is in.", "not_osu_folder")
+    root = Path(raw).expanduser()
+    inst = detect.install_at(root)
+    if inst is None:
+        raise Invalid(
+            f"No osu! found in {root}. For osu!stable choose the folder with osu!.exe and Songs in it; "
+            "for osu!lazer its data folder (the one with files and client.realm in it).",
+            "not_osu_folder",
+        )
+    saved = ws.settings().get("install_paths")
+    saved = [p for p in saved if isinstance(p, str)] if isinstance(saved, list) else []
+    if str(inst.root) not in saved:
+        ws.update_settings(install_paths=[*saved, str(inst.root)])
+    ws.installs(refresh=True)
+    return inst
+
+
 # ------------------------------------------------------------------ scan
+def kept_files(ws: Workspace) -> list[str]:
+    """The replay and beatmap files added by hand in earlier scans that are still there."""
+    return [f for f in (ws.scan_args.files if ws.scan_args else []) if Path(f).is_file()]
+
+
 def scan_args(ws: Workspace, req: ScanRequest) -> ScanArgs:
+    """What a scan reads. Files added by hand are kept: the new ones are added to the ones added before (each file
+    once), so adding a few replays later doesn't drop the rest (#38)."""
     only = req.mode == "files"
-    files = [str(resolve_upload(ws, f)) for f in req.files]
+    files = list(dict.fromkeys(kept_files(ws) + [str(resolve_upload(ws, f)) for f in req.files]))
     if only and not files:
         raise Invalid("Add the replay files to analyse first.", "no_files")
     installs = ws.installs()
@@ -69,21 +99,20 @@ def scan_args(ws: Workspace, req: ScanRequest) -> ScanArgs:
     )
 
 
-def run_scan(ws: Workspace, args: ScanArgs, latest: int, report: Reporter) -> ScanResult:
-    """Read the replays (and beatmaps) of the chosen sources into a new library; ``latest``: only the newest
-    replays (0 = all)."""
-    limit = latest or None
+def run_scan(ws: Workspace, args: ScanArgs, report: Reporter) -> ScanResult:
+    """Read every replay (and the beatmaps) of the chosen sources into a new library. How many of them are
+    analysed is chosen afterwards (``select``), so the count found is the full one (#36)."""
     lib = Library(ws.cache_dir)
     warnings = []
-    report.note(f"Looking for your newest {limit} replays…" if limit else "Scanning for replays…")
+    report.note("Scanning for replays…")
     for inst in args.installs:
         report.note(f"Scanning {inst.label}…")
-        lib.add_install(inst, progress=report.note, latest=limit)
+        lib.add_install(inst, progress=report.note)
     for f in args.folders:
         path = Path(f).expanduser()
         if path.is_dir():
             report.note(f"Scanning {path}…")
-            lib.add_folder(path, latest=limit)
+            lib.add_folder(path)
         else:
             warnings.append(f"Folder not found: {f}")
     if args.files:
@@ -93,30 +122,41 @@ def run_scan(ws: Workspace, args: ScanArgs, latest: int, report: Reporter) -> Sc
     players = lib.players()
     if players and lib.has_unread_maps():
         report.note("Looking for the beatmaps of these replays…")
-        lib.missing_maps(lib.eligible(players[0][0], limit), progress=report.note)
+        lib.missing_maps(lib.eligible(players[0][0]), progress=report.note)
     ws.library, ws.scan_args = lib, args
-    return ScanResult(
-        replays=len(lib.standard_replays()), players=len(players), scan_limit=lib.scan_limit, warnings=warnings
+    return ScanResult(replays=len(lib.standard_replays()), players=len(players), warnings=warnings)
+
+
+def _file_out(path: str) -> UploadedFile:
+    p = Path(path)
+    return UploadedFile(
+        id=p.name, name=p.name, path=path, kind=UPLOAD_SUFFIXES[p.suffix.lower()], size=p.stat().st_size
     )
-
-
-def needs_more(lib: Library, latest: int) -> bool:
-    """The last scan stopped earlier than ``latest`` replays (0 = all) asks for."""
-    return lib.scan_limit is not None and (not latest or latest > lib.scan_limit)
 
 
 def library_out(ws: Workspace) -> LibraryOut:
     lib = ws.library
     if lib is None:
-        return LibraryOut(scanned=False, mode=None, sources=[], scan_limit=None, replays=0, players=[])
+        return LibraryOut(scanned=False, mode=None, sources=[], replays=0, players=[], files=[])
     return LibraryOut(
         scanned=True,
         mode="files" if ws.scan_args and ws.scan_args.only else "library",
         sources=list(lib.sources),
-        scan_limit=lib.scan_limit,
         replays=len(lib.standard_replays()),
         players=[PlayerCount(name=n, replays=c) for n, c in lib.players()],
+        files=[_file_out(f) for f in kept_files(ws) if Path(f).suffix.lower() in UPLOAD_SUFFIXES],
     )
+
+
+def forget_files(ws: Workspace) -> None:
+    """Drop the files added by hand: from the next scans, and their replays from the library now."""
+    args = ws.scan_args
+    if args is None or not args.files:
+        return
+    gone = set(args.files)
+    ws.scan_args = replace(args, files=[])
+    if ws.library is not None:
+        ws.library.replays = [r for r in ws.library.replays if r.get("path") not in gone]
 
 
 def require_library(ws: Workspace) -> Library:
@@ -184,8 +224,7 @@ def select(
 
 def selection_out(ws: Workspace, sel: Selection) -> SelectionOut:
     lib = require_library(ws)
-    missing = lib.missing_maps(sel.refs)  # looks in the parts of the installs a limited scan didn't read
-    names = [n for n, _ in sel.players]
+    missing = lib.missing_maps(sel.refs)  # looks in the beatmap sources not read yet (only dropped files)
     left = lib.left_out(sel.player, since=sel.refs[-1]["timestamp"] if sel.limit and sel.refs else None)
     return SelectionOut(
         player=sel.player,
@@ -199,7 +238,6 @@ def selection_out(ws: Workspace, sel: Selection) -> SelectionOut:
         date_from=sel.start,
         date_to=sel.end,
         empty_range=not sel.refs and sel.choice != "all",
-        older_hint=bool(lib.scan_limit and sel.limit and sel.player not in ("*", names[0]) and sel.found < sel.limit),
         left_out=[Count(label=reason, count=n) for reason, n in left.most_common(3)],
         left_out_total=sum(left.values()),
     )

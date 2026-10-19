@@ -9,6 +9,7 @@ from osu_coach.replays import detect
 from osu_coach.replays.detect import (
     Install,
     find_installs,
+    install_at,
     is_osu_running,
     lazer_candidates,
     lazer_install,
@@ -267,6 +268,21 @@ def test_find_installs_lists_a_symlinked_root_once(tmp_path):
     except OSError:
         pytest.skip("symlinks not available")
     assert len(find_installs([stable, link], [])) == 1
+
+
+def test_install_at_recognises_either_kind_and_the_exe_itself(tmp_path):
+    stable = make_stable(tmp_path / "stable")
+    lazer = make_lazer(tmp_path / "lazer")
+    assert install_at(stable).kind == "stable" and install_at(lazer).kind == "lazer"
+    assert install_at(touch(stable / "osu!.exe")).root == stable
+    assert install_at(tmp_path / "missing") is None and install_at(tmp_path) is None
+
+
+def test_find_installs_adds_the_extra_folders_once(tmp_path):
+    stable = make_stable(tmp_path / "stable")
+    lazer = make_lazer(tmp_path / "lazer")
+    found = find_installs([stable], [], extra=[stable, lazer, tmp_path / "missing"])
+    assert [(i.kind, i.root) for i in found] == [("stable", stable), ("lazer", lazer)]
 
 
 def test_find_installs_keeps_stable_order(tmp_path):

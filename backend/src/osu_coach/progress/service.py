@@ -12,6 +12,7 @@ from osu_coach.app.errors import Invalid, NoProfile, NotFound
 from osu_coach.profile.domain import SKILL_LABELS
 from osu_coach.progress import goals
 from osu_coach.progress import repository as progress
+from osu_coach.progress.domain import SKILL_REFERENCE
 from osu_coach.progress.schemas import (
     GoalCreate,
     GoalHistory,
@@ -97,7 +98,9 @@ def by_period(
     finally:
         conn.close()
     rows = [_row(r) for r in m.to_dict("records")] if "maps" in m else []
-    return ProgressOut(player=name, period=period, first_day=first, rows=rows)
+    refs = m[SKILL_REFERENCE].dropna() if SKILL_REFERENCE in m else []
+    reference = num(refs.iloc[-1]) if len(refs) else None  # the newest: saved by the last analysis
+    return ProgressOut(player=name, period=period, first_day=first, skill_reference_stars=reference, rows=rows)
 
 
 def period_plays(ws: Workspace, player: str | None, period: str, key: str) -> list[ProgressPlay]:
@@ -200,8 +203,9 @@ def _goal_out(g: dict, current, low_comfort: bool = False) -> GoalOut:
 
 
 def _history(ws: Workspace, gl: list[dict]) -> list[GoalHistory]:
-    """The goal skills day by day since the oldest goal (from the saved progress), with the path to each target."""
-    gl = [g for g in gl if g.get("score_source") != "experimental"]
+    """The goal skills day by day since the oldest goal (from the saved progress), with the path to each target.
+    The saved daily scores are on the Overview's rating scale, so only goals set on that scale get a history."""
+    gl = [g for g in gl if g.get("score_source") == "experimental"]
     if not gl:
         return []
     conn = progress.connect(ws.cache_dir)

@@ -1,0 +1,874 @@
+/* The setup guide: a dialog over the app on the first start. One fixed-size panel (steps don't make it jump), a
+ * stepper along the top, the step's content scrolling between it and the step's buttons. The loading animation is
+ * osu!'s own: hit circles, approach circles, a 300. */
+
+.onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  padding: var(--s-5);
+  background: var(--overlay);
+  backdrop-filter: blur(6px);
+  animation: onboarding-in 0.2s ease-out;
+}
+
+/* the desktop app's title bar stays above it, usable */
+.is-desktop .onboarding {
+  top: var(--toolbar-h);
+}
+
+@keyframes onboarding-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.onboarding__dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 780px);
+  height: min(100%, 780px);
+  overflow: hidden;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--glass-edge), var(--elev-4);
+  animation: onboarding-rise 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.05);
+}
+
+@keyframes onboarding-rise {
+  from {
+    transform: translateY(12px) scale(0.98);
+    opacity: 0;
+  }
+}
+
+.onboarding__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+}
+
+.onboarding__head .brand__mark {
+  width: 34px;
+  height: 34px;
+}
+
+.onboarding__heading {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.onboarding__heading strong {
+  font-size: var(--t-md);
+}
+
+.onboarding__heading span {
+  color: var(--muted);
+  font-size: var(--t-sm);
+}
+
+/* ------------------------------------------------------------------ stepper */
+.stepper {
+  display: flex;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0 var(--s-5) var(--s-4);
+  list-style: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.stepper__item {
+  flex: 1;
+  min-width: 0;
+}
+
+.stepper__btn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+}
+
+button.stepper__btn {
+  cursor: pointer;
+}
+
+button.stepper__btn:hover .stepper__label {
+  color: var(--text);
+}
+
+.stepper__bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  transition: background 0.25s;
+}
+
+.stepper__item.done .stepper__bar,
+.stepper__item.current .stepper__bar {
+  background: var(--accent);
+}
+
+.stepper__item.current .stepper__bar {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+.stepper__label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  font-size: var(--t-xs);
+  font-weight: 560;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.stepper__label svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  color: var(--accent);
+}
+
+.stepper__item.current .stepper__label {
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ a step */
+.onboarding__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.onboarding__step {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  animation: onboarding-step 0.24s ease-out;
+}
+
+/* rises into place: a sideways slide would make the dialog scroll sideways while it runs */
+@keyframes onboarding-step {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.onboarding__content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  overflow-y: auto;
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+/* the content scrolls when it is taller than the dialog: its blocks keep their size */
+.onboarding__content > * {
+  flex-shrink: 0;
+}
+
+.onboarding__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.onboarding__intro--lead {
+  align-items: center;
+  padding-top: var(--s-4);
+  text-align: center;
+}
+
+.onboarding__title {
+  font-size: var(--t-xl);
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+/* focused by the guide (where a screen reader starts reading), never by the player: no focus ring */
+.onboarding__title:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.onboarding__sub {
+  max-width: 66ch;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.onboarding__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-5);
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.onboarding__foot .grow {
+  flex: 1;
+}
+
+.onboarding__error {
+  color: var(--bad);
+  font-size: var(--t-sm);
+}
+
+.onboarding__aside {
+  align-self: flex-start;
+}
+
+.onboarding__summary {
+  width: min(100%, 520px);
+  margin: 0 auto;
+  padding: var(--s-4);
+  border-radius: var(--radius-btn);
+  background: var(--surface-2);
+}
+
+.onboarding__content > p {
+  max-width: 66ch;
+}
+
+.onboarding__step .onboarding__summary ~ p {
+  align-self: center;
+  text-align: center;
+}
+
+.inline-icon {
+  width: 15px;
+  height: 15px;
+  vertical-align: -3px;
+}
+
+.input-row {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.input-row .input {
+  flex: 1;
+  min-width: 0;
+}
+
+code.path {
+  overflow-wrap: anywhere;
+}
+
+.btn--lg {
+  height: 44px;
+  font-size: var(--t-md);
+}
+
+/* ------------------------------------------------------------------ choice cards */
+.choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
+.choices--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.choice {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 6px;
+  padding: var(--s-4);
+  border-radius: var(--radius-btn);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+
+.choice:hover {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.choice.checked {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.choice:has(input:focus-visible) {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    var(--focus);
+}
+
+.choice__icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text-2);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.choice.checked .choice__icon {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.choice__icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.choice__title {
+  font-weight: 650;
+}
+
+.choice__text {
+  color: var(--muted);
+  font-size: var(--t-sm);
+  line-height: 1.45;
+}
+
+.choice__check {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity 0.15s,
+    transform 0.2s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+.choice.checked .choice__check {
+  opacity: 1;
+  transform: none;
+}
+
+/* ------------------------------------------------------------------ while replays are analysed */
+.working {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-5) var(--s-4);
+  border-radius: var(--radius-btn);
+  background: var(--surface-2);
+  text-align: center;
+}
+
+.working__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.working__title {
+  font-size: var(--t-lg);
+  font-weight: 650;
+}
+
+.working__eta {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.working__progress {
+  width: min(100%, 440px);
+  text-align: left;
+}
+
+.stages {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2) var(--s-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: var(--t-sm);
+}
+
+.stages li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stages li.done {
+  color: var(--good);
+}
+
+.stages li.current {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.stages svg {
+  width: 15px;
+  height: 15px;
+}
+
+.stages__dot {
+  width: 9px;
+  height: 9px;
+  margin: 3px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+}
+
+.stages li.current .stages__dot {
+  border-color: var(--accent);
+  background: var(--accent);
+  animation: stage-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes stage-pulse {
+  50% {
+    box-shadow: 0 0 0 5px var(--accent-soft);
+  }
+}
+
+.done-mark {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  box-shadow: 0 0 0 6px var(--accent-soft);
+  animation: done-pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.done-mark svg {
+  width: 30px;
+  height: 30px;
+  stroke-width: 2.2;
+}
+
+.done-mark--big {
+  width: 76px;
+  height: 76px;
+  margin-bottom: var(--s-2);
+}
+
+.done-mark--big svg {
+  width: 40px;
+  height: 40px;
+}
+
+@keyframes done-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+/* three numbered hit circles, hit one after another as their approach circles close in; the cursor jumps along */
+.hitcircles {
+  --hc: 46px;
+  position: relative;
+  flex: none;
+  width: 200px;
+  height: 116px;
+}
+
+.hitcircle {
+  position: absolute;
+  width: var(--hc);
+  height: var(--hc);
+  margin: calc(var(--hc) / -2) 0 0 calc(var(--hc) / -2);
+}
+
+.hitcircle--1 {
+  left: 38px;
+  top: 76px;
+}
+
+.hitcircle--2 {
+  left: 100px;
+  top: 36px;
+}
+
+.hitcircle--3 {
+  left: 162px;
+  top: 76px;
+}
+
+.hitcircle__body,
+.hitcircle__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+.hitcircle__body {
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 35% 30%, var(--p-300), var(--accent) 55%, var(--p-700));
+  box-shadow:
+    inset 0 0 0 3px #fff,
+    0 4px 14px hsl(333 90% 50% / 0.35);
+  color: #fff;
+  font-weight: 750;
+  font-size: var(--t-lg);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  animation: hc-body 2.4s ease-out infinite both;
+}
+
+.hitcircle__ring {
+  border: 2.5px solid var(--accent);
+  animation: hc-ring 2.4s linear infinite both;
+}
+
+.hitcircle__judge {
+  position: absolute;
+  left: 50%;
+  top: -18px;
+  color: var(--accent-3);
+  font-weight: 800;
+  font-size: var(--t-md);
+  font-style: italic;
+  letter-spacing: -0.02em;
+  transform: translateX(-50%);
+  animation: hc-judge 2.4s ease-out infinite both;
+}
+
+/* each circle appears 0.9 s before its hit; the hits come every 0.8 s: at 0, 0.8 and 1.6 s of the 2.4 s loop */
+.hitcircle--1 > * {
+  animation-delay: -0.9s;
+}
+
+.hitcircle--2 > * {
+  animation-delay: -0.1s;
+}
+
+.hitcircle--3 > * {
+  animation-delay: -1.7s;
+}
+
+@keyframes hc-body {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  8%,
+  37.5% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  47%,
+  100% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+}
+
+@keyframes hc-ring {
+  0% {
+    opacity: 0;
+    transform: scale(2.7);
+  }
+  8% {
+    opacity: 0.85;
+  }
+  37.5% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  38.5%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+@keyframes hc-judge {
+  0%,
+  37.5% {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(0.7);
+  }
+  43% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.1);
+  }
+  60%,
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -10px) scale(1);
+  }
+}
+
+.hitcircles__cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 30%, hsl(48 100% 70%) 60%, transparent 72%);
+  box-shadow: 0 0 12px hsl(48 100% 65% / 0.8);
+  animation: hc-cursor 2.4s cubic-bezier(0.55, 0, 0.35, 1) infinite;
+}
+
+@keyframes hc-cursor {
+  0%,
+  100% {
+    transform: translate(38px, 76px);
+  }
+  33.333% {
+    transform: translate(100px, 36px);
+  }
+  66.667% {
+    transform: translate(162px, 76px);
+  }
+}
+
+/* no motion wanted: three still circles */
+@media (prefers-reduced-motion: reduce) {
+  .hitcircle__body {
+    animation: none;
+  }
+
+  .hitcircle__ring,
+  .hitcircle__judge,
+  .hitcircles__cursor {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ the tour */
+.tour-groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tour-groups > li {
+  display: flex;
+}
+
+.tour-group {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--s-4);
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+
+.tour-group:hover {
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  transform: translateY(-1px);
+}
+
+.tour-group__icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+  color: var(--accent);
+}
+
+.tour-group__icons svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tour-group__name {
+  font-weight: 650;
+}
+
+.tour-group__about {
+  color: var(--muted);
+  font-size: var(--t-sm);
+  line-height: 1.45;
+}
+
+.tour {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tour__item {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 2px var(--s-3);
+  align-items: center;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-btn);
+  background: var(--surface-2);
+  animation: onboarding-step 0.3s ease-out both;
+}
+
+.tour__item:nth-child(2) {
+  animation-delay: 0.05s;
+}
+
+.tour__item:nth-child(3) {
+  animation-delay: 0.1s;
+}
+
+.tour__item:nth-child(4) {
+  animation-delay: 0.15s;
+}
+
+.tour__item:nth-child(5) {
+  animation-delay: 0.2s;
+}
+
+.tour__icon {
+  display: grid;
+  place-items: center;
+  grid-row: span 2;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tour__icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.tour__name {
+  font-weight: 650;
+}
+
+.tour__about {
+  color: var(--muted);
+  font-size: var(--t-sm);
+  line-height: 1.45;
+}
+
+.tour-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: var(--s-2);
+}
+
+.tour-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  transition:
+    width 0.2s,
+    background 0.2s;
+}
+
+.tour-dots span.on {
+  width: 22px;
+  background: var(--accent);
+}
+
+/* ------------------------------------------------------------------ small screens: the whole screen */
+@media (max-width: 700px) {
+  .onboarding {
+    padding: 0;
+  }
+
+  .onboarding__dialog {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .onboarding__head,
+  .onboarding__content,
+  .onboarding__foot {
+    padding-inline: var(--s-4);
+  }
+
+  .stepper {
+    padding-inline: var(--s-4);
+  }
+
+  .stepper__label {
+    display: none;
+  }
+
+  .choices,
+  .choices--3,
+  .tour-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* a choice is a row: icon, then its title and line */
+  .choice {
+    grid-template-columns: 38px minmax(0, 1fr);
+    column-gap: var(--s-3);
+    padding: var(--s-3) var(--s-4);
+    padding-right: var(--s-6);
+  }
+
+  .choice__icon {
+    grid-row: span 2;
+    margin: 0;
+  }
+
+  .choice__check {
+    top: 50%;
+    margin-top: -10px;
+  }
+}
