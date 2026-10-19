@@ -80,12 +80,13 @@ SKILL_HELP = {
         "with BPM changes, hitting the first notes after each change on time.",
     ),
     "consistency": (
-        "Consistency: does one miss make you miss more? The 10 notes after each miss are checked "
-        "(notelock is ignored).",
-        "Score: misses after a miss vs what the difficulty predicts there. A ratio of 2.0 (typical) "
-        "= 50; each halving = +30, each doubling = −30.",
-        "After a miss, reset and play the next note as if the combo were fresh; full-combo runs on "
-        "easier maps build this.",
+        "Consistency: recovery across the 10 notes after a miss (excluding notelock), and how much "
+        "your miss rate changes between plays of similar difficulty.",
+        "Score: average of available miss-recovery and between-play steadiness scores. "
+        "For recovery, a follow-up miss ratio of 2.0 = 50; for steadiness, a spread of "
+        "2 misses per 100 notes = 50. Halving either measure adds 30 points to that part.",
+        "Recover after a miss, and practise longer maps with steady difficulty to make your "
+        "results more repeatable.",
     ),
 }
 MISS_LABELS = {

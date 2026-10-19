@@ -78,14 +78,15 @@ def _local_eq(O: pd.DataFrame) -> pd.Series:
     return eq
 
 
-def miss_chain_ratio(P: pd.DataFrame, window: int = 10) -> float:
+def miss_chain_stats(P: pd.DataFrame, window: int = 10) -> dict:
     """Do misses make more misses? Observed / expected misses on the `window`
     notes after a miss, where "expected" comes from the player's own
     difficulty->miss model. Misses cluster in hard sections anyway; this ratio
     only rises above ~1 when a miss itself throws the player off (tilt, losing
     the rhythm). Notelock follow-ups are mechanical, so they are ignored."""
+    out = {"ratio": math.nan, "observed": None, "expected": None, "after_notes": 0}
     if P.empty or "local_eq" not in P:
-        return math.nan
+        return out
     parts = []
     for _, d in P.groupby("replay_key", sort=False):
         is_nl = ((d["miss_reason"] == "notelock") & ~d["head_hit"].astype(bool)).to_numpy()
@@ -103,21 +104,29 @@ def miss_chain_ratio(P: pd.DataFrame, window: int = 10) -> float:
             )
         )
     if not parts:
-        return math.nan
+        return out
     D = pd.concat(parts, ignore_index=True)
     D = D[~D["skip"]]
     fresh, after = D[~D["after"]], D[D["after"]]
+    out["after_notes"] = len(after)
     if len(after) < 20 or len(fresh) < 50 or after["w"].sum() < 20:
-        return math.nan
+        return out
     # expectation from notes with no recent miss, at the same local difficulty
     model = fit_miss_model(fresh)
     exp = float(np.nansum(model(after["local_eq"].to_numpy()) * after["w"].to_numpy()))
     obs = float(((~after["head_hit"]) * after["w"]).sum())
+    out["observed"], out["expected"] = obs, exp
     if exp <= 0:
-        return math.nan
+        return out
     # shrink towards the typical value (~2x, median of real replays) so a handful of
     # misses can't produce extreme ratios: prior worth 5 expected misses
-    return (obs + 5 * TYPICAL_CHAIN_RATIO) / (exp + 5)
+    out["ratio"] = (obs + 5 * TYPICAL_CHAIN_RATIO) / (exp + 5)
+    return out
+
+
+def miss_chain_ratio(P: pd.DataFrame, window: int = 10) -> float:
+    """Observed/expected follow-up misses, shrunk toward the typical ratio."""
+    return miss_chain_stats(P, window)["ratio"]
 
 
 TYPICAL_CHAIN_RATIO = 2.0

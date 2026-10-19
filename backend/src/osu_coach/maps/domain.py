@@ -28,7 +28,7 @@ SKILL_INFO = {
     "accuracy": {"label": "Accuracy (timing)", "offset": -0.7, "focus": "300s — tap exactly with the music"},
     "sliders": {"label": "Slider control", "offset": -0.5, "focus": "following the ball until the slider ends"},
     "reading": {"label": "Reading (dense parts / AR)", "offset": -0.3, "focus": "looking ahead at the next notes"},
-    "consistency": {"label": "Consistency", "offset": -0.5, "focus": "staying calm after a mistake"},
+    "consistency": {"label": "Consistency", "offset": -0.5, "focus": "keeping performance steady throughout the map"},
     "quadrant": {"label": "Weak quadrant", "offset": -0.2, "focus": "committing to the full movement into the corner"},
     "general": {"label": "Level up", "offset": 0.3, "focus": "passing slightly harder maps"},
 }
@@ -66,8 +66,13 @@ def map_stats(bm: Beatmap, osu_bytes: bytes) -> dict | None:
     streams = ns[ns["run_len"] >= 9]
     bursts = ns[(ns["run_len"] >= 3) & (ns["run_len"] < 9)]
     sliders = ns[ns["kind"] == "slider"]
-    runs = ns[ns["run_id"] >= 0]
+    runs = ns[(ns["run_id"] >= 0) & (ns["run_len"] >= 3)]
     run_sizes = runs.groupby("run_id")["run_len"].first() if len(runs) else pd.Series(dtype=float)
+    run_bpms = (
+        runs.groupby("run_id")["stream_bpm"].median().dropna().sort_values(ascending=False)
+        if len(runs)
+        else pd.Series(dtype=float)
+    )
     rhythm = ns["rhythm"].dropna()
     rhythm = rhythm[rhythm != "break"]
     s = {
@@ -94,6 +99,8 @@ def map_stats(bm: Beatmap, osu_bytes: bytes) -> dict | None:
         "spaced_stream_share": float(ns["spaced_stream"].mean()),
         "stream_bpm": _f(streams["stream_bpm"].median()) if len(streams) else math.nan,
         "burst_bpm": _f(bursts["stream_bpm"].median()) if len(bursts) else math.nan,
+        "speed_bpm": _f(run_bpms.iloc[2]) if len(run_bpms) >= 3 else math.nan,
+        "speed_runs": int(len(run_bpms)),
         "max_run": int(ns["run_len"].max()),
         "long_runs": int((run_sizes >= 16).sum()),
         "stream_notes": int(len(streams)),
@@ -400,6 +407,8 @@ def why(r, skill: str, t: Targets) -> str:
     if skill in ("speed", "stamina"):
         bpm = g("stream_bpm")
         bpm = g("burst_bpm") if math.isnan(bpm) else bpm
+        if skill == "speed":
+            bpm = g("speed_bpm", max(g("stream_bpm", 0), g("burst_bpm", 0)))
         run = int(g("max_run", 0))
         kind = "streams" if run >= 9 else "bursts"
         if skill == "stamina":

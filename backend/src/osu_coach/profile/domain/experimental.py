@@ -11,9 +11,11 @@ import math
 import numpy as np
 import pandas as pd
 
+from osu_coach.analysis.skill_scale import SPEED_POINTS, expected_speed_bpm
 from osu_coach.profile.domain.aim import aim_values, flow_values
 from osu_coach.profile.domain.levels import RECENT_DAYS, RECENT_MIN, replay_weight
-from osu_coach.profile.domain.misses import miss_chain_ratio
+from osu_coach.profile.domain.consistency import play_steadiness
+from osu_coach.profile.domain.misses import miss_chain_stats
 from osu_coach.profile.domain.reading import reading_values
 from osu_coach.profile.domain.sliders import slider_difficulty
 from osu_coach.profile.domain.stamina import tempo_curve
@@ -25,7 +27,7 @@ RANK_DECAY = 0.95
 POINTS = {
     "aim": 25,
     "flow_aim": 25,
-    "speed": 75,
+    "speed": SPEED_POINTS,
     "stamina": 75,
     "accuracy": 25,
     "sliders": 25,
@@ -64,7 +66,7 @@ def _expected(skill: str, theta: float, *, duration: int | None = None) -> float
     return {
         "aim": 17.5 * 2 ** ((theta - 6) / 12),
         "flow_aim": 11 * 2 ** ((theta - 6) / 12),
-        "speed": bpm,
+        "speed": expected_speed_bpm(theta),
         "stamina": bpm * STAMINA_SHARES[duration] if duration else math.nan,
         "sliders": 40 * 2 ** ((theta - 6) / 3),
         "reading": 0.95**8,
@@ -246,13 +248,24 @@ def ratings(objects: pd.DataFrame, metas: pd.DataFrame, theta: float | None) -> 
             "od_windows": windows,
             "reason": "Effective-OD-matched non-300 share on hit single heads",
         }
-    ratio = miss_chain_ratio(P)
+    chain = miss_chain_stats(P)
+    steady = play_steadiness(P)
+    chain_score = _score("consistency", chain["ratio"], 2.0, inverse=True)
+    steady_score = _score("consistency", steady["spread"], 2.0, inverse=True)
+    consistency_parts = [score for score in (chain_score, steady_score) if score is not None]
     result["consistency"] = {
-        "score": _score("consistency", ratio, 2.0, inverse=True),
+        "score": round(float(np.mean(consistency_parts)), 1) if consistency_parts else None,
         "maps": int(P["replay_key"].nunique()),
-        "measured": ratio,
+        "measured": chain["ratio"],
         "expected": 2.0,
-        "reason": "Difficulty-adjusted miss recovery proxy",
+        "chain_score": chain_score,
+        "steady_score": steady_score,
+        "observed_followup_misses": chain["observed"],
+        "expected_followup_misses": chain["expected"],
+        "followup_notes": chain["after_notes"],
+        "steady_spread": steady["spread"],
+        "steady_plays": steady["plays"],
+        "reason": "Mean of available miss recovery and between-play steadiness scores",
     }
     return result
 
