@@ -8,6 +8,7 @@ import { MapTable } from "../components/MapTable";
 import { QueryView } from "../components/states";
 import { Alert, Card, Field, Page } from "../components/ui";
 import { int } from "../lib/format";
+import { speedFitNotice } from "../lib/recommendationFit";
 
 export default function MapsPage() {
   const [options, setOptions] = useState<{ kappa?: number; min_relevance?: number }>({});
@@ -55,12 +56,16 @@ function Body({ s, onApply }: { s: Schemas["Suggestions"]; onApply: (options: { 
       {!s.has_profile ? <Alert tone="info">Analyze replays to measure weak skills before map suggestions can be made.</Alert> :
         !s.sections.length ? <Alert tone="info">No measured skill is below the expected level (45/100 or less), so there are no weakness-based suggestions.</Alert> : null}
       {!!s.unmeasured_skills?.length && <p className="small muted">Unmeasured skills are not selected: {s.unmeasured_skills.join(", ")}.</p>}
-      {s.sections.map((sec) => (
-        <Card className="map-suggestion-card" key={sec.skill} title={sec.title} sub={`Weak skill ${sec.score?.toFixed(0) ?? "unknown"}/100 · ${sec.eligible} comfort-level maps · adjusted ${sec.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★ · target ${sec.target_stars?.toFixed(2) ?? "unknown"}★ · demand ${sec.target_demand?.toFixed(1) ?? "unknown"}`}>
-          <MapTable key={`${sec.skill}:${sec.eligible}:${sec.maps[0]?.md5 ?? ""}:${sec.skill_adjusted_stars}`} maps={sec.maps} onHide={(m) => hide.mutate([m.md5])} />
-          {!sec.eligible && <p className="small muted">{Object.entries(sec.excluded ?? {}).map(([reason, count]) => `${reason}: ${count}`).join(" · ")}</p>}
-        </Card>
-      ))}
+      {s.sections.map((sec) => {
+        const fitNotice = sec.skill === "speed" ? speedFitNotice(sec.maps, sec.target_demand) : null;
+        return (
+          <Card className="map-suggestion-card" key={sec.skill} title={sec.title} sub={`Weak skill ${sec.score?.toFixed(0) ?? "unknown"}/100 · ${sec.eligible} comfort-level maps · adjusted ${sec.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★ · target ${sec.target_stars?.toFixed(2) ?? "unknown"}★ · demand ${sec.target_demand?.toFixed(1) ?? "unknown"}`}>
+            {fitNotice && <Alert tone="warn">{fitNotice}</Alert>}
+            <MapTable key={`${sec.skill}:${sec.eligible}:${sec.maps[0]?.md5 ?? ""}:${sec.skill_adjusted_stars}`} maps={sec.maps} onHide={(m) => hide.mutate([m.md5])} />
+            {!sec.eligible && <p className="small muted">{Object.entries(sec.excluded ?? {}).map(([reason, count]) => `${reason}: ${count}`).join(" · ")}</p>}
+          </Card>
+        );
+      })}
       {s.hidden > 0 && (
         <Alert tone="info">
           <span>

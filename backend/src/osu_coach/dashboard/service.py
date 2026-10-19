@@ -160,6 +160,28 @@ def score_text(v: dict) -> str:
 
 
 def experimental_facts(skill: str, row: dict) -> list[str]:
+    if skill == "consistency":
+        facts = [f"{row.get('maps', 0)} analysed replays"]
+        observed = num(row.get("observed_followup_misses"))
+        expected_misses = num(row.get("expected_followup_misses"))
+        if observed is not None and expected_misses is not None:
+            facts.append(
+                f"after a miss: {observed:.1f} weighted misses vs {expected_misses:.1f} expected "
+                f"across {row.get('followup_notes', 0)} following notes"
+            )
+        chain_score = num(row.get("chain_score"))
+        if chain_score is not None:
+            facts.append(f"miss recovery {chain_score:.1f}/100")
+        steady_score = num(row.get("steady_score"))
+        spread = num(row.get("steady_spread"))
+        if steady_score is not None and spread is not None:
+            facts.append(
+                f"between-play steadiness {steady_score:.1f}/100 "
+                f"({spread:.1f} misses per 100 notes spread across {row.get('steady_plays', 0)} plays)"
+            )
+        if row.get("reason"):
+            facts.append(str(row["reason"]))
+        return facts
     facts = [f"{row.get('maps', 0)} relevant map/mod configurations"]
     measured, expected = num(row.get("measured")), num(row.get("expected"))
     if measured is not None and expected is not None:
