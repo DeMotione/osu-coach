@@ -220,7 +220,8 @@ function AnalyseCard({ settings }: { settings: Settings }) {
     date_to: settings.date_to,
   };
   const selection = useSelection(params, scanned && !busy);
-  const sel = selection.data;
+  // a failed request keeps the answer before it, e.g. the players of replays deleted since the last scan (#35)
+  const sel = selection.isError ? undefined : selection.data;
 
   if (!scanned)
     return (

@@ -8,7 +8,7 @@ from osu_coach.app import session_store
 from osu_coach.app.errors import Busy
 from osu_coach.library import service as svc
 from osu_coach.settings.repository import load_settings
-from tests.conftest import MOT1ONE, analyse, plays_folder, sample_paths, scan, wait, workspace
+from tests.conftest import MOT1ONE, OTHERS, analyse, plays_folder, sample_paths, scan, wait, workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
 
@@ -116,6 +116,31 @@ def test_selection_by_count_and_date(tmp_path, client):
 def test_unknown_player_falls_back_to_the_one_with_most_replays(tmp_path, client):
     scan(client, plays_folder(tmp_path))
     assert client.get("/api/library/selection", params={"player": "nobody"}).json()["player"] == "Mot1one"
+
+
+def test_players_of_deleted_replays_are_gone_after_the_next_scan(tmp_path, client):
+    """osu!stable: replays deleted from Data/r take their players with them at the next scan (#35)."""
+    replays = tmp_path / "osu!" / "Data" / "r"
+    replays.mkdir(parents=True)
+    for n in MOT1ONE + OTHERS:
+        shutil.copy(sample_paths(n)[0], replays / n)
+    assert client.post("/api/installs", json={"path": str(replays.parent.parent)}).status_code == 201
+
+    def players() -> list[str]:
+        r = client.post("/api/library/scan", json={"mode": "library"})
+        assert wait(client, r.json())["status"] == "succeeded"
+        return [p["name"] for p in client.get("/api/library").json()["players"]]
+
+    assert len(players()) == 3
+    for n in OTHERS:
+        (replays / n).unlink()
+    assert players() == ["Mot1one"]
+    assert [p["name"] for p in client.get("/api/library/selection").json()["players"]] == ["Mot1one"]
+    for n in MOT1ONE:
+        (replays / n).unlink()
+    assert players() == []
+    r = client.get("/api/library/selection")
+    assert r.status_code == 409 and r.json()["code"] == "no_replays"
 
 
 def test_missing_folder_is_a_warning_not_an_error(tmp_path, client):

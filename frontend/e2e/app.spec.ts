@@ -302,6 +302,29 @@ test.describe("after the setup", () => {
     expect((await library()).files).toEqual([]);
     await page.getByText(/^My replays/).click(); // back to the osu! installs for the tests after this one
   });
+
+  test("players of deleted replays leave the Analyse card at the next scan (#35)", async ({ page }) => {
+    const folder = fs.mkdtempSync(path.join(os.tmpdir(), "osu-coach-deleted-"));
+    for (const r of INDEX.filter((x) => x.replay.startsWith("mot1one__")).slice(0, 2))
+      fs.copyFileSync(path.join(RES, "replays", r.replay), path.join(folder, r.replay));
+    const folders = page.getByLabel("Extra folders (one per line)");
+    const scan = async (found: number) => {
+      await page.getByRole("button", { name: "Scan", exact: true }).click();
+      await expect(page.getByText(new RegExp(`^Found ${found} osu!standard replays`))).toBeVisible({ timeout: 120_000 });
+    };
+    await page.goto("/replays");
+    await folders.fill(folder);
+    await scan(2);
+    await expect(page.getByLabel("Player")).toContainText("Mot1one");
+    // the replays are deleted, then scanned again: nobody is left to analyse
+    for (const f of fs.readdirSync(folder)) fs.rmSync(path.join(folder, f));
+    await scan(0);
+    await expect(page.getByText(/^No osu!standard replays found there/)).toBeVisible();
+    await expect(page.getByLabel("Player")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Analyse replays" })).toBeDisabled();
+    await folders.fill(playsFolder()); // back to the sample plays for the tests after this one
+    await scan(10);
+  });
 });
 
 test("the setup guide: osu! folder, playstyle, replays, tour", async ({ page, request }) => {
