@@ -226,8 +226,8 @@ export const useRemoveGoal = () =>
   useGoalsMutation((id: string) => unwrap(api.DELETE("/api/goals/{goal_id}", { params: { path: { goal_id: id } } })));
 
 // ------------------------------------------------------------------ maps
-export const useSuggestions = () =>
-  useQuery({ queryKey: [...keys.maps, "suggestions"], queryFn: () => unwrap(api.GET("/api/maps/suggestions")) });
+export const useSuggestions = (params: { kappa?: number; min_relevance?: number } = {}) =>
+  useQuery({ queryKey: [...keys.maps, "suggestions", params], queryFn: () => unwrap(api.GET("/api/maps/suggestions", { params: { query: params } })), placeholderData: keepPreviousData });
 
 export function useHideMaps() {
   const qc = useQueryClient();
@@ -238,7 +238,7 @@ export function useHideMaps() {
   });
 }
 
-export const usePlaylist = (params: { skill?: string; maps: number; comfort?: number }) =>
+export const usePlaylist = (params: { skill?: string; assessed?: string; ratings?: string; comfort?: number; kappa?: number; min_relevance?: number; exclude_played?: boolean }) =>
   useQuery({
     queryKey: [...keys.playlists, params],
     queryFn: () => unwrap(api.GET("/api/playlists", { params: { query: params } })),

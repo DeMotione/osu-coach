@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "osu! coach API",
-    "description": "\nThe HTTP API of **osu! coach**: it analyses your own osu!standard replays and tells you what to work on.\nIt runs on your computer and answers only to it (`localhost`).\n\n### How the pieces fit\n1. **Find replays** — `POST /api/library/scan` (osu! installs, folders, uploaded files) runs as a background\n   job; poll `GET /api/jobs/{id}`.\n2. **Choose and analyse** — `GET /api/library/selection` shows which replays an analysis would read;\n   `POST /api/analysis` analyses them (a job). Every analysis is also saved in the progress history.\n3. **Read the results** — the `/api/profile/*` pages (Overview, Aim, Tapping, Sliders & Reading, Tips & Setup),\n   map suggestions and playlists. They answer `409 no_profile` until something was analysed.\n\nRemembered choices (`/api/settings`, `/api/setup`) are shared with the `osu-coach` command line.\n\n### Conventions\n* Rates and shares are fractions (0–1) unless a field says %; `null` means *not enough data*.\n* Times are ISO 8601 in UTC.\n* Errors are `{\"detail\": \"...\", \"code\": \"...\"}` with a stable `code`.\n",
+    "description": "\nThe HTTP API of **osu! coach**: it analyses your own osu!standard replays and tells you what to work on.\nIt runs on your computer and answers only to it (`localhost`).\n\n### How the pieces fit\n1. **Find replays** — `POST /api/library/scan` (osu! installs, folders, uploaded files) runs as a background\n   job; poll `GET /api/jobs/{id}`.\n2. **Choose and analyse** — `GET /api/library/selection` shows which replays an analysis would read;\n   `POST /api/analysis` analyses them (a job). Every analysis is also saved in the progress history.\n3. **Read the results** — the `/api/profile/*` pages (Overview, Aim, Tapping, Sliders & Reading, Tips & Setup)\n   require analysis. Automatic map suggestions use analysed replays; skill playlists can also use manually supplied\n   comfort stars and skill ratings.\n\nRemembered choices (`/api/settings`, `/api/setup`) are shared with the `osu-coach` command line.\n\n### Conventions\n* Rates and shares are fractions (0–1) unless a field says %; `null` means *not enough data*.\n* Times are ISO 8601 in UTC.\n* Errors are `{\"detail\": \"...\", \"code\": \"...\"}` with a stable `code`.\n",
     "version": "0.9.1"
   },
   "paths": {
@@ -1505,9 +1505,34 @@
         "tags": [
           "Maps"
         ],
-        "summary": "Maps for your weakest skills",
-        "description": "From the bundled pool of popular ranked maps around your level; maps you played or hid are left out.",
+        "summary": "Comfort-level maps for measured weak skills",
+        "description": "Rank comfort-level maps for skills below the player's expected level.",
         "operationId": "suggestions_api_maps_suggestions_get",
+        "parameters": [
+          {
+            "name": "kappa",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0.5,
+              "title": "Kappa"
+            }
+          },
+          {
+            "name": "min_relevance",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0.3,
+              "title": "Min Relevance"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1519,8 +1544,8 @@
               }
             }
           },
-          "409": {
-            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
+          "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1601,7 +1626,7 @@
           "Maps"
         ],
         "summary": "A staged playlist (warm-up / core / push) for one skill",
-        "description": "``skill`` defaults to your weakest one; ``comfort``: your level without analysed replays.",
+        "description": "``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data.",
         "operationId": "playlist_api_playlists_get",
         "parameters": [
           {
@@ -1621,18 +1646,6 @@
             }
           },
           {
-            "name": "maps",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 30,
-              "minimum": 6,
-              "default": 15,
-              "title": "Maps"
-            }
-          },
-          {
             "name": "comfort",
             "in": "query",
             "required": false,
@@ -1640,14 +1653,78 @@
               "anyOf": [
                 {
                   "type": "number",
-                  "maximum": 8.0,
-                  "minimum": 1.0
+                  "exclusiveMinimum": 0
                 },
                 {
                   "type": "null"
                 }
               ],
               "title": "Comfort"
+            }
+          },
+          {
+            "name": "assessed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Assessed"
+            }
+          },
+          {
+            "name": "ratings",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ratings"
+            }
+          },
+          {
+            "name": "kappa",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0.5,
+              "title": "Kappa"
+            }
+          },
+          {
+            "name": "min_relevance",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0.3,
+              "title": "Min Relevance"
+            }
+          },
+          {
+            "name": "exclude_played",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Exclude Played"
             }
           }
         ],
@@ -3709,7 +3786,7 @@
               "$ref": "#/components/schemas/ExportMap"
             },
             "type": "array",
-            "maxItems": 500,
+            "maxItems": 10000,
             "minItems": 1,
             "title": "Maps"
           }
@@ -4182,7 +4259,14 @@
             "title": "Current"
           },
           "progress": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Progress"
           },
           "left": {
@@ -4207,9 +4291,19 @@
               "on track",
               "behind",
               "overdue",
-              "no data"
+              "no data",
+              "paused"
             ],
             "title": "State"
+          },
+          "score_source": {
+            "type": "string",
+            "enum": [
+              "experimental",
+              "legacy"
+            ],
+            "title": "Score Source",
+            "description": "Rating scale used when the goal was created."
           }
         },
         "type": "object",
@@ -4226,7 +4320,8 @@
           "progress",
           "left",
           "days_left",
-          "state"
+          "state",
+          "score_source"
         ],
         "title": "GoalOut"
       },
@@ -4268,7 +4363,7 @@
             },
             "type": "array",
             "title": "Suggested",
-            "description": "A 4-week plan for the 3 weakest skills."
+            "description": "A 4-week plan for up to 3 measured skills rated 45 or lower in Overview, without open goals."
           },
           "weak_without_goal": {
             "items": {
@@ -4859,6 +4954,13 @@
             },
             "type": "array",
             "title": "Maps"
+          },
+          "excluded": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Excluded"
           }
         },
         "type": "object",
@@ -5214,6 +5316,55 @@
             ],
             "title": "Goal",
             "description": "What to aim for on this stage."
+          },
+          "skill_demand": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Demand",
+            "description": "Experimental map demand on the 0–100 skill scale."
+          },
+          "relevance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevance",
+            "description": "Target skill training relevance, 0–1."
+          },
+          "formula_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formula Score",
+            "description": "F(m), comparable within one goal."
+          },
+          "breakdown": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Breakdown",
+            "description": "JSON calculation terms and experimental inputs."
           }
         },
         "type": "object",
@@ -5479,7 +5630,7 @@
               "type": "integer"
             },
             "type": "array",
-            "maxItems": 500,
+            "maxItems": 10000,
             "minItems": 1,
             "title": "Set Ids"
           }
@@ -6051,6 +6202,11 @@
             "type": "number",
             "title": "Comfort"
           },
+          "comfort_source": {
+            "type": "string",
+            "title": "Comfort Source",
+            "description": "Replay comfort, manual input, recent level fallback, or stated assumption."
+          },
           "stream_bpm": {
             "anyOf": [
               {
@@ -6084,6 +6240,37 @@
               "lazer"
             ],
             "title": "Preferred Client"
+          },
+          "skill_adjusted_stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Adjusted Stars"
+          },
+          "experimental": {
+            "type": "boolean",
+            "title": "Experimental",
+            "default": true
+          },
+          "abilities": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Abilities"
+          },
+          "measured_abilities": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Measured Abilities",
+            "description": "Replay-derived skill ratings before manual overrides."
           }
         },
         "type": "object",
@@ -6093,6 +6280,7 @@
           "default_skill",
           "has_profile",
           "comfort",
+          "comfort_source",
           "stream_bpm",
           "maps",
           "collection_name",
@@ -6147,6 +6335,40 @@
             },
             "type": "array",
             "title": "Maps"
+          },
+          "target_stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Stars"
+          },
+          "target_demand": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Demand"
+          },
+          "eligible": {
+            "type": "integer",
+            "title": "Eligible",
+            "default": 0
+          },
+          "excluded": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Excluded"
           }
         },
         "type": "object",
@@ -8380,6 +8602,51 @@
             },
             "type": "array",
             "title": "Maps"
+          },
+          "target_stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Stars"
+          },
+          "target_demand": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Demand"
+          },
+          "skill_adjusted_stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Adjusted Stars"
+          },
+          "eligible": {
+            "type": "integer",
+            "title": "Eligible",
+            "default": 0
+          },
+          "excluded": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Excluded"
           }
         },
         "type": "object",
@@ -8396,6 +8663,11 @@
           "comfort": {
             "type": "number",
             "title": "Comfort"
+          },
+          "comfort_source": {
+            "type": "string",
+            "title": "Comfort Source",
+            "description": "Replay comfort, manual input, recent level fallback, or stated assumption."
           },
           "pool_size": {
             "type": "integer",
@@ -8423,11 +8695,29 @@
               "lazer"
             ],
             "title": "Preferred Client"
+          },
+          "experimental": {
+            "type": "boolean",
+            "title": "Experimental",
+            "default": true
+          },
+          "has_profile": {
+            "type": "boolean",
+            "title": "Has Profile",
+            "default": false
+          },
+          "unmeasured_skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unmeasured Skills"
           }
         },
         "type": "object",
         "required": [
           "comfort",
+          "comfort_source",
           "pool_size",
           "hidden",
           "sections",
@@ -8937,6 +9227,14 @@
             ],
             "title": "Top",
             "description": "Top players' reference plays on the same scale."
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Facts",
+            "description": "Measured and assumed values behind this row."
           }
         },
         "type": "object",

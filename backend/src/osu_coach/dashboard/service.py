@@ -4,14 +4,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pandas as pd
+
 from osu_coach.app.convert import flag, integer, iso, num, nums, text
 from osu_coach.dashboard import schemas as S
 from osu_coach.insights import domain as insights
 from osu_coach.insights import service as insights_service
 from osu_coach.insights.schemas import Clicks
-from osu_coach.maps.domain import stream_length_maps, targets_from_profile
+from osu_coach.maps.domain import targets_from_profile
 from osu_coach.maps.service import map_rows
+from osu_coach.maps.skillset import recommend
 from osu_coach.profile.domain import SKILL_LABELS, Profile, top_comparison, weight_table
+from osu_coach.profile.domain.experimental import at_level as experimental_at_level
 from osu_coach.tips.service import tip_out, tips
 
 if TYPE_CHECKING:
@@ -155,6 +159,49 @@ def score_text(v: dict) -> str:
     return "too few misses to tell" if v.get("too_few_misses") else "not enough data"
 
 
+def experimental_facts(skill: str, row: dict) -> list[str]:
+    if skill == "consistency":
+        facts = [f"{row.get('maps', 0)} analysed replays"]
+        observed = num(row.get("observed_followup_misses"))
+        expected_misses = num(row.get("expected_followup_misses"))
+        if observed is not None and expected_misses is not None:
+            facts.append(
+                f"after a miss: {observed:.1f} weighted misses vs {expected_misses:.1f} expected "
+                f"across {row.get('followup_notes', 0)} following notes"
+            )
+        chain_score = num(row.get("chain_score"))
+        if chain_score is not None:
+            facts.append(f"miss recovery {chain_score:.1f}/100")
+        steady_score = num(row.get("steady_score"))
+        spread = num(row.get("steady_spread"))
+        if steady_score is not None and spread is not None:
+            facts.append(
+                f"between-play steadiness {steady_score:.1f}/100 "
+                f"({spread:.1f} misses per 100 notes spread across {row.get('steady_plays', 0)} plays)"
+            )
+        if row.get("reason"):
+            facts.append(str(row["reason"]))
+        return facts
+    facts = [f"{row.get('maps', 0)} relevant map/mod configurations"]
+    measured, expected = num(row.get("measured")), num(row.get("expected"))
+    if measured is not None and expected is not None:
+        if skill == "accuracy":
+            if row.get("hit_single_notes") is not None:
+                facts.append(f"{row['hit_single_notes']:,} hit single notes")
+            facts.append(f"{100 * (1 - measured):.3g}% hit as 300s")
+            facts.append(
+                f"non-300 rate on hit single notes (lower is better): "
+                f"{100 * measured:.3g}% vs assumed {100 * expected:.3g}%"
+            )
+        else:
+            facts.append(f"measured {measured:.3g} vs assumed reference {expected:.3g}")
+    if row.get("parts"):
+        facts.append("measured durations: " + ", ".join(f"{p['duration']} s" for p in row["parts"]))
+    if row.get("reason"):
+        facts.append(str(row["reason"]))
+    return facts
+
+
 # ------------------------------------------------------------------ overview
 def overview(ws: Workspace, p: Profile) -> S.Overview:
     ov, lv = p.overview, p.levels
@@ -185,16 +232,20 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         misses_per_100=num(ov.get("misses_per_100")),
         accuracy=num(ov.get("accuracy")),
     )
+    comfort_level = num(lv.get("comfort_stars")) or level
+    relative_scores = {key: row.get("score") for key, row in p.experimental_skills.items()} if comfort_level else {}
     skills = [
         S.SkillScore(
             key=k,
             label=v.get("label", SKILL_LABELS.get(k, k)),
-            score=num(v.get("score")),
-            score_text=score_text(v),
-            low_data=bool(v.get("low_data")),
-            too_few_misses=bool(v.get("too_few_misses")),
+            score=num(relative_scores.get(k)),
+            score_text=(p.experimental_skills.get(k) or {}).get("reason")
+            if relative_scores.get(k) is None
+            else f"{relative_scores[k]:.0f} · experimental comfort-relative performance",
+            low_data=relative_scores.get(k) is not None and (p.experimental_skills.get(k) or {}).get("maps", 0) < 10,
+            too_few_misses=False,
             n=int(v.get("n") or 0),
-            facts=skill_facts(k, v),
+            facts=experimental_facts(k, p.experimental_skills.get(k) or {}),
         )
         for k, v in p.skills.items()
     ]
@@ -205,10 +256,21 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         high_ar_score=num(rd.get("high_ar_score")),
         high_ar_maps=int(rd.get("high_ar_maps") or 0),
     )
-    few = [v["label"].split(" (")[0] for v in p.skills.values() if v.get("low_data")]
+    few = [SKILL_LABELS.get(k, k) for k, v in p.experimental_skills.items() if v.get("score") is None]
+    top_scores = experimental_at_level(p.experimental_skills, 10.0)
     top = top_comparison(p.skills)
     top_rows = [
-        S.TopSkill(key=k, label=top[k]["label"], score=num(top[k]["score"]), top=num(top[k]["top"]))
+        S.TopSkill(
+            key=k,
+            label=top[k]["label"],
+            score=num(top_scores.get(k)),
+            top=num(top[k]["top"]),
+            facts=experimental_facts(
+                k, {**p.experimental_skills[k], "expected": p.experimental_skills[k].get("expected_top")}
+            )
+            if k == "accuracy" and k in p.experimental_skills
+            else [],
+        )
         for k in p.skills
         if k in top
     ]
@@ -242,9 +304,17 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         few_data=few,
         top=top_rows,
         stamina=stamina,
-        sliders_scored=(p.skills.get("sliders") or {}).get("score") is not None,
-        strengths=[p.skills[k]["label"] for k in p.strengths],
-        weaknesses=[p.skills[k]["label"] for k in p.weaknesses],
+        sliders_scored=relative_scores.get("sliders") is not None,
+        strengths=[
+            p.skills[k]["label"]
+            for k in sorted(relative_scores, key=lambda k: relative_scores[k] or -1, reverse=True)
+            if relative_scores[k] is not None and relative_scores[k] >= 55
+        ][:3],
+        weaknesses=[
+            p.skills[k]["label"]
+            for k in sorted(relative_scores, key=lambda k: relative_scores[k] or 101)
+            if relative_scores[k] is not None and relative_scores[k] <= 45
+        ][:3],
         miss_causes=causes,
         aim_split=aim_split,
         top_tips=top_tips,
@@ -401,12 +471,25 @@ def _fall_behind(ws: Workspace, p: Profile) -> S.FallBehind:
         if not pool.empty:
             t = targets_from_profile(p)
             easy_lo = max(9, int(comfort * 0.6))
-            comfortable_maps = S.MapList(
-                min_notes=easy_lo, max_notes=comfort, maps=map_rows(stream_length_maps(pool, t, easy_lo, comfort, n=5))
-            )
-            practice_maps = S.MapList(
-                min_notes=int(lo), max_notes=int(hi), maps=map_rows(stream_length_maps(pool, t, int(lo), int(hi), n=5))
-            )
+            stamina = num((p.experimental_skills.get("stamina") or {}).get("score"))
+            abilities = {"stamina": stamina} if stamina is not None else {}
+            for low, high, goal in ((easy_lo, comfort, "Comfort"), (int(lo), int(hi), "Push")):
+                subset = pool[(pool["max_run"] >= low) & (pool["max_run"] <= high)]
+                data = recommend(
+                    subset, t.comfort, abilities, "stamina", ("stamina",), min_relevance=0.0, played=t.played, targets=t
+                )["goals"][goal]
+                rows = []
+                for row in data["maps"]:
+                    bpm = num(row.get("stream_bpm")) or num(row.get("burst_bpm")) or 0
+                    row["why"] = f"longest stream {int(row['max_run'])} notes at ~{bpm:.0f} BPM (1/4)"
+                    rows.append(row)
+                listing = S.MapList(
+                    min_notes=low, max_notes=high, maps=map_rows(pd.DataFrame(rows)), excluded=data["excluded"]
+                )
+                if goal == "Comfort":
+                    comfortable_maps = listing
+                else:
+                    practice_maps = listing
     return S.FallBehind(
         available=available,
         start_note=integer(fb.get("start_note")),

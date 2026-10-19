@@ -80,6 +80,7 @@ class TopSkill(BaseModel):
     label: str
     score: float | None = Field(description="Against a 10★ player (50 = typical 10★ player).")
     top: float | None = Field(description="Top players' reference plays on the same scale.")
+    facts: list[str] = Field(default_factory=list, description="Measured and assumed values behind this row.")
 
 
 class StaminaPoint(BaseModel):
@@ -289,6 +290,7 @@ class MapList(BaseModel):
     min_notes: int
     max_notes: int
     maps: list[MapRow]
+    excluded: dict[str, int] = Field(default_factory=dict)
 
 
 class FallBehind(BaseModel):

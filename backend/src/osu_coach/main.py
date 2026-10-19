@@ -34,8 +34,9 @@ It runs on your computer and answers only to it (`localhost`).
    job; poll `GET /api/jobs/{id}`.
 2. **Choose and analyse** — `GET /api/library/selection` shows which replays an analysis would read;
    `POST /api/analysis` analyses them (a job). Every analysis is also saved in the progress history.
-3. **Read the results** — the `/api/profile/*` pages (Overview, Aim, Tapping, Sliders & Reading, Tips & Setup),
-   map suggestions and playlists. They answer `409 no_profile` until something was analysed.
+3. **Read the results** — the `/api/profile/*` pages (Overview, Aim, Tapping, Sliders & Reading, Tips & Setup)
+   require analysis. Automatic map suggestions use analysed replays; skill playlists can also use manually supplied
+   comfort stars and skill ratings.
 
 Remembered choices (`/api/settings`, `/api/setup`) are shared with the `osu-coach` command line.
 

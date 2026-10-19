@@ -65,7 +65,7 @@ def period_metrics(analyses, tz=None) -> dict[str, list[tuple[str, float | None,
     if not analyses:
         return {}
     try:
-        full = build_profile(analyses, weighted=False)  # periods stay comparable: no level weighting
+        full = build_profile(analyses, weighted=False, experimental=False)  # period scores use the existing model
     except Exception:  # noqa: BLE001 - too little data for a model
         return {}
     threshold = full.reading.get("dense_threshold")
@@ -79,7 +79,7 @@ def period_metrics(analyses, tz=None) -> dict[str, list[tuple[str, float | None,
             out[key] = None
             continue
         try:
-            mp = build_profile(group, weighted=False)
+            mp = build_profile(group, weighted=False, experimental=False)
             reading = dict(mp.reading)
             if threshold is not None:
                 reading["dense_threshold"] = threshold

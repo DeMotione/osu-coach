@@ -21,8 +21,10 @@ pytestmark = [
 # ------------------------------------------------------------------ exports
 @pytest.fixture
 def export(client):
-    pl = client.get("/api/playlists", params={"skill": "aim", "comfort": 4.0, "maps": 6}).json()
-    maps = [m for st in pl["stages"] for m in st["maps"]]
+    pl = client.get(
+        "/api/playlists", params={"skill": "aim", "comfort": 4.0, "ratings": '{"aim":70}', "assessed": "aim"}
+    ).json()
+    maps = [m for st in pl["stages"] for m in st["maps"]][:6]
     return {
         "name": pl["collection_name"],
         "maps": [{"md5": m["md5"], "beatmapset_id": m["beatmapset_id"]} for m in maps],

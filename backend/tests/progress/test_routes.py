@@ -44,6 +44,24 @@ def test_progress_range_and_players(analysed):
 
 
 # ------------------------------------------------------------------ goals
+def _measured_profile(analysed):
+    """Give the small replay fixture measured ratings and one explicitly missing rating."""
+    p = workspace(analysed).profile()
+    p.experimental_skills = {
+        skill: {"score": score, "maps": 12, "reason": "Not enough replay data" if score is None else None}
+        for skill, score in {
+            "aim": 81,
+            "flow_aim": 77,
+            "speed": 68,
+            "stamina": 88,
+            "accuracy": 33,
+            "sliders": 83,
+            "reading": None,
+            "consistency": 34,
+        }.items()
+    }
+
+
 def test_goals_need_skill_scores(client):
     g = client.get("/api/goals").json()
     assert not g["has_profile"] and g["open"] == [] and g["skills"] == []
@@ -54,18 +72,29 @@ def test_goals_need_skill_scores(client):
 
 
 def test_plan_add_and_remove_goals(analysed):
+    assert analysed.post("/api/goals/plan").status_code == 409  # The small fixture has no measured ratings.
+    _measured_profile(analysed)
     g = analysed.get("/api/goals").json()
     assert g["has_profile"] and g["skills"]
+    overview = analysed.get("/api/profile/overview").json()
+    measured = {s["key"]: s["score"] for s in overview["skills"] if s["score"] is not None}
+    assert {s["key"]: s["score"] for s in g["skills"]} == measured
+    assert [s["skill"] for s in g["suggested"]] == [
+        k for k, score in sorted(measured.items(), key=lambda item: item[1]) if score <= 45
+    ][:3]
     if not g["suggested"]:
         pytest.skip("no scored skills in the sample replays")
+    suggested = g["suggested"]
     g = analysed.post("/api/goals/plan").json()
-    assert len(g["open"]) == len(g["suggested"])
+    assert [goal["skill"] for goal in g["open"]] == [s["skill"] for s in suggested]
+    assert all(goal["score_source"] == "experimental" for goal in g["open"])
+    assert all(s["skill"] not in {goal["skill"] for goal in g["open"]} for s in g["suggested"])
     for goal in g["open"]:
         assert goal["state"] in ("on track", "behind", "done", "no data") and goal["days_left"] == 28
         assert goal["current"] is not None and goal["target"] > goal["start"]
     saved = load_settings(workspace(analysed).cache_dir)["goals"]
     assert all({"id", "skill", "start", "target", "created", "deadline", "done"} <= set(x) for x in saved)
-    assert len(g["history"]) == len(g["open"]) and g["history"][0]["target"][-1]["score"] == g["open"][0]["target"]
+    assert g["history"] == []  # Saved daily scores use the previous rating scale.
     again = analysed.post("/api/goals/plan").json()  # no second goal for a skill that has one
     assert len(again["open"]) == len(g["open"])
     removed = analysed.delete(f"/api/goals/{g['open'][0]['id']}").json()
@@ -74,6 +103,7 @@ def test_plan_add_and_remove_goals(analysed):
 
 
 def test_add_a_goal(analysed):
+    _measured_profile(analysed)
     skill = analysed.get("/api/goals").json()["skills"][0]
     deadline = (dt.date.today() + dt.timedelta(days=14)).isoformat()
     r = analysed.post("/api/goals", json={"skill": skill["key"], "target": 100, "deadline": deadline})
@@ -94,6 +124,7 @@ def test_add_a_goal(analysed):
 
 
 def test_a_reached_goal_is_marked_done(analysed):
+    _measured_profile(analysed)
     skill = analysed.get("/api/goals").json()["skills"][0]
     ws = workspace(analysed)
     save_settings(
@@ -108,6 +139,7 @@ def test_a_reached_goal_is_marked_done(analysed):
                     "created": "2026-01-01",
                     "deadline": "2027-01-01",
                     "done": None,
+                    "score_source": "experimental",
                 }
             ],
         },
@@ -116,3 +148,36 @@ def test_a_reached_goal_is_marked_done(analysed):
     g = analysed.get("/api/goals").json()
     assert g["open"] == [] and g["done"][0]["id"] == "g1" and g["done"][0]["state"] == "done"
     assert load_settings(ws.cache_dir)["goals"][0]["done"] == dt.date.today().isoformat()
+
+
+def test_old_lower_level_accuracy_goal_is_paused_and_new_goal_uses_new_scale(analysed):
+    _measured_profile(analysed)
+    ws = workspace(analysed)
+    ws.profile().levels["comfort_stars"] = 4.5
+    save_settings(
+        {
+            **load_settings(ws.cache_dir),
+            "goals": [
+                {
+                    "id": "old-acc",
+                    "skill": "accuracy",
+                    "start": 0.0,
+                    "target": 10.0,
+                    "created": "2026-01-01",
+                    "deadline": "2026-02-01",
+                    "done": None,
+                    "score_source": "experimental",
+                }
+            ],
+        },
+        ws.cache_dir,
+    )
+    old = analysed.get("/api/goals").json()["open"][0]
+    assert old["state"] == "paused" and old["progress"] is None and old["current"] is None
+    assert load_settings(ws.cache_dir)["goals"][0]["done"] is None
+    deadline = (dt.date.today() + dt.timedelta(days=14)).isoformat()
+    response = analysed.post("/api/goals", json={"skill": "accuracy", "target": 60, "deadline": deadline})
+    assert response.status_code == 201
+    new = next(g for g in response.json()["open"] if g["id"] != "old-acc")
+    assert new["state"] != "paused" and new["current"] == 33
+    assert next(g for g in load_settings(ws.cache_dir)["goals"] if g["id"] == new["id"])["score_version"] == 2

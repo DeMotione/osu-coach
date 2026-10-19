@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from osu_coach.app.deps import ProfileDep, WorkspaceDep
+from osu_coach.app.deps import WorkspaceDep
 from osu_coach.app.errors import responses
 from osu_coach.maps import service as svc
 from osu_coach.maps.schemas import HideMaps, Playlist, Suggestions
@@ -12,10 +12,14 @@ from osu_coach.maps.schemas import HideMaps, Playlist, Suggestions
 router = APIRouter(tags=["Maps"])
 
 
-@router.get("/maps/suggestions", summary="Maps for your weakest skills", responses=responses(409))
-def suggestions(ws: WorkspaceDep, p: ProfileDep) -> Suggestions:
-    """From the bundled pool of popular ranked maps around your level; maps you played or hid are left out."""
-    return svc.suggestions(ws, p)
+@router.get("/maps/suggestions", summary="Comfort-level maps for measured weak skills", responses=responses(422))
+def suggestions(
+    ws: WorkspaceDep,
+    kappa: Annotated[float, Query(ge=0)] = 0.5,
+    min_relevance: Annotated[float, Query(ge=0, le=1)] = 0.3,
+) -> Suggestions:
+    """Rank comfort-level maps for skills below the player's expected level."""
+    return svc.suggestions(ws, ws.profile(), kappa, min_relevance)
 
 
 @router.post("/maps/hidden", summary="Never suggest these maps again", responses=responses(422))
@@ -36,8 +40,12 @@ def unhide(ws: WorkspaceDep) -> int:
 def playlist(
     ws: WorkspaceDep,
     skill: str | None = None,
-    maps: Annotated[int, Query(ge=6, le=30)] = 15,
-    comfort: Annotated[float | None, Query(ge=1.0, le=8.0)] = None,
+    comfort: Annotated[float | None, Query(gt=0)] = None,
+    assessed: str | None = None,
+    ratings: str | None = None,
+    kappa: Annotated[float, Query(ge=0)] = 0.5,
+    min_relevance: Annotated[float, Query(ge=0, le=1)] = 0.3,
+    exclude_played: bool = True,
 ) -> Playlist:
-    """``skill`` defaults to your weakest one; ``comfort``: your level without analysed replays."""
-    return svc.playlist(ws, skill, maps, comfort)
+    """``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data."""
+    return svc.playlist(ws, skill, comfort, assessed, ratings, kappa, min_relevance, exclude_played)

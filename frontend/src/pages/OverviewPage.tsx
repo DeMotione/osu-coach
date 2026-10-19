@@ -46,25 +46,23 @@ function OverviewBody({ ov }: { ov: Overview }) {
         <Stat label="Replays" value={int(k.replays)} hint={`${k.maps} different maps; they count as ${fmt(k.weighted_replays, 1)} after the weighting.`} />
         <Stat label="Play time" value={fmt(k.play_minutes, 0, " min")} />
         <Stat label="Comfort level" value={stars(k.comfort_stars, 1)}
-          hint="75% of your finished plays with at most 2 misses per 100 notes are at or below this star rating (all analysed replays)." />
+          hint="75th percentile of recent completed map/mod configurations with at most 2 head misses per 100 notes; at least 3 configurations required." />
         <Stat label="Unstable rate" value={fmt(k.ur, 0)} hint="10 × the spread of your hit timing in ms. Lower = steadier timing." />
         <Stat label="Misses / 100 notes" value={fmt(k.misses_per_100, 1)} />
         <Stat label="Accuracy" value={pct(k.accuracy)} />
       </Tiles>
-      <Row>
-        <Card
-          title="Skills vs players at your level"
-          sub="One bar per skill, 0–100; 50 = typical for your level. Like osu! pp, the hardest plays of each skill count most. Green ≥ 55, red ≤ 45, grey = not enough data. Point at a bar for what it measures."
-        >
-          <Chart build={skillsChart} height={skillsHeight} label="Skill scores against your level" />
-        </Card>
-        <Card
-          title="Skills vs top players"
-          sub="The same skills measured against the top players' level (10★): 50 = typical for a 10★ player. ◆ = the best players' reference plays (WhiteCat, mrekk, MALISZEWSKI, roaz, -GN …)."
-        >
-          <Chart build={topChart} height={skillsHeight} label="Skill scores against top players" />
-        </Card>
-      </Row>
+      <Card
+        title="Skills at your comfort level"
+        sub={`Experimental replay ratings, 0–100; 50 = expected performance at your ${stars(k.comfort_stars, 1)} comfort level under assumed curves. Most skills use the best play per map/mod; Timing accuracy uses weighted hit single notes from all selected replays. Grey = unmeasured or insufficient challenge.`}
+      >
+        <Chart build={skillsChart} height={skillsHeight} label="Skill scores against your level" />
+      </Card>
+      <Card
+        title="Skills against a 10★ reference"
+        sub={`The same replay measures against a 10★ baseline${k.comfort_stars === null ? "" : ` (${(10 - k.comfort_stars).toFixed(1)}★ above your comfort)`}. 50 = expected performance under assumed curves; ◆ = the maximum 100-point score.`}
+      >
+        <Chart build={topChart} height={skillsHeight} label="Skill scores against top players" />
+      </Card>
       <Row>
         <Card
           title="Why you miss"
@@ -214,7 +212,7 @@ function StrengthsCard({ ov }: { ov: Overview }) {
           {ov.sliders_scored &&
             "Slider control counts how hard the sliders are that you follow to the end: speed, length, shape, speed changes and how soon the next note follows. "}
           {ov.few_data.length > 0 &&
-            `Few data (${ov.few_data.join(", ")}): measured on few maps or notes — the score will move as you analyse more replays.`}
+            `Unmeasured (${ov.few_data.join(", ")}): comfort, relevant map coverage, or tested challenge is insufficient.`}
         </p>
       )}
     </Card>

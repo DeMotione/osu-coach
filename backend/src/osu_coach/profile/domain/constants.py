@@ -56,9 +56,10 @@ SKILL_HELP = {
         "when accuracy drops; make the stretches longer first, then faster.",
     ),
     "accuracy": (
-        "Hit timing on single notes (not in streams): how many of them you hit as 300s.",
-        "Score: (300 share − 50%) ÷ 49% × 100, so 99% 300s = 100 and 50% = 0 (top players' plays on "
-        "single notes: 95–100%). Needs 60+ single notes.",
+        "Hit timing on single notes (not in streams): the share of hit notes that were not 300s. Lower is better.",
+        "Score: 50 − level-dependent points × log2(non-300 rate ÷ assumed OD- and comfort-matched rate), "
+        "clipped to 0–100. At 4.5★ and OD 8, 90% 300s scores 50 and 80% scores 20; from 5.5★ up "
+        "the previous reference and slope apply. Needs 60+ hit single notes.",
         "Play maps you can full-combo and aim for 300s, not the combo. If your hits lean early or late "
         "(Tapping page), fix your offset first.",
     ),
@@ -79,12 +80,12 @@ SKILL_HELP = {
         "with BPM changes, hitting the first notes after each change on time.",
     ),
     "consistency": (
-        "Consistency: does one miss make you miss more? The 10 notes after each miss are checked "
-        "(notelock is ignored).",
-        "Score: misses after a miss vs what the difficulty predicts there. A ratio of 2.0 (typical) "
-        "= 50; each halving = +30, each doubling = −30.",
-        "After a miss, reset and play the next note as if the combo were fresh; full-combo runs on "
-        "easier maps build this.",
+        "Consistency: recovery across the 10 notes after a miss (excluding notelock), and how much "
+        "your miss rate changes between plays of similar difficulty.",
+        "Score: average of available miss-recovery and between-play steadiness scores. "
+        "For recovery, a follow-up miss ratio of 2.0 = 50; for steadiness, a spread of "
+        "2 misses per 100 notes = 50. Halving either measure adds 30 points to that part.",
+        "Recover after a miss, and practise longer maps with steady difficulty to make your results more repeatable.",
     ),
 }
 MISS_LABELS = {

@@ -2,17 +2,18 @@ import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import type { Schemas } from "../api/client";
-import { useAddGoal, useAddPlan, useGoals, usePatchSettings, usePlaylist, useRemoveGoal, useSettings } from "../api/queries";
+import { useAddGoal, useAddPlan, useGoals, usePlaylist, useRemoveGoal } from "../api/queries";
 import { Chart } from "../charts/Chart";
 import type { ChartTheme } from "../charts/palette";
 import { goalsChart } from "../charts/progress";
 import { ExportPanel } from "../components/ExportPanel";
 import { IconPlus, IconTrash } from "../components/icons";
 import { MapTable } from "../components/MapTable";
+import { RecommendationControls, type RecommendationOptions } from "../components/RecommendationControls";
 import { EmptyState, ErrorCard, LoadingPage } from "../components/states";
 import { Alert, Badge, Card, Field, Page, Progress, Row, Stat, Tabs, Tiles } from "../components/ui";
 import { fmt, isoDay } from "../lib/format";
-import { useDebouncedEffect } from "../lib/hooks";
+import { speedFitNotice } from "../lib/recommendationFit";
 
 type Tab = "goals" | "playlist";
 
@@ -20,7 +21,7 @@ export default function SkillsPage() {
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get("tab") === "playlist" ? "playlist" : "goals";
   return (
-    <Page title="Skill Development" sub="Set goals for your skills and follow them, and get a staged playlist (warm-up / core / push) for any skill.">
+    <Page title="Skill Development" sub="Set goals for your skills and follow them, or browse a staged playlist (warm-up / comfort / push) for any skill.">
       <Tabs
         tabs={[
           { value: "goals", label: "Training plan & goals" },
@@ -41,6 +42,7 @@ const STATE: Record<Schemas["GoalOut"]["state"], ["good" | "info" | "warn" | "ba
   behind: ["warn", "behind"],
   overdue: ["bad", "overdue"],
   "no data": ["muted", "no data"],
+  paused: ["muted", "paused · previous accuracy scale"],
 };
 
 function GoalsTab() {
@@ -73,6 +75,7 @@ function GoalsTab() {
             {g.done.map((x) => (
               <li key={x.id}>
                 <strong>{x.label}</strong> {fmt(x.start, 0)} → {x.target.toFixed(0)}, reached {x.done} (set {x.created})
+                {x.score_source === "legacy" && " · previous rating scale"}
               </li>
             ))}
           </ul>
@@ -89,18 +92,21 @@ function GoalRow({ goal }: { goal: Schemas["GoalOut"] }) {
     <div className="goal">
       <div className="stack" style={{ gap: 4 }}>
         <span className="goal__title">
-          {goal.label}: {fmt(goal.start, 0)} → {goal.target.toFixed(0)} by {goal.deadline} · now {fmt(goal.current, 0)}{" "}
+          {goal.label}: {fmt(goal.start, 0)} → {goal.target.toFixed(0)} by {goal.deadline}
+          {goal.state !== "paused" && ` · now ${fmt(goal.current, 0)}`} {" "}
           <Badge tone={tone}>{word}</Badge>
         </span>
         <span className="goal__meta">
-          <span>{goal.days_left >= 0 ? `${goal.days_left} days left` : `${-goal.days_left} days overdue`}</span>
+          <span>{goal.state === "paused" ? `Original deadline ${goal.deadline}` : goal.days_left >= 0 ? `${goal.days_left} days left` : `${-goal.days_left} days overdue`}</span>
           {goal.left !== null && goal.left > 0 && <span>{goal.left.toFixed(0)} points to go</span>}
+          {goal.state === "paused" && <span>Create a new goal to track the recalibrated score.</span>}
+          {goal.score_source === "legacy" && <span>Previous rating scale</span>}
         </span>
       </div>
       <button type="button" className="btn btn--ghost btn--sm btn--danger" onClick={() => remove.mutate(goal.id)} disabled={remove.isPending}>
         <IconTrash /> Remove
       </button>
-      <Progress value={goal.progress} text={`${Math.round(goal.progress * 100)}% of the way`} />
+      {goal.progress !== null && <Progress value={goal.progress} text={`${Math.round(goal.progress * 100)}% of the way`} />}
     </div>
   );
 }
@@ -110,7 +116,7 @@ function HistoryCard({ history }: { history: Schemas["GoalHistory"][] }) {
   return (
     <Card
       title="Goal skills day by day"
-      sub="Solid lines: your score each day you analysed replays; dotted: the path from where you started to the target by the deadline. Above the dotted line = ahead of plan."
+      sub="Previous-scale goals only. Solid lines: your score each day you analysed replays; dotted: the path from where you started to the target by the deadline. Above the dotted line = ahead of plan."
     >
       <Chart build={build} height={320} label="Goal skills day by day" />
     </Card>
@@ -166,7 +172,7 @@ function AddGoalCard({ goals }: { goals: Schemas["GoalsOut"] }) {
 function PlanCard({ goals }: { goals: Schemas["GoalsOut"] }) {
   const plan = useAddPlan();
   return (
-    <Card title="A 4-week plan" sub="Your 3 weakest skills, each with a target 10 points higher.">
+    <Card title="A 4-week plan" sub="Up to 3 measured skills below your comfort level, each with a target 10 points higher.">
       {goals.suggested.length ? (
         <ul className="list">
           {goals.suggested.map((s) => (
@@ -178,7 +184,7 @@ function PlanCard({ goals }: { goals: Schemas["GoalsOut"] }) {
           ))}
         </ul>
       ) : (
-        <EmptyState title="No scored skills yet" />
+        <EmptyState title={goals.skills.length ? "No measured weak skills without a goal" : "No measured skill ratings yet"} />
       )}
       {goals.weak_without_goal.length > 0 && (
         <p className="small muted">
@@ -196,58 +202,21 @@ function PlanCard({ goals }: { goals: Schemas["GoalsOut"] }) {
 
 // ------------------------------------------------------------------ playlist
 function PlaylistTab() {
-  const settings = useSettings();
-  const patch = usePatchSettings();
-  const [skill, setSkill] = useState<string | undefined>(undefined);
-  const [maps, setMaps] = useState(15);
-  const [comfortText, setComfortText] = useState<string | null>(null);
-  const saved = settings.data?.manual_comfort ?? 2.5;
-  const comfort = comfortText !== null && Number.isFinite(Number(comfortText)) ? Number(comfortText) : saved;
-  const q = usePlaylist({ skill, maps, comfort: Math.min(8, Math.max(1, comfort)) });
-  useDebouncedEffect(comfortText, 600, (v) => {
-    const n = Number(v);
-    if (v !== null && n >= 1 && n <= 8) patch.mutate({ manual_comfort: n });
-  });
+  const [options, setOptions] = useState<RecommendationOptions>({});
+  const q = usePlaylist(options);
   const pl = q.data;
-  const all = useMemo(() => pl?.stages.flatMap((s) => s.maps) ?? [], [pl]);
+  const all = useMemo(() => [...new Map((pl?.stages.flatMap((s) => s.maps) ?? []).map((m) => [m.md5, m])).values()], [pl]);
 
   if (q.isPending) return <LoadingPage tiles={2} />;
   if (q.error && !pl) return <ErrorCard error={q.error} onRetry={() => void q.refetch()} />;
   if (!pl) return null;
   return (
     <>
+      <RecommendationControls current={pl.skill} measured={pl.measured_abilities ?? {}} comfort={pl.comfort} onApply={setOptions} />
       <Card>
-        {!pl.has_profile && <Alert tone="info">No replays analysed yet — set your level by hand, or analyse replays for a personal playlist.</Alert>}
-        <div className="controls">
-          <Field label="Skill">
-            <select className="select" value={pl.skill} onChange={(e) => setSkill(e.target.value)}>
-              {pl.skills.map((s) => (
-                <option key={s.key} value={s.key}>
-                  {s.label}
-                  {s.score !== null ? ` · your score ${s.score.toFixed(0)}` : ""}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label={`Maps: ${maps}`}>
-            <input type="range" min={6} max={30} step={3} value={maps} onChange={(e) => setMaps(Number(e.target.value))} />
-          </Field>
-          {!pl.has_profile && (
-            <Field label="Star rating you can pass comfortably">
-              <input
-                className="input"
-                type="number"
-                min={1}
-                max={8}
-                step={0.1}
-                value={comfortText ?? String(saved)}
-                onChange={(e) => setComfortText(e.target.value)}
-              />
-            </Field>
-          )}
-        </div>
+        {!pl.has_profile && <Alert tone="info">No replays analysed yet — enter comfort stars and player ratings to get a personal playlist.</Alert>}
         <p className="muted">
-          Your level ≈ <strong>{pl.comfort.toFixed(1)}★</strong>
+          Your comfort level ≈ <strong>{pl.comfort.toFixed(1)}★</strong> ({pl.comfort_source})
           {(pl.skill === "speed" || pl.skill === "stamina") && pl.stream_bpm ? (
             <>
               {" "}
@@ -256,13 +225,19 @@ function PlaylistTab() {
           ) : null}{" "}
           · collection name: <code>{pl.collection_name}</code>
         </p>
+        <p className="small muted">Skill-adjusted target: {pl.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★. Map demands and coefficients are experimental.</p>
       </Card>
       {pl.stages.length ? (
-        pl.stages.map((st) => (
-          <Card key={st.stage} title={st.stage} sub={st.goal}>
-            <MapTable maps={st.maps} />
-          </Card>
-        ))
+        pl.stages.map((st) => {
+          const fitNotice = pl.skill === "speed" ? speedFitNotice(st.maps, st.target_demand) : null;
+          return (
+            <Card key={st.stage} title={st.stage} sub={`${st.eligible} eligible · target ${st.target_stars?.toFixed(2) ?? "unknown"}★ · target demand ${st.target_demand?.toFixed(1) ?? "unknown"}`}>
+              {fitNotice && <Alert tone="warn">{fitNotice}</Alert>}
+              <MapTable key={`${st.stage}:${st.eligible}:${st.maps[0]?.md5 ?? ""}:${pl.skill_adjusted_stars}`} maps={st.maps} />
+              {!st.eligible && <p className="small muted">{Object.entries(st.excluded ?? {}).map(([reason, count]) => `${reason}: ${count}`).join(" · ")}</p>}
+            </Card>
+          );
+        })
       ) : (
         <Alert tone="warn">No maps found for this skill at your level.</Alert>
       )}

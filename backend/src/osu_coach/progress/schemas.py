@@ -62,10 +62,11 @@ class GoalOut(BaseModel):
     deadline: dt.date
     done: dt.date | None
     current: float | None
-    progress: float
+    progress: float | None
     left: float | None
     days_left: int
-    state: Literal["done", "on track", "behind", "overdue", "no data"]
+    state: Literal["done", "on track", "behind", "overdue", "no data", "paused"]
+    score_source: Literal["experimental", "legacy"] = Field(description="Rating scale used when the goal was created.")
 
 
 class SkillValue(BaseModel):
@@ -100,7 +101,9 @@ class GoalsOut(BaseModel):
     done: list[GoalOut]
     behind: int
     skills: list[SkillValue] = Field(description="Skills with a score: the ones a goal can be set for.")
-    suggested: list[SuggestedGoal] = Field(description="A 4-week plan for the 3 weakest skills.")
+    suggested: list[SuggestedGoal] = Field(
+        description="A 4-week plan for up to 3 measured skills rated 45 or lower in Overview, without open goals."
+    )
     weak_without_goal: list[SkillValue]
     history: list[GoalHistory]
 
