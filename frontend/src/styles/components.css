@@ -1018,27 +1018,96 @@ input[type="range"] {
   height: var(--chart-h, 320px);
 }
 
+/* The map tables of Map Suggestion and Skill Development (10 columns; 11 with Hide), by the width they get:
+ * - over 1120 px: the table as it is;
+ * - 880–1120 px (the desktop app's window as it opens): still a table, a tighter one (less padding, the two text
+ *   columns narrower, headers wrapping), so it fits instead of falling apart into cards (#31);
+ * - narrower: a card per map on a fixed grid where every row is filled: name (and Hide), difficulty · BPM · AR ·
+ *   length, why, demand · F(m) · breakdown · link; two columns on a phone. */
 @container (max-width: 1120px) {
-  .map-table:not(.map-table--compact) .table-wrap { overflow: visible; max-height: none; box-shadow: none; }
-  .map-table:not(.map-table--compact) .table,
-  .map-table:not(.map-table--compact) tbody,
-  .map-table:not(.map-table--compact) tr,
-  .map-table:not(.map-table--compact) td { display: block; width: 100%; }
-  .map-table:not(.map-table--compact) thead { display: none; }
-  .map-table:not(.map-table--compact) tr { margin-bottom: var(--s-3); border: 1px solid var(--border); border-radius: var(--radius-btn); }
-  .map-table:not(.map-table--compact) td { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
-  .map-table:not(.map-table--compact) td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--t-xs); margin-bottom: 3px; }
-  .map-table:not(.map-table--compact) td.num { text-align: left; }
-  .map-suggestion-card .map-table tr {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .map-suggestion-card .map-table td:first-child,
-  .map-suggestion-card .map-table td:nth-child(6) { grid-column: 1 / -1; }
+  .map-table:not(.map-table--compact) .table th,
+  .map-table:not(.map-table--compact) .table td { padding-inline: var(--s-2); }
+  .map-table:not(.map-table--compact) .table th { white-space: normal; }
+  .map-table:not(.map-table--compact) .table td.wrap { min-width: 150px; }
 }
 
-@container (max-width: 600px) {
-  .map-suggestion-card .map-table tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container (max-width: 879px) {
+  .map-table:not(.map-table--compact) .table-wrap { overflow: visible; max-height: none; box-shadow: none; }
+  .map-table:not(.map-table--compact) .table,
+  .map-table:not(.map-table--compact) .table tbody { display: block; width: 100%; }
+  .map-table:not(.map-table--compact) .table thead { display: none; }
+  .map-table:not(.map-table--compact) .table tr {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      "map map map map"
+      "stars bpm ar length"
+      "why why why why"
+      "demand score breakdown link";
+    margin-bottom: var(--s-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-btn);
+  }
+  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(11)) {
+    grid-template-areas:
+      "map map map hide"
+      "stars bpm ar length"
+      "why why why why"
+      "demand score breakdown link";
+  }
+  /* lines between the rows of a card: on top of each cell but the first row's */
+  .map-table:not(.map-table--compact) .table td {
+    display: block;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+    border-bottom: 0;
+    border-top: 1px solid var(--border);
+  }
+  .map-table:not(.map-table--compact) .table td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--t-xs); margin-bottom: 3px; }
+  .map-table:not(.map-table--compact) .table td:nth-child(1) { grid-area: map; border-top: 0; }
+  .map-table:not(.map-table--compact) .table td:nth-child(2) { grid-area: stars; }
+  .map-table:not(.map-table--compact) .table td:nth-child(3) { grid-area: bpm; }
+  .map-table:not(.map-table--compact) .table td:nth-child(4) { grid-area: ar; }
+  .map-table:not(.map-table--compact) .table td:nth-child(5) { grid-area: length; }
+  .map-table:not(.map-table--compact) .table td:nth-child(6) { grid-area: why; }
+  .map-table:not(.map-table--compact) .table td:nth-child(7) { grid-area: demand; }
+  .map-table:not(.map-table--compact) .table td:nth-child(8) { grid-area: score; }
+  .map-table:not(.map-table--compact) .table td:nth-child(9) { grid-area: breakdown; }
+  .map-table:not(.map-table--compact) .table td:nth-child(10) { grid-area: link; }
+  .map-table:not(.map-table--compact) .table td:nth-child(11) {
+    grid-area: hide;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    border-top: 0;
+  }
+  .map-table:not(.map-table--compact) .table td:nth-child(11)::before { display: none; }
+}
+
+@container (max-width: 480px) {
+  .map-table:not(.map-table--compact) .table tr {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "map map"
+      "stars bpm"
+      "ar length"
+      "why why"
+      "demand score"
+      "breakdown link";
+  }
+  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(11)) {
+    grid-template-areas:
+      "map map"
+      "stars bpm"
+      "ar length"
+      "why why"
+      "demand score"
+      "breakdown link"
+      "hide hide";
+  }
+  .map-table:not(.map-table--compact) .table td:nth-child(11) { justify-content: flex-start; border-top: 1px solid var(--border); }
 }
 
 @container (max-width: 760px) {

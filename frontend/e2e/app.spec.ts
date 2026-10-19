@@ -230,6 +230,31 @@ test.describe("after the setup", () => {
     await expect.poll(() => page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())), { timeout: 30_000 }).toBe(true);
   });
 
+  test("map tables are tables at the desktop app's opening size, tidy cards when narrower (#31)", async ({ page }) => {
+    for (const path of ["/maps", "/skills?tab=playlist"]) {
+      for (const [width, mode] of [[1280, "table"], [1100, "cards"], [390, "cards"]] as const) {
+        await page.setViewportSize({ width, height: 820 });
+        await page.goto(path);
+        const table = page.locator(".map-table table").first();
+        await expect(table).toBeVisible({ timeout: 60_000 });
+        expect(await table.evaluate((t) => getComputedStyle(t).display), `${path} at ${width}px`).toBe(mode === "table" ? "table" : "block");
+        if (mode === "cards") {
+          // every line of a card is filled: its cells add up to the card's width
+          const ragged = await page.locator(".map-table tbody tr").first().evaluate((tr) => {
+            const lines = new Map<number, number>();
+            for (const td of Array.from(tr.children)) {
+              const r = td.getBoundingClientRect();
+              lines.set(Math.round(r.top), (lines.get(Math.round(r.top)) ?? 0) + r.width);
+            }
+            return [...lines.values()].filter((w) => Math.abs(w - tr.clientWidth) > 2).length;
+          });
+          expect(ragged, `${path} at ${width}px`).toBe(0);
+        }
+        expect(await layoutProblems(page), `${path} at ${width}px`).toEqual([]);
+      }
+    }
+  });
+
   test("a big drop of replay files names only the first 15 (#37)", async ({ page }) => {
     await page.goto("/replays");
     const files = INDEX.flatMap((r) => [path.join(RES, "replays", r.replay), path.join(RES, "maps", `${r.md5}.osu`)]);
