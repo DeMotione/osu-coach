@@ -121,28 +121,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Find replays (background job) */
-        post: operations["scan_api_library_scan_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/library/rescan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
         /**
-         * Read the same sources further back (background job)
-         * @description After choosing more replays than the last scan read (*Replays to read*), the same sources are scanned again.
+         * Find replays (background job)
+         * @description Every replay of the sources is read; how many of them to analyse is chosen afterwards (``latest`` of
+         *     ``GET /api/library/selection`` and ``POST /api/analysis``).
          */
-        post: operations["rescan_api_library_rescan_post"];
+        post: operations["scan_api_library_scan_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -841,7 +825,10 @@ export interface components {
              * @description Player to analyse; '*' = all; null = the one with most replays.
              */
             player?: string | null;
-            /** @default 500 */
+            /**
+             * @description Analyse only the newest N of the found replays; 0 = all.
+             * @default 500
+             */
             latest: components["schemas"]["Latest"];
             /**
              * Date Range
@@ -929,7 +916,7 @@ export interface components {
              */
             folders: string;
             /**
-             * @description Newest replays to read; 0 = all.
+             * @description Newest of the found replays to analyse; 0 = all.
              * @default 500
              */
             latest: components["schemas"]["Latest"];
@@ -1614,7 +1601,7 @@ export interface components {
         };
         /**
          * Latest
-         * @description How many of the newest replays to read; 0 = all of them.
+         * @description How many of the newest found replays to analyse; 0 = all of them.
          * @enum {integer}
          */
         Latest: 100 | 500 | 1000 | 0;
@@ -1698,8 +1685,6 @@ export interface components {
             mode: ("library" | "files") | null;
             /** Sources */
             sources: string[];
-            /** Scan Limit */
-            scan_limit: number | null;
             /** Replays */
             replays: number;
             /** Players */
@@ -1874,7 +1859,7 @@ export interface components {
             best_definition: string;
             /**
              * Latest Choices
-             * @description Replay counts to read; 0 = all.
+             * @description Replay counts to analyse; 0 = all.
              */
             latest_choices: number[];
             /** Periods */
@@ -2325,10 +2310,6 @@ export interface components {
             /** Offset Y */
             offset_y: number;
         };
-        /** RescanRequest */
-        RescanRequest: {
-            latest: components["schemas"]["Latest"];
-        };
         /** SayoRow */
         SayoRow: {
             /** Setting */
@@ -2393,26 +2374,16 @@ export interface components {
              * @description Ids of uploaded files, added to the ones added by earlier scans (``LibraryOut.files``).
              */
             files?: string[];
-            /**
-             * @description Read only the newest N replays; 0 = all.
-             * @default 500
-             */
-            latest: components["schemas"]["Latest"];
         };
         /** ScanResult */
         ScanResult: {
             /**
              * Replays
-             * @description osu!standard replays found.
+             * @description osu!standard replays found: every one in the sources.
              */
             replays: number;
             /** Players */
             players: number;
-            /**
-             * Scan Limit
-             * @description Newest replays read per source; null = all.
-             */
-            scan_limit: number | null;
             /** Warnings */
             warnings: string[];
         };
@@ -2473,11 +2444,6 @@ export interface components {
              * @description No replays in the chosen time range.
              */
             empty_range: boolean;
-            /**
-             * Older Hint
-             * @description A limited scan may have missed older replays of this player.
-             */
-            older_hint: boolean;
             /**
              * Left Out
              * @description Replays that can't be analysed, by reason (top 3).
@@ -3414,48 +3380,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-        };
-    };
-    rescan_api_library_rescan_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RescanRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ScanJob"];
                 };
             };
             /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */

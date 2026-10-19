@@ -16,7 +16,7 @@ class AppSettings(BaseModel):
 
     source_mode: SourceMode = "library"
     folders: str = Field("", description="Extra replay folders, one per line.")
-    latest: Latest = Field(Latest.newest_500, description="Newest replays to read; 0 = all.")
+    latest: Latest = Field(Latest.newest_500, description="Newest of the found replays to analyse; 0 = all.")
     date_range: DateRange = "all"
     date_from: dt.date | None = None
     date_to: dt.date | None = None

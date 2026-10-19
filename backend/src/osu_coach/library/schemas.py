@@ -47,17 +47,11 @@ class ScanRequest(Request):
         max_length=2000,
         description="Ids of uploaded files, added to the ones added by earlier scans (``LibraryOut.files``).",
     )
-    latest: Latest = Field(Latest.newest_500, description="Read only the newest N replays; 0 = all.")
-
-
-class RescanRequest(Request):
-    latest: Latest
 
 
 class ScanResult(BaseModel):
-    replays: int = Field(description="osu!standard replays found.")
+    replays: int = Field(description="osu!standard replays found: every one in the sources.")
     players: int
-    scan_limit: int | None = Field(description="Newest replays read per source; null = all.")
     warnings: list[str]
 
 
@@ -70,7 +64,6 @@ class LibraryOut(BaseModel):
     scanned: bool
     mode: SourceMode | None
     sources: list[str]
-    scan_limit: int | None
     replays: int
     players: list[PlayerCount]
     files: list[UploadedFile] = Field(
@@ -92,7 +85,6 @@ class SelectionOut(BaseModel):
     date_from: dt.date | None
     date_to: dt.date | None
     empty_range: bool = Field(description="No replays in the chosen time range.")
-    older_hint: bool = Field(description="A limited scan may have missed older replays of this player.")
     left_out: list[Count] = Field(description="Replays that can't be analysed, by reason (top 3).")
     left_out_total: int
 
@@ -104,7 +96,7 @@ class ScanJob(JobBase):
 
 class AnalysisRequest(Request):
     player: str | None = Field(None, description="Player to analyse; '*' = all; null = the one with most replays.")
-    latest: Latest = Latest.newest_500
+    latest: Latest = Field(Latest.newest_500, description="Analyse only the newest N of the found replays; 0 = all.")
     date_range: DateRange = "all"
     date_from: dt.date | None = None
     date_to: dt.date | None = None

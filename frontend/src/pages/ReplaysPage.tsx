@@ -53,7 +53,6 @@ export default function ReplaysPage() {
 
 // ------------------------------------------------------------------ 1 · find replays
 function FindCard({ settings }: { settings: Settings }) {
-  const meta = useMeta();
   const installs = useInstalls();
   const library = useLibrary();
   const patch = usePatchSettings();
@@ -80,14 +79,7 @@ function FindCard({ settings }: { settings: Settings }) {
     }
   };
 
-  const changeLatest = (latest: Latest) => {
-    patch.mutate({ latest });
-    const lib = library.data;
-    // the last scan stopped earlier than the new choice asks for: read the same sources further back
-    if (lib?.scanned && lib.mode === "library" && lib.scan_limit !== null && (latest === 0 || latest > lib.scan_limit) && !busy)
-      void scan.run(() => unwrap(api.POST("/api/library/rescan", { body: { latest } })));
-  };
-
+  // every replay is read; how many of them to analyse is chosen in the Analyse card (#36)
   const startScan = () =>
     scan.run(() =>
       unwrap(
@@ -97,16 +89,10 @@ function FindCard({ settings }: { settings: Settings }) {
             installs: (installs.data ?? []).map((i) => i.root).filter((r) => !excluded.has(r)),
             folders: folders.split("\n").map((f) => f.trim()).filter(Boolean),
             files: uploads.map((u) => u.id),
-            latest: settings.latest,
           },
         }),
       ),
     );
-
-  const latestOptions: Option<Latest>[] = (meta.data?.latest_choices ?? [100, 500, 1000, 0]).map((n) => ({
-    value: n as Latest,
-    label: LATEST_LABEL(n),
-  }));
 
   return (
     <Card title="1 · Find replays" sub="Where the replays come from: your osu! installs and folders, or only the files you drop here.">
@@ -163,12 +149,6 @@ function FindCard({ settings }: { settings: Settings }) {
             <textarea className="textarea" value={folders} onChange={(e) => setFolders(e.target.value)} spellCheck={false} rows={3} />
           </Field>
           <Dropzone accept=".osr,.osu" onFiles={addFiles} title="…or add replay files" />
-          <Field
-            label="Replays to read"
-            hint="Only your newest replays: the scan reads the newest files first and stops as soon as it has them. Fewer = faster, and closer to how you play now. All = every replay on this computer."
-          >
-            <Segmented label="Replays to read" block value={settings.latest} onChange={changeLatest} options={latestOptions} />
-          </Field>
         </>
       )}
       {added.length > 0 && (
@@ -199,11 +179,7 @@ function FindCard({ settings }: { settings: Settings }) {
         done={(j) =>
           j.kind === "scan" && j.result ? (
             <>
-              <Alert tone="good">
-                {j.result.scan_limit ? "Read the newest replays: " : "Found "}
-                {int(j.result.replays)} osu!standard replays
-                {j.result.scan_limit ? " found" : ""}.
-              </Alert>
+              <Alert tone="good">Found {int(j.result.replays)} osu!standard replays.</Alert>
               {j.result.warnings.map((w) => (
                 <Alert key={w} tone="warn">
                   {w}
@@ -250,7 +226,7 @@ function AnalyseCard({ settings }: { settings: Settings }) {
     return (
       <Card title="2 · Analyse" sub="Which of the found replays go into the analysis.">
         <EmptyState icon={<IconSearch />} title="Scan for replays first">
-          Choose where your replays are and press Scan. Then pick the player, the time range and which replays to use.
+          Choose where your replays are and press Scan. Then pick the player, the time range and how many of the replays to analyse.
         </EmptyState>
       </Card>
     );
@@ -267,6 +243,10 @@ function AnalyseCard({ settings }: { settings: Settings }) {
       : sel.date_range === "custom" && sel.date_from && sel.date_to
         ? ` played ${sel.date_from} – ${sel.date_to}`
         : ` played ${dateLabel.toLowerCase()}`;
+  const latestOptions: Option<Latest>[] = (meta.data?.latest_choices ?? [100, 500, 1000, 0]).map((n) => ({
+    value: n as Latest,
+    label: LATEST_LABEL(n),
+  }));
 
   const analyse = () =>
     analysis.run(() =>
@@ -326,6 +306,20 @@ function AnalyseCard({ settings }: { settings: Settings }) {
               </Field>
             </div>
           )}
+          {!sel?.files_mode && (
+            <Field
+              label="Replays to read"
+              hint="How many of the found replays are analysed, newest first. Fewer = faster, and closer to how you play now. All = every replay found."
+            >
+              <Segmented
+                label="Replays to read"
+                block
+                value={settings.latest}
+                onChange={(latest) => patch.mutate({ latest })}
+                options={latestOptions}
+              />
+            </Field>
+          )}
           <Field label="Replays to use" help={`${meta.data?.best_definition ?? ""} All replays = every play, including fails and retries.`}>
             <Segmented
               label="Replays to use"
@@ -350,9 +344,6 @@ function AnalyseCard({ settings }: { settings: Settings }) {
                 {online && sel.missing_maps > 0 ? " (they will be downloaded)" : ""}.
               </p>
               {sel.empty_range && <Alert tone="warn">No replays in that time range — choose a longer one.</Alert>}
-              {sel.older_hint && (
-                <p className="small muted">Only the newest files were read. Choose All to find older replays of {who}.</p>
-              )}
               {sel.left_out_total > 0 && (
                 <p className="small muted">
                   {sel.left_out_total} replay(s) left out: {sel.left_out.map((r) => `${r.count}× ${r.label}`).join("; ")}.

@@ -127,7 +127,11 @@ test.describe("after the setup", () => {
     await page.goto("/replays");
     await page.getByLabel("Extra folders (one per line)").fill(playsFolder());
     await page.getByRole("button", { name: "Scan" }).click();
-    await expect(page.getByText(/10 osu!standard replays/)).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText(/^Found 10 osu!standard replays/)).toBeVisible({ timeout: 120_000 });
+    // the scan finds every replay; how many of them to analyse is chosen in the Analyse card (#36)
+    const card = (title: string) => page.locator(".card", { has: page.getByRole("heading", { name: title }) });
+    await expect(card("1 · Find replays").getByRole("radiogroup", { name: "Replays to read" })).toHaveCount(0);
+    await expect(card("2 · Analyse").getByRole("radiogroup", { name: "Replays to read" })).toBeVisible();
     await page.getByLabel("Player").selectOption("*");
     await expect(page.getByText(/10 replays of all players will be analysed/)).toBeVisible();
     await page.getByRole("button", { name: "Analyse replays" }).click();

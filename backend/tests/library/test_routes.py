@@ -6,8 +6,9 @@ import pytest
 
 from osu_coach.app import session_store
 from osu_coach.app.errors import Busy
+from osu_coach.library import service as svc
 from osu_coach.settings.repository import load_settings
-from tests.conftest import MOT1ONE, OTHERS, analyse, plays_folder, sample_paths, scan, wait, workspace
+from tests.conftest import MOT1ONE, analyse, plays_folder, sample_paths, scan, wait, workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
 
@@ -42,7 +43,6 @@ def test_nothing_scanned_yet(client):
         "scanned": False,
         "mode": None,
         "sources": [],
-        "scan_limit": None,
         "replays": 0,
         "players": [],
         "files": [],
@@ -70,25 +70,28 @@ def test_scan_and_analyse_a_folder(tmp_path, client):
 
 def test_scan_remembers_the_choices(tmp_path, client):
     folder = plays_folder(tmp_path)
-    scan(client, folder, latest=1000)
+    client.patch("/api/settings", json={"latest": 1000})
+    scan(client, folder)
     s = client.get("/api/settings").json()
-    assert s["latest"] == 1000 and s["folders"] == str(folder) and s["source_mode"] == "library"
+    assert s["folders"] == str(folder) and s["source_mode"] == "library"
+    assert s["latest"] == 1000  # the count to analyse is the Analyse card's choice, not the scan's
 
 
-def test_scan_follows_the_replay_count_choice(tmp_path, client):
-    """A scan of the newest 100 replays, then *All*: the same sources are scanned again, completely."""
-    folder = plays_folder(tmp_path, OTHERS)
-    job = scan(client, folder, latest=100)
-    assert job["result"]["scan_limit"] == 100
-    assert client.post("/api/library/rescan", json={"latest": 100}).json()["code"] == "nothing_to_rescan"
-    r = client.post("/api/library/rescan", json={"latest": 0})
-    assert r.status_code == 202
-    job = wait(client, r.json())
-    assert job["status"] == "succeeded" and job["result"]["scan_limit"] is None
-    assert client.get("/api/library").json()["scan_limit"] is None
-    assert load_settings(workspace(client).cache_dir)["latest"] == 0
-    analyse(client, player="*", latest=0)
-    assert client.get("/api/analysis").json()["player_label"] == "All players"
+def test_scan_finds_every_replay_and_the_analysis_takes_the_newest(tmp_path, client):
+    """The scan counts every replay found; the count chosen to analyse picks the newest of them (#36)."""
+    job = scan(client, plays_folder(tmp_path))
+    assert job["result"]["replays"] == 3
+    assert client.get("/api/library").json()["replays"] == 3
+    ws = workspace(client)
+    sel = svc.select(ws, "Mot1one", 2, "all", None, None)  # fewer than were found: the newest of them
+    every = svc.select(ws, "Mot1one", 0, "all", None, None)
+    assert [r["path"] for r in sel.refs] == [r["path"] for r in every.refs][:2]
+    out = svc.selection_out(ws, sel)
+    assert out.replays == 2 and out.found == 3 and out.newest_only
+    out = svc.selection_out(ws, every)
+    assert out.replays == 3 and not out.newest_only
+    analyse(client, latest=0)
+    assert client.get("/api/analysis").json()["analysed"] == 3
 
 
 def test_selection_by_count_and_date(tmp_path, client):
@@ -130,14 +133,13 @@ def test_only_dropped_files(tmp_path, client):
     assert r.status_code == 201, r.text
     ups = r.json()
     assert [u["kind"] for u in ups] == ["replay", "beatmap"]
-    r = client.post("/api/library/scan", json={"mode": "files", "files": [u["id"] for u in ups], "latest": 100})
+    r = client.post("/api/library/scan", json={"mode": "files", "files": [u["id"] for u in ups]})
     job = wait(client, r.json())
     assert job["status"] == "succeeded" and job["result"]["replays"] == 1
     assert client.get("/api/library").json()["mode"] == "files"
     sel = client.get("/api/library/selection", params={"latest": 100, "date_range": "7d"}).json()
     assert sel["files_mode"] and sel["replays"] == 1 and sel["date_range"] == "all"  # no count / date filter
     analyse(client)
-    assert client.post("/api/library/rescan", json={"latest": 0}).json()["code"] == "nothing_to_rescan"
 
 
 def _upload(client, name: str) -> list[str]:

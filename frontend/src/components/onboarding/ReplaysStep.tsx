@@ -173,12 +173,12 @@ function Sources({ client, r }: { client: Schemas["SetupModel"]["client"]; r: Re
   const body: ScanRequest | null =
     how === "auto"
       ? chosen.size || extra.length
-        ? { mode: "library", installs: [...chosen], folders: extra, files: [], latest: s.latest }
+        ? { mode: "library", installs: [...chosen], folders: extra, files: [] }
         : null
       : folder.trim()
-        ? { mode: "library", installs: [], folders: [folder.trim()], files: uploads.map((u) => u.id), latest: s.latest }
+        ? { mode: "library", installs: [], folders: [folder.trim()], files: uploads.map((u) => u.id) }
         : uploads.length
-          ? { mode: "files", folders: [], files: uploads.map((u) => u.id), latest: s.latest }
+          ? { mode: "files", folders: [], files: uploads.map((u) => u.id) }
           : null;
   const library = how === "auto" || !!folder.trim();
 
@@ -246,7 +246,7 @@ function Sources({ client, r }: { client: Schemas["SetupModel"]["client"]; r: Re
         </>
       )}
       {library && (
-        <Field label="Replays to read" hint="Your newest replays are read first. Fewer = faster, and closer to how you play now; you can read more later on the Replays page.">
+        <Field label="Replays to read" hint="How many of your replays are analysed, newest first. Fewer = faster, and closer to how you play now; you can analyse more later on the Replays page.">
           <Segmented
             label="Replays to read"
             block

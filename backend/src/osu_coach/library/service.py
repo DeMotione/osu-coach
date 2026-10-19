@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class ScanArgs:
-    """What the last scan read, so it can be repeated further back (more replays)."""
+    """What the last scan read, so it can be repeated (new files added, the next start)."""
 
     installs: list[detect.Install] = field(default_factory=list)
     folders: list[str] = field(default_factory=list)
@@ -99,21 +99,20 @@ def scan_args(ws: Workspace, req: ScanRequest) -> ScanArgs:
     )
 
 
-def run_scan(ws: Workspace, args: ScanArgs, latest: int, report: Reporter) -> ScanResult:
-    """Read the replays (and beatmaps) of the chosen sources into a new library; ``latest``: only the newest
-    replays (0 = all)."""
-    limit = latest or None
+def run_scan(ws: Workspace, args: ScanArgs, report: Reporter) -> ScanResult:
+    """Read every replay (and the beatmaps) of the chosen sources into a new library. How many of them are
+    analysed is chosen afterwards (``select``), so the count found is the full one (#36)."""
     lib = Library(ws.cache_dir)
     warnings = []
-    report.note(f"Looking for your newest {limit} replays…" if limit else "Scanning for replays…")
+    report.note("Scanning for replays…")
     for inst in args.installs:
         report.note(f"Scanning {inst.label}…")
-        lib.add_install(inst, progress=report.note, latest=limit)
+        lib.add_install(inst, progress=report.note)
     for f in args.folders:
         path = Path(f).expanduser()
         if path.is_dir():
             report.note(f"Scanning {path}…")
-            lib.add_folder(path, latest=limit)
+            lib.add_folder(path)
         else:
             warnings.append(f"Folder not found: {f}")
     if args.files:
@@ -123,16 +122,9 @@ def run_scan(ws: Workspace, args: ScanArgs, latest: int, report: Reporter) -> Sc
     players = lib.players()
     if players and lib.has_unread_maps():
         report.note("Looking for the beatmaps of these replays…")
-        lib.missing_maps(lib.eligible(players[0][0], limit), progress=report.note)
+        lib.missing_maps(lib.eligible(players[0][0]), progress=report.note)
     ws.library, ws.scan_args = lib, args
-    return ScanResult(
-        replays=len(lib.standard_replays()), players=len(players), scan_limit=lib.scan_limit, warnings=warnings
-    )
-
-
-def needs_more(lib: Library, latest: int) -> bool:
-    """The last scan stopped earlier than ``latest`` replays (0 = all) asks for."""
-    return lib.scan_limit is not None and (not latest or latest > lib.scan_limit)
+    return ScanResult(replays=len(lib.standard_replays()), players=len(players), warnings=warnings)
 
 
 def _file_out(path: str) -> UploadedFile:
@@ -145,12 +137,11 @@ def _file_out(path: str) -> UploadedFile:
 def library_out(ws: Workspace) -> LibraryOut:
     lib = ws.library
     if lib is None:
-        return LibraryOut(scanned=False, mode=None, sources=[], scan_limit=None, replays=0, players=[], files=[])
+        return LibraryOut(scanned=False, mode=None, sources=[], replays=0, players=[], files=[])
     return LibraryOut(
         scanned=True,
         mode="files" if ws.scan_args and ws.scan_args.only else "library",
         sources=list(lib.sources),
-        scan_limit=lib.scan_limit,
         replays=len(lib.standard_replays()),
         players=[PlayerCount(name=n, replays=c) for n, c in lib.players()],
         files=[_file_out(f) for f in kept_files(ws) if Path(f).suffix.lower() in UPLOAD_SUFFIXES],
@@ -233,8 +224,7 @@ def select(
 
 def selection_out(ws: Workspace, sel: Selection) -> SelectionOut:
     lib = require_library(ws)
-    missing = lib.missing_maps(sel.refs)  # looks in the parts of the installs a limited scan didn't read
-    names = [n for n, _ in sel.players]
+    missing = lib.missing_maps(sel.refs)  # looks in the beatmap sources not read yet (only dropped files)
     left = lib.left_out(sel.player, since=sel.refs[-1]["timestamp"] if sel.limit and sel.refs else None)
     return SelectionOut(
         player=sel.player,
@@ -248,7 +238,6 @@ def selection_out(ws: Workspace, sel: Selection) -> SelectionOut:
         date_from=sel.start,
         date_to=sel.end,
         empty_range=not sel.refs and sel.choice != "all",
-        older_hint=bool(lib.scan_limit and sel.limit and sel.player not in ("*", names[0]) and sel.found < sel.limit),
         left_out=[Count(label=reason, count=n) for reason, n in left.most_common(3)],
         left_out_total=sum(left.values()),
     )

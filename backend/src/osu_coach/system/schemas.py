@@ -38,7 +38,7 @@ class Meta(BaseModel):
     date_choices: list[Choice]
     replay_sets: list[Choice]
     best_definition: str
-    latest_choices: list[int] = Field(description="Replay counts to read; 0 = all.")
+    latest_choices: list[int] = Field(description="Replay counts to analyse; 0 = all.")
     periods: list[str]
     lazer_instructions: list[str] = Field(description="Steps to import a lazer import folder (Markdown).")
     level_band: float
