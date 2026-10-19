@@ -1,7 +1,7 @@
 {
   "name": "osu-coach-desktop",
   "private": true,
-  "version": "0.9.1",
+  "version": "0.10.0",
   "description": "Tauri shell of osu! coach: starts the local API and shows the web app in a native window.",
   "scripts": {
     "dev": "tauri dev",
