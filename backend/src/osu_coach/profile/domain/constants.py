@@ -85,8 +85,7 @@ SKILL_HELP = {
         "Score: average of available miss-recovery and between-play steadiness scores. "
         "For recovery, a follow-up miss ratio of 2.0 = 50; for steadiness, a spread of "
         "2 misses per 100 notes = 50. Halving either measure adds 30 points to that part.",
-        "Recover after a miss, and practise longer maps with steady difficulty to make your "
-        "results more repeatable.",
+        "Recover after a miss, and practise longer maps with steady difficulty to make your results more repeatable.",
     ),
 }
 MISS_LABELS = {

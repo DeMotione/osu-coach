@@ -13,8 +13,8 @@ import pandas as pd
 
 from osu_coach.analysis.skill_scale import SPEED_POINTS, expected_speed_bpm
 from osu_coach.profile.domain.aim import aim_values, flow_values
-from osu_coach.profile.domain.levels import RECENT_DAYS, RECENT_MIN, replay_weight
 from osu_coach.profile.domain.consistency import play_steadiness
+from osu_coach.profile.domain.levels import RECENT_DAYS, RECENT_MIN, replay_weight
 from osu_coach.profile.domain.misses import miss_chain_stats
 from osu_coach.profile.domain.reading import reading_values
 from osu_coach.profile.domain.sliders import slider_difficulty
