@@ -42,7 +42,11 @@ class ScanRequest(Request):
     mode: SourceMode = Field("library", description="library = osu! installs and folders; files = only uploads.")
     installs: list[str] | None = Field(None, description="Roots of the installs to scan; null = all found.")
     folders: list[str] = Field(default_factory=list, max_length=50)
-    files: list[str] = Field(default_factory=list, max_length=2000, description="Ids of uploaded files.")
+    files: list[str] = Field(
+        default_factory=list,
+        max_length=2000,
+        description="Ids of uploaded files, added to the ones added by earlier scans (``LibraryOut.files``).",
+    )
     latest: Latest = Field(Latest.newest_500, description="Read only the newest N replays; 0 = all.")
 
 
@@ -69,6 +73,9 @@ class LibraryOut(BaseModel):
     scan_limit: int | None
     replays: int
     players: list[PlayerCount]
+    files: list[UploadedFile] = Field(
+        description="Replay and beatmap files added by hand: kept, so the next scan adds to them."
+    )
 
 
 class SelectionOut(BaseModel):

@@ -166,6 +166,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/library/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Forget the replay files added by hand
+         * @description Their replays leave the library now; analyse again to leave them out of the analysis too.
+         */
+        delete: operations["forget_files_api_library_files_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/library/selection": {
         parameters: {
             query?: never;
@@ -1684,6 +1704,11 @@ export interface components {
             replays: number;
             /** Players */
             players: components["schemas"]["PlayerCount"][];
+            /**
+             * Files
+             * @description Replay and beatmap files added by hand: kept, so the next scan adds to them.
+             */
+            files: components["schemas"]["UploadedFile"][];
         };
         /** MapList */
         MapList: {
@@ -2365,7 +2390,7 @@ export interface components {
             folders?: string[];
             /**
              * Files
-             * @description Ids of uploaded files.
+             * @description Ids of uploaded files, added to the ones added by earlier scans (``LibraryOut.files``).
              */
             files?: string[];
             /**
@@ -3469,6 +3494,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LibraryOut"];
+                };
+            };
+        };
+    };
+    forget_files_api_library_files_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryOut"];
+                };
+            };
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

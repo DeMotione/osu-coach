@@ -263,6 +263,32 @@ test.describe("after the setup", () => {
     await expect(page.locator(".file-list .chip")).toHaveCount(16);
     expect(await layoutProblems(page)).toEqual([]);
   });
+
+  test("replay files added by hand stay when more are added later (#38)", async ({ page, request }) => {
+    const mine = INDEX.filter((r) => r.replay.startsWith("mot1one__"));
+    const files = (r: (typeof INDEX)[number]) => [path.join(RES, "replays", r.replay), path.join(RES, "maps", `${r.md5}.osu`)];
+    const library = async () => (await (await request.get("/api/library")).json()) as { replays: number; files: unknown[] };
+    await page.goto("/replays");
+    await page.getByText("Only these files", { exact: true }).click();
+    // the drop zone of this mode replaces the other one: drop only once it is there
+    await expect(page.getByText(/^Drop the replay files to analyse/)).toBeVisible();
+    const drop = page.locator(".dropzone input[type=file]");
+    await drop.setInputFiles([...files(mine[0]), ...files(mine[1])]);
+    await page.getByRole("button", { name: "Scan", exact: true }).click();
+    await expect.poll(async () => (await library()).replays, { timeout: 120_000 }).toBe(2);
+    // later (the page opened again): the two are still there, and one more joins them
+    await page.reload();
+    await expect(page.getByText("Added files (4)", { exact: true })).toBeVisible();
+    await drop.setInputFiles(files(mine[2]));
+    await expect(page.getByText(/^Added files \(6\) · 2 new/)).toBeVisible();
+    await page.getByRole("button", { name: "Scan", exact: true }).click();
+    await expect.poll(async () => (await library()).replays, { timeout: 120_000 }).toBe(3);
+    expect(await layoutProblems(page)).toEqual([]);
+    await page.getByRole("button", { name: "Clear", exact: true }).click();
+    await expect(page.getByText(/^Added files \(/)).toHaveCount(0);
+    expect((await library()).files).toEqual([]);
+    await page.getByText(/^My replays/).click(); // back to the osu! installs for the tests after this one
+  });
 });
 
 test("the setup guide: osu! folder, playstyle, replays, tour", async ({ page, request }) => {

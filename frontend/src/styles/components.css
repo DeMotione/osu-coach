@@ -658,6 +658,20 @@ input[type="range"] {
   line-height: 26px;
 }
 
+/* the files added by hand, with how many and a way to forget them */
+.added-files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.added-files__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
 /* "and 85 more" after the first files of a big drop: a count, not a file */
 .chip--more {
   background: transparent;

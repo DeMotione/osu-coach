@@ -92,6 +92,14 @@ def library(ws: WorkspaceDep) -> LibraryOut:
     return svc.library_out(ws)
 
 
+@router.delete("/library/files", summary="Forget the replay files added by hand", responses=responses(409))
+def forget_files(ws: WorkspaceDep) -> LibraryOut:
+    """Their replays leave the library now; analyse again to leave them out of the analysis too."""
+    with ws.gate.hold("Forgetting the added files"):
+        session.forget_files(ws)
+    return svc.library_out(ws)
+
+
 @router.get("/library/selection", summary="Which replays an analysis would read", responses=responses(409, 422))
 def selection(
     ws: WorkspaceDep,

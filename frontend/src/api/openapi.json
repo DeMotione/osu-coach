@@ -434,6 +434,38 @@
         }
       }
     },
+    "/api/library/files": {
+      "delete": {
+        "tags": [
+          "Replays"
+        ],
+        "summary": "Forget the replay files added by hand",
+        "description": "Their replays leave the library now; analyse again to leave them out of the analysis too.",
+        "operationId": "forget_files_api_library_files_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/library/selection": {
       "get": {
         "tags": [
@@ -4988,6 +5020,14 @@
             },
             "type": "array",
             "title": "Players"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/UploadedFile"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "Replay and beatmap files added by hand: kept, so the next scan adds to them."
           }
         },
         "type": "object",
@@ -4997,7 +5037,8 @@
           "sources",
           "scan_limit",
           "replays",
-          "players"
+          "players",
+          "files"
         ],
         "title": "LibraryOut"
       },
@@ -7099,7 +7140,7 @@
             "type": "array",
             "maxItems": 2000,
             "title": "Files",
-            "description": "Ids of uploaded files."
+            "description": "Ids of uploaded files, added to the ones added by earlier scans (``LibraryOut.files``)."
           },
           "latest": {
             "$ref": "#/components/schemas/Latest",

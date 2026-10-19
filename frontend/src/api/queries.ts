@@ -108,6 +108,18 @@ export function useAddInstall() {
 
 export const useLibrary = () => useQuery({ queryKey: keys.library, queryFn: () => unwrap(api.GET("/api/library")) });
 
+/** Forget the replay files added by hand (they are kept across scans otherwise). */
+export function useForgetFiles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(api.DELETE("/api/library/files")),
+    onSuccess: (library) => {
+      qc.setQueryData(keys.library, library);
+      void invalidateLibrary(qc);
+    },
+  });
+}
+
 export type SelectionParams = {
   player?: string | null;
   latest: Schemas["Latest"];

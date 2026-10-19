@@ -38,9 +38,7 @@ def _save(ws: Workspace, **sections: dict) -> None:
         log.warning("could not save the session", exc_info=True)
 
 
-def run_scan(ws: Workspace, args: ScanArgs, latest: int, report: Reporter) -> ScanResult:
-    """The scan job; what it read is remembered for the next start."""
-    result = library.run_scan(ws, args, latest, report)
+def _save_scan(ws: Workspace, args: ScanArgs, latest: int) -> None:
     _save(
         ws,
         scan={
@@ -52,7 +50,21 @@ def run_scan(ws: Workspace, args: ScanArgs, latest: int, report: Reporter) -> Sc
             "latest": latest,
         },
     )
+
+
+def run_scan(ws: Workspace, args: ScanArgs, latest: int, report: Reporter) -> ScanResult:
+    """The scan job; what it read is remembered for the next start."""
+    result = library.run_scan(ws, args, latest, report)
+    _save_scan(ws, args, latest)
     return result
+
+
+def forget_files(ws: Workspace) -> None:
+    """Forget the files added by hand, also for the next start."""
+    library.forget_files(ws)
+    if ws.scan_args is not None:
+        latest = ws.library.scan_limit if ws.library is not None else None
+        _save_scan(ws, ws.scan_args, int(latest or 0))
 
 
 def start_restore(ws: Workspace) -> None:

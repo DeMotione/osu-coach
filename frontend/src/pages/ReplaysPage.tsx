@@ -6,6 +6,7 @@ import { useJob } from "../api/jobs";
 import {
   uploadFiles,
   useAnalysedReplays,
+  useForgetFiles,
   useAnalysisStatus,
   useInstalls,
   useLibrary,
@@ -62,8 +63,12 @@ function FindCard({ settings }: { settings: Settings }) {
   const [folders, setFolders] = useState(settings.folders);
   const [uploads, setUploads] = useState<Schemas["UploadedFile"][]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const forget = useForgetFiles();
   const filesMode = settings.source_mode === "files";
   const busy = scan.running || analysis.running;
+  // files added by hand are kept across scans (#38): the ones the library has, then the ones dropped since
+  const kept = library.data?.files ?? [];
+  const added = [...kept, ...uploads.filter((u) => !kept.some((k) => k.id === u.id))];
 
   const addFiles = async (files: File[]) => {
     setUploadError(null);
@@ -121,8 +126,8 @@ function FindCard({ settings }: { settings: Settings }) {
         <Dropzone
           accept=".osr,.osu"
           onFiles={addFiles}
-          title="Drop the replay files to analyse — only these, the rest of your library is ignored"
-          help="Add their .osu maps too if they aren't on this computer; missing maps are downloaded."
+          title="Drop the replay files to analyse — only files you add, not your osu! installs"
+          help="Added files are kept: drop more any time and Scan adds them to the others (a replay added twice counts once). Add their .osu maps too if they aren't on this computer; missing maps are downloaded."
         />
       ) : (
         <>
@@ -166,7 +171,26 @@ function FindCard({ settings }: { settings: Settings }) {
           </Field>
         </>
       )}
-      <FileChips files={uploads} />
+      {added.length > 0 && (
+        <div className="added-files">
+          <div className="added-files__head">
+            <span className="small muted">
+              Added files ({int(added.length)}){kept.length > 0 && kept.length < added.length ? ` · ${int(added.length - kept.length)} new, read at the next Scan` : ""}
+            </span>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              disabled={busy || forget.isPending}
+              title="Forget every file added by hand; your analysis keeps them until you analyse again"
+              onClick={() => forget.mutate(undefined, { onSuccess: () => setUploads([]) })}
+            >
+              Clear
+            </button>
+          </div>
+          <FileChips files={added} />
+        </div>
+      )}
+      {forget.isError && <Alert tone="bad">{forget.error.message}</Alert>}
       {uploadError && <Alert tone="bad">{uploadError}</Alert>}
       <div className="grow" />
       <JobStatus
@@ -192,7 +216,7 @@ function FindCard({ settings }: { settings: Settings }) {
       <button
         type="button"
         className={library.data?.scanned ? "btn btn--block" : "btn btn--primary btn--block"}
-        disabled={busy || (filesMode && uploads.length === 0)}
+        disabled={busy || (filesMode && added.length === 0)}
         onClick={() => void startScan()}
       >
         <IconSearch /> Scan

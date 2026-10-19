@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,8 +20,9 @@ from osu_coach.library.schemas import (
     ScanRequest,
     ScanResult,
     SelectionOut,
+    UploadedFile,
 )
-from osu_coach.library.uploads import resolve_upload
+from osu_coach.library.uploads import UPLOAD_SUFFIXES, resolve_upload
 from osu_coach.replays import detect, scope
 
 if TYPE_CHECKING:
@@ -74,9 +75,16 @@ def add_install_path(ws: Workspace, path: str) -> detect.Install:
 
 
 # ------------------------------------------------------------------ scan
+def kept_files(ws: Workspace) -> list[str]:
+    """The replay and beatmap files added by hand in earlier scans that are still there."""
+    return [f for f in (ws.scan_args.files if ws.scan_args else []) if Path(f).is_file()]
+
+
 def scan_args(ws: Workspace, req: ScanRequest) -> ScanArgs:
+    """What a scan reads. Files added by hand are kept: the new ones are added to the ones added before (each file
+    once), so adding a few replays later doesn't drop the rest (#38)."""
     only = req.mode == "files"
-    files = [str(resolve_upload(ws, f)) for f in req.files]
+    files = list(dict.fromkeys(kept_files(ws) + [str(resolve_upload(ws, f)) for f in req.files]))
     if only and not files:
         raise Invalid("Add the replay files to analyse first.", "no_files")
     installs = ws.installs()
@@ -127,10 +135,17 @@ def needs_more(lib: Library, latest: int) -> bool:
     return lib.scan_limit is not None and (not latest or latest > lib.scan_limit)
 
 
+def _file_out(path: str) -> UploadedFile:
+    p = Path(path)
+    return UploadedFile(
+        id=p.name, name=p.name, path=path, kind=UPLOAD_SUFFIXES[p.suffix.lower()], size=p.stat().st_size
+    )
+
+
 def library_out(ws: Workspace) -> LibraryOut:
     lib = ws.library
     if lib is None:
-        return LibraryOut(scanned=False, mode=None, sources=[], scan_limit=None, replays=0, players=[])
+        return LibraryOut(scanned=False, mode=None, sources=[], scan_limit=None, replays=0, players=[], files=[])
     return LibraryOut(
         scanned=True,
         mode="files" if ws.scan_args and ws.scan_args.only else "library",
@@ -138,7 +153,19 @@ def library_out(ws: Workspace) -> LibraryOut:
         scan_limit=lib.scan_limit,
         replays=len(lib.standard_replays()),
         players=[PlayerCount(name=n, replays=c) for n, c in lib.players()],
+        files=[_file_out(f) for f in kept_files(ws) if Path(f).suffix.lower() in UPLOAD_SUFFIXES],
     )
+
+
+def forget_files(ws: Workspace) -> None:
+    """Drop the files added by hand: from the next scans, and their replays from the library now."""
+    args = ws.scan_args
+    if args is None or not args.files:
+        return
+    gone = set(args.files)
+    ws.scan_args = replace(args, files=[])
+    if ws.library is not None:
+        ws.library.replays = [r for r in ws.library.replays if r.get("path") not in gone]
 
 
 def require_library(ws: Workspace) -> Library:

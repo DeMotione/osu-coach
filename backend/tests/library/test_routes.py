@@ -4,6 +4,7 @@ import shutil
 
 import pytest
 
+from osu_coach.app import session_store
 from osu_coach.app.errors import Busy
 from osu_coach.settings.repository import load_settings
 from tests.conftest import MOT1ONE, OTHERS, analyse, plays_folder, sample_paths, scan, wait, workspace
@@ -37,7 +38,15 @@ def test_add_install_refuses_a_folder_without_osu(tmp_path, client):
 
 def test_nothing_scanned_yet(client):
     lib = client.get("/api/library").json()
-    assert lib == {"scanned": False, "mode": None, "sources": [], "scan_limit": None, "replays": 0, "players": []}
+    assert lib == {
+        "scanned": False,
+        "mode": None,
+        "sources": [],
+        "scan_limit": None,
+        "replays": 0,
+        "players": [],
+        "files": [],
+    }
     r = client.get("/api/library/selection")
     assert r.status_code == 409 and r.json()["code"] == "not_scanned"
     assert client.post("/api/analysis", json={}).json()["code"] == "not_scanned"
@@ -129,6 +138,49 @@ def test_only_dropped_files(tmp_path, client):
     assert sel["files_mode"] and sel["replays"] == 1 and sel["date_range"] == "all"  # no count / date filter
     analyse(client)
     assert client.post("/api/library/rescan", json={"latest": 0}).json()["code"] == "nothing_to_rescan"
+
+
+def _upload(client, name: str) -> list[str]:
+    """A sample replay and its beatmap, uploaded; their ids."""
+    rp, mp = sample_paths(name)
+    r = client.post(
+        "/api/uploads", files=[("files", (rp.name, rp.read_bytes())), ("files", (mp.name, mp.read_bytes()))]
+    )
+    assert r.status_code == 201, r.text
+    return [u["id"] for u in r.json()]
+
+
+def _scan_files(client, ids: list[str]) -> dict:
+    r = client.post("/api/library/scan", json={"mode": "files", "files": ids})
+    assert r.status_code == 202, r.text
+    job = wait(client, r.json())
+    assert job["status"] == "succeeded", job
+    return job
+
+
+def test_files_added_later_join_the_earlier_ones(client):
+    """Adding a few replays later keeps the ones added before: in the library and in the analysis (#38)."""
+    _scan_files(client, _upload(client, MOT1ONE[0]) + _upload(client, MOT1ONE[1]))
+    analyse(client)
+    assert client.get("/api/analysis").json()["analysed"] == 2
+    job = _scan_files(client, _upload(client, MOT1ONE[2]))  # later: one more replay
+    assert job["result"]["replays"] == 3
+    lib = client.get("/api/library").json()
+    assert lib["replays"] == 3 and len(lib["files"]) == 6  # 3 replays and their beatmaps
+    assert {f["kind"] for f in lib["files"]} == {"replay", "beatmap"}
+    analyse(client)
+    assert client.get("/api/analysis").json()["analysed"] == 3  # the earlier two are still there
+    assert _scan_files(client, _upload(client, MOT1ONE[2]))["result"]["replays"] == 3  # the same replay again: once
+    assert _scan_files(client, [])["result"]["replays"] == 3  # nothing new: the kept files are read again
+
+
+def test_forget_the_added_files(client):
+    _scan_files(client, _upload(client, MOT1ONE[0]))
+    lib = client.delete("/api/library/files").json()
+    assert lib["files"] == [] and lib["replays"] == 0
+    assert session_store.load(workspace(client).cache_dir)["scan"]["files"] == []  # also after a restart
+    r = client.post("/api/library/scan", json={"mode": "files", "files": []})
+    assert r.status_code == 422 and r.json()["code"] == "no_files"
 
 
 def test_files_mode_needs_files(client):
