@@ -168,6 +168,15 @@ test.describe("after the setup", () => {
     expect(await layoutProblems(page)).toEqual([]);
   });
 
+  test("a replay that can't be opened in Detailed Map Analysis leads back to the list (#17)", async ({ page }) => {
+    await page.goto(`/check?path=${encodeURIComponent(path.join(playsFolder(), "gone.osr"))}`);
+    await expect(page.getByText("The replay file is no longer on this computer.")).toBeVisible();
+    await page.getByRole("button", { name: "Back to your replays" }).click();
+    await expect(page).toHaveURL(/\/check$/);
+    await expect(page.getByRole("combobox", { name: "Replay" }).locator("option")).not.toHaveCount(0);
+    expect(await layoutProblems(page)).toEqual([]);
+  });
+
   test("settings are remembered: best replays and the level set by hand", async ({ page, request }) => {
     await page.goto("/replays");
     await page.getByText("Best replays", { exact: true }).click();

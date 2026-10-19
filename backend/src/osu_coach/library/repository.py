@@ -160,9 +160,10 @@ class Library:
             self._unread_maps.append(("stable", locate.SongsFolder(inst.songs, self.index)))
 
     def add_files(self, paths, source: str = "upload"):
+        """Replays (.osr, or a file of lazer's store: no extension) and beatmaps (.osu) given one by one."""
         reps, maps = [], {}
         for p in map(Path, paths):
-            if p.suffix.lower() == ".osr":
+            if p.suffix.lower() == ".osr" or not p.suffix:
                 h = locate.replay_header(p)
                 if h:
                     reps.append(h)

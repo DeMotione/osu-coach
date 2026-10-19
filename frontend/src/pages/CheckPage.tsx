@@ -9,7 +9,7 @@ import type { ChartTheme } from "../charts/palette";
 import type { echarts } from "../charts/echarts";
 import { ClicksView } from "../components/Clicks";
 import { DataTable } from "../components/DataTable";
-import { IconExternal, IconMagnify, IconPlay } from "../components/icons";
+import { IconArrowLeft, IconExternal, IconMagnify, IconPlay } from "../components/icons";
 import { EmptyState, ErrorCard } from "../components/states";
 import { Alert, Card, Dropzone, Field, Page, Row, Stat, Switch, Tiles } from "../components/ui";
 import { clock, fmt, int, localTime, pct, signed, stars } from "../lib/format";
@@ -34,6 +34,12 @@ export default function CheckPage() {
     setChosen(null);
     setOnlyMap(focus);
     setParams({ path: p });
+  };
+  // the replay opened can't be read (moved, deleted, not a replay): back to the list of your replays (#17)
+  const back = () => {
+    setChosen(null);
+    setOnlyMap(false);
+    setParams({});
   };
 
   return (
@@ -62,7 +68,14 @@ export default function CheckPage() {
           {list.data && !list.data.available ? (
             <Alert tone="info">No osu! installation was found automatically. Drop a replay file above, or scan a folder on the Replays page.</Alert>
           ) : list.error ? (
-            <Alert tone="bad">{list.error.message}</Alert>
+            <>
+              <Alert tone="bad">{list.error.message}</Alert>
+              {opened && (
+                <button type="button" className="btn btn--block" onClick={back}>
+                  <IconArrowLeft /> Back to your replays
+                </button>
+              )}
+            </>
           ) : (
             <>
               <Field label="Replay">
