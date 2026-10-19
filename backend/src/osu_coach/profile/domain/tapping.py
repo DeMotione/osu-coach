@@ -7,6 +7,7 @@ import math
 import numpy as np
 import pandas as pd
 
+from osu_coach.analysis.skill_scale import SPEED_POINTS
 from osu_coach.profile.domain.ranking import _n_replays, ranked_mean
 from osu_coach.profile.domain.stamina import stamina_ref_bpm
 from osu_coach.profile.domain.stats import _clip, _map_key, _rate, _ur, _w, _wmean, _wquantile, played_notes
@@ -432,7 +433,6 @@ def _extra_presses(O: pd.DataFrame, Pr: pd.DataFrame) -> float:
 SPEED_FINGER = ("no_tap", "early", "late", "notelock")  # finger misses (aim / lost-track misses don't count)
 SPEED_TIMING = 0.8  # a clean run: no finger miss and 80%+ of its hit notes as 300s (mashing gives 100s)
 SPEED_RUNS = 3  # a play's speed: the 3rd fastest clean burst / stream (one lucky burst doesn't decide)
-SPEED_POINTS = 75.0  # points per doubling of the BPM (10% faster ≈ +10), like stamina
 
 
 def speed_values(P: pd.DataFrame) -> pd.DataFrame:

@@ -12,9 +12,18 @@ import statistics
 
 import pandas as pd
 
+from osu_coach.analysis.skill_scale import SPEED_POINTS, expected_speed_bpm, speed_bpm_for_rating, speed_rating
 from osu_coach.maps.domain import SKILLS, map_url, why
 
-FEATURE_POINTS = dict(zip(SKILLS, (12, 12, 20, 15, 15, 12, 12, 12)))
+FEATURE_POINTS = {
+    "aim": 12,
+    "flow_aim": 12,
+    "stamina": 15,
+    "accuracy": 15,
+    "sliders": 12,
+    "reading": 12,
+    "consistency": 12,
+}
 GOALS = {
     "Warm-up": (-0.5, -15.0, -10.0),
     "Comfort": (0.0, -5.0, 0.0),
@@ -25,6 +34,7 @@ STAR_SCALE = 0.2
 SKILL_SCALE = 20.0
 RISK_WEIGHT = 1.0
 HISTORY_WEIGHT = 0.5
+SPEED_MIN_TEMPO_RATIO = 0.8
 
 
 def _number(value) -> float | None:
@@ -40,17 +50,26 @@ def _get(row: dict, key: str, default: float = 0.0) -> float:
     return value if value is not None else default
 
 
+def _speed_bpm(row: dict) -> float | None:
+    """Use the third run in rebuilt pools; old pools only store stream/burst medians."""
+    if "speed_runs" in row:
+        return _number(row.get("speed_bpm")) if _get(row, "speed_runs") >= 3 else None
+    bpm = max(_get(row, "stream_bpm"), _get(row, "burst_bpm"))
+    return bpm if bpm > 0 else None
+
+
 def _features(row: dict) -> dict[str, float]:
     """The Lab's coarse pool feature composites, in Coach skill names."""
     radius = max(1.0, 54.4 - 4.48 * _get(row, "cs", 4))
     bpm = max(_get(row, "stream_bpm"), _get(row, "burst_bpm"))
+    speed_bpm = _speed_bpm(row)
     odd = _get(row, "odd_rhythm_share")
     density = _get(row, "density_p90")
     ar = _get(row, "ar", 9)
     values = {
         "aim": _get(row, "jump_velocity") * 1000 / (2 * radius) * (1 + 0.3 * _get(row, "sharp_share")),
         "flow_aim": _get(row, "aim") * math.sqrt(max(0, _get(row, "spaced_stream_share"))) * bpm / 180,
-        "speed": bpm,
+        "speed": speed_bpm or 0.0,
         "stamina": bpm
         * math.log1p(max(0, _get(row, "stream_notes")))
         / math.log(401)
@@ -63,7 +82,8 @@ def _features(row: dict) -> dict[str, float]:
         * (1 + _get(row, "reverse_share"))
         * (1 + 10 * max(0, 1 - _get(row, "slider_factor", 1))),
         "reading": density * (1 + odd) * (1 + max(0, 8 - ar) / 4 + max(0, ar - 10) / 2),
-        "consistency": math.sqrt(max(0, _get(row, "drain_length")) / 120) * (1 + max(0, 1 - _get(row, "evenness", 1))),
+        "consistency": math.sqrt(max(0, _get(row, "drain_length")) / 120)
+        * (0.5 + 0.5 * max(0, min(1, _get(row, "evenness", 1)))),
     }
     required = {
         "aim": ("cs", "jump_velocity", "sharp_share"),
@@ -76,7 +96,7 @@ def _features(row: dict) -> dict[str, float]:
     }
     result = {}
     for skill, value in values.items():
-        needs_bpm = skill in ("flow_aim", "speed", "stamina")
+        needs_bpm = skill in ("flow_aim", "stamina")
         if needs_bpm and _number(row.get("stream_bpm")) is None and _number(row.get("burst_bpm")) is None:
             continue
         if any(_number(row.get(key)) is None for key in required.get(skill, ())):
@@ -107,6 +127,8 @@ def _candidates(pool: pd.DataFrame, theta: float, assessed: tuple[str, ...]) -> 
         valid.append((row, _features(row)))
     refs = {}
     for skill in assessed:
+        if skill == "speed":
+            continue
         items = sorted(
             ((row, features[skill]) for row, features in valid if skill in features),
             key=lambda pair: (abs(pair[0]["stars"] - theta), str(pair[0]["md5"])),
@@ -124,7 +146,17 @@ def _candidates(pool: pd.DataFrame, theta: float, assessed: tuple[str, ...]) -> 
             value = features.get(skill)
             ref = refs.get(skill)
             affinity = _number(row.get("s_" + skill))
-            if value is None or ref is None or affinity is None or not 0 <= affinity <= 1:
+            if value is None or affinity is None or not 0 <= affinity <= 1 or (skill != "speed" and ref is None):
+                continue
+            if skill == "speed":
+                demands[skill] = speed_rating(value, theta)
+                projection[skill] = {
+                    "raw_feature": value,
+                    "reference_bpm": expected_speed_bpm(theta),
+                    "points_per_doubling": SPEED_POINTS,
+                    "source": "third_fastest_run" if "speed_runs" in row else "legacy_pool_bpm_proxy",
+                }
+                relevance[skill] = affinity
                 continue
             demands[skill] = 50 + 20 * (row["stars"] - theta) + FEATURE_POINTS[skill] * math.log2(value / ref)
             relevance[skill] = affinity
@@ -168,6 +200,11 @@ def recommend(
     result = {}
     for goal, (star_offset, skill_offset, margin) in GOALS.items():
         target = adjusted + star_offset if adjusted is not None else None
+        target_speed_bpm = (
+            speed_bpm_for_rating(abilities[skill] + skill_offset, theta)
+            if skill == "speed" and skill in abilities
+            else None
+        )
         if target is not None and target <= 0:
             raise ValueError("The adjusted target stars must be positive.")
         star_window = STAR_WINDOW
@@ -207,6 +244,8 @@ def recommend(
                 reason = "Target demand or relevance unknown"
             elif relevance[skill] < min_relevance:
                 reason = "Insufficient target relevance"
+            elif target_speed_bpm is not None and _speed_bpm(row) < SPEED_MIN_TEMPO_RATIO * target_speed_bpm:
+                reason = "Tapping tempo too far below target"
             elif any(other not in demands for other in assessed):
                 reason = "Assessed map demand unknown"
             if reason:
@@ -274,8 +313,14 @@ def recommend(
                         "abilities": {k: abilities[k] for k in assessed},
                         "demand_projection": candidate["projection"],
                         "target_stars": target,
+<<<<<<< HEAD
                         "target_demand": wanted,
                         "reachable_demand": reachable,
+=======
+                        "target_demand": abilities[skill] + skill_offset,
+                        "target_speed_bpm": target_speed_bpm,
+                        "minimum_speed_bpm": SPEED_MIN_TEMPO_RATIO * target_speed_bpm if target_speed_bpm else None,
+>>>>>>> origin/main
                         "kappa_s": kappa,
                         "star_window": star_window,
                         "star_scale": star_scale,

@@ -13,6 +13,7 @@ import { RecommendationControls, type RecommendationOptions } from "../component
 import { EmptyState, ErrorCard, LoadingPage } from "../components/states";
 import { Alert, Badge, Card, Field, Page, Progress, Row, Stat, Tabs, Tiles } from "../components/ui";
 import { fmt, isoDay } from "../lib/format";
+import { speedFitNotice } from "../lib/recommendationFit";
 
 type Tab = "goals" | "playlist";
 
@@ -227,12 +228,16 @@ function PlaylistTab() {
         <p className="small muted">Skill-adjusted target: {pl.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★. Map demands and coefficients are experimental.</p>
       </Card>
       {pl.stages.length ? (
-        pl.stages.map((st) => (
-          <Card key={st.stage} title={st.stage} sub={`${st.eligible} eligible · target ${st.target_stars?.toFixed(2) ?? "unknown"}★ · target demand ${st.target_demand?.toFixed(1) ?? "unknown"}`}>
-            <MapTable key={`${st.stage}:${st.eligible}:${st.maps[0]?.md5 ?? ""}:${pl.skill_adjusted_stars}`} maps={st.maps} />
-            {!st.eligible && <p className="small muted">{Object.entries(st.excluded ?? {}).map(([reason, count]) => `${reason}: ${count}`).join(" · ")}</p>}
-          </Card>
-        ))
+        pl.stages.map((st) => {
+          const fitNotice = pl.skill === "speed" ? speedFitNotice(st.maps, st.target_demand) : null;
+          return (
+            <Card key={st.stage} title={st.stage} sub={`${st.eligible} eligible · target ${st.target_stars?.toFixed(2) ?? "unknown"}★ · target demand ${st.target_demand?.toFixed(1) ?? "unknown"}`}>
+              {fitNotice && <Alert tone="warn">{fitNotice}</Alert>}
+              <MapTable key={`${st.stage}:${st.eligible}:${st.maps[0]?.md5 ?? ""}:${pl.skill_adjusted_stars}`} maps={st.maps} />
+              {!st.eligible && <p className="small muted">{Object.entries(st.excluded ?? {}).map(([reason, count]) => `${reason}: ${count}`).join(" · ")}</p>}
+            </Card>
+          );
+        })
       ) : (
         <Alert tone="warn">No maps found for this skill at your level.</Alert>
       )}
