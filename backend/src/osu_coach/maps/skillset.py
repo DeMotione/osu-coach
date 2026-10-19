@@ -313,14 +313,10 @@ def recommend(
                         "abilities": {k: abilities[k] for k in assessed},
                         "demand_projection": candidate["projection"],
                         "target_stars": target,
-<<<<<<< HEAD
                         "target_demand": wanted,
                         "reachable_demand": reachable,
-=======
-                        "target_demand": abilities[skill] + skill_offset,
                         "target_speed_bpm": target_speed_bpm,
                         "minimum_speed_bpm": SPEED_MIN_TEMPO_RATIO * target_speed_bpm if target_speed_bpm else None,
->>>>>>> origin/main
                         "kappa_s": kappa,
                         "star_window": star_window,
                         "star_scale": star_scale,
