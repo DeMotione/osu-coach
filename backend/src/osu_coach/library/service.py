@@ -58,14 +58,7 @@ def add_install_path(ws: Workspace, path: str) -> detect.Install:
     raw = path.strip().strip('"').strip()
     if not raw:
         raise Invalid("Enter the folder osu! is in.", "not_osu_folder")
-    if "://" in raw:
-        raise Invalid("Enter a local folder path.", "not_osu_folder")
-    try:
-        root = Path(raw).expanduser().resolve()
-    except (OSError, RuntimeError, ValueError):
-        raise Invalid("Enter a valid local folder path.", "not_osu_folder") from None
-    if not root.is_dir():
-        raise Invalid("Enter an existing folder osu! is in.", "not_osu_folder")
+    root = Path(raw).expanduser()
     inst = detect.install_at(root)
     if inst is None:
         raise Invalid(
