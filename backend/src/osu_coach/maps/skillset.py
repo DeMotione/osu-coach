@@ -186,8 +186,9 @@ def recommend(
                     for candidate in candidates
                 ):
                     break
+        star_scale = STAR_SCALE * star_window / STAR_WINDOW  # a window widened for timing maps is scored as wide
         excluded: dict[str, int] = dict(rejected)
-        ranked = []
+        eligible = []
         for candidate in candidates:
             row, demands, relevance = candidate["row"], candidate["demands"], candidate["relevance"]
             stars, md5 = row["stars"], str(row["md5"])
@@ -211,19 +212,36 @@ def recommend(
             if reason:
                 excluded[reason] = excluded.get(reason, 0) + 1
                 continue
-            star_term = -(((stars - target) / STAR_SCALE) ** 2)
-            skill_term = -(((demands[skill] - abilities[skill] - skill_offset) / SKILL_SCALE) ** 2)
+            eligible.append(candidate)
+        # Demands rise 20 points a star, abilities don't move the target stars that far: a rating far from 50 asks
+        # for demands no map at the target stars has. Measured from the nearest demand they do have, the best map
+        # available scores near 0 instead of every map scoring far below it (#33).
+        reach = {
+            k: (min(c["demands"][k] for c in eligible), max(c["demands"][k] for c in eligible))
+            for k in (assessed if eligible else ())
+        }
+        wanted = abilities[skill] + skill_offset if skill in abilities else None
+        reachable = min(max(wanted, reach[skill][0]), reach[skill][1]) if reach and wanted is not None else None
+        ranked = []
+        for candidate in eligible:
+            row, demands, relevance = candidate["row"], candidate["demands"], candidate["relevance"]
+            stars, md5 = row["stars"], str(row["md5"])
+            star_term = -(((stars - target) / star_scale) ** 2)
+            skill_term = -(((demands[skill] - reachable) / SKILL_SCALE) ** 2)
             bottlenecks = []
             for other in assessed:
                 if other == skill:
                     continue
-                overload = max(0.0, demands[other] - abilities[other] - margin)
+                # only the overload beyond what every map here asks of that skill
+                floor = max(abilities[other] + margin, reach[other][0])
+                overload = max(0.0, demands[other] - floor)
                 bottlenecks.append(
                     {
                         "skill": other,
                         "demand": demands[other],
                         "ability": abilities[other],
                         "margin": margin,
+                        "least_demand": reach[other][0],
                         "overload": overload,
                         "sigma": 20.0,
                         "importance": 1.0,
@@ -256,10 +274,11 @@ def recommend(
                         "abilities": {k: abilities[k] for k in assessed},
                         "demand_projection": candidate["projection"],
                         "target_stars": target,
-                        "target_demand": abilities[skill] + skill_offset,
+                        "target_demand": wanted,
+                        "reachable_demand": reachable,
                         "kappa_s": kappa,
                         "star_window": star_window,
-                        "star_scale": STAR_SCALE,
+                        "star_scale": star_scale,
                         "skill_scale": SKILL_SCALE,
                         "other_margin": margin,
                         "risk_weight": RISK_WEIGHT,
@@ -275,7 +294,7 @@ def recommend(
             excluded["No qualified timing map within 1★ of target"] = 1
         result[goal] = {
             "target_stars": target,
-            "target_demand": abilities[skill] + skill_offset if skill in abilities else None,
+            "target_demand": wanted,
             "star_min": target - star_window if target is not None else None,
             "star_max": target + star_window if target is not None else None,
             "eligible": len(ranked),
