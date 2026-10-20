@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Schemas } from "../api/client";
 import { circle, merge, niceMax, responsive } from "./base";
 import { mmss, playTimingChart, rangeStats } from "./check";
-import { MISS_SHORT, missCauses, skillBars, skillHover } from "./overview";
+import { MISS_SHORT, missCauses, readinessBars, readinessHover, skillBars, skillHover } from "./overview";
 import { chartTheme, heat, scoreColor, C } from "./palette";
 import { timingChart } from "./tapping";
 
@@ -129,5 +129,29 @@ describe("timing", () => {
     const o = playTimingChart(tm, t) as AnyOption;
     expect((o.yAxis as { max: number }).max).toBe(30);
     expect((o.xAxis as { max: number }).max).toBe(61000);
+  });
+});
+
+describe("readiness bars", () => {
+  const skills: Schemas["SkillLevel"][] = [
+    { key: "aim", label: "Aim", level: 6.57, facts: ["the hardest jump sections you cleared, on 38 plays"] },
+    { key: "sliders", label: "Slider control", level: 9, facts: ["slider speed"] },
+    { key: "flow_aim", label: "Flow aim", level: 5, facts: ["spaced streams"] },
+    { key: "reading", label: "Reading", level: null, facts: ["not measured"] },
+  ];
+
+  it("shows each skill's readiness for the target, out of reach at twice the strain", () => {
+    const o = (readinessBars(skills, 8, t) as { baseOption: AnyOption }).baseOption;
+    const bars = o.series![0] as { data: { value: number }[]; label: { formatter: (p: unknown) => string } };
+    expect(bars.data.map((d) => d.value)).toEqual([52, 100, 0, 0]);
+    const label = (i: number) => bars.label.formatter({ dataIndex: i });
+    expect([0, 1, 2, 3].map(label)).toEqual(["52%", "100%", "out of reach", "–"]);
+  });
+
+  it("explains the level in the hover", () => {
+    expect(readinessHover(skills[0], 8)).toContain("feels 48% harder");
+    expect(readinessHover(skills[0], 8)).toContain("out of reach from 9.3★");
+    expect(readinessHover(skills[1], 8)).toContain("8.0★ is within this skill");
+    expect(readinessHover(skills[3], 8)).toContain("not enough data");
   });
 });

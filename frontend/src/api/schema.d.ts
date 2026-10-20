@@ -1223,6 +1223,44 @@ export interface components {
             hit: boolean[];
             summary: components["schemas"]["ClickSummary"] | null;
         };
+        /** Consistency */
+        Consistency: {
+            /** Min Plays */
+            min_plays: number;
+            /** Bands */
+            bands: components["schemas"]["ConsistencyBand"][];
+        };
+        /** ConsistencyBand */
+        ConsistencyBand: {
+            /**
+             * Low
+             * @description Star rating (with mods) the band starts at.
+             */
+            low: number;
+            /** High */
+            high: number;
+            /** Plays */
+            plays: number;
+            /**
+             * Score
+             * @description 0–100; null with fewer than `min_plays` plays in the band.
+             */
+            score: number | null;
+            /**
+             * Combo
+             * @description Combo held: share of the map's max combo, average minus its spread, 0–1.
+             */
+            combo: number | null;
+            /**
+             * Accuracy
+             * @description Accuracy held on the 93–99% scale (0–1), average minus its spread.
+             */
+            accuracy: number | null;
+            /** Full Combo Share */
+            full_combo_share: number;
+            /** Mean Accuracy */
+            mean_accuracy: number;
+        };
         /**
          * Count
          * @description A reason / name with how often it occurs.
@@ -1958,8 +1996,8 @@ export interface components {
              * @description Skills measured on few maps or notes.
              */
             few_data: string[];
-            /** Top */
-            top: components["schemas"]["TopSkill"][];
+            readiness: components["schemas"]["Readiness"];
+            consistency: components["schemas"]["Consistency"];
             /**
              * Stamina
              * @description Tempo kept per duration (empty without a stamina score).
@@ -2268,6 +2306,26 @@ export interface components {
             misses: number;
             /** Objects */
             objects: number;
+        };
+        /** Readiness */
+        Readiness: {
+            /**
+             * Comfort
+             * @description The comfort level (★) the targets are counted from.
+             */
+            comfort: number | null;
+            /**
+             * Ahead
+             * @description Targets more than this many stars above comfort are locked.
+             */
+            ahead: number;
+            /**
+             * Step
+             * @description Distance between the targets offered (★).
+             */
+            step: number;
+            /** Skills */
+            skills: components["schemas"]["SkillLevel"][];
         };
         /** ReadingKpis */
         ReadingKpis: {
@@ -2639,6 +2697,23 @@ export interface components {
             sayo_rt_upper_mm?: number | null;
             /** Sayo Rt Lower Mm */
             sayo_rt_lower_mm?: number | null;
+        };
+        /** SkillLevel */
+        SkillLevel: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Level
+             * @description Star rating of a typical map whose demand on this skill matches what the player has shown; readiness for a target T = 1 − ((T / level)² − 1), clipped to 0–1.
+             */
+            level: number | null;
+            /**
+             * Facts
+             * @description What the level is measured from.
+             */
+            facts: string[];
         };
         /** SkillMeta */
         SkillMeta: {
@@ -3044,28 +3119,6 @@ export interface components {
             tips: components["schemas"]["TipOut"][];
             /** Practice Plan */
             practice_plan: string[];
-        };
-        /** TopSkill */
-        TopSkill: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
-            /**
-             * Score
-             * @description Against a 10★ player (50 = typical 10★ player).
-             */
-            score: number | null;
-            /**
-             * Top
-             * @description Top players' reference plays on the same scale.
-             */
-            top: number | null;
-            /**
-             * Facts
-             * @description Measured and assumed values behind this row.
-             */
-            facts?: string[];
         };
         /** UploadedFile */
         UploadedFile: {

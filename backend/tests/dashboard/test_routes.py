@@ -49,7 +49,13 @@ def test_overview_explains_every_skill(analysed):
             assert s["score_text"]  # the reason for an unmeasured experimental rating
         else:
             assert s["score_text"].startswith(f"{s['score']:.0f}")
-    assert len(ov["top"]) == len(SKILL_LABELS)
+    rd = ov["readiness"]  # skill levels in stars for the "Skills against a harder map" card
+    assert rd["ahead"] == 2 and rd["step"] == 0.5
+    assert [s["key"] for s in rd["skills"]] == ["aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading"]
+    assert all(s["facts"] and (s["level"] is None or 1 <= s["level"] <= 15) for s in rd["skills"])
+    cs = ov["consistency"]  # 3 replays: no band reaches 10 plays, so nothing is scored yet
+    assert cs["min_plays"] == 10 and sum(b["plays"] for b in cs["bands"]) == 3
+    assert all(b["score"] is None for b in cs["bands"])
     first = ov["level"]["weights"][0]  # README: "1★ off 61%"
     assert (
         ov["level"]["stars"] is not None

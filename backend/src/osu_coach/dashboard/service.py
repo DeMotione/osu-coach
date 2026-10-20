@@ -11,11 +11,11 @@ from osu_coach.dashboard import schemas as S
 from osu_coach.insights import domain as insights
 from osu_coach.insights import service as insights_service
 from osu_coach.insights.schemas import Clicks
-from osu_coach.maps.domain import targets_from_profile
+from osu_coach.maps.domain import demand_curves, targets_from_profile
 from osu_coach.maps.service import map_rows
 from osu_coach.maps.skillset import recommend
-from osu_coach.profile.domain import SKILL_LABELS, Profile, top_comparison, weight_table
-from osu_coach.profile.domain.experimental import at_level as experimental_at_level
+from osu_coach.profile.domain import SKILL_LABELS, Profile, weight_table
+from osu_coach.profile.domain import readiness as R
 from osu_coach.tips.service import tip_out, tips
 
 if TYPE_CHECKING:
@@ -257,23 +257,6 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         high_ar_maps=int(rd.get("high_ar_maps") or 0),
     )
     few = [SKILL_LABELS.get(k, k) for k, v in p.experimental_skills.items() if v.get("score") is None]
-    top_scores = experimental_at_level(p.experimental_skills, 10.0)
-    top = top_comparison(p.skills)
-    top_rows = [
-        S.TopSkill(
-            key=k,
-            label=top[k]["label"],
-            score=num(top_scores.get(k)),
-            top=num(top[k]["top"]),
-            facts=experimental_facts(
-                k, {**p.experimental_skills[k], "expected": p.experimental_skills[k].get("expected_top")}
-            )
-            if k == "accuracy" and k in p.experimental_skills
-            else [],
-        )
-        for k in p.skills
-        if k in top
-    ]
     stam = p.skills.get("stamina") or {}
     stamina = []
     if stam.get("score") is not None and stam.get("curve"):
@@ -302,7 +285,8 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         skills=skills,
         reading_split=reading_split,
         few_data=few,
-        top=top_rows,
+        readiness=readiness(ws, p, comfort_level),
+        consistency=consistency(p),
         stamina=stamina,
         sliders_scored=relative_scores.get("sliders") is not None,
         strengths=[
@@ -320,6 +304,70 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         top_tips=top_tips,
         sim_exact_share=num(ov.get("sim_exact_share")),
         sim_agreement=num(ov.get("sim_agreement")),
+    )
+
+
+# ------------------------------------------------------------------ readiness and consistency
+READY_SKILLS = ("aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading")
+
+
+def _level_facts(key: str, row: dict, inputs: dict) -> list[str]:
+    plays = row.get("plays", 0)
+    if key == "aim":
+        return [f"the hardest jump sections you cleared, on {plays} plays"]
+    if key == "flow_aim":
+        return [f"the hardest spaced-stream sections you cleared, on {plays} plays"]
+    if key == "speed":
+        return [f"the hardest burst and stream sections you tapped, on {plays} plays"]
+    if key == "stamina":
+        return [f"your hardest 30 seconds of fast tapping, on {plays} plays"]
+    if key == "accuracy":
+        sigma = row.get("timing_spread")
+        if sigma is None:
+            return ["not enough hit single notes"]
+        return [
+            f"timing spread {sigma:.1f} ms (UR about {10 * sigma:.0f})",
+            f"95% 300s need a {R.GREAT_Z * sigma:.1f} ms 300 window",
+        ]
+    if key == "sliders":
+        facts = ["the slider speed of the maps you held, against typical maps"]
+        if row.get("capped"):
+            facts.append(
+                f"capped at your hardest pass + {R.SLIDER_CAP:g}★ ({inputs['hardest_pass']:.2f}★ + {R.SLIDER_CAP:g})"
+            )
+        return facts
+    if key == "reading":
+        return [f"note density × approach rate of the maps you cleared, × the notes you hit, on {plays} plays"]
+    return []
+
+
+def readiness(ws: Workspace, p: Profile, comfort: float | None) -> S.Readiness:
+    """Each skill's level in stars; the page turns it into readiness for the target the player picks."""
+    rd = p.readiness or {}
+    inputs = rd.get("inputs") or {}
+    levels = dict(rd.get("sections") or {})
+    if inputs:
+        levels.update(R.pool_levels(inputs, demand_curves(ws.pool(), inputs.get("dt_share", 0.0))))
+    return S.Readiness(
+        comfort=num(comfort),
+        ahead=R.AHEAD,
+        step=R.STEP,
+        skills=[
+            S.SkillLevel(
+                key=k,
+                label=SKILL_LABELS.get(k, k),
+                level=num((levels.get(k) or {}).get("level")),
+                facts=_level_facts(k, levels.get(k) or {}, inputs),
+            )
+            for k in READY_SKILLS
+        ],
+    )
+
+
+def consistency(p: Profile) -> S.Consistency:
+    return S.Consistency(
+        min_plays=R.BAND_MIN_PLAYS,
+        bands=[S.ConsistencyBand(**b) for b in R.consistency_bands(p.replays)],
     )
 
 

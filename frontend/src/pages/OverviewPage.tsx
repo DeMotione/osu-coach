@@ -4,12 +4,13 @@ import { Link } from "react-router";
 import type { Schemas } from "../api/client";
 import { useMeta, useOverview, usePatchSettings, useSettings } from "../api/queries";
 import { Chart } from "../charts/Chart";
-import { missCauses, skillBars, topBars } from "../charts/overview";
+import { missCauses, readinessBars, skillBars } from "../charts/overview";
 import type { ChartTheme } from "../charts/palette";
 import { IconCheck } from "../components/icons";
 import { QueryView } from "../components/states";
-import { Alert, Badge, Card, Page, Row, Stat, Switch, Tiles, type TileCount } from "../components/ui";
+import { Alert, Badge, Card, Page, Progress, Row, Segmented, Stat, Switch, Tiles, type TileCount } from "../components/ui";
 import { fmt, int, pct, span, stars } from "../lib/format";
+import { defaultTarget, targetOptions } from "../lib/readiness";
 
 type Overview = Schemas["Overview"];
 
@@ -31,7 +32,6 @@ function OverviewBody({ ov }: { ov: Overview }) {
   const meta = useMeta();
   const k = ov.kpis;
   const skillsChart = useCallback((t: ChartTheme) => skillBars(ov.skills, meta.data?.skills ?? [], t), [ov.skills, meta.data]);
-  const topChart = useCallback((t: ChartTheme) => topBars(ov.top, t), [ov.top]);
   const descriptions = useMemo(
     () => Object.fromEntries((meta.data?.miss_causes ?? []).map((m) => [m.key, m.description])),
     [meta.data],
@@ -57,12 +57,8 @@ function OverviewBody({ ov }: { ov: Overview }) {
       >
         <Chart build={skillsChart} height={skillsHeight} label="Skill scores against your level" />
       </Card>
-      <Card
-        title="Skills against a 10★ reference"
-        sub={`The same replay measures against a 10★ baseline${k.comfort_stars === null ? "" : ` (${(10 - k.comfort_stars).toFixed(1)}★ above your comfort)`}. 50 = expected performance under assumed curves; ◆ = the maximum 100-point score.`}
-      >
-        <Chart build={topChart} height={skillsHeight} label="Skill scores against top players" />
-      </Card>
+      <ReadinessCard rd={ov.readiness} height={Math.max(320, ov.readiness.skills.length * 44)} />
+      <ConsistencyCard cs={ov.consistency} />
       <Row>
         <Card
           title="Why you miss"
@@ -219,6 +215,70 @@ function LevelCard({ ov }: { ov: Overview }) {
           ))}
         </Tiles>
       </div>
+    </Card>
+  );
+}
+
+/** Each skill's readiness for a harder target: one star above comfort first, up to `ahead` stars, further ones locked. */
+function ReadinessCard({ rd, height }: { rd: Schemas["Readiness"]; height: number }) {
+  const [picked, setPicked] = useState<number | null>(null);
+  const options = useMemo(() => (rd.comfort === null ? [] : targetOptions(rd.comfort, rd.ahead, rd.step)), [rd.comfort, rd.ahead, rd.step]);
+  const target = picked !== null && options.some((o) => o.value === picked && !o.disabled) ? picked : rd.comfort === null ? null : defaultTarget(rd.comfort, rd.ahead);
+  const build = useCallback((t: ChartTheme) => readinessBars(rd.skills, target ?? 0, t), [rd.skills, target]);
+  return (
+    <Card
+      title="Skills against a harder map"
+      sub={
+        target === null
+          ? "How ready each skill is for maps above your comfort level."
+          : `How ready each skill is for ${stars(target, 1)} maps (your comfort ${stars(rd.comfort, 1)} + ${(target - (rd.comfort ?? 0)).toFixed(1)}★). 100% = comfortable; 0% = out of reach: the map asks twice the strain the skill handles. Maps more than ${rd.ahead}★ above your comfort are locked.`
+      }
+    >
+      {target === null ? (
+        <Alert>Your comfort level isn't known yet: analyse at least 3 recent maps you finished cleanly.</Alert>
+      ) : (
+        <div className="stack" style={{ gap: 12 }}>
+          <Segmented label="Compare with" options={options} value={target} onChange={setPicked} />
+          <Chart build={build} height={height} label={`Skill readiness for ${stars(target, 1)} maps`} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** How steadily combo and accuracy hold across plays of the same star rating; a band needs `min_plays` plays. */
+function ConsistencyCard({ cs }: { cs: Schemas["Consistency"] }) {
+  return (
+    <Card
+      title="Consistency"
+      sub={`How steadily you keep your combo and your accuracy across plays of the same star rating (with mods), per 0.5★ with at least ${cs.min_plays} plays. Keeping either one well is good; keeping both is close to 100.`}
+    >
+      {cs.bands.length ? (
+        <ul className="list">
+          {cs.bands.map((b) => {
+            const range = `${b.low.toFixed(1)}–${b.high.toFixed(1)}★`;
+            return (
+              <li key={b.low}>
+                {b.score === null ? (
+                  <p className="small muted">
+                    {range}: {b.plays} of {cs.min_plays} plays, not enough yet
+                  </p>
+                ) : (
+                  <>
+                    <Progress value={b.score / 100} text={`${range} · ${b.plays} plays`} right={fmt(b.score, 0)} />
+                    <p className="small muted">
+                      Combo held {pct(b.combo, 0)} (full combo on {pct(b.full_combo_share, 0)} of plays) · accuracy {pct(b.mean_accuracy)} on
+                      average, held {pct(b.accuracy, 0)} of the 93–99% scale
+                    </p>
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="muted">No plays with a star rating yet.</p>
+      )}
     </Card>
   );
 }

@@ -75,12 +75,37 @@ class SkillScore(BaseModel):
     facts: list[str] = Field(description="The player's own numbers behind the score.")
 
 
-class TopSkill(BaseModel):
+class SkillLevel(BaseModel):
     key: str
     label: str
-    score: float | None = Field(description="Against a 10★ player (50 = typical 10★ player).")
-    top: float | None = Field(description="Top players' reference plays on the same scale.")
-    facts: list[str] = Field(default_factory=list, description="Measured and assumed values behind this row.")
+    level: float | None = Field(
+        description="Star rating of a typical map whose demand on this skill matches what the player has shown; "
+        "readiness for a target T = 1 − ((T / level)² − 1), clipped to 0–1."
+    )
+    facts: list[str] = Field(description="What the level is measured from.")
+
+
+class Readiness(BaseModel):
+    comfort: float | None = Field(description="The comfort level (★) the targets are counted from.")
+    ahead: float = Field(description="Targets more than this many stars above comfort are locked.")
+    step: float = Field(description="Distance between the targets offered (★).")
+    skills: list[SkillLevel]
+
+
+class ConsistencyBand(BaseModel):
+    low: float = Field(description="Star rating (with mods) the band starts at.")
+    high: float
+    plays: int
+    score: float | None = Field(description="0–100; null with fewer than `min_plays` plays in the band.")
+    combo: float | None = Field(description="Combo held: share of the map's max combo, average minus its spread, 0–1.")
+    accuracy: float | None = Field(description="Accuracy held on the 93–99% scale (0–1), average minus its spread.")
+    full_combo_share: float
+    mean_accuracy: float
+
+
+class Consistency(BaseModel):
+    min_plays: int
+    bands: list[ConsistencyBand]
 
 
 class StaminaPoint(BaseModel):
@@ -113,7 +138,8 @@ class Overview(BaseModel):
     skills: list[SkillScore]
     reading_split: ReadingSplit
     few_data: list[str] = Field(description="Skills measured on few maps or notes.")
-    top: list[TopSkill]
+    readiness: Readiness
+    consistency: Consistency
     stamina: list[StaminaPoint] = Field(description="Tempo kept per duration (empty without a stamina score).")
     sliders_scored: bool
     strengths: list[str]

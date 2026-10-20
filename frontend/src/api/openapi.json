@@ -3606,6 +3606,100 @@
         "title": "Clicks",
         "description": "Where clicks land, in circle radii from the note centre (y down)."
       },
+      "Consistency": {
+        "properties": {
+          "min_plays": {
+            "type": "integer",
+            "title": "Min Plays"
+          },
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/ConsistencyBand"
+            },
+            "type": "array",
+            "title": "Bands"
+          }
+        },
+        "type": "object",
+        "required": [
+          "min_plays",
+          "bands"
+        ],
+        "title": "Consistency"
+      },
+      "ConsistencyBand": {
+        "properties": {
+          "low": {
+            "type": "number",
+            "title": "Low",
+            "description": "Star rating (with mods) the band starts at."
+          },
+          "high": {
+            "type": "number",
+            "title": "High"
+          },
+          "plays": {
+            "type": "integer",
+            "title": "Plays"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "0–100; null with fewer than `min_plays` plays in the band."
+          },
+          "combo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Combo",
+            "description": "Combo held: share of the map's max combo, average minus its spread, 0–1."
+          },
+          "accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy",
+            "description": "Accuracy held on the 93–99% scale (0–1), average minus its spread."
+          },
+          "full_combo_share": {
+            "type": "number",
+            "title": "Full Combo Share"
+          },
+          "mean_accuracy": {
+            "type": "number",
+            "title": "Mean Accuracy"
+          }
+        },
+        "type": "object",
+        "required": [
+          "low",
+          "high",
+          "plays",
+          "score",
+          "combo",
+          "accuracy",
+          "full_combo_share",
+          "mean_accuracy"
+        ],
+        "title": "ConsistencyBand"
+      },
       "Count": {
         "properties": {
           "label": {
@@ -5737,12 +5831,11 @@
             "title": "Few Data",
             "description": "Skills measured on few maps or notes."
           },
-          "top": {
-            "items": {
-              "$ref": "#/components/schemas/TopSkill"
-            },
-            "type": "array",
-            "title": "Top"
+          "readiness": {
+            "$ref": "#/components/schemas/Readiness"
+          },
+          "consistency": {
+            "$ref": "#/components/schemas/Consistency"
           },
           "stamina": {
             "items": {
@@ -5824,7 +5917,8 @@
           "skills",
           "reading_split",
           "few_data",
-          "top",
+          "readiness",
+          "consistency",
           "stamina",
           "sliders_scored",
           "strengths",
@@ -6731,6 +6825,47 @@
           "objects"
         ],
         "title": "QuadrantCell"
+      },
+      "Readiness": {
+        "properties": {
+          "comfort": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comfort",
+            "description": "The comfort level (★) the targets are counted from."
+          },
+          "ahead": {
+            "type": "number",
+            "title": "Ahead",
+            "description": "Targets more than this many stars above comfort are locked."
+          },
+          "step": {
+            "type": "number",
+            "title": "Step",
+            "description": "Distance between the targets offered (★)."
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/SkillLevel"
+            },
+            "type": "array",
+            "title": "Skills"
+          }
+        },
+        "type": "object",
+        "required": [
+          "comfort",
+          "ahead",
+          "step",
+          "skills"
+        ],
+        "title": "Readiness"
       },
       "ReadingKpis": {
         "properties": {
@@ -7962,6 +8097,46 @@
         "additionalProperties": false,
         "type": "object",
         "title": "SetupUpdate"
+      },
+      "SkillLevel": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level",
+            "description": "Star rating of a typical map whose demand on this skill matches what the player has shown; readiness for a target T = 1 − ((T / level)² − 1), clipped to 0–1."
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Facts",
+            "description": "What the level is measured from."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "level",
+          "facts"
+        ],
+        "title": "SkillLevel"
       },
       "SkillMeta": {
         "properties": {
@@ -9222,58 +9397,6 @@
           "practice_plan"
         ],
         "title": "TipsPage"
-      },
-      "TopSkill": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "title": "Key"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "score": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score",
-            "description": "Against a 10★ player (50 = typical 10★ player)."
-          },
-          "top": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Top",
-            "description": "Top players' reference plays on the same scale."
-          },
-          "facts": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Facts",
-            "description": "Measured and assumed values behind this row."
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "label",
-          "score",
-          "top"
-        ],
-        "title": "TopSkill"
       },
       "UploadedFile": {
         "properties": {

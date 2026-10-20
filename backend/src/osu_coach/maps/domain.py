@@ -15,6 +15,7 @@ import pandas as pd
 from osu_coach.beatmaps import difficulty
 from osu_coach.beatmaps.domain import Beatmap, PlayableBeatmap
 from osu_coach.beatmaps.features import object_features
+from osu_coach.profile.domain.readiness import reading_demand
 
 QUADRANTS = ["top-left", "top-right", "bottom-left", "bottom-right"]
 SKILLS = ["aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading", "consistency"]
@@ -461,3 +462,68 @@ def skill_label(skill: str, t: Targets | None = None) -> str:
 
 def collection_name(skill: str, t: Targets) -> str:
     return f"osu-coach: {skill_label(skill, t)} ({t.comfort:.1f}★)"
+
+
+# ------------------------------------------------------------------ what maps at each star rating demand
+DEMAND_STARS = np.arange(5.0, 11.01, 0.25)
+DEMAND_HALF_WIDTH = 0.25  # maps within ±0.25★ of each step
+DEMAND_MIN_MAPS = 30
+DT_RATE = 1.5
+
+
+def _ar_at_rate(ar: np.ndarray, rate: float) -> np.ndarray:
+    """Approach rate as it plays at ``rate`` (DT: 1.5): the preempt time shrinks, read back as an AR."""
+    preempt = np.where(ar < 5, 1800 - 120 * ar, 1200 - 150 * (ar - 5)) / rate
+    return np.where(preempt > 1200, (1800 - preempt) / 120, 5 + (1200 - preempt) / 150)
+
+
+def _weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
+    order = np.argsort(values)
+    cum = np.cumsum(weights[order])
+    return float(values[order][np.searchsorted(cum, cum[-1] / 2)])
+
+
+def demand_curves(pool: pd.DataFrame, dt_share: float) -> dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """What a typical map asks at each star rating, matched to how often the player uses DT: every pool map counts as
+    played (its star rating) and with DT (``stars_dt``, real-time values), weighted so each step has the player's DT
+    share. Per measure: (stars, median, maps) for the 300 window (ms), the median slider speed (circle widths per
+    second) and the reading demand (:func:`osu_coach.profile.domain.readiness.reading_demand`)."""
+    need = {"stars", "stars_dt", "cs", "od", "ar", "slider_velocity", "density_p90", "odd_rhythm_share"}
+    if pool is None or pool.empty or not need <= set(pool.columns):
+        return {}
+    num = lambda c: pd.to_numeric(pool[c], errors="coerce").to_numpy(float)  # noqa: E731
+    cs, od, ar = num("cs"), num("od"), num("ar")
+    diameter = 2 * np.maximum(1.0, 54.4 - 4.48 * cs)
+    slider = num("slider_velocity") * 1000 / diameter
+    window = 79.5 - 6 * od
+    density, odd = num("density_p90"), num("odd_rhythm_share")
+    ar_dt = _ar_at_rate(ar, DT_RATE)
+    rows = pd.DataFrame(
+        {
+            "stars": np.concatenate([num("stars"), num("stars_dt")]),
+            "dt": np.repeat([False, True], len(pool)),
+            "window": np.concatenate([window, window / DT_RATE]),
+            "slider_speed": np.concatenate([slider, slider * DT_RATE]),
+            "reading": np.concatenate([reading_demand(density, odd, ar), reading_demand(density, odd, ar_dt)]),
+        }
+    )
+    share = float(np.clip(dt_share, 0, 1))
+    out = {}
+    for col in ("window", "slider_speed", "reading"):
+        stars, values, counts = [], [], []
+        for s in DEMAND_STARS:
+            b = rows[((rows["stars"] - s).abs() <= DEMAND_HALF_WIDTH) & (rows[col] > 0)]
+            if len(b) < DEMAND_MIN_MAPS:
+                continue
+            dt = b["dt"].to_numpy()
+            if dt.any() and (~dt).any():
+                w = np.where(dt, share / dt.sum(), (1 - share) / (~dt).sum())
+            else:
+                w = np.ones(len(b))
+            if w.sum() <= 0:
+                continue
+            stars.append(float(s))
+            values.append(_weighted_median(b[col].to_numpy(float), w))
+            counts.append(len(b))
+        out[col] = (np.array(stars), np.array(values), np.array(counts))
+    return out

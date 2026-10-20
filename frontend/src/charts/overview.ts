@@ -1,8 +1,9 @@
 import type { Schemas } from "../api/client";
 import { esc } from "../lib/format";
+import { feltHarder, outOfReachFrom, readiness } from "../lib/readiness";
 import { base, categoryAxis, grid, niceMax, refLine, responsive, tooltip, valueAxis } from "./base";
 import type { Option } from "./echarts";
-import { C, INK, scoreColor, type ChartTheme } from "./palette";
+import { C, scoreColor, type ChartTheme } from "./palette";
 import { params } from "./types";
 
 type Skill = Schemas["SkillScore"];
@@ -82,56 +83,60 @@ export function skillBars(skills: Skill[], help: SkillMeta[], t: ChartTheme): Op
   );
 }
 
-export function topBars(top: Schemas["TopSkill"][], t: ChartTheme): Option {
+/** The hover of a readiness bar: the skill's level, how much harder the target feels, and what the level is from. */
+export function readinessHover(s: Schemas["SkillLevel"], target: number): string {
+  const head = `<b>${esc(s.label)}</b>`;
+  if (s.level === null) return `${head}<br>not enough data yet`;
+  const ready = readiness(s.level, target) ?? 0;
+  const felt = feltHarder(s.level, target);
+  const lines = [
+    `level ${s.level.toFixed(1)}★ · ${Math.round(ready * 100)}% ready for ${target.toFixed(1)}★`,
+    felt <= 0
+      ? `${target.toFixed(1)}★ is within this skill's level`
+      : `${target.toFixed(1)}★ feels ${Math.round(felt * 100)}% harder · out of reach from ${outOfReachFrom(s.level).toFixed(1)}★`,
+    `From ${s.facts.join("; ")}`,
+  ];
+  return `${head}<br>${lines.map(esc).join("<br>")}`;
+}
+
+export function readinessBars(skills: Schemas["SkillLevel"][], target: number, t: ChartTheme): Option {
+  const ready = skills.map((s) => readiness(s.level, target));
   return responsive(
     base(t, {
-      grid: grid({ right: 34, bottom: 8 }),
-      xAxis: valueAxis(t, { min: 0, max: 100, interval: 25, name: "50 = assumed 10★ baseline · ◆ = 100-point ceiling", nameGap: 26 }),
+      grid: grid({ right: 96, bottom: 8 }),
+      xAxis: valueAxis(t, { min: 0, max: 100, interval: 25, name: `% ready for ${target.toFixed(1)}★ · 0 = out of reach`, nameGap: 26 }),
       yAxis: SKILL_AXIS(
         t,
-        top.map((s) => s.label),
+        skills.map((s) => s.label),
         230,
       ),
       tooltip: tooltip(t, {
         trigger: "axis",
         axisPointer: { type: "shadow", shadowStyle: { color: t.split } },
-        formatter: (p: unknown) => {
-          const s = top[params(p)[0].dataIndex];
-          const you = s.score === null ? "not enough data" : s.score.toFixed(0);
-          const tp = s.top === null ? "–" : s.top.toFixed(0);
-          const facts = s.facts?.length ? `<br>${esc(s.facts.join("; "))}` : "";
-          return `<b>${esc(s.label)}</b><br>you ${esc(you)} · skill ceiling ${esc(tp)} (50 = assumed 10★ baseline)${facts}`;
-        },
+        formatter: (p: unknown) => readinessHover(skills[params(p)[0].dataIndex], target),
       }),
       series: [
         {
           type: "bar",
-          name: "you",
           barMaxWidth: 22,
-          data: top.map((s) => ({ value: s.score ?? 0, itemStyle: { color: scoreColor(s.score), borderRadius: [0, 3, 3, 0] } })),
+          data: ready.map((r) => ({
+            value: r === null ? 0 : Math.round(r * 100),
+            itemStyle: { color: scoreColor(r === null ? null : r * 100), borderRadius: [0, 3, 3, 0] },
+          })),
           label: {
             show: true,
-            position: "insideRight",
-            color: INK,
-            fontWeight: 600,
+            position: "right",
+            color: t.text,
+            fontSize: 12,
             formatter: (p: unknown) => {
-              const s = top[params(p)[0].dataIndex];
-              return s.score === null || s.score < 12 ? "" : s.score.toFixed(0);
+              const r = ready[params(p)[0].dataIndex];
+              return r === null ? "–" : r === 0 ? "out of reach" : `${Math.round(r * 100)}%`;
             },
           },
         },
-        {
-          type: "scatter",
-          name: "100-point ceiling",
-          symbol: "diamond",
-          symbolSize: 13,
-          itemStyle: { color: t.muted },
-          data: top.map((s) => s.top),
-          z: 3,
-        },
       ],
     }),
-    NARROW_SKILLS(14),
+    NARROW_SKILLS(80),
   );
 }
 
