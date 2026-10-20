@@ -22,7 +22,7 @@ def test_suggestions_and_hiding_maps(analysed):
     s = analysed.get("/api/maps/suggestions").json()
     assert s["pool_size"] > 1000 and s["hidden"] == 0
     assert not s["sections"]  # the two-replay fixture cannot measure a weak skill
-    assert s["collection_name"].startswith("osu-coach: Map Suggestion")
+    assert s["collection_name"].startswith("osu-coach: Skill Development")
     md5 = "a" * 32
     assert analysed.post("/api/maps/hidden", json={"md5s": [md5]}).json() == 1
     again = analysed.get("/api/maps/suggestions").json()

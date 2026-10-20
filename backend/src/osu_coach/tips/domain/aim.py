@@ -109,7 +109,7 @@ def _aim_miss_where(p: Profile) -> dict[str, int]:
 
 def _aim_miss_actions(p: Profile) -> list[str]:
     jump_advice = [
-        "Focus practice on aim first (the 'Jump aim' playlist in Skill Development).",
+        "Focus practice on aim first (the 'Jump aim' playlist in Goals & Training).",
         "Your tablet area / sensitivity is checked from your jumps (Aim page → Aim calibration); a "
         "separate tip appears only if it is off — otherwise it's precision, not calibration.",
     ]
@@ -127,7 +127,7 @@ def _aim_miss_actions(p: Profile) -> list[str]:
         return [
             f"Most of them are in streams and bursts ({split}): you keep tapping but the cursor falls "
             "behind or cuts corners.",
-            f"Slow streams down (HT, or the '{playlist}' playlist in Skill Development) until the cursor stays "
+            f"Slow streams down (HT, or the '{playlist}' playlist in Goals & Training) until the cursor stays "
             "on every note, then raise the speed step by step.",
             "Move with the stream's shape — a steady motion through the notes, not small jumps between them.",
         ]
@@ -156,7 +156,7 @@ def _speed_aim_actions(p: Profile) -> list[str]:
     acts += [
         ("Your flow-aim score is low. " if flow is not None and flow < 45 else "")
         + "Practise spaced streams below the tempo where they break (the 'Flow aim (spaced streams)' playlist "
-        "in Skill Development, or the same map with HT / a lower rate), then raise the speed by ~10 BPM.",
+        "in Goals & Training, or the same map with HT / a lower rate), then raise the speed by ~10 BPM.",
         "Move with the stream's shape — a steady motion through the notes, not small jumps between them; "
         "keep the arm loose so the cursor can follow the tempo.",
     ]

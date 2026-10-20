@@ -35,7 +35,7 @@ def test_analyze_prints_report(tmp_path, capsys):
     )
     out = capsys.readouterr().out
     assert rc == 0
-    for section in ("osu-coach report", "Skills", "Why you miss", "Tips", "Practice plan", "Map Suggestion"):
+    for section in ("osu-coach report", "Skills", "Why you miss", "Tips", "Practice plan", "Skill Development"):
         assert section in out, section
     assert (tmp_path / "r.json").stat().st_size > 1000
 

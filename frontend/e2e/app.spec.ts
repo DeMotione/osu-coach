@@ -85,9 +85,9 @@ const PAGES = [
   ["/tapping", "Tapping"],
   ["/sliders-reading", "Sliders & Reading"],
   ["/tips", "Tips & Setup"],
-  ["/maps", "Map Suggestion"],
-  ["/skills", "Skill Development"],
-  ["/skills?tab=playlist", "Skill Development"],
+  ["/maps", "Skill Development"],
+  ["/skills", "Goals & Training"],
+  ["/skills?tab=playlist", "Goals & Training"],
   ["/replays", "Your replays"],
 ] as const;
 
@@ -382,7 +382,7 @@ test("the setup guide: osu! folder, playstyle, replays, tour", async ({ page, re
     expect(await guideProblems(page)).toEqual([]);
     await guide.getByRole("button", { name: "Next", exact: true }).click();
   }
-  await expect(guide.getByText("Skill Development")).toBeVisible();
+  await expect(guide.getByText("Goals & Training")).toBeVisible();
   await guide.getByRole("button", { name: "Finish the tour" }).click();
 
   // 5 · done: on to the Overview, and the guide stays closed

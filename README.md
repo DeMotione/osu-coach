@@ -14,10 +14,10 @@ Analyses your own osu!standard replays and tells you what to work on:
 - **Difficulty weighting.** Your level is detected from your recent replays (comfort star rating, with
   mods such as DT/HR); every replay counts by how close its star rating is to it, so warm-ups on easy maps
   or a 9★ map played for fun don't distort the numbers (see below).
-- **Map Suggestion** from a bundled pool of ~5,000 popular ranked maps (1–8.8★, 9 in 10 of them 2–8★,
+- **Skill Development**: maps that train your weak skills, from a bundled pool of ~5,000 popular ranked maps (1–8.8★, 9 in 10 of them 2–8★,
   the most played per 0.25★ step), each analysed for
   its patterns, with a one-click download of all suggested maps.
-- **Skill Development.** Builds a staged playlist (warm-up / core / push) for one skill and gets it into
+- **Goals & Training.** Builds a staged playlist (warm-up / core / push) for one skill and gets it into
   the game: for **lazer**, one click makes an import folder with the maps and the collection (see
   below); for **stable**, it adds the collection to your `collection.db` and downloads the maps (.osz).
 
@@ -158,7 +158,7 @@ it for good; the compass button in the toolbar opens it again. Finished or skipp
 
 lazer can't open a `collection.db` by itself, but *Settings → General → Run setup wizard → Import*
 ("import from a previous osu! version") takes maps **and** collections from any folder that looks like an
-osu!stable install. **Make lazer import folder** (Skill Development or Map Suggestion → osu!lazer tab, or
+osu!stable install. **Make lazer import folder** (Goals & Training or Skill Development → osu!lazer tab, or
 `osu-coach playlist SKILL --lazer`) builds exactly that, in `Downloads/osu-coach lazer import/<playlist>`:
 
 ```
@@ -232,7 +232,7 @@ osu-coach analyze --level 6.2                      # weight replays around 6.2�
 osu-coach analyze --only a.osr --only b.osr        # only these replay files
 osu-coach progress [--player NAME]                 # your progress by month (saved by every analysis)
 osu-coach check [REPLAY.osr]                       # one replay on its own (default: your newest)
-osu-coach playlist aim --lazer                     # Skill Development: playlist + lazer import folder
+osu-coach playlist aim --lazer                     # Goals & Training: playlist + lazer import folder
 osu-coach playlist aim --merge                     # ... added to your osu!stable collections instead
 osu-coach playlist speed --comfort 3 --download ~/maps   # without replays: give your level
 ```
@@ -270,7 +270,7 @@ Skills: `aim flow_aim speed stamina accuracy sliders reading consistency quadran
    - The quadrant result uses a significance test, so noise isn't reported as a weakness.
 5. **Tips and maps** are built from those numbers. Every tip shows the evidence it is based on.
 6. **The app** shows all of this on ten pages (Replays, Detailed Map Analysis, Overview, Progress, Aim, Tapping,
-   Sliders & Reading, Tips & Setup, Map Suggestion, Skill Development). Light and dark mode follow your system or
+   Sliders & Reading, Tips & Setup, Skill Development, Goals & Training). Light and dark mode follow your system or
    the switch at the bottom of the sidebar, and the charts follow them; pointing at a chart shows its values.
 
 Limitations: lazer replays only record left/right, not which key or mouse button was used, so the
