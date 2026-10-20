@@ -16,7 +16,7 @@ from osu_coach.maps.service import map_rows
 from osu_coach.maps.skillset import recommend
 from osu_coach.profile.domain import SKILL_LABELS, Profile, weight_table
 from osu_coach.profile.domain.consistency import BAND_MIN_PLAYS, consistency_bands
-from osu_coach.profile.domain.readiness import POINTS_PER_STAR, compare_at, default_target, skill_levels, targets
+from osu_coach.profile.domain.readiness import MAX_GAP, compare_at, default_target, targets
 from osu_coach.tips.service import tip_out, tips
 
 if TYPE_CHECKING:
@@ -310,44 +310,36 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
 
 # ------------------------------------------------------------------ comparing with other star ratings, consistency
 def star_compare(p: Profile) -> S.StarCompare:
-    """Every skill as a star level (from the comfort-level ratings) and against each star rating offered."""
+    """The comfort-level scores moved to each star rating offered, with the chance to pass its maps cleanly."""
     comfort = num(p.levels.get("comfort_stars"))
     if comfort is None:
-        return S.StarCompare(comfort=None, points_per_star=POINTS_PER_STAR, levels=[], targets=[], default_target=None)
-    levels = skill_levels(p.experimental_skills, comfort)
-    out_levels = [
-        S.SkillLevel(
-            key=k,
-            label=SKILL_LABELS.get(k, k),
-            level=num(lv["level"]) if lv else None,
-            bound=lv["bound"] if lv else None,
-            tested=num(lv["tested"]) if lv else None,
-        )
-        for k, lv in levels.items()
-    ]
-    out_targets = []
-    for t in targets(comfort):
-        c = compare_at(levels, t)
-        out_targets.append(
+        return S.StarCompare(comfort=None, max_gap=MAX_GAP, targets=[], default_target=None)
+    out = []
+    for stars, locked in targets(comfort):
+        if locked:
+            out.append(
+                S.CompareTarget(stars=stars, comfort=False, locked=True, skills=[], weakest=None, pass_chance=None)
+            )
+            continue
+        at_comfort = stars == round(comfort, 1)  # exactly the comfort level, so it shows its own scores
+        c = compare_at(p.experimental_skills, comfort, comfort if at_comfort else stars)
+        skills = [
+            S.CompareSkill(key=k, score=num(v["score"]), change=num(v["change"]), demand=num(v["demand"]))
+            if v
+            else S.CompareSkill(key=k, score=None, change=None, demand=None)
+            for k, v in c["skills"].items()
+        ]
+        out.append(
             S.CompareTarget(
-                stars=t,
-                comfort=t == round(comfort, 1),
-                skills=[
-                    S.CompareSkill(key=k, gap=num(v["gap"]) if v else None, score=num(v["score"]) if v else None)
-                    for k, v in c["skills"].items()
-                ],
-                effective=num(c["effective"]),
-                limiting=c["limiting"],
+                stars=stars,
+                comfort=at_comfort,
+                locked=False,
+                skills=skills,
+                weakest=c["weakest"],
                 pass_chance=num(c["pass_chance"]),
             )
         )
-    return S.StarCompare(
-        comfort=comfort,
-        points_per_star=POINTS_PER_STAR,
-        levels=out_levels,
-        targets=out_targets,
-        default_target=default_target(comfort),
-    )
+    return S.StarCompare(comfort=comfort, max_gap=MAX_GAP, targets=out, default_target=default_target(comfort))
 
 
 def consistency(p: Profile) -> S.Consistency:

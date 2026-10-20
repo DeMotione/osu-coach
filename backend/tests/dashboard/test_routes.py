@@ -32,30 +32,31 @@ def test_every_page_renders_with_real_replays(analysed, page):
 
 
 def test_skills_against_other_star_ratings(tmp_path, client):
-    """With a comfort level, every skill becomes a star level, and every star rating offered gets each skill's gap,
-    the effective level and the chance to pass a typical map of it cleanly."""
+    """With a comfort level, its scores move to every star rating within 2★ of it: lower on harder maps, as are the
+    chances to pass one cleanly; the star ratings further away are locked."""
     scan(client, plays_folder(tmp_path, names=list(INDEX)))
     analyse(client, player="*")
     ov = client.get("/api/profile/overview").json()
-    cmp = ov["compare"]
+    cmp, comfort_scores = ov["compare"], {s["key"]: s["score"] for s in ov["skills"]}
     assert cmp["comfort"] == pytest.approx(ov["kpis"]["comfort_stars"]) and cmp["comfort"] > 5
-    levels = {lv["key"]: lv for lv in cmp["levels"]}
-    assert set(levels) == set(SKILL_LABELS) - {"consistency"}  # consistency is no level skill
-    assert sum(lv["level"] is not None for lv in levels.values()) >= 4
     stars = [t["stars"] for t in cmp["targets"]]
-    assert stars[0] == 1 and stars[-1] == 13 and stars == sorted(stars) and cmp["default_target"] in stars
-    assert [t["stars"] for t in cmp["targets"] if t["comfort"]] == [round(cmp["comfort"], 1)]
-    chances = [t["pass_chance"] for t in cmp["targets"]]
-    assert chances == sorted(chances, reverse=True) and chances[0] > 0.9 and chances[-1] < 0.01
-    for t in cmp["targets"]:
-        assert t["limiting"] in levels and t["effective"] is not None
-        for sk in t["skills"]:
-            level = levels[sk["key"]]["level"]
-            if level is None:
-                assert sk["gap"] is None and sk["score"] is None
-            else:
-                assert sk["gap"] == pytest.approx(level - t["stars"], abs=0.02)
-                assert sk["score"] == pytest.approx(min(100, max(0, 50 + cmp["points_per_star"] * sk["gap"])), abs=0.2)
+    assert stars[0] == 1 and stars[-1] == 13 and stars == sorted(stars)
+    open_ = [t for t in cmp["targets"] if not t["locked"]]
+    assert all(abs(t["stars"] - round(cmp["comfort"], 1)) <= 2 + 1e-9 for t in open_) and len(open_) == 9
+    assert all(t["skills"] == [] and t["pass_chance"] is None for t in cmp["targets"] if t["locked"])
+    assert cmp["default_target"] in [t["stars"] for t in open_]
+    (at_comfort,) = [t for t in open_ if t["comfort"]]
+    for sk in at_comfort["skills"]:  # the comfort option shows the comfort-level scores themselves
+        assert sk["score"] == comfort_scores[sk["key"]] and sk["change"] in (0, None)
+    assert at_comfort["pass_chance"] == 0.75
+    chances = [t["pass_chance"] for t in open_]
+    assert chances == sorted(chances, reverse=True) and chances[-1] < 0.15
+    for key in ("aim", "speed", "sliders"):
+        series = [next(s["score"] for s in t["skills"] if s["key"] == key) for t in open_]
+        assert None not in series and series == sorted(series, reverse=True), key
+    for t in open_:
+        scores = {s["key"]: s["score"] for s in t["skills"] if s["score"] is not None}
+        assert t["weakest"] == min(scores, key=scores.get)
 
 
 def test_replays_table_newest_first_with_weights(analysed):
@@ -78,7 +79,7 @@ def test_overview_explains_every_skill(analysed):
             assert s["score_text"].startswith(f"{s['score']:.0f}")
     cmp = ov["compare"]  # 3 plays make no comfort level yet (3 recent maps finished cleanly), so nothing to compare
     assert cmp["comfort"] is None and ov["kpis"]["comfort_stars"] is None
-    assert cmp["levels"] == [] and cmp["targets"] == [] and cmp["default_target"] is None
+    assert cmp["targets"] == [] and cmp["default_target"] is None and cmp["max_gap"] == 2
     cs = ov["consistency"]  # 3 replays: no band reaches 10 plays, so nothing is scored yet
     assert cs["min_plays"] == 10 and sum(b["plays"] for b in cs["bands"]) == 3
     assert all(b["score"] is None for b in cs["bands"])

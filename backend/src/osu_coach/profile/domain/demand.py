@@ -1,4 +1,4 @@
-"""What maps of a star rating demand of each skill, and the star rating a skill corresponds to.
+"""What typical maps of a star rating demand of each skill.
 
 The demand curves are fitted on the bundled ranked map pool (:func:`fit_demand`, run by
 ``backend/tools/fit_demand_curves.py``, which writes :mod:`demand_table`): for every star rating on a grid, the
@@ -6,8 +6,8 @@ median of each skill's demand over the maps around it — no-mod maps plus the s
 and real-time velocities x1.5, hit windows and approach time /1.5, star rating with DT), which reaches ~14★. Demands
 are log2 values, so only their differences matter: +1 = twice as demanding.
 
-Only the shape of the curves is used (how much more a harder map demands); the player's own measurements anchor
-them at the comfort level (:mod:`readiness`). The pool's map statistics are close to, not the same as, the ones a
+Only the shape of the curves is used (how much more a harder map demands than one of the comfort level,
+:mod:`readiness`). The pool's map statistics are close to, not the same as, the ones a
 player's values are measured with (e.g. the median jump instead of the 30 fastest), which changes the level of a
 curve much more than its shape.
 """
@@ -24,6 +24,7 @@ GRID = np.arange(1.0, 13.01, 0.25)  # ★
 WINDOW = 0.5  # ★ either side of a grid point whose maps make its median
 MIN_MAPS = 15  # a grid point needs this many maps, the others are interpolated
 MIN_SLOPE = 1 / 16  # log2 per ★: the curves rise at least this fast (x2 per 16★), so a level stays well defined
+SMOOTH = 1.0  # ★ either side: the slopes are averaged over this, so DT maps entering the pool make no steps
 DT = 1.5
 
 
@@ -57,8 +58,15 @@ def _map_demands(pool: pd.DataFrame, rate: float) -> pd.DataFrame:
     return out.replace([np.inf, -np.inf], np.nan)
 
 
+def _smooth(steps: np.ndarray) -> np.ndarray:
+    """Moving average of the curve's steps over :data:`SMOOTH` either side (fewer at the ends): an average of steps
+    that all rise at least :data:`MIN_SLOPE` does too."""
+    half = round(SMOOTH / float(GRID[1] - GRID[0]))
+    return np.array([steps[max(0, i - half) : i + half + 1].mean() for i in range(len(steps))])
+
+
 def fit_demand(pool: pd.DataFrame) -> dict:
-    """Demand curves (log2, rising with the star rating) and how much maps test each skill, on :data:`GRID`."""
+    """Demand curves on :data:`GRID` (log2, relative to 1★, rising with the star rating)."""
     maps = pd.concat([_map_demands(pool, 1.0), _map_demands(pool, DT)], ignore_index=True).dropna(subset=["stars"])
     curves = {}
     for skill in SKILLS:
@@ -70,18 +78,9 @@ def fit_demand(pool: pd.DataFrame) -> dict:
         y = pd.Series(med).interpolate(limit_direction="both").to_numpy(dtype=float, copy=True)
         for i in range(1, len(y)):  # never falls, and rises at least MIN_SLOPE per ★
             y[i] = max(y[i], y[i - 1] + MIN_SLOPE * (GRID[i] - GRID[i - 1]))
-        curves[skill] = [round(float(v - y[0]), 4) for v in y]  # relative to 1★: only differences matter
-    # how much the maps around each star rating test a skill (the pool's 0-1 skill weights, no-mod maps)
-    tests = {}
-    nm = pool.dropna(subset=["stars"])
-    for skill in SKILLS:
-        col = f"s_{skill}"
-        vals = []
-        for g in GRID:
-            near = nm[(nm["stars"] >= g - WINDOW) & (nm["stars"] < g + WINDOW)][col].dropna() if col in nm else []
-            vals.append(float(near.mean()) if len(near) >= MIN_MAPS else math.nan)
-        tests[skill] = [round(float(v), 3) for v in pd.Series(vals).interpolate(limit_direction="both").to_numpy()]
-    return {"grid": [float(g) for g in GRID], "demand": curves, "tests": tests, "maps": int(len(pool))}
+        y = np.concatenate([[0.0], np.cumsum(_smooth(np.diff(y)))])  # relative to 1★: only differences matter
+        curves[skill] = [round(float(v), 4) for v in y]
+    return {"grid": [float(g) for g in GRID], "demand": curves, "maps": int(len(pool))}
 
 
 # ------------------------------------------------------------------ lookups on the fitted table
@@ -96,21 +95,3 @@ def log_demand(skill: str, stars: float) -> float:
     """log2 demand of ``skill`` on typical maps of ``stars`` (clamped to the table's 1–13★)."""
     table = _table()
     return float(np.interp(stars, table.GRID, table.DEMAND[skill]))
-
-
-def stars_for(skill: str, demand: float) -> tuple[float, bool]:
-    """The star rating whose typical maps demand ``demand`` (log2) of ``skill``, and whether it is beyond the
-    table (then the table's lowest / highest star rating is returned)."""
-    table = _table()
-    curve = np.asarray(table.DEMAND[skill], dtype=float)
-    if demand < curve[0]:
-        return float(table.GRID[0]), True
-    if demand > curve[-1]:
-        return float(table.GRID[-1]), True
-    return float(np.interp(demand, curve, table.GRID)), False
-
-
-def skill_weights(stars: float) -> dict[str, float]:
-    """How much typical maps of ``stars`` test each skill (0–1), held flat beyond the pool's star ratings."""
-    table = _table()
-    return {s: float(np.interp(stars, table.GRID, table.TESTS[s])) for s in SKILLS}

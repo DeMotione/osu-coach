@@ -1,51 +1,53 @@
 import { describe, expect, it } from "vitest";
 
 import type { Schemas } from "../api/client";
-import { COMFORT_HINT, chanceLabel, gapLabel, levelLabel, pickTarget, starLabel, targetOptions } from "./starCompare";
+import { COMFORT_HINT, chanceLabel, changeLabel, fromComfort, pickTarget, starLabel, targetOptions } from "./starCompare";
 import { starColor, starGlow, starTextColor } from "./starColors";
 
-const target = (stars: number, pass_chance: number | null, comfort = false): Schemas["CompareTarget"] => ({
+const target = (stars: number, pass_chance: number | null, extra: Partial<Schemas["CompareTarget"]> = {}): Schemas["CompareTarget"] => ({
   stars,
-  comfort,
+  comfort: false,
+  locked: pass_chance === null,
   skills: [],
-  effective: null,
-  limiting: null,
+  weakest: null,
   pass_chance,
+  ...extra,
 });
 
 const compare: Schemas["StarCompare"] = {
-  comfort: 6.59,
-  points_per_star: 10,
-  levels: [],
-  targets: [target(1, 1), target(6, 0.9), target(6.6, 0.75, true), target(7.6, 0.3), target(13, 0.0001)],
-  default_target: 7.6,
+  comfort: 6.27,
+  max_gap: 2,
+  targets: [target(4, null), target(4.3, 0.99), target(6.3, 0.75, { comfort: true }), target(7.3, 0.36), target(8.3, 0.0001), target(9, null)],
+  default_target: 7.3,
 };
 
 describe("comparing with other star ratings", () => {
-  it("offers the star ratings from the API, none locked, with the clean-pass chance", () => {
+  it("offers the star ratings from the API, those more than 2★ away locked", () => {
     const options = targetOptions(compare);
-    expect(options.map((o) => o.label)).toEqual(["1★", "6★", "6.6★", "7.6★", "13★"]);
-    expect(options.some((o) => o.disabled)).toBe(false);
-    expect(options.find((o) => o.comfort)).toMatchObject({ value: 6.6, title: `${COMFORT_HINT} · clean pass 75%` });
-    expect(options.at(-1)?.title).toBe("clean pass <1%");
-    expect(targetOptions({ ...compare, targets: [target(5, null)] })[0].title).toBeUndefined();
+    expect(options.map((o) => o.label)).toEqual(["4★", "4.3★", "6.3★", "7.3★", "8.3★", "9★"]);
+    expect(options.filter((o) => o.disabled).map((o) => o.value)).toEqual([4, 9]);
+    expect(options[0].title).toContain("more than 2★ below your comfort level");
+    expect(options.at(-1)?.title).toContain("more than 2★ above your comfort level");
+    expect(options.find((o) => o.comfort)).toMatchObject({ value: 6.3, title: `${COMFORT_HINT} · clean pass 75%` });
+    expect(options.find((o) => o.value === 8.3)?.title).toBe("clean pass <1%");
   });
 
-  it("starts with the default target and keeps a picked one", () => {
-    expect(pickTarget(compare, null)?.stars).toBe(7.6);
-    expect(pickTarget(compare, 13)?.stars).toBe(13);
-    expect(pickTarget(compare, 9.9)?.stars).toBe(7.6); // no longer offered
+  it("starts with the default target, keeps a picked one and never picks a locked one", () => {
+    expect(pickTarget(compare, null)?.stars).toBe(7.3);
+    expect(pickTarget(compare, 8.3)?.stars).toBe(8.3);
+    expect(pickTarget(compare, 9)?.stars).toBe(7.3);
+    expect(pickTarget(compare, 9.9)?.stars).toBe(7.3); // no longer offered
     expect(pickTarget({ ...compare, targets: [], default_target: null }, null)).toBeNull();
   });
 
-  it("labels stars, gaps, levels and chances", () => {
+  it("labels stars, changes, chances and the distance from comfort", () => {
     expect(starLabel(7.5)).toBe("7.5★");
     expect(starLabel(8)).toBe("8★");
-    expect([gapLabel(1.23), gapLabel(-0.4), gapLabel(0.02)]).toEqual(["+1.2★", "−0.4★", "±0★"]);
-    expect(levelLabel({ level: 13, bound: "at_least" })).toBe("≥ 13★");
-    expect(levelLabel({ level: 6.61, bound: null })).toBe("6.6★");
-    expect(levelLabel({ level: null, bound: null })).toBe("–");
+    expect([changeLabel(3.4), changeLabel(-14.6), changeLabel(0.2)]).toEqual(["+3", "−15", "±0"]);
     expect([chanceLabel(0.004), chanceLabel(0.236), chanceLabel(0.999), chanceLabel(null)]).toEqual(["<1%", "24%", ">99%", "–"]);
+    expect(fromComfort(8.3, 6.27)).toBe("2★ above your comfort level");
+    expect(fromComfort(5.8, 6.27)).toBe("0.5★ below your comfort level");
+    expect(fromComfort(6.3, 6.27)).toBe("your comfort level");
   });
 });
 

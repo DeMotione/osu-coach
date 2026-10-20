@@ -1,13 +1,12 @@
 /**
- * Comparing the skills with other star ratings. The API counts every skill as a star level (the star rating whose
- * typical maps demand of it what you showed) and, for each star rating offered, the gap to it, the effective level
- * (the weakest skill those maps test most decides) and the chance to pass such a map cleanly.
+ * Comparing the comfort-level scores with other star ratings. The API moves every score to each star rating within
+ * `max_gap` stars of the comfort level (lower on harder maps, by how much more their typical maps demand of the
+ * skill) with the chance to pass such a map cleanly; the star ratings further away come locked.
  */
 import type { Schemas } from "../api/client";
 
 type StarCompare = Schemas["StarCompare"];
 type CompareTarget = Schemas["CompareTarget"];
-type SkillLevel = Schemas["SkillLevel"];
 
 export const COMFORT_HINT = "Your comfort level";
 
@@ -19,18 +18,10 @@ export function starLabel(stars: number): string {
   return Number.isInteger(v) ? `${v}★` : `${v.toFixed(1)}★`;
 }
 
-/** A gap in stars with its sign: "+1.2★", "−0.4★", "±0★". */
-export function gapLabel(gap: number): string {
-  const v = tenth(gap);
-  if (v === 0) return "±0★";
-  return `${v > 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}★`;
-}
-
-/** A skill level, "≥ 13★" when it may be higher, "≤ 1★" when it may be lower. */
-export function levelLabel(level: Pick<SkillLevel, "level" | "bound">): string {
-  if (level.level === null) return "–";
-  const sign = level.bound === "at_least" ? "≥ " : level.bound === "at_most" ? "≤ " : "";
-  return `${sign}${starLabel(level.level)}`;
+/** A change of score with its sign: "+3", "−14", "±0". */
+export function changeLabel(change: number): string {
+  const v = Math.round(change);
+  return v === 0 ? "±0" : `${v > 0 ? "+" : "−"}${Math.abs(v)}`;
 }
 
 /** A pass chance as a rounded percentage: "<1%" and ">99%" at the ends. */
@@ -41,6 +32,12 @@ export function chanceLabel(chance: number | null): string {
   return `${Math.round(chance * 100)}%`;
 }
 
+/** Where a star rating lies from the comfort level: "1★ above your comfort level". */
+export function fromComfort(stars: number, comfort: number): string {
+  const d = tenth(stars - comfort);
+  return d === 0 ? "your comfort level" : `${starLabel(Math.abs(d))} ${d > 0 ? "above" : "below"} your comfort level`;
+}
+
 export interface TargetOption {
   value: number;
   label: string;
@@ -49,22 +46,19 @@ export interface TargetOption {
   title?: string;
 }
 
-/** The star ratings to pick from, each with its clean-pass chance in the hint. */
+/** The star ratings to pick from: the clean-pass chance in the hint, the ones too far away locked. */
 export function targetOptions(compare: StarCompare): TargetOption[] {
+  const comfort = compare.comfort ?? 0;
   return compare.targets.map((t) => {
-    const pass = t.pass_chance === null ? "" : `clean pass ${chanceLabel(t.pass_chance)}`;
-    return {
-      value: t.stars,
-      label: starLabel(t.stars),
-      disabled: false,
-      comfort: t.comfort,
-      title: [t.comfort ? COMFORT_HINT : "", pass].filter(Boolean).join(" · ") || undefined,
-    };
+    const title = t.locked
+      ? `Locked: more than ${starLabel(compare.max_gap)} ${t.stars > comfort ? "above" : "below"} your comfort level is too big a difference to compare.`
+      : [t.comfort ? COMFORT_HINT : "", t.pass_chance === null ? "" : `clean pass ${chanceLabel(t.pass_chance)}`].filter(Boolean).join(" · ");
+    return { value: t.stars, label: starLabel(t.stars), disabled: t.locked, comfort: t.comfort, title: title || undefined };
   });
 }
 
-/** The target picked if it is offered, else the one shown first. */
+/** The target picked if it is offered and open, else the one shown first. */
 export function pickTarget(compare: StarCompare, picked: number | null): CompareTarget | null {
-  const at = (v: number | null) => (v === null ? undefined : compare.targets.find((t) => t.stars === v));
-  return at(picked) ?? at(compare.default_target) ?? compare.targets[0] ?? null;
+  const at = (v: number | null) => (v === null ? undefined : compare.targets.find((t) => t.stars === v && !t.locked));
+  return at(picked) ?? at(compare.default_target) ?? compare.targets.find((t) => !t.locked) ?? null;
 }

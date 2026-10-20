@@ -68,6 +68,12 @@ export function scoreColor(score: number | null | undefined): string {
   return score >= 55 ? C.good : score <= 45 ? C.bad : C.info;
 }
 
+/** A ``#rrggbb`` colour at opacity ``a`` (0–1) as ``rgba()``. */
+export function alpha(hex: string, a: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
 /** Mix the accent into the low heat colour by ``t`` (0–1): heat map cells. */
 export function heat(t: number, theme: ChartTheme): string {
   const k = Math.max(0, Math.min(1, t));

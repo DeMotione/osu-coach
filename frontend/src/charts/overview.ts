@@ -1,9 +1,9 @@
 import type { Schemas } from "../api/client";
 import { esc } from "../lib/format";
-import { gapLabel, levelLabel, starLabel } from "../lib/starCompare";
+import { changeLabel, starLabel } from "../lib/starCompare";
 import { base, categoryAxis, grid, niceMax, refLine, responsive, tooltip, valueAxis } from "./base";
 import type { Option } from "./echarts";
-import { C, scoreColor, type ChartTheme } from "./palette";
+import { C, alpha, scoreColor, type ChartTheme } from "./palette";
 import { params } from "./types";
 
 type Skill = Schemas["SkillScore"];
@@ -83,44 +83,50 @@ export function skillBars(skills: Skill[], help: SkillMeta[], t: ChartTheme): Op
   );
 }
 
-type SkillLevel = Schemas["SkillLevel"];
 type CompareTarget = Schemas["CompareTarget"];
 
-/** The hover of a bar on the comparison chart: the skill's star level, the gap to the star rating compared with,
- * the player's numbers and (with the skill's help text) what the skill is and what raises it. */
-export function compareHover(s: Skill, level: SkillLevel | undefined, target: CompareTarget, help?: SkillMeta): string {
+/** The hover of a bar on the comparison chart: the score at the star rating picked, how it comes from the comfort-level
+ * score, the player's numbers and (with the skill's help text) what the skill is and what raises it. */
+export function compareHover(s: Skill, target: CompareTarget, comfort: number, help?: SkillMeta): string {
   const p = (text: string) => `<div style="margin-top:6px">${esc(text)}</div>`;
   const at = starLabel(target.stars);
   const row = target.skills.find((k) => k.key === s.key);
-  if (!level || level.level === null || !row || row.gap === null || row.score === null)
-    return `<b>${esc(s.label)} at ${esc(at)}: not enough data for a level</b>${help ? p(help.what) : ""}`;
-  const lv = levelLabel(level);
-  const gap = row.gap;
-  let html = `<b>${esc(s.label)} at ${esc(at)}: ${row.score.toFixed(0)} (${esc(gapLabel(gap))})</b>`;
+  if (!row || row.score === null || s.score === null)
+    return `<b>${esc(s.label)} at ${esc(at)}: ${esc(s.score_text)}</b>${help ? p(help.what) : ""}`;
+  const change = row.change ?? 0;
+  let html = `<b>${esc(s.label)} at ${esc(at)}: ${row.score.toFixed(0)}${target.comfort ? "" : ` (${esc(changeLabel(change))})`}</b>`;
   if (help) html += p(help.what);
-  html += p(
-    level.bound === "at_least"
-      ? `Your level: ${lv}. You held nearly everything you played${level.tested === null ? "" : ` (the hardest like ${starLabel(level.tested)} maps)`}, so it may be higher.`
-      : level.bound === "at_most"
-        ? `Your level: ${lv}, below what the easiest maps demand.`
-        : `Your level: ${lv}: you showed what typical ${lv} maps demand.`,
-  );
-  const by = gapLabel(Math.abs(gap)).slice(1);
-  html += p(
-    Math.abs(gap) < 0.05
-      ? `Just what typical ${at} maps demand (50 = just ready, 10 points per star).`
-      : `${by} ${gap > 0 ? "above" : "short of"} what typical ${at} maps demand (50 = just ready, 10 points per star).`,
-  );
+  if (target.comfort) html += p(`${at} is your comfort level: the score above.`);
+  else if (row.demand !== null) {
+    const more = Math.round(Math.abs(row.demand - 1) * 100);
+    const what = `Typical ${at} maps demand ${more}% ${row.demand >= 1 ? "more" : "less"} of this skill than maps of your ${starLabel(comfort)} comfort level`;
+    html += p(
+      Math.round(change) === 0
+        ? `${what}, so ${s.score.toFixed(0)} stays at ${row.score.toFixed(0)}.`
+        : `${what}, so ${s.score.toFixed(0)} ${change < 0 ? "drops" : "rises"} to ${row.score.toFixed(0)}.`,
+    );
+  }
   html += p(`You: ${s.facts.join("; ")}`);
   if (help) html += p(`To raise it: ${help.practise}`);
   return html;
 }
 
-export function compareBars(skills: Skill[], levels: SkillLevel[], target: CompareTarget, t: ChartTheme, help: SkillMeta[] = []): Option {
+/** The comfort-level scores (faded) and the scores at the star rating picked, with the change between them. */
+export function compareBars(skills: Skill[], target: CompareTarget, comfort: number, t: ChartTheme, help: SkillMeta[] = []): Option {
   const helpOf = Object.fromEntries(help.map((h) => [h.key, h]));
-  const levelOf = Object.fromEntries(levels.map((l) => [l.key, l]));
   const rowOf = Object.fromEntries(target.skills.map((k) => [k.key, k]));
-  const rows = skills.map((s) => rowOf[s.key]);
+  const here = skills.map((s) => rowOf[s.key]?.score ?? null);
+  const before = skills.map((s) => (target.comfort ? null : s.score));
+  const text = (i: number) => {
+    const v = here[i];
+    if (v === null) return "–";
+    const change = rowOf[skills[i].key]?.change ?? 0;
+    return target.comfort ? v.toFixed(0) : `${v.toFixed(0)} (${changeLabel(change)})`;
+  };
+  // the label goes after the longer of the two bars
+  const label = (show: boolean) => ({ show });
+  const labels = { position: "right", color: t.text, fontSize: 12, formatter: (p: unknown) => text(params(p)[0].dataIndex) };
+  const longer = (i: number) => (before[i] ?? -1) > (here[i] ?? 0);
   return responsive(
     base(t, {
       grid: grid({ right: 96, bottom: 8 }),
@@ -128,7 +134,9 @@ export function compareBars(skills: Skill[], levels: SkillLevel[], target: Compa
         min: 0,
         max: 100,
         interval: 25,
-        name: `Against typical ${starLabel(target.stars)} maps · 50 = just ready, 10 per star`,
+        name: target.comfort
+          ? "Your scores at your comfort level · 50 = expected there"
+          : `Your scores at ${starLabel(target.stars)} · faded = at your ${starLabel(comfort)} comfort level`,
         nameGap: 26,
       }),
       yAxis: SKILL_AXIS(
@@ -141,35 +149,37 @@ export function compareBars(skills: Skill[], levels: SkillLevel[], target: Compa
         axisPointer: { type: "shadow", shadowStyle: { color: t.split } },
         formatter: (p: unknown) => {
           const s = skills[params(p)[0].dataIndex];
-          return compareHover(s, levelOf[s.key], target, helpOf[s.key]);
+          return compareHover(s, target, comfort, helpOf[s.key]);
         },
       }),
       series: [
         {
           type: "bar",
           barMaxWidth: 22,
-          data: rows.map((r) => ({
-            value: r?.score ?? 0,
-            itemStyle: { color: scoreColor(r?.score ?? null), borderRadius: [0, 3, 3, 0] },
+          barGap: "-100%",
+          silent: true,
+          data: before.map((v, i) => ({
+            value: v ?? 0,
+            itemStyle: { color: alpha(scoreColor(v), 0.3), borderRadius: [0, 3, 3, 0] },
+            label: label(longer(i)),
           })),
-          label: {
-            show: true,
-            position: "right",
-            color: t.text,
-            fontSize: 12,
-            formatter: (p: unknown) => {
-              const i = params(p)[0].dataIndex;
-              const gap = rows[i]?.gap ?? null;
-              if (gap === null) return "–";
-              const bound = levelOf[skills[i].key]?.bound;
-              return `${bound === "at_least" ? "≥ " : bound === "at_most" ? "≤ " : ""}${gapLabel(gap)}`;
-            },
-          },
+          label: labels,
+        },
+        {
+          type: "bar",
+          barMaxWidth: 22,
+          barGap: "-100%",
+          data: here.map((v, i) => ({
+            value: v ?? 0,
+            itemStyle: { color: scoreColor(v), borderRadius: [0, 3, 3, 0] },
+            label: label(!longer(i)),
+          })),
+          label: labels,
           markLine: refLine(t, { xAxis: 50 }),
         },
       ],
     }),
-    NARROW_SKILLS(80),
+    { ...NARROW_SKILLS(80), series: [{ label: { fontSize: 11 } }, { label: { fontSize: 11 } }] },
   );
 }
 

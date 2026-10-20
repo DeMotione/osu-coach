@@ -1228,15 +1228,20 @@ export interface components {
             /** Key */
             key: string;
             /**
-             * Gap
-             * @description Your level minus the star rating compared with (★); 0 or more = ready.
-             */
-            gap: number | null;
-            /**
              * Score
-             * @description 50 + `points_per_star` per star of gap, 0–100: 50 = exactly ready.
+             * @description The comfort-level score on typical maps of this star rating, 0–100: lower on harder maps, by how much more they demand of the skill. null without a comfort-level score.
              */
             score: number | null;
+            /**
+             * Change
+             * @description This score minus the comfort-level score (points).
+             */
+            change: number | null;
+            /**
+             * Demand
+             * @description How many times what typical maps of the comfort level demand of the skill (1.25 = 25% more).
+             */
+            demand: number | null;
         };
         /** CompareTarget */
         CompareTarget: {
@@ -1250,21 +1255,21 @@ export interface components {
              * @description Whether this is the comfort level.
              */
             comfort: boolean;
+            /**
+             * Locked
+             * @description More than `max_gap` stars from the comfort level: too far to compare, so no skills or chance.
+             */
+            locked: boolean;
             /** Skills */
             skills: components["schemas"]["CompareSkill"][];
             /**
-             * Effective
-             * @description Your effective level on typical maps of this star rating (★): your skill levels, weighted by how much those maps test each skill, with the weakest deciding most.
+             * Weakest
+             * @description Key of the skill with the lowest score here.
              */
-            effective: number | null;
-            /**
-             * Limiting
-             * @description Key of the skill that holds the effective level back most.
-             */
-            limiting: string | null;
+            weakest: string | null;
             /**
              * Pass Chance
-             * @description Chance to pass a typical map of this star rating cleanly (≤ 5 misses per 100 notes), 0–1.
+             * @description Chance to pass a typical map of this star rating cleanly (completed, at most 2 misses per 100 notes, as for the comfort level), 0–1.
              */
             pass_chance: number | null;
         };
@@ -2723,28 +2728,6 @@ export interface components {
             /** Sayo Rt Lower Mm */
             sayo_rt_lower_mm?: number | null;
         };
-        /** SkillLevel */
-        SkillLevel: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
-            /**
-             * Level
-             * @description The star rating whose typical maps demand of this skill what you showed (★); null without enough data. Consistency has none (it is no level skill).
-             */
-            level: number | null;
-            /**
-             * Bound
-             * @description `at_least`: you held (nearly) everything you played and nothing much harder, or the level is beyond 13★, so it may be higher; `at_most`: below 1★.
-             */
-            bound: ("at_least" | "at_most") | null;
-            /**
-             * Tested
-             * @description ★ of the hardest demand of this skill you played, when known.
-             */
-            tested: number | null;
-        };
         /** SkillMeta */
         SkillMeta: {
             /** Key */
@@ -2876,19 +2859,14 @@ export interface components {
         StarCompare: {
             /**
              * Comfort
-             * @description The comfort level (★) the skill levels are counted from.
+             * @description The comfort level (★) the scores are moved from.
              */
             comfort: number | null;
             /**
-             * Points Per Star
-             * @description Points of a comparison bar per star of gap.
+             * Max Gap
+             * @description Star ratings further than this from the comfort level are locked (★).
              */
-            points_per_star: number;
-            /**
-             * Levels
-             * @description Every skill as a star level (empty without a comfort level).
-             */
-            levels: components["schemas"]["SkillLevel"][];
+            max_gap: number;
             /**
              * Targets
              * @description The star ratings to compare with, easiest first.
