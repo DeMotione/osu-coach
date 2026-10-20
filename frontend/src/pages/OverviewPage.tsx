@@ -4,13 +4,14 @@ import { Link } from "react-router";
 import type { Schemas } from "../api/client";
 import { useMeta, useOverview, usePatchSettings, useSettings } from "../api/queries";
 import { Chart } from "../charts/Chart";
-import { missCauses, readinessBars, skillBars } from "../charts/overview";
+import { missCauses, readinessBars } from "../charts/overview";
 import type { ChartTheme } from "../charts/palette";
 import { IconCheck } from "../components/icons";
+import { StarPicker } from "../components/StarPicker";
 import { QueryView } from "../components/states";
-import { Alert, Badge, Card, Page, Progress, Row, Segmented, Stat, Switch, Tiles, type TileCount } from "../components/ui";
+import { Alert, Badge, Card, Page, Progress, Row, Stat, Switch, Tiles, type TileCount } from "../components/ui";
 import { fmt, int, pct, span, stars } from "../lib/format";
-import { defaultTarget, targetOptions } from "../lib/readiness";
+import { defaultTarget, starLabel, targetOptions } from "../lib/readiness";
 
 type Overview = Schemas["Overview"];
 
@@ -31,13 +32,18 @@ export default function OverviewPage() {
 function OverviewBody({ ov }: { ov: Overview }) {
   const meta = useMeta();
   const k = ov.kpis;
-  const skillsChart = useCallback((t: ChartTheme) => skillBars(ov.skills, meta.data?.skills ?? [], t), [ov.skills, meta.data]);
+  const rd = ov.readiness;
+  const help = meta.data?.skills;
+  const comfortChart = useCallback(
+    (t: ChartTheme) => readinessBars(rd.skills, rd.comfort ?? 0, t, help ?? []),
+    [rd.skills, rd.comfort, help],
+  );
   const descriptions = useMemo(
     () => Object.fromEntries((meta.data?.miss_causes ?? []).map((m) => [m.key, m.description])),
     [meta.data],
   );
   const missChart = useCallback((t: ChartTheme) => missCauses(ov.miss_causes, descriptions, t), [ov.miss_causes, descriptions]);
-  const skillsHeight = Math.max(320, ov.skills.length * 44);
+  const skillsHeight = Math.max(320, rd.skills.length * 44);
 
   return (
     <>
@@ -53,11 +59,15 @@ function OverviewBody({ ov }: { ov: Overview }) {
       </Tiles>
       <Card
         title="Skills at your comfort level"
-        sub={`Experimental replay ratings, 0–100; 50 = expected performance at your ${stars(k.comfort_stars, 1)} comfort level under assumed curves. Most skills use the best play per map/mod; Timing accuracy uses weighted hit single notes from all selected replays. Grey = unmeasured or insufficient challenge.`}
+        sub={`How ready each skill is for maps at your ${stars(rd.comfort, 1)} comfort level. Each skill has its own level in stars, measured from your replays: 100% = it handles typical maps of this star rating, lower = they feel harder for this skill, 0% = out of reach.`}
       >
-        <Chart build={skillsChart} height={skillsHeight} label="Skill scores against your level" />
+        {rd.comfort === null ? (
+          <Alert>Your comfort level isn't known yet: analyse at least 3 recent maps you finished cleanly.</Alert>
+        ) : (
+          <Chart build={comfortChart} height={skillsHeight} label="Skill readiness at your comfort level" />
+        )}
       </Card>
-      <ReadinessCard rd={ov.readiness} height={Math.max(320, ov.readiness.skills.length * 44)} />
+      <ReadinessCard rd={rd} help={help} height={skillsHeight} />
       <ConsistencyCard cs={ov.consistency} />
       <Row>
         <Card
@@ -220,26 +230,34 @@ function LevelCard({ ov }: { ov: Overview }) {
 }
 
 /** Each skill's readiness for a harder target: one star above comfort first, up to `ahead` stars, further ones locked. */
-function ReadinessCard({ rd, height }: { rd: Schemas["Readiness"]; height: number }) {
+function ReadinessCard({ rd, help, height }: { rd: Schemas["Readiness"]; help?: Schemas["SkillMeta"][]; height: number }) {
   const [picked, setPicked] = useState<number | null>(null);
-  const options = useMemo(() => (rd.comfort === null ? [] : targetOptions(rd.comfort, rd.ahead, rd.step)), [rd.comfort, rd.ahead, rd.step]);
-  const target = picked !== null && options.some((o) => o.value === picked && !o.disabled) ? picked : rd.comfort === null ? null : defaultTarget(rd.comfort, rd.ahead);
-  const build = useCallback((t: ChartTheme) => readinessBars(rd.skills, target ?? 0, t), [rd.skills, target]);
+  const range = useMemo(
+    () => (rd.comfort === null ? null : { comfort: rd.comfort, ahead: rd.ahead, step: rd.step, min: rd.min_target, max: rd.max_target }),
+    [rd.comfort, rd.ahead, rd.step, rd.min_target, rd.max_target],
+  );
+  const options = useMemo(() => (range ? targetOptions(range) : []), [range]);
+  const open = (v: number | null) => v !== null && options.some((o) => o.value === v && !o.disabled);
+  const target = open(picked) ? picked : range ? defaultTarget(range) : null;
+  const build = useCallback((t: ChartTheme) => readinessBars(rd.skills, target ?? 0, t, help ?? []), [rd.skills, target, help]);
+  const offset = target !== null && rd.comfort !== null ? target - rd.comfort : 0;
+  const where =
+    Math.abs(offset) < 0.05 ? "your comfort level" : `your comfort ${stars(rd.comfort, 1)} ${offset > 0 ? "+" : "−"} ${Math.abs(offset).toFixed(1)}★`;
   return (
     <Card
-      title="Skills against a harder map"
+      title="Compare with other star ratings"
       sub={
         target === null
-          ? "How ready each skill is for maps above your comfort level."
-          : `How ready each skill is for ${stars(target, 1)} maps (your comfort ${stars(rd.comfort, 1)} + ${(target - (rd.comfort ?? 0)).toFixed(1)}★). 100% = comfortable; 0% = out of reach: the map asks twice the strain the skill handles. Maps more than ${rd.ahead}★ above your comfort are locked.`
+          ? "How ready each skill is for easier and harder maps than your comfort level."
+          : `How ready each skill is for ${starLabel(target)} maps (${where}). Pick an easier star rating to see what you've mastered, or up to ${rd.ahead}★ above your comfort; further ones are locked until you get there.`
       }
     >
       {target === null ? (
         <Alert>Your comfort level isn't known yet: analyse at least 3 recent maps you finished cleanly.</Alert>
       ) : (
-        <div className="stack" style={{ gap: 12 }}>
-          <Segmented label="Compare with" options={options} value={target} onChange={setPicked} />
-          <Chart build={build} height={height} label={`Skill readiness for ${stars(target, 1)} maps`} />
+        <div className="stack" style={{ gap: 14 }}>
+          <StarPicker label="Compare with" options={options} value={target} onChange={setPicked} />
+          <Chart build={build} height={height} label={`Skill readiness for ${starLabel(target)} maps`} />
         </div>
       )}
     </Card>
@@ -286,7 +304,7 @@ function ConsistencyCard({ cs }: { cs: Schemas["Consistency"] }) {
 function StrengthsCard({ ov }: { ov: Overview }) {
   const rs = ov.reading_split;
   return (
-    <Card title="Strengths & weaknesses" sub="Your three best skills (score ≥ 55) and up to three to work on (≤ 45).">
+    <Card title="Strengths & weaknesses" sub="Up to three skills whose level is 0.25★ or more above your comfort level, and up to three 0.25★ or more below it.">
       <div className="split">
         <div className="stack" style={{ gap: 8 }}>
           <Badge tone="good">Strong</Badge>

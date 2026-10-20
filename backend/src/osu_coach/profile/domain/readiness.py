@@ -27,7 +27,8 @@ import pandas as pd
 from osu_coach.profile.domain.sliders import slider_difficulty
 
 AHEAD = 2.0  # targets more than this many stars above the comfort level are locked
-STEP = 0.5  # the targets offered, in stars
+STEP = 0.5  # the targets offered near the comfort level, in stars
+TARGETS = (1.0, 13.0)  # the star ratings a player can compare with
 MIN_PLAYS = 3
 RANK_DECAY = 0.95
 PEAK_QUANTILE = 0.95  # a play's peak = its hardest 5% of sections of that kind
@@ -38,11 +39,16 @@ STAMINA_PLAY_FAST = 40  # fast notes in a play for it to test stamina at all
 STAMINA_FAST_SHARE = 0.5  # a stretch counts fully when at least half of its notes are bursts / streams
 SLIDER_TOP = 30
 SLIDER_MIN = 10
-SLIDER_CAP = 0.5  # the slider level stays within this many stars of the hardest pass
+POOL_ABOVE = 0.5  # pool-based levels stay within 0.5★ above the hardest pass (sliders: faster, longer, harder
+# patterns on harder maps) ...
+POOL_BELOW = 2.0  # ... and 2★ below it, where a flat stretch of a demand curve can't place a level
 GREAT_Z = 1.959963984540054  # 95% of hits inside the 300 window
 READ_MIN_NOTES = 30
 ODD_RHYTHMS = ("1/3", "1/6", "1/8", "other")
 LEVEL_RANGE = (1.0, 15.0)
+LOCAL_FIT = 1.0  # a level is refitted on the curve within ±1★ of where the last fit put it
+LOCAL_MIN_STEPS = 5
+LOCAL_ROUNDS = 3
 
 # consistency: per star band with enough plays, combo and accuracy held across plays
 BAND = 0.5  # stars
@@ -227,37 +233,52 @@ def level_inputs(P: pd.DataFrame, metas: pd.DataFrame, ratings: dict) -> dict:
     return out
 
 
+def _power_level(value: float, s: np.ndarray, v: np.ndarray, n: np.ndarray) -> float | None:
+    slope, intercept = np.polyfit(np.log(s), np.log(v), 1, w=np.sqrt(n))
+    if abs(slope) < 1e-6:
+        return None
+    return float(np.clip(math.exp((math.log(value) - intercept) / slope), *LEVEL_RANGE))
+
+
 def curve_level(value: float | None, curve) -> float | None:
     """The star rating at which a demand curve (stars, values, map counts) reaches ``value``: a power law fitted
-    through the curve (weighted by map count), so a flat stretch can't throw the level by several stars."""
+    through the whole curve (weighted by map count), then refitted a few times on the part within ±1★ of the last
+    answer, so every player is read off their own stretch of the curve."""
     if value is None or not math.isfinite(value) or value <= 0 or curve is None:
         return None
     s, v, n = (np.asarray(x, dtype=float) for x in curve)
     keep = (s > 0) & (v > 0) & (n > 0)
     if keep.sum() < 3:
         return None
-    slope, intercept = np.polyfit(np.log(s[keep]), np.log(v[keep]), 1, w=np.sqrt(n[keep]))
-    if abs(slope) < 1e-6:
+    s, v, n = s[keep], v[keep], n[keep]
+    level = _power_level(value, s, v, n)
+    if level is None:
         return None
-    return float(np.clip(math.exp((math.log(value) - intercept) / slope), *LEVEL_RANGE))
+    for _ in range(LOCAL_ROUNDS):
+        near = np.abs(s - level) <= LOCAL_FIT
+        if near.sum() >= LOCAL_MIN_STEPS:
+            level = _power_level(value, s[near], v[near], n[near]) or level
+    return level
 
 
 def pool_levels(inputs: dict, curves: dict) -> dict[str, dict]:
-    """Accuracy, sliders and reading levels from :func:`level_inputs` and the pool's demand curves."""
+    """Accuracy, sliders and reading levels from :func:`level_inputs` and the pool's demand curves, each kept within
+    2★ below and 0.5★ above the hardest pass."""
     sigma = inputs.get("timing_spread")
+    hardest = inputs.get("hardest_pass")
+
+    def guarded(raw: float | None) -> dict:
+        if raw is None or hardest is None:
+            return {"level": raw, "uncapped": raw, "capped": False, "raised": False}
+        level = float(np.clip(raw, hardest - POOL_BELOW, hardest + POOL_ABOVE))
+        return {"level": level, "uncapped": raw, "capped": level < raw, "raised": level > raw}
+
     accuracy = curve_level(GREAT_Z * sigma, curves.get("window")) if sigma else None
-    raw = curve_level(inputs.get("slider_speed"), curves.get("slider_speed"))
-    cap = inputs.get("hardest_pass")
-    sliders = min(raw, cap + SLIDER_CAP) if raw is not None and cap is not None else raw
     return {
-        "accuracy": {"level": accuracy, "timing_spread": sigma},
-        "sliders": {
-            "level": sliders,
-            "uncapped": raw,
-            "capped": raw is not None and sliders is not None and sliders < raw,
-        },
+        "accuracy": {**guarded(accuracy), "timing_spread": sigma},
+        "sliders": guarded(curve_level(inputs.get("slider_speed"), curves.get("slider_speed"))),
         "reading": {
-            "level": curve_level(inputs.get("reading"), curves.get("reading")),
+            **guarded(curve_level(inputs.get("reading"), curves.get("reading"))),
             "plays": inputs.get("reading_plays", 0),
         },
     }

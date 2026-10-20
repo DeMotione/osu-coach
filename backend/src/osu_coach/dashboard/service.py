@@ -279,26 +279,20 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         aim_split = S.AimSplit(fast_ratio=f["all_misses"] / f["expected"], normal_ratio=a["all_misses"] / a["expected"])
     setup = ws.setup()
     top_tips = [tip_out(t, p, setup) for t in tips(ws, p) if not t.title.endswith("fits")][:TOP_TIPS]
+    ready = readiness(ws, p, comfort_level)
+    strengths, weaknesses = strong_and_weak(ready)
     return S.Overview(
         level=level_info,
         kpis=kpis,
         skills=skills,
         reading_split=reading_split,
         few_data=few,
-        readiness=readiness(ws, p, comfort_level),
+        readiness=ready,
         consistency=consistency(p),
         stamina=stamina,
         sliders_scored=relative_scores.get("sliders") is not None,
-        strengths=[
-            p.skills[k]["label"]
-            for k in sorted(relative_scores, key=lambda k: relative_scores[k] or -1, reverse=True)
-            if relative_scores[k] is not None and relative_scores[k] >= 55
-        ][:3],
-        weaknesses=[
-            p.skills[k]["label"]
-            for k in sorted(relative_scores, key=lambda k: relative_scores[k] or 101)
-            if relative_scores[k] is not None and relative_scores[k] <= 45
-        ][:3],
+        strengths=strengths,
+        weaknesses=weaknesses,
         miss_causes=causes,
         aim_split=aim_split,
         top_tips=top_tips,
@@ -321,24 +315,25 @@ def _level_facts(key: str, row: dict, inputs: dict) -> list[str]:
         return [f"the hardest burst and stream sections you tapped, on {plays} plays"]
     if key == "stamina":
         return [f"your hardest 30 seconds of fast tapping, on {plays} plays"]
+    facts: list[str] = []
     if key == "accuracy":
         sigma = row.get("timing_spread")
         if sigma is None:
             return ["not enough hit single notes"]
-        return [
+        facts = [
             f"timing spread {sigma:.1f} ms (UR about {10 * sigma:.0f})",
             f"95% 300s need a {R.GREAT_Z * sigma:.1f} ms 300 window",
         ]
-    if key == "sliders":
+    elif key == "sliders":
         facts = ["the slider speed of the maps you held, against typical maps"]
-        if row.get("capped"):
-            facts.append(
-                f"capped at your hardest pass + {R.SLIDER_CAP:g}★ ({inputs['hardest_pass']:.2f}★ + {R.SLIDER_CAP:g})"
-            )
-        return facts
-    if key == "reading":
-        return [f"note density × approach rate of the maps you cleared, × the notes you hit, on {plays} plays"]
-    return []
+    elif key == "reading":
+        facts = [f"note density × approach rate of the maps you cleared, × the notes you hit, on {plays} plays"]
+    hardest = inputs.get("hardest_pass")
+    if row.get("capped") and hardest is not None:
+        facts.append(f"capped at your hardest pass + {R.POOL_ABOVE:g}★ ({hardest + R.POOL_ABOVE:.1f}★)")
+    if row.get("raised") and hardest is not None:
+        facts.append(f"kept within {R.POOL_BELOW:g}★ of your hardest pass ({hardest - R.POOL_BELOW:.1f}★)")
+    return facts
 
 
 def readiness(ws: Workspace, p: Profile, comfort: float | None) -> S.Readiness:
@@ -352,6 +347,8 @@ def readiness(ws: Workspace, p: Profile, comfort: float | None) -> S.Readiness:
         comfort=num(comfort),
         ahead=R.AHEAD,
         step=R.STEP,
+        min_target=R.TARGETS[0],
+        max_target=R.TARGETS[1],
         skills=[
             S.SkillLevel(
                 key=k,
@@ -362,6 +359,20 @@ def readiness(ws: Workspace, p: Profile, comfort: float | None) -> S.Readiness:
             for k in READY_SKILLS
         ],
     )
+
+
+STRONG_WEAK = 0.25  # stars above / below the comfort level that make a skill a strength / a weakness
+
+
+def strong_and_weak(rd: S.Readiness) -> tuple[list[str], list[str]]:
+    """Up to three skills whose level is 0.25★+ above the comfort level (highest first) and three 0.25★+ below it
+    (lowest first): the same levels as the Overview's skill charts."""
+    if rd.comfort is None:
+        return [], []
+    known = [s for s in rd.skills if s.level is not None]
+    strong = sorted((s for s in known if s.level >= rd.comfort + STRONG_WEAK), key=lambda s: -s.level)
+    weak = sorted((s for s in known if s.level <= rd.comfort - STRONG_WEAK), key=lambda s: s.level)
+    return [s.label for s in strong[:3]], [s.label for s in weak[:3]]
 
 
 def consistency(p: Profile) -> S.Consistency:

@@ -2321,9 +2321,19 @@ export interface components {
             ahead: number;
             /**
              * Step
-             * @description Distance between the targets offered (★).
+             * @description Distance between the targets offered near comfort (★).
              */
             step: number;
+            /**
+             * Min Target
+             * @description Lowest star rating to compare with.
+             */
+            min_target: number;
+            /**
+             * Max Target
+             * @description Highest star rating to compare with.
+             */
+            max_target: number;
             /** Skills */
             skills: components["schemas"]["SkillLevel"][];
         };

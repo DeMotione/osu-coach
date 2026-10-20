@@ -6848,7 +6848,17 @@
           "step": {
             "type": "number",
             "title": "Step",
-            "description": "Distance between the targets offered (★)."
+            "description": "Distance between the targets offered near comfort (★)."
+          },
+          "min_target": {
+            "type": "number",
+            "title": "Min Target",
+            "description": "Lowest star rating to compare with."
+          },
+          "max_target": {
+            "type": "number",
+            "title": "Max Target",
+            "description": "Highest star rating to compare with."
           },
           "skills": {
             "items": {
@@ -6863,6 +6873,8 @@
           "comfort",
           "ahead",
           "step",
+          "min_target",
+          "max_target",
           "skills"
         ],
         "title": "Readiness"

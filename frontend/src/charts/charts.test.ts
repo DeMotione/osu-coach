@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Schemas } from "../api/client";
 import { circle, merge, niceMax, responsive } from "./base";
 import { mmss, playTimingChart, rangeStats } from "./check";
-import { MISS_SHORT, missCauses, readinessBars, readinessHover, skillBars, skillHover } from "./overview";
+import { MISS_SHORT, missCauses, readinessBars, readinessHover } from "./overview";
 import { chartTheme, heat, scoreColor, C } from "./palette";
 import { timingChart } from "./tapping";
 
@@ -44,32 +44,7 @@ describe("helpers", () => {
   });
 });
 
-const skill = (key: string, score: number | null): Schemas["SkillScore"] => ({
-  key,
-  label: `${key} label`,
-  score,
-  score_text: score === null ? "not enough data" : score.toFixed(0),
-  low_data: false,
-  too_few_misses: score === null,
-  n: 100,
-  facts: ["100 notes"],
-});
-
 describe("overview charts", () => {
-  it("explains a skill with what it measures, the player's numbers and what raises it", () => {
-    const html = skillHover(skill("aim", null), { key: "aim", label: "Jump aim", what: "W <b>", how: "H", practise: "P" });
-    expect(html).toContain("not enough data");
-    expect(html).toContain("W &lt;b&gt;");
-    expect(html).toContain("You: 100 notes");
-    expect(html).toContain("To raise it: P");
-  });
-
-  it("draws one bar per skill, empty ones at 0", () => {
-    const o = (skillBars([skill("aim", 61), skill("flow_aim", null)], [], t) as { baseOption: AnyOption }).baseOption;
-    const data = (o.series![0].data as { value: number }[]).map((d) => d.value);
-    expect(data).toEqual([61, 0]);
-  });
-
   it("sorts miss causes so the biggest is on top", () => {
     const o = missCauses(
       [
@@ -148,10 +123,14 @@ describe("readiness bars", () => {
     expect([0, 1, 2, 3].map(label)).toEqual(["52%", "100%", "out of reach", "–"]);
   });
 
-  it("explains the level in the hover", () => {
-    expect(readinessHover(skills[0], 8)).toContain("feels 48% harder");
-    expect(readinessHover(skills[0], 8)).toContain("out of reach from 9.3★");
-    expect(readinessHover(skills[1], 8)).toContain("8.0★ is within this skill");
+  it("explains the level in the hover, with what the skill is and what raises it", () => {
+    const help = { key: "aim", label: "Jump aim", what: "W <b>", how: "H", practise: "P" };
+    const html = readinessHover(skills[0], 8, help);
+    expect(html).toContain("52% ready for 8★");
+    expect(html).toContain("8★ feels 48% harder; out of reach from 9.3★");
+    expect(html).toContain("W &lt;b&gt;");
+    expect(html).toContain("To raise it: P");
+    expect(readinessHover(skills[1], 8)).toContain("8★ is within it");
     expect(readinessHover(skills[3], 8)).toContain("not enough data");
   });
 });

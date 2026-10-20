@@ -465,7 +465,7 @@ def collection_name(skill: str, t: Targets) -> str:
 
 
 # ------------------------------------------------------------------ what maps at each star rating demand
-DEMAND_STARS = np.arange(5.0, 11.01, 0.25)
+DEMAND_STARS = np.arange(1.5, 13.01, 0.25)
 DEMAND_HALF_WIDTH = 0.25  # maps within ±0.25★ of each step
 DEMAND_MIN_MAPS = 30
 DT_RATE = 1.5

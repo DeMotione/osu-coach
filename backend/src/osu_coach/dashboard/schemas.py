@@ -88,7 +88,9 @@ class SkillLevel(BaseModel):
 class Readiness(BaseModel):
     comfort: float | None = Field(description="The comfort level (★) the targets are counted from.")
     ahead: float = Field(description="Targets more than this many stars above comfort are locked.")
-    step: float = Field(description="Distance between the targets offered (★).")
+    step: float = Field(description="Distance between the targets offered near comfort (★).")
+    min_target: float = Field(description="Lowest star rating to compare with.")
+    max_target: float = Field(description="Highest star rating to compare with.")
     skills: list[SkillLevel]
 
 

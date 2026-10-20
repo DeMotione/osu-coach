@@ -78,3 +78,16 @@ def test_sliders_stay_within_half_a_star_of_the_hardest_pass():
     assert levels["sliders"]["level"] == pytest.approx(7.5)
     assert levels["sliders"]["uncapped"] == pytest.approx(9.0) and levels["sliders"]["capped"]
     assert pool_levels({"slider_speed": 7.2, "hardest_pass": 7.0}, curves)["sliders"]["capped"] is False
+
+
+def test_pool_levels_stay_near_the_hardest_pass():
+    stars = np.arange(1.5, 13.01, 0.25)
+    curves = {
+        "reading": (stars, stars, np.full(len(stars), 100)),
+        "slider_speed": (stars, stars, np.full(len(stars), 100)),
+    }
+    levels = pool_levels({"reading": 2.0, "slider_speed": 6.5, "hardest_pass": 7.0}, curves)
+    assert (
+        levels["reading"]["level"] == pytest.approx(5.0) and levels["reading"]["raised"]
+    )  # a flat curve can't sink it
+    assert levels["sliders"]["level"] == pytest.approx(6.5) and not levels["sliders"]["capped"]
