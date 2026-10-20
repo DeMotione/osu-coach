@@ -14,8 +14,9 @@ from osu_coach.insights.schemas import Clicks
 from osu_coach.maps.domain import targets_from_profile
 from osu_coach.maps.service import map_rows
 from osu_coach.maps.skillset import recommend
-from osu_coach.profile.domain import SKILL_LABELS, Profile, top_comparison, weight_table
-from osu_coach.profile.domain.experimental import at_level as experimental_at_level
+from osu_coach.profile.domain import SKILL_LABELS, Profile, weight_table
+from osu_coach.profile.domain.consistency import star_consistency
+from osu_coach.profile.domain.readiness import MAX_GAP, compare_at, default_target, targets
 from osu_coach.tips.service import tip_out, tips
 
 if TYPE_CHECKING:
@@ -161,26 +162,21 @@ def score_text(v: dict) -> str:
 
 def experimental_facts(skill: str, row: dict) -> list[str]:
     if skill == "consistency":
-        facts = [f"{row.get('maps', 0)} analysed replays"]
-        observed = num(row.get("observed_followup_misses"))
-        expected_misses = num(row.get("expected_followup_misses"))
-        if observed is not None and expected_misses is not None:
+        low, high = num(row.get("low")), num(row.get("high"))
+        where = f" of {low:.1f}–{high:.1f}★" if low is not None and high is not None else ""
+        facts = [
+            f"{row.get('maps', 0)} different maps{where}, {row.get('min_maps', 0)} needed ({row.get('plays', 0)} plays)"
+        ]
+        usual, swing = num(row.get("map_score")), num(row.get("swing"))
+        if usual is not None and swing is not None:
             facts.append(
-                f"after a miss: {observed:.1f} weighted misses vs {expected_misses:.1f} expected "
-                f"across {row.get('followup_notes', 0)} following notes"
+                f"on average you keep {num(row.get('mean_combo')) or 0:.0%} of a map's combo (full combo on "
+                f"{num(row.get('full_combo_share')) or 0:.0%} of the maps) at {num(row.get('mean_accuracy')) or 0:.1%}"
             )
-        chain_score = num(row.get("chain_score"))
-        if chain_score is not None:
-            facts.append(f"miss recovery {chain_score:.1f}/100")
-        steady_score = num(row.get("steady_score"))
-        spread = num(row.get("steady_spread"))
-        if steady_score is not None and spread is not None:
             facts.append(
-                f"between-play steadiness {steady_score:.1f}/100 "
-                f"({spread:.1f} misses per 100 notes spread across {row.get('steady_plays', 0)} plays)"
+                f"usual map score {100 * usual:.0f}, swinging ±{100 * swing:.0f} between maps"
+                + (f"; {row['weak_maps']} maps under 20% of the combo" if row.get("weak_maps") else "")
             )
-        if row.get("reason"):
-            facts.append(str(row["reason"]))
         return facts
     facts = [f"{row.get('maps', 0)} relevant map/mod configurations"]
     measured, expected = num(row.get("measured")), num(row.get("expected"))
@@ -241,11 +237,14 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
             score=num(relative_scores.get(k)),
             score_text=(p.experimental_skills.get(k) or {}).get("reason")
             if relative_scores.get(k) is None
+            else f"{relative_scores[k]:.0f} · combo and accuracy held from map to map around your level"
+            if k == "consistency"
             else f"{relative_scores[k]:.0f} · experimental comfort-relative performance",
             low_data=relative_scores.get(k) is not None and (p.experimental_skills.get(k) or {}).get("maps", 0) < 10,
             too_few_misses=False,
             n=int(v.get("n") or 0),
             facts=experimental_facts(k, p.experimental_skills.get(k) or {}),
+            needs=(p.experimental_skills.get(k) or {}).get("needs") if relative_scores.get(k) is None else None,
         )
         for k, v in p.skills.items()
     ]
@@ -257,23 +256,6 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         high_ar_maps=int(rd.get("high_ar_maps") or 0),
     )
     few = [SKILL_LABELS.get(k, k) for k, v in p.experimental_skills.items() if v.get("score") is None]
-    top_scores = experimental_at_level(p.experimental_skills, 10.0)
-    top = top_comparison(p.skills)
-    top_rows = [
-        S.TopSkill(
-            key=k,
-            label=top[k]["label"],
-            score=num(top_scores.get(k)),
-            top=num(top[k]["top"]),
-            facts=experimental_facts(
-                k, {**p.experimental_skills[k], "expected": p.experimental_skills[k].get("expected_top")}
-            )
-            if k == "accuracy" and k in p.experimental_skills
-            else [],
-        )
-        for k in p.skills
-        if k in top
-    ]
     stam = p.skills.get("stamina") or {}
     stamina = []
     if stam.get("score") is not None and stam.get("curve"):
@@ -302,7 +284,7 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         skills=skills,
         reading_split=reading_split,
         few_data=few,
-        top=top_rows,
+        compare=star_compare(p),
         stamina=stamina,
         sliders_scored=relative_scores.get("sliders") is not None,
         strengths=[
@@ -321,6 +303,60 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         sim_exact_share=num(ov.get("sim_exact_share")),
         sim_agreement=num(ov.get("sim_agreement")),
     )
+
+
+# ------------------------------------------------------------------ comparing with other star ratings
+def consistency_at(p: Profile, comfort: float, stars: float, at_comfort: bool) -> S.CompareSkill:
+    """Consistency isn't moved from the comfort level like the other skills: it is measured on the player's own maps
+    of that star rating (7★ and 7.5★: maps of 7.00–7.99★)."""
+    row = star_consistency(p.replays, comfort if at_comfort else stars, comfort=at_comfort)
+    base = num((p.experimental_skills.get("consistency") or {}).get("score"))
+    score = num(row["score"])
+    return S.CompareSkill(
+        key="consistency",
+        score=score,
+        change=round(score - base, 1) if score is not None and base is not None else None,
+        demand=None,
+        maps=int(row["maps"]),
+        needs=row["needs"],
+    )
+
+
+def star_compare(p: Profile) -> S.StarCompare:
+    """The comfort-level scores moved to each star rating offered, with the chance to pass its maps cleanly."""
+    comfort = num(p.levels.get("comfort_stars"))
+    if comfort is None:
+        return S.StarCompare(comfort=None, max_gap=MAX_GAP, targets=[], default_target=None)
+    out = []
+    for stars, locked in targets(comfort):
+        if locked:
+            out.append(
+                S.CompareTarget(stars=stars, comfort=False, locked=True, skills=[], weakest=None, pass_chance=None)
+            )
+            continue
+        at_comfort = stars == round(comfort, 1)  # exactly the comfort level, so it shows its own scores
+        c = compare_at(p.experimental_skills, comfort, comfort if at_comfort else stars)
+        skills = [
+            S.CompareSkill(
+                key=k, score=num(v["score"]), change=num(v["change"]), demand=num(v["demand"]), maps=None, needs=None
+            )
+            if v
+            else S.CompareSkill(key=k, score=None, change=None, demand=None, maps=None, needs=None)
+            for k, v in c["skills"].items()
+        ]
+        skills.append(consistency_at(p, comfort, stars, at_comfort))
+        weakest = min((s for s in skills if s.score is not None), key=lambda s: s.score, default=None)
+        out.append(
+            S.CompareTarget(
+                stars=stars,
+                comfort=at_comfort,
+                locked=False,
+                skills=skills,
+                weakest=weakest.key if weakest else None,
+                pass_chance=num(c["pass_chance"]),
+            )
+        )
+    return S.StarCompare(comfort=comfort, max_gap=MAX_GAP, targets=out, default_target=default_target(comfort))
 
 
 # ------------------------------------------------------------------ aim

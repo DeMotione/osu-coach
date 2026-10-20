@@ -147,3 +147,6 @@ export const IconOsu = (p: P) => (
 export const IconTriangles = (p: P) => (
   <I {...p}><path d="M12 3.5 21 19H3z" /><path d="m12 11 3.5 6h-7z" /></I>
 );
+export const IconLock = (p: P) => (
+  <I {...p}><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></I>
+);

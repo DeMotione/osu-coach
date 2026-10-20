@@ -97,3 +97,105 @@ def consistency_score(P: pd.DataFrame, weights: pd.Series, n_total: int) -> dict
     if out["score"] is None and len(P) >= FEW_MISSES_NOTES and misses < FEW_MISSES:
         out["too_few_misses"] = True  # nothing to chain: no misses to follow a miss
     return out
+
+
+# ------------------------------------------------------------------ consistency at a star rating
+STAR_MIN_MAPS = 8  # different maps needed before a star rating has a score; more = a more reliable score
+STAR_SPAN = 1.0  # consistency at X★ uses the maps from X − STAR_SPAN up to X: never harder ones
+STAR_EASY_WEIGHT = 0.5  # weight of a map STAR_SPAN easier than X (one at X = 1): easy maps can't carry the score
+ACC_BAD, ACC_GOOD = 0.88, 0.94  # accuracy scale: 88% → 0, 94% → 1
+COMBO_NONE = 0.10  # share of the map's max combo worth nothing: missing so much the combo never builds up
+COMBO_HELD = 0.30  # combo scale value (≈20% of the max combo) below which a map's score fades to 0 at COMBO_NONE
+BEST_WEIGHT = 0.7  # the better of combo and accuracy carries the score; both good = top score
+SWING_WEIGHT = 0.5  # consistency = usual map score − this × its swing between maps
+FULL_COMBO = 0.98  # share of the map's max combo (no misses) that counts as a full combo
+
+
+def combo_scale(share):
+    """How well the combo is held, 0–1, on a log scale from ``COMBO_NONE`` of the max combo (0) to a full combo (1):
+    20% = 0.30, 30% = 0.48, 50% = 0.70, 70% = 0.85. Holding big parts of a map counts, not only full combos."""
+    share = np.maximum(np.asarray(share, dtype=float), 1e-6)
+    return np.clip(np.log10(share / COMBO_NONE) / np.log10(1 / COMBO_NONE), 0, 1)
+
+
+def map_score(combo_share, accuracy):
+    """0–1 for one play: the better of combo held (:func:`combo_scale`) and accuracy (88–94% scale) counts 70%, the
+    other 30%, and the score fades to 0 when less than about 20% of the combo is held (10% or less = 0). 30% of the
+    combo at 93% = 0.73, a full combo at 90% = 0.80."""
+    combo = combo_scale(combo_share)
+    acc = np.clip((np.asarray(accuracy, dtype=float) - ACC_BAD) / (ACC_GOOD - ACC_BAD), 0, 1)
+    both = BEST_WEIGHT * np.maximum(combo, acc) + (1 - BEST_WEIGHT) * np.minimum(combo, acc)
+    return both * np.minimum(1.0, combo / COMBO_HELD)
+
+
+def _plays_up_to(metas: pd.DataFrame | None, stars: float) -> pd.DataFrame:
+    """The plays of maps from ``stars`` − ``STAR_SPAN`` up to ``stars`` (star rating with mods), with their map score
+    and weight (1 at ``stars``, ``STAR_EASY_WEIGHT`` a span easier)."""
+    need = {"stars", "max_combo", "map_max_combo", "accuracy", "beatmap_md5"}
+    if metas is None or metas.empty or not need <= set(metas.columns):
+        return pd.DataFrame()
+    m = metas.drop_duplicates("key") if "key" in metas else metas
+    m = m.assign(
+        stars=pd.to_numeric(m["stars"], errors="coerce"),
+        accuracy=pd.to_numeric(m["accuracy"], errors="coerce"),
+        top=pd.to_numeric(m["map_max_combo"], errors="coerce"),
+    )
+    m = m[m["stars"].between(stars - STAR_SPAN, stars + 1e-9) & m["accuracy"].notna() & (m["top"] > 0)]
+    if m.empty:
+        return m
+    combo = (pd.to_numeric(m["max_combo"], errors="coerce").fillna(0) / m["top"]).clip(0, 1)
+    misses = pd.to_numeric(m["nmiss"], errors="coerce").fillna(0) if "nmiss" in m else pd.Series(0, index=m.index)
+    return m.assign(
+        combo=combo,
+        map_score=map_score(combo, m["accuracy"]),
+        weight=1 - (1 - STAR_EASY_WEIGHT) * (stars - m["stars"]) / STAR_SPAN,
+        full=((combo >= FULL_COMBO) & (misses == 0)).astype(float),
+    )
+
+
+def star_consistency(metas: pd.DataFrame | None, stars: float | None, *, comfort: bool = False) -> dict:
+    """How steadily combo and accuracy hold from map to map at the star rating ``stars``: the maps from a star below
+    it up to it (6.2★: 5.2–6.2★, with mods; harder maps never count), every play scored by :func:`map_score`, each
+    map once (the average of its plays, so retrying one map can't carry the score) and weighted by how close it is
+    to ``stars``. Consistency = the usual map score − half its swing between maps. Scored from ``STAR_MIN_MAPS``
+    different maps; until then ``needs`` says what to play. ``comfort``: ``stars`` is the comfort level (wording)."""
+    out = {"score": None, "low": None, "high": None, "maps": 0, "plays": 0, "min_maps": STAR_MIN_MAPS, "needs": None}
+    if stars is None or not math.isfinite(stars):
+        out["needs"] = (
+            "First your comfort level: pass 3 different maps (with at most 2 misses per 100 notes) and analyse your "
+            f"replays. Then play {STAR_MIN_MAPS} different maps up to a star below it."
+        )
+        return {**out, "reason": "Not enough data"}
+    low, high = max(0.0, stars - STAR_SPAN), stars
+    m = _plays_up_to(metas, stars)
+    per_map = (
+        m.groupby(m["beatmap_md5"].astype(str))[["combo", "map_score", "weight", "full", "accuracy"]].mean()
+        if not m.empty
+        else pd.DataFrame()
+    )
+    out.update(low=low, high=high, maps=len(per_map), plays=len(m))
+    if len(per_map) < STAR_MIN_MAPS:
+        more = STAR_MIN_MAPS - len(per_map)
+        which = f"your {stars:.1f}★ comfort level" if comfort else f"{stars:g}★"
+        out["needs"] = (
+            f"Play {more} more different map{'s' if more > 1 else ''} between {low:.1f}★ and {high:.1f}★ (with mods; "
+            f"the closer to {high:.1f}★, the more it counts), then analyse your replays again: consistency at {which} "
+            f"is scored from {STAR_MIN_MAPS} different maps up to a star below it ({len(per_map)} so far), and the more "
+            "you play, the more reliable it gets. Harder maps don't count. Passed and failed plays both count; playing "
+            "a map you already have again doesn't add one."
+        )
+        return {**out, "reason": "Not enough data"}
+    scores, weights = per_map["map_score"].to_numpy(float), per_map["weight"].to_numpy(float)
+    usual = float(np.average(scores, weights=weights))
+    swing = float(np.sqrt(np.average((scores - usual) ** 2, weights=weights)))
+    return {
+        **out,
+        "score": round(100 * float(np.clip(usual - SWING_WEIGHT * swing, 0, 1)), 1),
+        "map_score": usual,
+        "swing": swing,
+        "weak_maps": int((per_map["combo"] < 0.2).sum()),
+        "mean_combo": float(np.average(per_map["combo"], weights=weights)),
+        "full_combo_share": float(np.average(per_map["full"], weights=weights)),
+        "mean_accuracy": float(np.average(per_map["accuracy"], weights=weights)),
+        "reason": f"Combo and accuracy held across {len(per_map)} different maps of {low:.1f}–{high:.1f}★",
+    }

@@ -73,14 +73,45 @@ class SkillScore(BaseModel):
     too_few_misses: bool
     n: int
     facts: list[str] = Field(description="The player's own numbers behind the score.")
+    needs: str | None = Field(description="Without a score: what to play to get one. null when it can't be said.")
 
 
-class TopSkill(BaseModel):
+class CompareSkill(BaseModel):
     key: str
-    label: str
-    score: float | None = Field(description="Against a 10★ player (50 = typical 10★ player).")
-    top: float | None = Field(description="Top players' reference plays on the same scale.")
-    facts: list[str] = Field(default_factory=list, description="Measured and assumed values behind this row.")
+    score: float | None = Field(
+        description="The comfort-level score on typical maps of this star rating, 0–100: lower on harder maps, by "
+        "how much more they demand of the skill. null without a comfort-level score."
+    )
+    change: float | None = Field(description="This score minus the comfort-level score (points).")
+    demand: float | None = Field(
+        description="How many times what typical maps of the comfort level demand of the skill (1.25 = 25% more)."
+    )
+    maps: int | None = Field(
+        description="Consistency only (measured on the player's maps of this star rating, not moved from the comfort "
+        "level): how many different maps it is measured on. null for the other skills."
+    )
+    needs: str | None = Field(description="Consistency without a score here: what to play to get one.")
+
+
+class CompareTarget(BaseModel):
+    stars: float = Field(description="The star rating compared with.")
+    comfort: bool = Field(description="Whether this is the comfort level.")
+    locked: bool = Field(
+        description="More than `max_gap` stars above the comfort level: too far to compare, so no skills or chance."
+    )
+    skills: list[CompareSkill]
+    weakest: str | None = Field(description="Key of the skill with the lowest score here.")
+    pass_chance: float | None = Field(
+        description="Chance to pass a typical map of this star rating cleanly (completed, at most 2 misses per 100 "
+        "notes, as for the comfort level), 0–1."
+    )
+
+
+class StarCompare(BaseModel):
+    comfort: float | None = Field(description="The comfort level (★) the scores are moved from.")
+    max_gap: float = Field(description="Star ratings more than this above the comfort level are locked (★).")
+    targets: list[CompareTarget] = Field(description="The star ratings to compare with, easiest first.")
+    default_target: float | None = Field(description="The star rating shown first: one star above comfort.")
 
 
 class StaminaPoint(BaseModel):
@@ -113,7 +144,7 @@ class Overview(BaseModel):
     skills: list[SkillScore]
     reading_split: ReadingSplit
     few_data: list[str] = Field(description="Skills measured on few maps or notes.")
-    top: list[TopSkill]
+    compare: StarCompare
     stamina: list[StaminaPoint] = Field(description="Tempo kept per duration (empty without a stamina score).")
     sliders_scored: bool
     strengths: list[str]

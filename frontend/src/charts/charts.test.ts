@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { Schemas } from "../api/client";
 import { circle, merge, niceMax, responsive } from "./base";
 import { mmss, playTimingChart, rangeStats } from "./check";
-import { MISS_SHORT, missCauses, skillBars, skillHover } from "./overview";
-import { chartTheme, heat, scoreColor, C } from "./palette";
+import { MISS_SHORT, compareBars, compareHover, missCauses, skillBars, skillHover } from "./overview";
+import { alpha, chartTheme, heat, scoreColor, C } from "./palette";
 import { timingChart } from "./tapping";
 
 const t = chartTheme(true);
@@ -44,7 +44,7 @@ describe("helpers", () => {
   });
 });
 
-const skill = (key: string, score: number | null): Schemas["SkillScore"] => ({
+const skill = (key: string, score: number | null, needs: string | null = null): Schemas["SkillScore"] => ({
   key,
   label: `${key} label`,
   score,
@@ -53,6 +53,7 @@ const skill = (key: string, score: number | null): Schemas["SkillScore"] => ({
   too_few_misses: score === null,
   n: 100,
   facts: ["100 notes"],
+  needs,
 });
 
 describe("overview charts", () => {
@@ -68,6 +69,16 @@ describe("overview charts", () => {
     const o = (skillBars([skill("aim", 61), skill("flow_aim", null)], [], t) as { baseOption: AnyOption }).baseOption;
     const data = (o.series![0].data as { value: number }[]).map((d) => d.value);
     expect(data).toEqual([61, 0]);
+  });
+
+  it("shows a skill that needs more plays as a full grey bar saying so, its hover what to play", () => {
+    const needs = "Play 3 more different maps between 4.0★ and 6.0★";
+    const o = (skillBars([skill("aim", 61), skill("consistency", null, needs)], [], t) as { baseOption: AnyOption }).baseOption;
+    const bar = (o.series![0].data as { value: number; label?: { formatter: string } }[])[1];
+    expect(bar.value).toBe(100);
+    expect(bar.label?.formatter).toBe("Not enough data");
+    expect(skillHover(skill("consistency", null, needs))).toContain(`To get a score: ${needs}`);
+    expect(skillHover(skill("aim", 61))).not.toContain("To get a score");
   });
 
   it("sorts miss causes so the biggest is on top", () => {
@@ -131,3 +142,78 @@ describe("timing", () => {
     expect((o.xAxis as { max: number }).max).toBe(61000);
   });
 });
+
+describe("comparison bars", () => {
+  const skills = [skill("aim", 67), skill("sliders", 28), skill("stamina", null)];
+  const at = (stars: number, rows: [number | null, number | null][], comfort = false): Schemas["CompareTarget"] => ({
+    stars,
+    comfort,
+    locked: false,
+    skills: rows.map(([score, change], i) => ({
+      key: skills[i].key,
+      score,
+      change,
+      demand: change === null ? null : 1 - change / 100,
+      maps: null,
+      needs: null,
+    })),
+    weakest: "sliders",
+    pass_chance: 0.36,
+  });
+  const harder = at(7.6, [[61, -6], [19, -9], [null, null]]);
+  const easier = at(5.6, [[72, 5], [33, 5], [null, null]]);
+  const option = (target: Schemas["CompareTarget"]) => (compareBars(skills, target, 6.59, t) as { baseOption: AnyOption }).baseOption;
+  const values = (o: AnyOption, i: number) => (o.series![i].data as { value: number }[]).map((d) => d.value);
+  const labels = (o: AnyOption) =>
+    [0, 1, 2].map((i) => {
+      const shown = [0, 1].find((k) => (o.series![k].data as { label: { show: boolean } }[])[i].label.show) as number;
+      return (o.series![shown] as { label: { formatter: (p: unknown) => string } }).label.formatter({ dataIndex: i });
+    });
+
+  it("shows the comfort-level scores faded behind the scores at the picked star rating", () => {
+    const o = option(harder);
+    expect(values(o, 0)).toEqual([67, 28, 0]);
+    expect(values(o, 1)).toEqual([61, 19, 0]);
+    expect(values(option(at(6.6, [[67, 0], [28, 0], [null, null]], true)), 0)).toEqual([0, 0, 0]); // no faded bars at comfort
+    const faded = (o.series![0].data as { itemStyle: { color: string } }[])[0].itemStyle.color;
+    expect(faded).toBe(alpha(C.good, 0.3)); // a faded colour, not opacity: that would fade the label too
+    expect(alpha("#ff66aa", 0.5)).toBe("rgba(255,102,170,0.5)");
+  });
+
+  it("labels each score with its change after the longer bar", () => {
+    expect(labels(option(harder))).toEqual(["61 (−6)", "19 (−9)", "–"]);
+    expect(labels(option(easier))).toEqual(["72 (+5)", "33 (+5)", "–"]);
+    expect(labels(option(at(6.6, [[67, 0], [28, 0], [null, null]], true)))).toEqual(["67", "28", "–"]);
+  });
+
+  it("explains where the number comes from", () => {
+    const help = { key: "aim", label: "Jump aim", what: "W <b>", how: "H", practise: "P" };
+    const html = compareHover(skills[0], harder, 6.59, help);
+    expect(html).toContain("aim label at 7.6★: 61 (−6)");
+    expect(html).toContain("demand 6% more of this skill than maps of your 6.6★ comfort level, so 67 drops to 61");
+    expect(html).toContain("W &lt;b&gt;");
+    expect(compareHover(skills[0], easier, 6.59)).toContain("5% less of this skill");
+    expect(compareHover(skills[2], harder, 6.59)).toContain("not enough data");
+  });
+
+  it("measures consistency on the maps of the star rating picked: a grey bar and what to play until then", () => {
+    const all = [...skills, skill("consistency", 40)];
+    const target = (row: Partial<Schemas["CompareSkill"]>) => {
+      const t7 = at(7.5, [[61, -6], [19, -9], [null, null]]);
+      return { ...t7, skills: [...t7.skills, { key: "consistency", score: null, change: null, demand: null, maps: 3, needs: null, ...row }] };
+    };
+    const needs = "Play 5 more different 7★ maps (7.00–7.99★ with mods)";
+    const missing = target({ needs });
+    const o = (compareBars(all, missing, 6.59, t) as { baseOption: AnyOption }).baseOption;
+    const bar = (o.series![1].data as { value: number; label: { formatter?: string } }[])[3];
+    expect(bar.value).toBe(100);
+    expect(bar.label.formatter).toBe("Not enough data");
+    expect(values(o, 0)[3]).toBe(0); // no faded comfort-level bar behind it
+    expect(compareHover(all[3], missing, 6.59)).toContain(`To get a score: ${needs}`);
+    const measured = compareHover(all[3], target({ score: 55, change: 15, maps: 12 }), 6.59);
+    expect(measured).toContain("consistency label at 7.5★: 55 (+15 against your comfort level)");
+    expect(measured).toContain("Measured on your 12 different maps from 6.5★ to 7.5★");
+  });
+});
+
+

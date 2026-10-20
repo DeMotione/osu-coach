@@ -13,9 +13,8 @@ import pandas as pd
 
 from osu_coach.analysis.skill_scale import SPEED_POINTS, expected_speed_bpm
 from osu_coach.profile.domain.aim import aim_values, flow_values
-from osu_coach.profile.domain.consistency import play_steadiness
+from osu_coach.profile.domain.consistency import star_consistency
 from osu_coach.profile.domain.levels import RECENT_DAYS, RECENT_MIN, replay_weight
-from osu_coach.profile.domain.misses import miss_chain_stats
 from osu_coach.profile.domain.reading import reading_values
 from osu_coach.profile.domain.sliders import slider_difficulty
 from osu_coach.profile.domain.stamina import tempo_curve
@@ -32,7 +31,7 @@ POINTS = {
     "accuracy": 25,
     "sliders": 25,
     "reading": 25,
-    "consistency": 30,
+    "consistency": 0,  # not on this scale: combo and accuracy held per star rating (star_consistency)
 }
 STAMINA_SHARES = {10: 0.55, 30: 0.47, 60: 0.41, 120: 0.38, 300: 0.33}
 ACCURACY_SIGMA_MS = (79.5 - 6 * 8) / 1.959963984540054
@@ -70,7 +69,6 @@ def _expected(skill: str, theta: float, *, duration: int | None = None) -> float
         "stamina": bpm * STAMINA_SHARES[duration] if duration else math.nan,
         "sliders": 40 * 2 ** ((theta - 6) / 3),
         "reading": 0.95**8,
-        "consistency": 2.0,
     }.get(skill, math.nan)
 
 
@@ -122,6 +120,7 @@ def _aggregate(rows: list[dict]) -> tuple[float | None, list[dict]]:
 def ratings(objects: pd.DataFrame, metas: pd.DataFrame, theta: float | None) -> dict[str, dict]:
     """Eight Lab-style ratings from the existing Coach analysis tables."""
     result = {skill: {"score": None, "maps": 0, "reason": "Comfort not established"} for skill in POINTS}
+    result["consistency"] = star_consistency(metas, theta, comfort=True)
     if theta is None or not math.isfinite(theta) or objects.empty:
         return result
     O = objects.copy()
@@ -248,25 +247,6 @@ def ratings(objects: pd.DataFrame, metas: pd.DataFrame, theta: float | None) -> 
             "od_windows": windows,
             "reason": "Effective-OD-matched non-300 share on hit single heads",
         }
-    chain = miss_chain_stats(P)
-    steady = play_steadiness(P)
-    chain_score = _score("consistency", chain["ratio"], 2.0, inverse=True)
-    steady_score = _score("consistency", steady["spread"], 2.0, inverse=True)
-    consistency_parts = [score for score in (chain_score, steady_score) if score is not None]
-    result["consistency"] = {
-        "score": round(float(np.mean(consistency_parts)), 1) if consistency_parts else None,
-        "maps": int(P["replay_key"].nunique()),
-        "measured": chain["ratio"],
-        "expected": 2.0,
-        "chain_score": chain_score,
-        "steady_score": steady_score,
-        "observed_followup_misses": chain["observed"],
-        "expected_followup_misses": chain["expected"],
-        "followup_notes": chain["after_notes"],
-        "steady_spread": steady["spread"],
-        "steady_plays": steady["plays"],
-        "reason": "Mean of available miss recovery and between-play steadiness scores",
-    }
     return result
 
 

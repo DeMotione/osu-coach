@@ -1223,6 +1223,66 @@ export interface components {
             hit: boolean[];
             summary: components["schemas"]["ClickSummary"] | null;
         };
+        /** CompareSkill */
+        CompareSkill: {
+            /** Key */
+            key: string;
+            /**
+             * Score
+             * @description The comfort-level score on typical maps of this star rating, 0–100: lower on harder maps, by how much more they demand of the skill. null without a comfort-level score.
+             */
+            score: number | null;
+            /**
+             * Change
+             * @description This score minus the comfort-level score (points).
+             */
+            change: number | null;
+            /**
+             * Demand
+             * @description How many times what typical maps of the comfort level demand of the skill (1.25 = 25% more).
+             */
+            demand: number | null;
+            /**
+             * Maps
+             * @description Consistency only (measured on the player's maps of this star rating, not moved from the comfort level): how many different maps it is measured on. null for the other skills.
+             */
+            maps: number | null;
+            /**
+             * Needs
+             * @description Consistency without a score here: what to play to get one.
+             */
+            needs: string | null;
+        };
+        /** CompareTarget */
+        CompareTarget: {
+            /**
+             * Stars
+             * @description The star rating compared with.
+             */
+            stars: number;
+            /**
+             * Comfort
+             * @description Whether this is the comfort level.
+             */
+            comfort: boolean;
+            /**
+             * Locked
+             * @description More than `max_gap` stars above the comfort level: too far to compare, so no skills or chance.
+             */
+            locked: boolean;
+            /** Skills */
+            skills: components["schemas"]["CompareSkill"][];
+            /**
+             * Weakest
+             * @description Key of the skill with the lowest score here.
+             */
+            weakest: string | null;
+            /**
+             * Pass Chance
+             * @description Chance to pass a typical map of this star rating cleanly (completed, at most 2 misses per 100 notes, as for the comfort level), 0–1.
+             */
+            pass_chance: number | null;
+        };
         /**
          * Count
          * @description A reason / name with how often it occurs.
@@ -1958,8 +2018,7 @@ export interface components {
              * @description Skills measured on few maps or notes.
              */
             few_data: string[];
-            /** Top */
-            top: components["schemas"]["TopSkill"][];
+            compare: components["schemas"]["StarCompare"];
             /**
              * Stamina
              * @description Tempo kept per duration (empty without a stamina score).
@@ -2686,6 +2745,11 @@ export interface components {
              * @description The player's own numbers behind the score.
              */
             facts: string[];
+            /**
+             * Needs
+             * @description Without a score: what to play to get one. null when it can't be said.
+             */
+            needs: string | null;
         };
         /** SkillValue */
         SkillValue: {
@@ -2766,6 +2830,29 @@ export interface components {
             bpm: number;
             /** Typical */
             typical: number | null;
+        };
+        /** StarCompare */
+        StarCompare: {
+            /**
+             * Comfort
+             * @description The comfort level (★) the scores are moved from.
+             */
+            comfort: number | null;
+            /**
+             * Max Gap
+             * @description Star ratings more than this above the comfort level are locked (★).
+             */
+            max_gap: number;
+            /**
+             * Targets
+             * @description The star ratings to compare with, easiest first.
+             */
+            targets: components["schemas"]["CompareTarget"][];
+            /**
+             * Default Target
+             * @description The star rating shown first: one star above comfort.
+             */
+            default_target: number | null;
         };
         /** StreamAlong */
         StreamAlong: {
@@ -3044,28 +3131,6 @@ export interface components {
             tips: components["schemas"]["TipOut"][];
             /** Practice Plan */
             practice_plan: string[];
-        };
-        /** TopSkill */
-        TopSkill: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
-            /**
-             * Score
-             * @description Against a 10★ player (50 = typical 10★ player).
-             */
-            score: number | null;
-            /**
-             * Top
-             * @description Top players' reference plays on the same scale.
-             */
-            top: number | null;
-            /**
-             * Facts
-             * @description Measured and assumed values behind this row.
-             */
-            facts?: string[];
         };
         /** UploadedFile */
         UploadedFile: {

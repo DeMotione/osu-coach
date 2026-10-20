@@ -23,13 +23,24 @@ if not exist ".venv\Scripts\python.exe" goto nopython
 ".venv\Scripts\python.exe" -m pip install --quiet -c constraints.txt -e backend || goto pipfail
 
 :web
-if exist "frontend\dist\index.html" goto run
-where npm >nul 2>nul || goto nonode
-echo Building the web app ^(first run only^)...
+rem Build the web app when its code changed since the last build (first run, another branch, a pull): 0 = up to
+rem date, 1 = build it, 2 = install its packages too (package-lock.json changed or node_modules missing).
+".venv\Scripts\python.exe" packaging\web_build_check.py check
+set "WEBSTATE=%ERRORLEVEL%"
+if "%WEBSTATE%"=="0" goto run
+where npm >nul 2>nul && goto build
+if exist "frontend\dist\index.html" (
+  echo Node.js not found: starting with the web app built before, which may be out of date.
+  goto run
+)
+goto nonode
+:build
+echo Building the web app ^(its code changed^)...
 pushd frontend
-call npm ci --no-audit --no-fund --loglevel=error || goto npmfail
+if "%WEBSTATE%"=="2" call npm ci --no-audit --no-fund --loglevel=error || goto npmfail
 call npm run build --silent || goto npmfail
 popd
+".venv\Scripts\python.exe" packaging\web_build_check.py stamp
 
 :run
 if /i "%~1"=="--setup" exit /b 0

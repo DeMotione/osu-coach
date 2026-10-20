@@ -10,7 +10,7 @@ import pytest
 from osu_coach.library.repository import analyze_files
 from osu_coach.profile.domain import SKILL_LABELS, build_profile, stream_fall_behind, stream_speed_profile
 from osu_coach.settings.repository import load_settings, save_settings
-from tests.conftest import sample_paths, workspace
+from tests.conftest import INDEX, analyse, plays_folder, sample_paths, scan, workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
 
@@ -31,6 +31,40 @@ def test_every_page_renders_with_real_replays(analysed, page):
     assert r.json()
 
 
+def test_skills_against_other_star_ratings(tmp_path, client):
+    """With a comfort level, its scores move to every star rating up to 2★ above it: lower on harder maps, as are the
+    chances to pass one cleanly; the star ratings further above are locked, easier ones never."""
+    scan(client, plays_folder(tmp_path, names=list(INDEX)))
+    analyse(client, player="*")
+    ov = client.get("/api/profile/overview").json()
+    cmp, comfort_scores = ov["compare"], {s["key"]: s["score"] for s in ov["skills"]}
+    assert cmp["comfort"] == pytest.approx(ov["kpis"]["comfort_stars"]) and cmp["comfort"] > 5
+    stars = [t["stars"] for t in cmp["targets"]]
+    assert stars[0] == 1 and stars[-1] == 13 and stars == sorted(stars)
+    open_ = [t for t in cmp["targets"] if not t["locked"]]
+    assert [t["stars"] for t in open_] == [s for s in stars if s <= round(cmp["comfort"], 1) + 2 + 1e-9]
+    assert all(t["skills"] == [] and t["pass_chance"] is None for t in cmp["targets"] if t["locked"])
+    assert cmp["default_target"] in [t["stars"] for t in open_]
+    (at_comfort,) = [t for t in open_ if t["comfort"]]
+    for sk in at_comfort["skills"]:  # the comfort option shows the comfort-level scores themselves
+        assert sk["score"] == comfort_scores[sk["key"]] and sk["change"] in (0, None)
+    assert at_comfort["pass_chance"] == 0.75
+    chances = [t["pass_chance"] for t in open_]
+    assert chances == sorted(chances, reverse=True) and chances[-1] < 0.15
+    for key in ("aim", "speed", "sliders"):
+        series = [next(s["score"] for s in t["skills"] if s["key"] == key) for t in open_]
+        assert None not in series and series == sorted(series, reverse=True), key
+    for t in open_:
+        scores = {s["key"]: s["score"] for s in t["skills"] if s["score"] is not None}
+        assert t["weakest"] == min(scores, key=scores.get)
+        # consistency is measured on the player's maps from a star below that star rating up to it
+        cs = next(s for s in t["skills"] if s["key"] == "consistency")
+        assert cs["demand"] is None and isinstance(cs["maps"], int)
+        assert (cs["score"] is None) == (cs["needs"] is not None)
+        if cs["needs"] and not t["comfort"]:
+            assert f"between {t['stars'] - 1:.1f}★ and {t['stars']:.1f}★" in cs["needs"]
+
+
 def test_replays_table_newest_first_with_weights(analysed):
     rows = analysed.get("/api/profile/replays").json()
     assert len(rows) == 3
@@ -49,7 +83,13 @@ def test_overview_explains_every_skill(analysed):
             assert s["score_text"]  # the reason for an unmeasured experimental rating
         else:
             assert s["score_text"].startswith(f"{s['score']:.0f}")
-    assert len(ov["top"]) == len(SKILL_LABELS)
+    cmp = ov["compare"]  # 3 plays make no comfort level yet (3 recent maps finished cleanly), so nothing to compare
+    assert cmp["comfort"] is None and ov["kpis"]["comfort_stars"] is None
+    assert cmp["targets"] == [] and cmp["default_target"] is None and cmp["max_gap"] == 2
+    cs = next(s for s in ov["skills"] if s["key"] == "consistency")  # no comfort level yet: says what to play
+    assert cs["score"] is None and cs["score_text"] == "Not enough data"
+    assert cs["needs"].startswith("First your comfort level")
+    assert all(s["needs"] is None for s in ov["skills"] if s["score"] is not None)
     first = ov["level"]["weights"][0]  # README: "1★ off 61%"
     assert (
         ov["level"]["stars"] is not None

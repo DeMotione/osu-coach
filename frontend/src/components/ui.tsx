@@ -179,6 +179,8 @@ export interface Option<T> {
   value: T;
   label: ReactNode;
   disabled?: boolean;
+  /** Shown when pointing at the option (e.g. why it is disabled). */
+  title?: string;
 }
 
 export function Segmented<T extends string | number>({
@@ -202,6 +204,7 @@ export function Segmented<T extends string | number>({
         <label
           key={String(o.value)}
           className={`segmented__option${o.value === value ? " checked" : ""}${o.disabled ? " disabled" : ""}`}
+          title={o.title}
         >
           <input
             type="radio"

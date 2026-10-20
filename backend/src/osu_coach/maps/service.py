@@ -56,6 +56,12 @@ def _pool(ws: Workspace) -> pd.DataFrame:
     return pool
 
 
+def default_skill(p: Profile | None, abilities: dict[str, float]) -> str:
+    """The skill a playlist opens on: the first weakness with a rating (a skill without one has no maps to offer,
+    e.g. consistency before 8 maps around the comfort level are played), else aim."""
+    return next((k for k in (p.weaknesses if p else []) if k in SKILLS and k in abilities), "aim")
+
+
 def _options(
     p: Profile | None,
     skill: str | None,
@@ -96,8 +102,7 @@ def _options(
             ):
                 raise Invalid(f"Invalid 0–100 rating for {key}.", "invalid_ratings")
             abilities[key] = float(value)
-    default = p.weaknesses[0] if p and p.weaknesses else "aim"
-    target = skill or default
+    target = skill or default_skill(p, abilities)
     if target not in SKILLS:
         raise Invalid(f"Unknown skill {target}.", "unknown_skill")
     checked = tuple(dict.fromkeys(assessed.split(",") if assessed is not None else [target]))
@@ -186,9 +191,7 @@ def playlist(
     target, checked, abilities, theta, source = _options(p, skill, assessed, ratings, comfort, kappa, min_relevance)
     t = targets_from_profile(p) if p else Targets(comfort=theta)
     t.comfort = theta
-    default = p.weaknesses[0] if p and p.weaknesses else "aim"
-    if default not in SKILLS:
-        default = "aim"
+    default = default_skill(p, abilities)
     try:
         ranked = recommend(
             pool,

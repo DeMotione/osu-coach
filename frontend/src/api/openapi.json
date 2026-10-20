@@ -3606,6 +3606,144 @@
         "title": "Clicks",
         "description": "Where clicks land, in circle radii from the note centre (y down)."
       },
+      "CompareSkill": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "The comfort-level score on typical maps of this star rating, 0–100: lower on harder maps, by how much more they demand of the skill. null without a comfort-level score."
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change",
+            "description": "This score minus the comfort-level score (points)."
+          },
+          "demand": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demand",
+            "description": "How many times what typical maps of the comfort level demand of the skill (1.25 = 25% more)."
+          },
+          "maps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maps",
+            "description": "Consistency only (measured on the player's maps of this star rating, not moved from the comfort level): how many different maps it is measured on. null for the other skills."
+          },
+          "needs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs",
+            "description": "Consistency without a score here: what to play to get one."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "score",
+          "change",
+          "demand",
+          "maps",
+          "needs"
+        ],
+        "title": "CompareSkill"
+      },
+      "CompareTarget": {
+        "properties": {
+          "stars": {
+            "type": "number",
+            "title": "Stars",
+            "description": "The star rating compared with."
+          },
+          "comfort": {
+            "type": "boolean",
+            "title": "Comfort",
+            "description": "Whether this is the comfort level."
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "description": "More than `max_gap` stars above the comfort level: too far to compare, so no skills or chance."
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/CompareSkill"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "weakest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weakest",
+            "description": "Key of the skill with the lowest score here."
+          },
+          "pass_chance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass Chance",
+            "description": "Chance to pass a typical map of this star rating cleanly (completed, at most 2 misses per 100 notes, as for the comfort level), 0–1."
+          }
+        },
+        "type": "object",
+        "required": [
+          "stars",
+          "comfort",
+          "locked",
+          "skills",
+          "weakest",
+          "pass_chance"
+        ],
+        "title": "CompareTarget"
+      },
       "Count": {
         "properties": {
           "label": {
@@ -5737,12 +5875,8 @@
             "title": "Few Data",
             "description": "Skills measured on few maps or notes."
           },
-          "top": {
-            "items": {
-              "$ref": "#/components/schemas/TopSkill"
-            },
-            "type": "array",
-            "title": "Top"
+          "compare": {
+            "$ref": "#/components/schemas/StarCompare"
           },
           "stamina": {
             "items": {
@@ -5824,7 +5958,7 @@
           "skills",
           "reading_split",
           "few_data",
-          "top",
+          "compare",
           "stamina",
           "sliders_scored",
           "strengths",
@@ -8044,6 +8178,18 @@
             "type": "array",
             "title": "Facts",
             "description": "The player's own numbers behind the score."
+          },
+          "needs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs",
+            "description": "Without a score: what to play to get one. null when it can't be said."
           }
         },
         "type": "object",
@@ -8055,7 +8201,8 @@
           "low_data",
           "too_few_misses",
           "n",
-          "facts"
+          "facts",
+          "needs"
         ],
         "title": "SkillScore"
       },
@@ -8323,6 +8470,55 @@
           "typical"
         ],
         "title": "StaminaPoint"
+      },
+      "StarCompare": {
+        "properties": {
+          "comfort": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comfort",
+            "description": "The comfort level (★) the scores are moved from."
+          },
+          "max_gap": {
+            "type": "number",
+            "title": "Max Gap",
+            "description": "Star ratings more than this above the comfort level are locked (★)."
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/CompareTarget"
+            },
+            "type": "array",
+            "title": "Targets",
+            "description": "The star ratings to compare with, easiest first."
+          },
+          "default_target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Target",
+            "description": "The star rating shown first: one star above comfort."
+          }
+        },
+        "type": "object",
+        "required": [
+          "comfort",
+          "max_gap",
+          "targets",
+          "default_target"
+        ],
+        "title": "StarCompare"
       },
       "StreamAlong": {
         "properties": {
@@ -9222,58 +9418,6 @@
           "practice_plan"
         ],
         "title": "TipsPage"
-      },
-      "TopSkill": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "title": "Key"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "score": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score",
-            "description": "Against a 10★ player (50 = typical 10★ player)."
-          },
-          "top": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Top",
-            "description": "Top players' reference plays on the same scale."
-          },
-          "facts": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Facts",
-            "description": "Measured and assumed values behind this row."
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "label",
-          "score",
-          "top"
-        ],
-        "title": "TopSkill"
       },
       "UploadedFile": {
         "properties": {
