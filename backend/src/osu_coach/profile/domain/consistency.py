@@ -97,3 +97,64 @@ def consistency_score(P: pd.DataFrame, weights: pd.Series, n_total: int) -> dict
     if out["score"] is None and len(P) >= FEW_MISSES_NOTES and misses < FEW_MISSES:
         out["too_few_misses"] = True  # nothing to chain: no misses to follow a miss
     return out
+
+
+# ------------------------------------------------------------------ consistency per star band
+BAND = 0.5  # stars (with mods)
+BAND_MIN_PLAYS = 10
+ACC_BAD, ACC_GOOD = 0.93, 0.99  # accuracy scale: 93% → 0, 99% → 1
+BEST_WEIGHT = 0.7  # the better of combo and accuracy carries the score; both good = top score
+FULL_COMBO = 0.98  # share of the map's max combo (no misses) that counts as a full combo
+
+
+def _held(x: np.ndarray) -> float:
+    """Usual level minus how much it swings between plays (one standard deviation), clipped to 0–1."""
+    return float(np.clip(x.mean() - x.std(), 0, 1))
+
+
+def band_consistency(combo: float, accuracy: float) -> float:
+    """0–100: the better of combo and accuracy held carries the score, both good = top score, both bad = low."""
+    return 100 * (BEST_WEIGHT * max(combo, accuracy) + (1 - BEST_WEIGHT) * min(combo, accuracy))
+
+
+def consistency_bands(metas: pd.DataFrame) -> list[dict]:
+    """Per 0.5★ band (star rating with mods): how consistently combo and accuracy hold across the plays there.
+    Scored only with 10+ plays in the band."""
+    need = {"stars", "max_combo", "map_max_combo", "accuracy"}
+    if metas is None or metas.empty or not need <= set(metas.columns):
+        return []
+    m = metas.drop_duplicates("key") if "key" in metas else metas
+    m = m.assign(
+        stars=pd.to_numeric(m["stars"], errors="coerce"),
+        accuracy=pd.to_numeric(m["accuracy"], errors="coerce"),
+        top=pd.to_numeric(m["map_max_combo"], errors="coerce"),
+    )
+    m = m[m["stars"].notna() & m["accuracy"].notna() & (m["top"] > 0)]
+    if m.empty:
+        return []
+    combo = (pd.to_numeric(m["max_combo"], errors="coerce").fillna(0) / m["top"]).clip(0, 1)
+    misses = pd.to_numeric(m["nmiss"], errors="coerce").fillna(0) if "nmiss" in m else pd.Series(0, index=m.index)
+    m = m.assign(
+        combo=combo,
+        acc_scale=((m["accuracy"] - ACC_BAD) / (ACC_GOOD - ACC_BAD)).clip(0, 1),
+        full=(combo >= FULL_COMBO) & (misses == 0),
+        band=np.floor(m["stars"] / BAND) * BAND,
+    )
+    bands = []
+    for low, d in m.groupby("band", sort=True):
+        enough = len(d) >= BAND_MIN_PLAYS
+        combo_held = _held(d["combo"].to_numpy(float)) if enough else None
+        acc_held = _held(d["acc_scale"].to_numpy(float)) if enough else None
+        bands.append(
+            {
+                "low": float(low),
+                "high": float(low) + BAND,
+                "plays": len(d),
+                "combo": combo_held,
+                "accuracy": acc_held,
+                "score": band_consistency(combo_held, acc_held) if enough else None,
+                "full_combo_share": float(d["full"].mean()),
+                "mean_accuracy": float(d["accuracy"].mean()),
+            }
+        )
+    return bands

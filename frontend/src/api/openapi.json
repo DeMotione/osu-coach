@@ -5831,8 +5831,8 @@
             "title": "Few Data",
             "description": "Skills measured on few maps or notes."
           },
-          "readiness": {
-            "$ref": "#/components/schemas/Readiness"
+          "compare": {
+            "$ref": "#/components/schemas/StarCompare"
           },
           "consistency": {
             "$ref": "#/components/schemas/Consistency"
@@ -5917,7 +5917,7 @@
           "skills",
           "reading_split",
           "few_data",
-          "readiness",
+          "compare",
           "consistency",
           "stamina",
           "sliders_scored",
@@ -6825,59 +6825,6 @@
           "objects"
         ],
         "title": "QuadrantCell"
-      },
-      "Readiness": {
-        "properties": {
-          "comfort": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Comfort",
-            "description": "The comfort level (★) the targets are counted from."
-          },
-          "ahead": {
-            "type": "number",
-            "title": "Ahead",
-            "description": "Targets more than this many stars above comfort are locked."
-          },
-          "step": {
-            "type": "number",
-            "title": "Step",
-            "description": "Distance between the targets offered near comfort (★)."
-          },
-          "min_target": {
-            "type": "number",
-            "title": "Min Target",
-            "description": "Lowest star rating to compare with."
-          },
-          "max_target": {
-            "type": "number",
-            "title": "Max Target",
-            "description": "Highest star rating to compare with."
-          },
-          "skills": {
-            "items": {
-              "$ref": "#/components/schemas/SkillLevel"
-            },
-            "type": "array",
-            "title": "Skills"
-          }
-        },
-        "type": "object",
-        "required": [
-          "comfort",
-          "ahead",
-          "step",
-          "min_target",
-          "max_target",
-          "skills"
-        ],
-        "title": "Readiness"
       },
       "ReadingKpis": {
         "properties": {
@@ -8110,46 +8057,6 @@
         "type": "object",
         "title": "SetupUpdate"
       },
-      "SkillLevel": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "title": "Key"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "level": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Level",
-            "description": "Star rating of a typical map whose demand on this skill matches what the player has shown; readiness for a target T = 1 − ((T / level)² − 1), clipped to 0–1."
-          },
-          "facts": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Facts",
-            "description": "What the level is measured from."
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "label",
-          "level",
-          "facts"
-        ],
-        "title": "SkillLevel"
-      },
       "SkillMeta": {
         "properties": {
           "key": {
@@ -8510,6 +8417,51 @@
           "typical"
         ],
         "title": "StaminaPoint"
+      },
+      "StarCompare": {
+        "properties": {
+          "comfort": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comfort",
+            "description": "The comfort level (★) every comparison is counted from."
+          },
+          "ahead": {
+            "type": "number",
+            "title": "Ahead",
+            "description": "Star ratings more than this many stars above comfort are locked."
+          },
+          "step": {
+            "type": "number",
+            "title": "Step",
+            "description": "Distance between the star ratings offered near comfort (★)."
+          },
+          "min_target": {
+            "type": "number",
+            "title": "Min Target",
+            "description": "Lowest star rating to compare with."
+          },
+          "max_target": {
+            "type": "number",
+            "title": "Max Target",
+            "description": "Highest star rating to compare with."
+          }
+        },
+        "type": "object",
+        "required": [
+          "comfort",
+          "ahead",
+          "step",
+          "min_target",
+          "max_target"
+        ],
+        "title": "StarCompare"
       },
       "StreamAlong": {
         "properties": {

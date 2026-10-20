@@ -1,12 +1,12 @@
 import type { Schemas } from "../api/client";
 import { esc } from "../lib/format";
-import { feltHarder, outOfReachFrom, readiness, starLabel } from "../lib/readiness";
-import { base, categoryAxis, grid, niceMax, responsive, tooltip, valueAxis } from "./base";
+import { feltHarder, outOfReachFrom, scoreAt, starLabel } from "../lib/starCompare";
+import { base, categoryAxis, grid, niceMax, refLine, responsive, tooltip, valueAxis } from "./base";
 import type { Option } from "./echarts";
 import { C, scoreColor, type ChartTheme } from "./palette";
 import { params } from "./types";
 
-type SkillLevel = Schemas["SkillLevel"];
+type Skill = Schemas["SkillScore"];
 type SkillMeta = Schemas["SkillMeta"];
 
 export const MISS_SHORT: Record<string, string> = {
@@ -18,6 +18,16 @@ export const MISS_SHORT: Record<string, string> = {
   lost: "Lost track",
   notelock: "Notelock",
 };
+
+/** What a skill measures, how it is scored, the player's numbers and what raises it (the bar's hover). */
+export function skillHover(s: Skill, help?: SkillMeta): string {
+  const p = (text: string, cls = "") => `<div style="margin-top:6px${cls}">${esc(text)}</div>`;
+  let html = `<b>${esc(s.label)}: ${esc(s.score_text)}</b>`;
+  if (help) html += p(help.what);
+  html += p(`You: ${s.facts.join("; ")}`);
+  if (help) html += p(`To raise it: ${help.practise}`);
+  return html;
+}
 
 const SKILL_AXIS = (t: ChartTheme, labels: string[], width: number) =>
   categoryAxis(t, labels, {
@@ -31,32 +41,12 @@ const NARROW_SKILLS = (right: number) => ({
   series: [{ label: { fontSize: 11 } }],
 });
 
-/** The hover of a readiness bar: the skill's level, how much harder the target feels, what the level is measured
- * from, and (with the skill's help text) what the skill is and what raises it. */
-export function readinessHover(s: SkillLevel, target: number, help?: SkillMeta): string {
-  const p = (text: string) => `<div style="margin-top:6px">${esc(text)}</div>`;
-  const at = starLabel(target);
-  if (s.level === null) return `<b>${esc(s.label)}: not enough data yet</b>${help ? p(help.what) : ""}`;
-  const ready = readiness(s.level, target) ?? 0;
-  const felt = feltHarder(s.level, target);
-  let html = `<b>${esc(s.label)}: ${Math.round(ready * 100)}% ready for ${esc(at)}</b>`;
-  if (help) html += p(help.what);
-  html += p(
-    `Level ${s.level.toFixed(1)}★: ` +
-      (felt <= 0 ? `${at} is within it` : `${at} feels ${Math.round(felt * 100)}% harder; out of reach from ${outOfReachFrom(s.level).toFixed(1)}★`),
-  );
-  html += p(`From ${s.facts.join("; ")}`);
-  if (help) html += p(`To raise it: ${help.practise}`);
-  return html;
-}
-
-export function readinessBars(skills: SkillLevel[], target: number, t: ChartTheme, help: SkillMeta[] = []): Option {
+export function skillBars(skills: Skill[], help: SkillMeta[], t: ChartTheme): Option {
   const helpOf = Object.fromEntries(help.map((h) => [h.key, h]));
-  const ready = skills.map((s) => readiness(s.level, target));
   return responsive(
     base(t, {
       grid: grid({ right: 96, bottom: 8 }),
-      xAxis: valueAxis(t, { min: 0, max: 100, interval: 25, name: `% ready for ${starLabel(target)} · 0 = out of reach`, nameGap: 26 }),
+      xAxis: valueAxis(t, { min: 0, max: 100, interval: 25, name: "50 = assumed comfort baseline · higher is better", nameGap: 26 }),
       yAxis: SKILL_AXIS(
         t,
         skills.map((s) => s.label),
@@ -67,25 +57,88 @@ export function readinessBars(skills: SkillLevel[], target: number, t: ChartThem
         axisPointer: { type: "shadow", shadowStyle: { color: t.split } },
         formatter: (p: unknown) => {
           const s = skills[params(p)[0].dataIndex];
-          return readinessHover(s, target, helpOf[s.key]);
+          return skillHover(s, helpOf[s.key]);
         },
       }),
       series: [
         {
           type: "bar",
           barMaxWidth: 22,
-          data: ready.map((r) => ({
-            value: r === null ? 0 : Math.round(r * 100),
-            itemStyle: { color: scoreColor(r === null ? null : r * 100), borderRadius: [0, 3, 3, 0] },
+          data: skills.map((s) => ({
+            value: s.score ?? 0,
+            itemStyle: { color: scoreColor(s.score), borderRadius: [0, 3, 3, 0] },
           })),
           label: {
             show: true,
             position: "right",
             color: t.text,
             fontSize: 12,
+            formatter: (p: unknown) => skills[params(p)[0].dataIndex].score?.toFixed(0) ?? "–",
+          },
+          markLine: refLine(t, { xAxis: 50 }),
+        },
+      ],
+    }),
+    NARROW_SKILLS(80),
+  );
+}
+
+/** The hover of a bar on the comparison chart: the score there, how it comes from the comfort-level score, the
+ * player's numbers and (with the skill's help text) what the skill is and what raises it. */
+export function compareHover(s: Skill, comfort: number, target: number, help?: SkillMeta): string {
+  const p = (text: string) => `<div style="margin-top:6px">${esc(text)}</div>`;
+  const at = starLabel(target);
+  const here = scoreAt(s.score, comfort, target);
+  if (here === null) return `<b>${esc(s.label)} at ${esc(at)}: ${esc(s.score_text)}</b>${help ? p(help.what) : ""}`;
+  const felt = feltHarder(comfort, target);
+  const from = `${(s.score as number).toFixed(0)} at your ${starLabel(comfort)} comfort level`;
+  const how =
+    Math.abs(felt) < 0.005
+      ? `${at} is your comfort level`
+      : felt > 0
+        ? `${at} feels ${Math.round(felt * 100)}% harder, so ${from} drops by that much; every skill is out of reach from ${outOfReachFrom(comfort).toFixed(1)}★`
+        : `${at} feels ${Math.round(-felt * 100)}% easier, so ${from} closes that much of its gap to 100`;
+  let html = `<b>${esc(s.label)} at ${esc(at)}: ${here.toFixed(0)}</b>`;
+  if (help) html += p(help.what);
+  html += p(how);
+  html += p(`You: ${s.facts.join("; ")}`);
+  if (help) html += p(`To raise it: ${help.practise}`);
+  return html;
+}
+
+export function compareBars(skills: Skill[], comfort: number, target: number, t: ChartTheme, help: SkillMeta[] = []): Option {
+  const helpOf = Object.fromEntries(help.map((h) => [h.key, h]));
+  const scores = skills.map((s) => scoreAt(s.score, comfort, target));
+  return responsive(
+    base(t, {
+      grid: grid({ right: 96, bottom: 8 }),
+      xAxis: valueAxis(t, { min: 0, max: 100, interval: 25, name: `Your scores at ${starLabel(target)} · 0 = out of reach`, nameGap: 26 }),
+      yAxis: SKILL_AXIS(
+        t,
+        skills.map((s) => s.label),
+        230,
+      ),
+      tooltip: tooltip(t, {
+        trigger: "axis",
+        axisPointer: { type: "shadow", shadowStyle: { color: t.split } },
+        formatter: (p: unknown) => {
+          const s = skills[params(p)[0].dataIndex];
+          return compareHover(s, comfort, target, helpOf[s.key]);
+        },
+      }),
+      series: [
+        {
+          type: "bar",
+          barMaxWidth: 22,
+          data: scores.map((v) => ({ value: v ?? 0, itemStyle: { color: scoreColor(v), borderRadius: [0, 3, 3, 0] } })),
+          label: {
+            show: true,
+            position: "right",
+            color: t.text,
+            fontSize: 12,
             formatter: (p: unknown) => {
-              const r = ready[params(p)[0].dataIndex];
-              return r === null ? "–" : r === 0 ? "out of reach" : `${Math.round(r * 100)}%`;
+              const v = scores[params(p)[0].dataIndex];
+              return v === null ? "–" : v === 0 ? "out of reach" : v.toFixed(0);
             },
           },
         },

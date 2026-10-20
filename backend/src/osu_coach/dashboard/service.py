@@ -11,11 +11,11 @@ from osu_coach.dashboard import schemas as S
 from osu_coach.insights import domain as insights
 from osu_coach.insights import service as insights_service
 from osu_coach.insights.schemas import Clicks
-from osu_coach.maps.domain import demand_curves, targets_from_profile
+from osu_coach.maps.domain import targets_from_profile
 from osu_coach.maps.service import map_rows
 from osu_coach.maps.skillset import recommend
 from osu_coach.profile.domain import SKILL_LABELS, Profile, weight_table
-from osu_coach.profile.domain import readiness as R
+from osu_coach.profile.domain.consistency import BAND_MIN_PLAYS, consistency_bands
 from osu_coach.tips.service import tip_out, tips
 
 if TYPE_CHECKING:
@@ -279,20 +279,28 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         aim_split = S.AimSplit(fast_ratio=f["all_misses"] / f["expected"], normal_ratio=a["all_misses"] / a["expected"])
     setup = ws.setup()
     top_tips = [tip_out(t, p, setup) for t in tips(ws, p) if not t.title.endswith("fits")][:TOP_TIPS]
-    ready = readiness(ws, p, comfort_level)
-    strengths, weaknesses = strong_and_weak(ready)
     return S.Overview(
         level=level_info,
         kpis=kpis,
         skills=skills,
         reading_split=reading_split,
         few_data=few,
-        readiness=ready,
+        compare=S.StarCompare(
+            comfort=num(comfort_level), ahead=AHEAD, step=STEP, min_target=TARGETS[0], max_target=TARGETS[1]
+        ),
         consistency=consistency(p),
         stamina=stamina,
         sliders_scored=relative_scores.get("sliders") is not None,
-        strengths=strengths,
-        weaknesses=weaknesses,
+        strengths=[
+            p.skills[k]["label"]
+            for k in sorted(relative_scores, key=lambda k: relative_scores[k] or -1, reverse=True)
+            if relative_scores[k] is not None and relative_scores[k] >= 55
+        ][:3],
+        weaknesses=[
+            p.skills[k]["label"]
+            for k in sorted(relative_scores, key=lambda k: relative_scores[k] or 101)
+            if relative_scores[k] is not None and relative_scores[k] <= 45
+        ][:3],
         miss_causes=causes,
         aim_split=aim_split,
         top_tips=top_tips,
@@ -301,84 +309,16 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
     )
 
 
-# ------------------------------------------------------------------ readiness and consistency
-READY_SKILLS = ("aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading")
-
-
-def _level_facts(key: str, row: dict, inputs: dict) -> list[str]:
-    plays = row.get("plays", 0)
-    if key == "aim":
-        return [f"the hardest jump sections you cleared, on {plays} plays"]
-    if key == "flow_aim":
-        return [f"the hardest spaced-stream sections you cleared, on {plays} plays"]
-    if key == "speed":
-        return [f"the hardest burst and stream sections you tapped, on {plays} plays"]
-    if key == "stamina":
-        return [f"your hardest 30 seconds of fast tapping, on {plays} plays"]
-    facts: list[str] = []
-    if key == "accuracy":
-        sigma = row.get("timing_spread")
-        if sigma is None:
-            return ["not enough hit single notes"]
-        facts = [
-            f"timing spread {sigma:.1f} ms (UR about {10 * sigma:.0f})",
-            f"95% 300s need a {R.GREAT_Z * sigma:.1f} ms 300 window",
-        ]
-    elif key == "sliders":
-        facts = ["the slider speed of the maps you held, against typical maps"]
-    elif key == "reading":
-        facts = [f"note density × approach rate of the maps you cleared, × the notes you hit, on {plays} plays"]
-    hardest = inputs.get("hardest_pass")
-    if row.get("capped") and hardest is not None:
-        facts.append(f"capped at your hardest pass + {R.POOL_ABOVE:g}★ ({hardest + R.POOL_ABOVE:.1f}★)")
-    if row.get("raised") and hardest is not None:
-        facts.append(f"kept within {R.POOL_BELOW:g}★ of your hardest pass ({hardest - R.POOL_BELOW:.1f}★)")
-    return facts
-
-
-def readiness(ws: Workspace, p: Profile, comfort: float | None) -> S.Readiness:
-    """Each skill's level in stars; the page turns it into readiness for the target the player picks."""
-    rd = p.readiness or {}
-    inputs = rd.get("inputs") or {}
-    levels = dict(rd.get("sections") or {})
-    if inputs:
-        levels.update(R.pool_levels(inputs, demand_curves(ws.pool(), inputs.get("dt_share", 0.0))))
-    return S.Readiness(
-        comfort=num(comfort),
-        ahead=R.AHEAD,
-        step=R.STEP,
-        min_target=R.TARGETS[0],
-        max_target=R.TARGETS[1],
-        skills=[
-            S.SkillLevel(
-                key=k,
-                label=SKILL_LABELS.get(k, k),
-                level=num((levels.get(k) or {}).get("level")),
-                facts=_level_facts(k, levels.get(k) or {}, inputs),
-            )
-            for k in READY_SKILLS
-        ],
-    )
-
-
-STRONG_WEAK = 0.25  # stars above / below the comfort level that make a skill a strength / a weakness
-
-
-def strong_and_weak(rd: S.Readiness) -> tuple[list[str], list[str]]:
-    """Up to three skills whose level is 0.25★+ above the comfort level (highest first) and three 0.25★+ below it
-    (lowest first): the same levels as the Overview's skill charts."""
-    if rd.comfort is None:
-        return [], []
-    known = [s for s in rd.skills if s.level is not None]
-    strong = sorted((s for s in known if s.level >= rd.comfort + STRONG_WEAK), key=lambda s: -s.level)
-    weak = sorted((s for s in known if s.level <= rd.comfort - STRONG_WEAK), key=lambda s: s.level)
-    return [s.label for s in strong[:3]], [s.label for s in weak[:3]]
+# ------------------------------------------------------------------ comparing with other star ratings, consistency
+AHEAD = 2.0  # star ratings more than this many stars above comfort are locked
+STEP = 0.5  # the star ratings offered near comfort
+TARGETS = (1.0, 13.0)  # the star ratings a player can compare with
 
 
 def consistency(p: Profile) -> S.Consistency:
     return S.Consistency(
-        min_plays=R.BAND_MIN_PLAYS,
-        bands=[S.ConsistencyBand(**b) for b in R.consistency_bands(p.replays)],
+        min_plays=BAND_MIN_PLAYS,
+        bands=[S.ConsistencyBand(**b) for b in consistency_bands(p.replays)],
     )
 
 

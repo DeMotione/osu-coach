@@ -75,23 +75,12 @@ class SkillScore(BaseModel):
     facts: list[str] = Field(description="The player's own numbers behind the score.")
 
 
-class SkillLevel(BaseModel):
-    key: str
-    label: str
-    level: float | None = Field(
-        description="Star rating of a typical map whose demand on this skill matches what the player has shown; "
-        "readiness for a target T = 1 − ((T / level)² − 1), clipped to 0–1."
-    )
-    facts: list[str] = Field(description="What the level is measured from.")
-
-
-class Readiness(BaseModel):
-    comfort: float | None = Field(description="The comfort level (★) the targets are counted from.")
-    ahead: float = Field(description="Targets more than this many stars above comfort are locked.")
-    step: float = Field(description="Distance between the targets offered near comfort (★).")
+class StarCompare(BaseModel):
+    comfort: float | None = Field(description="The comfort level (★) every comparison is counted from.")
+    ahead: float = Field(description="Star ratings more than this many stars above comfort are locked.")
+    step: float = Field(description="Distance between the star ratings offered near comfort (★).")
     min_target: float = Field(description="Lowest star rating to compare with.")
     max_target: float = Field(description="Highest star rating to compare with.")
-    skills: list[SkillLevel]
 
 
 class ConsistencyBand(BaseModel):
@@ -140,7 +129,7 @@ class Overview(BaseModel):
     skills: list[SkillScore]
     reading_split: ReadingSplit
     few_data: list[str] = Field(description="Skills measured on few maps or notes.")
-    readiness: Readiness
+    compare: StarCompare
     consistency: Consistency
     stamina: list[StaminaPoint] = Field(description="Tempo kept per duration (empty without a stamina score).")
     sliders_scored: bool

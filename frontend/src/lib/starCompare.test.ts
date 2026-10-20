@@ -1,24 +1,29 @@
 import { describe, expect, it } from "vitest";
 
-import { COMFORT_HINT, LOCKED_HINT, defaultTarget, feltHarder, outOfReachFrom, readiness, starLabel, targetOptions } from "./readiness";
+import { COMFORT_HINT, LOCKED_HINT, defaultTarget, feltHarder, outOfReachFrom, scoreAt, starLabel, targetOptions } from "./starCompare";
 import { starColor, starGlow, starTextColor } from "./starColors";
 
 const range = (comfort: number) => ({ comfort, ahead: 2, step: 0.5, min: 1, max: 13 });
 
-describe("readiness", () => {
-  it("follows the square of the star ratio", () => {
-    expect(readiness(7, 7)).toBe(1);
-    expect(readiness(5, 6)).toBeCloseTo(0.56);
+describe("comparing with other star ratings", () => {
+  it("takes the felt difficulty off the comfort score on harder maps", () => {
     expect(feltHarder(5, 6)).toBeCloseTo(0.44);
-    expect(readiness(7, 10)).toBe(0);
-    expect(readiness(8, 7)).toBe(1);
-    expect(readiness(null, 8)).toBeNull();
+    expect(scoreAt(67, 6.59, 6.59)).toBe(67);
+    expect(scoreAt(60, 5, 6)).toBeCloseTo(60 * 0.56);
+    expect(scoreAt(88, 7, 7 * Math.SQRT2)).toBeCloseTo(0);
+    expect(scoreAt(88, 7, 11)).toBe(0);
     expect(outOfReachFrom(7)).toBeCloseTo(9.9, 1);
   });
 
-  it("is never higher for a harder target", () => {
-    for (const level of [3.2, 6.57, 11]) {
-      const values = [1, 3, 5, 7, 7.5, 8, 9, 13].map((t) => readiness(level, t) as number);
+  it("closes the gap to 100 on easier maps", () => {
+    expect(scoreAt(60, 6, 3)).toBeCloseTo(100 - 40 * 0.25);
+    expect(scoreAt(28, 6.59, 1)).toBeGreaterThan(98);
+    expect(scoreAt(null, 6.59, 5)).toBeNull();
+  });
+
+  it("is never higher for a harder star rating", () => {
+    for (const score of [12, 50, 88]) {
+      const values = [1, 3, 5, 6.59, 7, 8, 9, 13].map((t) => scoreAt(score, 6.59, t) as number);
       expect(values).toEqual([...values].sort((a, b) => b - a));
     }
   });

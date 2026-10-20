@@ -1,6 +1,6 @@
 import { useId, type CSSProperties } from "react";
 
-import type { TargetOption } from "../lib/readiness";
+import type { TargetOption } from "../lib/starCompare";
 import { starColor, starGlow, starTextColor } from "../lib/starColors";
 import { IconLock } from "./icons";
 

@@ -24,7 +24,6 @@ from osu_coach.profile.domain.experimental import ratings as experimental_rating
 from osu_coach.profile.domain.levels import LEVEL_BAND, LEVEL_SIGMA, _levels, clean_pass, detect_level, replay_weight
 from osu_coach.profile.domain.misses import _local_eq, fit_miss_model, miss_causes
 from osu_coach.profile.domain.model import Profile
-from osu_coach.profile.domain.readiness import level_inputs, section_levels
 from osu_coach.profile.domain.reading import _reading_metrics, _reading_ratios
 from osu_coach.profile.domain.skills import _rank_skills, compute_skills
 from osu_coach.profile.domain.stamina import STAMINA_REACH
@@ -167,13 +166,12 @@ def build_profile(
         level_sigma=LEVEL_SIGMA,
         weighted=bool(weighted),
     )
-    experimental_skills, readiness = {}, {}
+    experimental_skills = {}
     if experimental:
         lab_comfort = experimental_comfort(metas)
         levels["comfort_stars"] = float(level) if override else lab_comfort
         levels["comfort_source"] = "Manual override" if override else "Recent successful map/mod configurations"
         experimental_skills = experimental_ratings(O, metas, float(level) if override else lab_comfort)
-        readiness = {"sections": section_levels(P, metas), "inputs": level_inputs(P, metas, experimental_skills)}
     return Profile(
         overview=overview,
         replays=metas,
@@ -202,5 +200,4 @@ def build_profile(
         miss_breakdown_raw=miss_breakdown_raw,
         fall_behind=fall,
         experimental_skills=experimental_skills,
-        readiness=readiness,
     )

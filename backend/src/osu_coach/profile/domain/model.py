@@ -36,4 +36,3 @@ class Profile:
     miss_breakdown_raw: dict = field(default_factory=dict)  # the same, unweighted counts
     fall_behind: dict = field(default_factory=dict)  # stream_fall_behind()
     experimental_skills: dict = field(default_factory=dict)  # Lab comfort-relative abilities
-    readiness: dict = field(default_factory=dict)  # skill levels in stars + pool-level inputs (readiness.py)

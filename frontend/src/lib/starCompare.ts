@@ -1,8 +1,10 @@
 /**
- * Readiness of a skill for maps of a target star rating, from the skill's level in stars (the backend's
- * profile/domain/readiness.py). osu! rates a skill as the square root of its strain, so a target asks
- * (target / level)² times the strain the skill handles: it feels that much minus 1 harder, and readiness is
- * 1 minus that, clipped to 0–1 (0 = twice the strain: out of reach).
+ * Comparing the comfort-level skill scores with other star ratings. A map of ``target`` stars feels
+ * ``(target / comfort)² − 1`` harder than the comfort level (osu! rates a skill as the square root of its strain, so
+ * strain grows with the square of the star rating): +1★ for a 5★ player feels 44% harder, +2★ 96%.
+ *
+ * * harder: the score loses that share, so it reaches 0 (out of reach) at comfort × √2 — twice the strain;
+ * * easier: the gap to 100 shrinks by the same ratio, so scores rise towards 100 on easy maps.
  */
 
 export const LOCKED_HINT = "Locked. Not enough skill to compare with this level.";
@@ -10,19 +12,21 @@ export const COMFORT_HINT = "Your comfort level";
 
 const tenth = (v: number) => Math.round(v * 10) / 10;
 
-export function readiness(level: number | null | undefined, target: number): number | null {
-  if (level === null || level === undefined || !Number.isFinite(level) || level <= 0) return null;
-  return Math.min(1, Math.max(0, 2 - (target / level) ** 2));
+/** How much harder the target feels than the comfort level (0.33 = 33% harder; negative = easier). */
+export function feltHarder(comfort: number, target: number): number {
+  return (target / comfort) ** 2 - 1;
 }
 
-/** How much harder the target feels than the skill's level (0.48 = 48% harder; negative = easier). */
-export function feltHarder(level: number, target: number): number {
-  return (target / level) ** 2 - 1;
+/** A comfort-level score (0–100) moved to another star rating. */
+export function scoreAt(score: number | null | undefined, comfort: number, target: number): number | null {
+  if (score === null || score === undefined || !Number.isFinite(score) || !(comfort > 0)) return null;
+  const ratio = (target / comfort) ** 2;
+  return ratio >= 1 ? score * Math.max(0, 2 - ratio) : 100 - (100 - score) * ratio;
 }
 
-/** The star rating from which a skill is out of reach (readiness 0). */
-export function outOfReachFrom(level: number): number {
-  return level * Math.SQRT2;
+/** From this star rating every skill is out of reach (twice the strain of the comfort level). */
+export function outOfReachFrom(comfort: number): number {
+  return comfort * Math.SQRT2;
 }
 
 /** "7★" for whole stars, "7.5★" otherwise. */

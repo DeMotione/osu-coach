@@ -1996,7 +1996,7 @@ export interface components {
              * @description Skills measured on few maps or notes.
              */
             few_data: string[];
-            readiness: components["schemas"]["Readiness"];
+            compare: components["schemas"]["StarCompare"];
             consistency: components["schemas"]["Consistency"];
             /**
              * Stamina
@@ -2306,36 +2306,6 @@ export interface components {
             misses: number;
             /** Objects */
             objects: number;
-        };
-        /** Readiness */
-        Readiness: {
-            /**
-             * Comfort
-             * @description The comfort level (★) the targets are counted from.
-             */
-            comfort: number | null;
-            /**
-             * Ahead
-             * @description Targets more than this many stars above comfort are locked.
-             */
-            ahead: number;
-            /**
-             * Step
-             * @description Distance between the targets offered near comfort (★).
-             */
-            step: number;
-            /**
-             * Min Target
-             * @description Lowest star rating to compare with.
-             */
-            min_target: number;
-            /**
-             * Max Target
-             * @description Highest star rating to compare with.
-             */
-            max_target: number;
-            /** Skills */
-            skills: components["schemas"]["SkillLevel"][];
         };
         /** ReadingKpis */
         ReadingKpis: {
@@ -2708,23 +2678,6 @@ export interface components {
             /** Sayo Rt Lower Mm */
             sayo_rt_lower_mm?: number | null;
         };
-        /** SkillLevel */
-        SkillLevel: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
-            /**
-             * Level
-             * @description Star rating of a typical map whose demand on this skill matches what the player has shown; readiness for a target T = 1 − ((T / level)² − 1), clipped to 0–1.
-             */
-            level: number | null;
-            /**
-             * Facts
-             * @description What the level is measured from.
-             */
-            facts: string[];
-        };
         /** SkillMeta */
         SkillMeta: {
             /** Key */
@@ -2851,6 +2804,34 @@ export interface components {
             bpm: number;
             /** Typical */
             typical: number | null;
+        };
+        /** StarCompare */
+        StarCompare: {
+            /**
+             * Comfort
+             * @description The comfort level (★) every comparison is counted from.
+             */
+            comfort: number | null;
+            /**
+             * Ahead
+             * @description Star ratings more than this many stars above comfort are locked.
+             */
+            ahead: number;
+            /**
+             * Step
+             * @description Distance between the star ratings offered near comfort (★).
+             */
+            step: number;
+            /**
+             * Min Target
+             * @description Lowest star rating to compare with.
+             */
+            min_target: number;
+            /**
+             * Max Target
+             * @description Highest star rating to compare with.
+             */
+            max_target: number;
         };
         /** StreamAlong */
         StreamAlong: {

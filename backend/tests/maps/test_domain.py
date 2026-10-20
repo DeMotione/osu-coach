@@ -11,7 +11,6 @@ from osu_coach.maps.domain import (
     Targets,
     build_playlist,
     collection_name,
-    demand_curves,
     suggest,
     targets_from_profile,
 )
@@ -153,16 +152,3 @@ def test_accuracy_maps_have_tight_hit_windows_for_the_level():
     pl = build_playlist(pool, "accuracy", Targets(comfort=4.0), n=9)
     level = pool[(pool["stars"] - pl["stars"].mean()).abs() < 0.5]
     assert pl["od"].mean() > level["od"].mean()
-
-
-@pytest.mark.skipif(not POOL_PATH.exists(), reason="bundled pool not built")
-def test_demand_curves_get_harder_with_stars_and_with_dt():
-    pool = load_pool()
-    nm, dt = demand_curves(pool, 0.0), demand_curves(pool, 1.0)
-    stars, window, _ = dt["window"]
-    assert stars.min() <= 6 and stars.max() >= 10
-    assert window[stars == 10.0][0] < window[stars == 6.0][0]  # tighter 300 windows on harder maps
-    speed = dt["slider_speed"][1]
-    assert speed[stars == 10.0][0] > speed[stars == 6.0][0]
-    nm_window = dict(zip(*nm["window"][:2]))
-    assert window[stars == 7.0][0] < nm_window[7.0]  # DT maps of the same star rating have tighter windows
