@@ -32,8 +32,8 @@ def test_every_page_renders_with_real_replays(analysed, page):
 
 
 def test_skills_against_other_star_ratings(tmp_path, client):
-    """With a comfort level, its scores move to every star rating within 2★ of it: lower on harder maps, as are the
-    chances to pass one cleanly; the star ratings further away are locked."""
+    """With a comfort level, its scores move to every star rating up to 2★ above it: lower on harder maps, as are the
+    chances to pass one cleanly; the star ratings further above are locked, easier ones never."""
     scan(client, plays_folder(tmp_path, names=list(INDEX)))
     analyse(client, player="*")
     ov = client.get("/api/profile/overview").json()
@@ -42,7 +42,7 @@ def test_skills_against_other_star_ratings(tmp_path, client):
     stars = [t["stars"] for t in cmp["targets"]]
     assert stars[0] == 1 and stars[-1] == 13 and stars == sorted(stars)
     open_ = [t for t in cmp["targets"] if not t["locked"]]
-    assert all(abs(t["stars"] - round(cmp["comfort"], 1)) <= 2 + 1e-9 for t in open_) and len(open_) == 9
+    assert [t["stars"] for t in open_] == [s for s in stars if s <= round(cmp["comfort"], 1) + 2 + 1e-9]
     assert all(t["skills"] == [] and t["pass_chance"] is None for t in cmp["targets"] if t["locked"])
     assert cmp["default_target"] in [t["stars"] for t in open_]
     (at_comfort,) = [t for t in open_ if t["comfort"]]
@@ -57,6 +57,12 @@ def test_skills_against_other_star_ratings(tmp_path, client):
     for t in open_:
         scores = {s["key"]: s["score"] for s in t["skills"] if s["score"] is not None}
         assert t["weakest"] == min(scores, key=scores.get)
+        # consistency is measured on the player's maps from a star below that star rating up to it
+        cs = next(s for s in t["skills"] if s["key"] == "consistency")
+        assert cs["demand"] is None and isinstance(cs["maps"], int)
+        assert (cs["score"] is None) == (cs["needs"] is not None)
+        if cs["needs"] and not t["comfort"]:
+            assert f"between {t['stars'] - 1:.1f}★ and {t['stars']:.1f}★" in cs["needs"]
 
 
 def test_replays_table_newest_first_with_weights(analysed):

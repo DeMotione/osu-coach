@@ -80,13 +80,17 @@ SKILL_HELP = {
         "with BPM changes, hitting the first notes after each change on time.",
     ),
     "consistency": (
-        "Consistency: how steadily you keep your combo and your accuracy from map to map on different maps "
-        "within ±1★ of your comfort level.",
-        "Score: per map (the average of its plays), the share of the max combo you held and your accuracy on a "
-        "93–99% scale; each is your usual level minus how much it swings between maps. The better of the two "
-        "counts 70%, the other 30%: holding one well is good, holding both is close to 100. Needs 8 different maps.",
-        "Play many different maps around your comfort level instead of retrying one, and aim to finish each one "
-        "cleanly rather than chase one great result.",
+        "Consistency: how steadily you keep your combo and your accuracy from map to map on the maps up to a star "
+        "below a star rating (at 6.2★: maps of 5.2–6.2★ with mods; harder maps never count): at your comfort level, "
+        "and in the comparison at each star rating.",
+        "Score: every play gets a map score from how much of the combo you hold (10% of the max combo = 0, 30% "
+        "= 0.48, 50% = 0.70, a full combo = 1: holding big parts counts, not only full combos) and your accuracy "
+        "(88% = 0, 94% = 1). The better of the two counts 70%, the other 30%, and a play that keeps less than about "
+        "20% of the combo fades to 0. Each map counts once (its plays averaged), a map a star easier half as much as "
+        "one at the star rating; consistency = your usual map score minus half how much it swings between maps. "
+        "Needs 8 different maps; the more maps, the more reliable.",
+        "Play many different maps of that star rating instead of retrying one: keep long stretches of combo and "
+        "your accuracy up on every one, rather than chasing one great result.",
     ),
 }
 MISS_LABELS = {

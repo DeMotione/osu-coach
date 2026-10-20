@@ -17,16 +17,15 @@ const target = (stars: number, pass_chance: number | null, extra: Partial<Schema
 const compare: Schemas["StarCompare"] = {
   comfort: 6.27,
   max_gap: 2,
-  targets: [target(4, null), target(4.3, 0.99), target(6.3, 0.75, { comfort: true }), target(7.3, 0.36), target(8.3, 0.0001), target(9, null)],
+  targets: [target(4, 0.999), target(4.3, 0.99), target(6.3, 0.75, { comfort: true }), target(7.3, 0.36), target(8.3, 0.0001), target(9, null)],
   default_target: 7.3,
 };
 
 describe("comparing with other star ratings", () => {
-  it("offers the star ratings from the API, those more than 2★ away locked", () => {
+  it("offers the star ratings from the API, those more than 2★ above locked", () => {
     const options = targetOptions(compare);
     expect(options.map((o) => o.label)).toEqual(["4★", "4.3★", "6.3★", "7.3★", "8.3★", "9★"]);
-    expect(options.filter((o) => o.disabled).map((o) => o.value)).toEqual([4, 9]);
-    expect(options[0].title).toContain("more than 2★ below your comfort level");
+    expect(options.filter((o) => o.disabled).map((o) => o.value)).toEqual([9]); // easier ones are never locked
     expect(options.at(-1)?.title).toContain("more than 2★ above your comfort level");
     expect(options.find((o) => o.comfort)).toMatchObject({ value: 6.3, title: `${COMFORT_HINT} · clean pass 75%` });
     expect(options.find((o) => o.value === 8.3)?.title).toBe("clean pass <1%");

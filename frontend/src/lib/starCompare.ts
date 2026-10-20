@@ -1,7 +1,7 @@
 /**
- * Comparing the comfort-level scores with other star ratings. The API moves every score to each star rating within
- * `max_gap` stars of the comfort level (lower on harder maps, by how much more their typical maps demand of the
- * skill) with the chance to pass such a map cleanly; the star ratings further away come locked.
+ * Comparing the comfort-level scores with other star ratings. The API moves every score to each star rating up to
+ * `max_gap` stars above the comfort level and to every easier one (lower on harder maps, by how much more their typical
+ * maps demand of the skill) with the chance to pass such a map cleanly; the star ratings further above come locked.
  */
 import type { Schemas } from "../api/client";
 
@@ -48,10 +48,9 @@ export interface TargetOption {
 
 /** The star ratings to pick from: the clean-pass chance in the hint, the ones too far away locked. */
 export function targetOptions(compare: StarCompare): TargetOption[] {
-  const comfort = compare.comfort ?? 0;
   return compare.targets.map((t) => {
     const title = t.locked
-      ? `Locked: more than ${starLabel(compare.max_gap)} ${t.stars > comfort ? "above" : "below"} your comfort level is too big a difference to compare.`
+      ? `Locked: more than ${starLabel(compare.max_gap)} above your comfort level is too big a step to compare yet.`
       : [t.comfort ? COMFORT_HINT : "", t.pass_chance === null ? "" : `clean pass ${chanceLabel(t.pass_chance)}`].filter(Boolean).join(" · ");
     return { value: t.stars, label: starLabel(t.stars), disabled: t.locked, comfort: t.comfort, title: title || undefined };
   });

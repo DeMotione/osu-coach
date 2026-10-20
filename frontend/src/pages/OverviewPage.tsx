@@ -33,8 +33,6 @@ function OverviewBody({ ov }: { ov: Overview }) {
   const meta = useMeta();
   const k = ov.kpis;
   const help = meta.data?.skills;
-  // consistency is measured around the comfort level only, so the comparison with other star ratings leaves it out
-  const compared = useMemo(() => ov.skills.filter((s) => s.key !== "consistency"), [ov.skills]);
   const skillsChart = useCallback((t: ChartTheme) => skillBars(ov.skills, help ?? [], t), [ov.skills, help]);
   const descriptions = useMemo(
     () => Object.fromEntries((meta.data?.miss_causes ?? []).map((m) => [m.key, m.description])),
@@ -57,11 +55,11 @@ function OverviewBody({ ov }: { ov: Overview }) {
       </Tiles>
       <Card
         title="Skills at your comfort level"
-        sub={`Experimental replay ratings, 0–100; 50 = expected performance at your ${stars(k.comfort_stars, 1)} comfort level under assumed curves. Most skills use the best play per map/mod; Timing accuracy uses weighted hit single notes from all selected replays. Consistency: how steadily you hold combo and accuracy on different maps within ±1★ of your comfort level. Grey = not measured yet: point at a bar to see what to play.`}
+        sub={`Experimental replay ratings, 0–100; 50 = expected performance at your ${stars(k.comfort_stars, 1)} comfort level under assumed curves. Most skills use the best play per map/mod; Timing accuracy uses weighted hit single notes from all selected replays. Consistency: how steadily you hold combo and accuracy on different maps from a star below your comfort level up to it (harder maps don't count yet). Grey = not measured yet: point at a bar to see what to play.`}
       >
         <Chart build={skillsChart} height={skillsHeight} label="Skill scores against your level" />
       </Card>
-      <CompareCard compare={ov.compare} skills={compared} help={help} height={Math.max(320, compared.length * 44)} />
+      <CompareCard compare={ov.compare} skills={ov.skills} help={help} height={skillsHeight} />
       <Row>
         <Card
           title="Why you miss"
@@ -248,7 +246,7 @@ function CompareCard({
   return (
     <Card
       title="Compare with other star ratings"
-      sub={`Your comfort-level scores (above) on easier and harder maps. Harder maps demand more of every skill, so the scores drop, each by how much more typical maps of that star rating demand of it (measured on ranked maps). You can compare up to ${starLabel(compare.max_gap)} either side of your comfort level.`}
+      sub={`Your comfort-level scores (above) on easier and harder maps. Harder maps demand more of every skill, so the scores drop, each by how much more typical maps of that star rating demand of it (measured on ranked maps). Consistency is measured on your own maps from a star below that star rating up to it instead (at 7★: 6–7★), so play some to see it. You can compare any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level.`}
     >
       {target === null || compare.comfort === null ? (
         <Alert>Your comfort level isn't known yet: analyse at least 3 recent maps you finished cleanly.</Alert>

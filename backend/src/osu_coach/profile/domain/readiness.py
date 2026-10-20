@@ -11,7 +11,7 @@ Together::
 So every score falls as the star rating rises, each by how much more its maps demand (accuracy: the same hit-error
 spread in a narrower 300 window), and rises on easier maps. The comfort level is made of clean passes (its 75th
 percentile), so the pass chance is p₀ there and falls with every star above it. Consistency has its own card and is
-left out. Star ratings more than :data:`MAX_GAP` from the comfort level are too far to compare.
+left out. Star ratings more than :data:`MAX_GAP` above the comfort level are too far to compare.
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ SKILLS = ("aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading
 PASS_SPREAD = 0.6  # ★: a star above the comfort level takes the pass chance from 75% to ~36%, two stars to ~10%
 PASS_AT_LEVEL = 0.75  # clean-pass chance on maps of the comfort level (a 75th percentile of clean passes)
 
-# the star ratings offered to compare with: half stars up to MAX_GAP either side of the comfort level; the whole
-# stars beyond that, from 1★ to 13★, are shown locked
+# the star ratings offered to compare with: every whole star from 1★ to 13★ and half stars near the comfort level;
+# those more than MAX_GAP above it are shown locked
 MAX_GAP = 2.0
 TARGET_STEP = 0.5
 TARGET_RANGE = (1.0, 13.0)
@@ -101,26 +101,25 @@ def compare_at(rows: dict[str, dict], theta: float, target: float) -> dict:
     }
 
 
-def targets(comfort: float) -> list[tuple[float, bool]]:
-    """The star ratings to compare with, easiest first, and whether each is locked (more than :data:`MAX_GAP` from
-    the comfort level): half stars around the comfort level, the whole stars beyond them."""
+def _half_star_below(comfort: float) -> tuple[float, float]:
+    """The comfort level (to 0.1★, within 1–13★) and the half star at or below it."""
     lo, hi = TARGET_RANGE
     base = round(min(max(comfort, lo), hi), 1)
-    steps = round(MAX_GAP / TARGET_STEP)
-    near = [v for i in range(-steps, steps + 1) if lo <= (v := round(base + i * TARGET_STEP, 1)) <= hi]
-    for end in (lo, hi):  # 1★ / 13★ within reach: offered too (instead of a half step right next to it)
-        if abs(end - base) > MAX_GAP or end in near:
-            continue
-        closest = min(near, key=lambda v: abs(v - end))
-        if abs(closest - end) < TARGET_STEP / 2 and closest != base:
-            near.remove(closest)
-        near.append(end)
-    far = [float(s) for s in range(int(lo), int(hi) + 1) if abs(s - base) > MAX_GAP]
-    return sorted([(v, False) for v in near] + [(v, True) for v in far])
+    return base, math.floor(base / TARGET_STEP + 1e-9) * TARGET_STEP
+
+
+def targets(comfort: float) -> list[tuple[float, bool]]:
+    """The star ratings to compare with, easiest first, and whether each is locked: every whole star from 1★ to 13★,
+    the comfort level itself and the two half stars either side of it (6.15★: 5.5, 6, 6.5 and 7★; 6.55★: 6, 6.5, 7
+    and 7.5★). Only star ratings more than :data:`MAX_GAP` above the comfort level are locked; easier ones never."""
+    lo, hi = TARGET_RANGE
+    base, half = _half_star_below(comfort)
+    near = {round(half + i * TARGET_STEP, 1) for i in (-1, 0, 1, 2)}
+    stars = sorted(s for s in {float(s) for s in range(int(lo), int(hi) + 1)} | near | {base} if lo <= s <= hi)
+    return [(s, s > base + MAX_GAP + 1e-9) for s in stars]
 
 
 def default_target(comfort: float) -> float:
-    """One star above the comfort level (or the highest one offered)."""
-    lo, hi = TARGET_RANGE
-    base = round(min(max(comfort, lo), hi), 1)
-    return round(min(base + 1.0, hi), 1)
+    """The half star a star above the comfort level (6.15★: 7★), or the highest one offered."""
+    _, half = _half_star_below(comfort)
+    return round(min(half + 1.0, TARGET_RANGE[1]), 1)

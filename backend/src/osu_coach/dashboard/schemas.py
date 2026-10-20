@@ -86,13 +86,18 @@ class CompareSkill(BaseModel):
     demand: float | None = Field(
         description="How many times what typical maps of the comfort level demand of the skill (1.25 = 25% more)."
     )
+    maps: int | None = Field(
+        description="Consistency only (measured on the player's maps of this star rating, not moved from the comfort "
+        "level): how many different maps it is measured on. null for the other skills."
+    )
+    needs: str | None = Field(description="Consistency without a score here: what to play to get one.")
 
 
 class CompareTarget(BaseModel):
     stars: float = Field(description="The star rating compared with.")
     comfort: bool = Field(description="Whether this is the comfort level.")
     locked: bool = Field(
-        description="More than `max_gap` stars from the comfort level: too far to compare, so no skills or chance."
+        description="More than `max_gap` stars above the comfort level: too far to compare, so no skills or chance."
     )
     skills: list[CompareSkill]
     weakest: str | None = Field(description="Key of the skill with the lowest score here.")
@@ -104,7 +109,7 @@ class CompareTarget(BaseModel):
 
 class StarCompare(BaseModel):
     comfort: float | None = Field(description="The comfort level (★) the scores are moved from.")
-    max_gap: float = Field(description="Star ratings further than this from the comfort level are locked (★).")
+    max_gap: float = Field(description="Star ratings more than this above the comfort level are locked (★).")
     targets: list[CompareTarget] = Field(description="The star ratings to compare with, easiest first.")
     default_target: float | None = Field(description="The star rating shown first: one star above comfort.")
 

@@ -149,7 +149,14 @@ describe("comparison bars", () => {
     stars,
     comfort,
     locked: false,
-    skills: rows.map(([score, change], i) => ({ key: skills[i].key, score, change, demand: change === null ? null : 1 - change / 100 })),
+    skills: rows.map(([score, change], i) => ({
+      key: skills[i].key,
+      score,
+      change,
+      demand: change === null ? null : 1 - change / 100,
+      maps: null,
+      needs: null,
+    })),
     weakest: "sliders",
     pass_chance: 0.36,
   });
@@ -187,6 +194,25 @@ describe("comparison bars", () => {
     expect(html).toContain("W &lt;b&gt;");
     expect(compareHover(skills[0], easier, 6.59)).toContain("5% less of this skill");
     expect(compareHover(skills[2], harder, 6.59)).toContain("not enough data");
+  });
+
+  it("measures consistency on the maps of the star rating picked: a grey bar and what to play until then", () => {
+    const all = [...skills, skill("consistency", 40)];
+    const target = (row: Partial<Schemas["CompareSkill"]>) => {
+      const t7 = at(7.5, [[61, -6], [19, -9], [null, null]]);
+      return { ...t7, skills: [...t7.skills, { key: "consistency", score: null, change: null, demand: null, maps: 3, needs: null, ...row }] };
+    };
+    const needs = "Play 5 more different 7★ maps (7.00–7.99★ with mods)";
+    const missing = target({ needs });
+    const o = (compareBars(all, missing, 6.59, t) as { baseOption: AnyOption }).baseOption;
+    const bar = (o.series![1].data as { value: number; label: { formatter?: string } }[])[3];
+    expect(bar.value).toBe(100);
+    expect(bar.label.formatter).toBe("Not enough data");
+    expect(values(o, 0)[3]).toBe(0); // no faded comfort-level bar behind it
+    expect(compareHover(all[3], missing, 6.59)).toContain(`To get a score: ${needs}`);
+    const measured = compareHover(all[3], target({ score: 55, change: 15, maps: 12 }), 6.59);
+    expect(measured).toContain("consistency label at 7.5★: 55 (+15 against your comfort level)");
+    expect(measured).toContain("Measured on your 12 different maps from 6.5★ to 7.5★");
   });
 });
 

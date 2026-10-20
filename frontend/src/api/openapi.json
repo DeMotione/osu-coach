@@ -3647,6 +3647,30 @@
             ],
             "title": "Demand",
             "description": "How many times what typical maps of the comfort level demand of the skill (1.25 = 25% more)."
+          },
+          "maps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maps",
+            "description": "Consistency only (measured on the player's maps of this star rating, not moved from the comfort level): how many different maps it is measured on. null for the other skills."
+          },
+          "needs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs",
+            "description": "Consistency without a score here: what to play to get one."
           }
         },
         "type": "object",
@@ -3654,7 +3678,9 @@
           "key",
           "score",
           "change",
-          "demand"
+          "demand",
+          "maps",
+          "needs"
         ],
         "title": "CompareSkill"
       },
@@ -3673,7 +3699,7 @@
           "locked": {
             "type": "boolean",
             "title": "Locked",
-            "description": "More than `max_gap` stars from the comfort level: too far to compare, so no skills or chance."
+            "description": "More than `max_gap` stars above the comfort level: too far to compare, so no skills or chance."
           },
           "skills": {
             "items": {
@@ -8462,7 +8488,7 @@
           "max_gap": {
             "type": "number",
             "title": "Max Gap",
-            "description": "Star ratings further than this from the comfort level are locked (★)."
+            "description": "Star ratings more than this above the comfort level are locked (★)."
           },
           "targets": {
             "items": {

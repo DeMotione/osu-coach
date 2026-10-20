@@ -1242,6 +1242,16 @@ export interface components {
              * @description How many times what typical maps of the comfort level demand of the skill (1.25 = 25% more).
              */
             demand: number | null;
+            /**
+             * Maps
+             * @description Consistency only (measured on the player's maps of this star rating, not moved from the comfort level): how many different maps it is measured on. null for the other skills.
+             */
+            maps: number | null;
+            /**
+             * Needs
+             * @description Consistency without a score here: what to play to get one.
+             */
+            needs: string | null;
         };
         /** CompareTarget */
         CompareTarget: {
@@ -1257,7 +1267,7 @@ export interface components {
             comfort: boolean;
             /**
              * Locked
-             * @description More than `max_gap` stars from the comfort level: too far to compare, so no skills or chance.
+             * @description More than `max_gap` stars above the comfort level: too far to compare, so no skills or chance.
              */
             locked: boolean;
             /** Skills */
@@ -2830,7 +2840,7 @@ export interface components {
             comfort: number | null;
             /**
              * Max Gap
-             * @description Star ratings further than this from the comfort level are locked (★).
+             * @description Star ratings more than this above the comfort level are locked (★).
              */
             max_gap: number;
             /**

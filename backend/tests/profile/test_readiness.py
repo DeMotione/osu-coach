@@ -101,8 +101,19 @@ def test_the_star_ratings_to_compare_with(comfort):
     assert stars == sorted(stars) and len(set(stars)) == len(stars)
     assert stars[0] == 1.0 and stars[-1] == 13.0
     assert (base, False) in options and (default_target(comfort), False) in options
-    for s, locked in options:  # more than 2★ away is locked, the rest is open
-        assert locked == (abs(s - base) > MAX_GAP + 1e-9), s
-    open_ = [s for s, locked in options if not locked]
-    assert min(b - a for a, b in zip(open_, open_[1:], strict=False)) >= 0.1 - 1e-9 if len(open_) > 1 else True
+    assert {float(s) for s in range(1, 14)} <= set(stars)  # every whole star
+    for s, locked in options:  # only more than 2★ above is locked: any easier star rating is open
+        assert locked == (s > base + MAX_GAP + 1e-9), s
     assert all(s == int(s) for s, locked in options if locked)
+
+
+@pytest.mark.parametrize(
+    "comfort,near,default",
+    [(6.15, [5.5, 6.0, 6.5, 7.0], 7.0), (6.55, [6.0, 6.5, 7.0, 7.5], 7.5), (6.0, [5.5, 6.0, 6.5, 7.0], 7.0)],
+)
+def test_half_stars_near_the_comfort_level(comfort, near, default):
+    """The two half stars either side of the comfort level, the whole stars and the comfort level itself."""
+    stars = [s for s, _ in targets(comfort)]
+    base = round(comfort, 1)
+    assert {s for s in stars if s != int(s)} - {base} == {s for s in near if s != int(s)} - {base}
+    assert set(near) <= set(stars) and default_target(comfort) == default

@@ -13,7 +13,7 @@ import pandas as pd
 
 from osu_coach.analysis.skill_scale import SPEED_POINTS, expected_speed_bpm
 from osu_coach.profile.domain.aim import aim_values, flow_values
-from osu_coach.profile.domain.consistency import comfort_consistency
+from osu_coach.profile.domain.consistency import star_consistency
 from osu_coach.profile.domain.levels import RECENT_DAYS, RECENT_MIN, replay_weight
 from osu_coach.profile.domain.reading import reading_values
 from osu_coach.profile.domain.sliders import slider_difficulty
@@ -31,7 +31,7 @@ POINTS = {
     "accuracy": 25,
     "sliders": 25,
     "reading": 25,
-    "consistency": 0,  # not on this scale: combo and accuracy held around the comfort level (comfort_consistency)
+    "consistency": 0,  # not on this scale: combo and accuracy held per star rating (star_consistency)
 }
 STAMINA_SHARES = {10: 0.55, 30: 0.47, 60: 0.41, 120: 0.38, 300: 0.33}
 ACCURACY_SIGMA_MS = (79.5 - 6 * 8) / 1.959963984540054
@@ -120,7 +120,7 @@ def _aggregate(rows: list[dict]) -> tuple[float | None, list[dict]]:
 def ratings(objects: pd.DataFrame, metas: pd.DataFrame, theta: float | None) -> dict[str, dict]:
     """Eight Lab-style ratings from the existing Coach analysis tables."""
     result = {skill: {"score": None, "maps": 0, "reason": "Comfort not established"} for skill in POINTS}
-    result["consistency"] = comfort_consistency(metas, theta)
+    result["consistency"] = star_consistency(metas, theta, comfort=True)
     if theta is None or not math.isfinite(theta) or objects.empty:
         return result
     O = objects.copy()

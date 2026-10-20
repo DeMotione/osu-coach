@@ -15,6 +15,7 @@ from osu_coach.maps.domain import targets_from_profile
 from osu_coach.maps.service import map_rows
 from osu_coach.maps.skillset import recommend
 from osu_coach.profile.domain import SKILL_LABELS, Profile, weight_table
+from osu_coach.profile.domain.consistency import star_consistency
 from osu_coach.profile.domain.readiness import MAX_GAP, compare_at, default_target, targets
 from osu_coach.tips.service import tip_out, tips
 
@@ -162,15 +163,19 @@ def score_text(v: dict) -> str:
 def experimental_facts(skill: str, row: dict) -> list[str]:
     if skill == "consistency":
         low, high = num(row.get("low")), num(row.get("high"))
-        where = f" between {low:.1f}★ and {high:.1f}★" if low is not None and high is not None else ""
+        where = f" of {low:.1f}–{high:.1f}★" if low is not None and high is not None else ""
         facts = [
-            f"{row.get('maps', 0)} of {row.get('min_maps', 0)} different maps{where} ({row.get('plays', 0)} plays)"
+            f"{row.get('maps', 0)} different maps{where}, {row.get('min_maps', 0)} needed ({row.get('plays', 0)} plays)"
         ]
-        combo, acc = num(row.get("combo")), num(row.get("accuracy"))
-        if combo is not None and acc is not None:
+        usual, swing = num(row.get("map_score")), num(row.get("swing"))
+        if usual is not None and swing is not None:
             facts.append(
-                f"combo held {combo:.0%} (full combo on {num(row.get('full_combo_share')) or 0:.0%} of the maps), "
-                f"accuracy {num(row.get('mean_accuracy')) or 0:.1%} on average, held {acc:.0%} of the 93–99% scale"
+                f"on average you keep {num(row.get('mean_combo')) or 0:.0%} of a map's combo (full combo on "
+                f"{num(row.get('full_combo_share')) or 0:.0%} of the maps) at {num(row.get('mean_accuracy')) or 0:.1%}"
+            )
+            facts.append(
+                f"usual map score {100 * usual:.0f}, swinging ±{100 * swing:.0f} between maps"
+                + (f"; {row['weak_maps']} maps under 20% of the combo" if row.get("weak_maps") else "")
             )
         return facts
     facts = [f"{row.get('maps', 0)} relevant map/mod configurations"]
@@ -301,6 +306,22 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
 
 
 # ------------------------------------------------------------------ comparing with other star ratings
+def consistency_at(p: Profile, comfort: float, stars: float, at_comfort: bool) -> S.CompareSkill:
+    """Consistency isn't moved from the comfort level like the other skills: it is measured on the player's own maps
+    of that star rating (7★ and 7.5★: maps of 7.00–7.99★)."""
+    row = star_consistency(p.replays, comfort if at_comfort else stars, comfort=at_comfort)
+    base = num((p.experimental_skills.get("consistency") or {}).get("score"))
+    score = num(row["score"])
+    return S.CompareSkill(
+        key="consistency",
+        score=score,
+        change=round(score - base, 1) if score is not None and base is not None else None,
+        demand=None,
+        maps=int(row["maps"]),
+        needs=row["needs"],
+    )
+
+
 def star_compare(p: Profile) -> S.StarCompare:
     """The comfort-level scores moved to each star rating offered, with the chance to pass its maps cleanly."""
     comfort = num(p.levels.get("comfort_stars"))
@@ -316,18 +337,22 @@ def star_compare(p: Profile) -> S.StarCompare:
         at_comfort = stars == round(comfort, 1)  # exactly the comfort level, so it shows its own scores
         c = compare_at(p.experimental_skills, comfort, comfort if at_comfort else stars)
         skills = [
-            S.CompareSkill(key=k, score=num(v["score"]), change=num(v["change"]), demand=num(v["demand"]))
+            S.CompareSkill(
+                key=k, score=num(v["score"]), change=num(v["change"]), demand=num(v["demand"]), maps=None, needs=None
+            )
             if v
-            else S.CompareSkill(key=k, score=None, change=None, demand=None)
+            else S.CompareSkill(key=k, score=None, change=None, demand=None, maps=None, needs=None)
             for k, v in c["skills"].items()
         ]
+        skills.append(consistency_at(p, comfort, stars, at_comfort))
+        weakest = min((s for s in skills if s.score is not None), key=lambda s: s.score, default=None)
         out.append(
             S.CompareTarget(
                 stars=stars,
                 comfort=at_comfort,
                 locked=False,
                 skills=skills,
-                weakest=c["weakest"],
+                weakest=weakest.key if weakest else None,
                 pass_chance=num(c["pass_chance"]),
             )
         )

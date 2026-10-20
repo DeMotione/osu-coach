@@ -98,6 +98,17 @@ export function compareHover(s: Skill, target: CompareTarget, comfort: number, h
   const p = (text: string) => `<div style="margin-top:6px">${esc(text)}</div>`;
   const at = starLabel(target.stars);
   const row = target.skills.find((k) => k.key === s.key);
+  // measured on the player's own maps of that star rating (consistency), not moved from the comfort-level score
+  if (row && row.maps !== null) {
+    if (row.score === null)
+      return `<b>${esc(s.label)} at ${esc(at)}: Not enough data</b>${row.needs ? p(`To get a score: ${row.needs}`) : ""}${help ? p(help.what) : ""}`;
+    const vs = s.score === null || target.comfort ? "" : ` (${changeLabel(row.change ?? 0)} against your comfort level)`;
+    let html = `<b>${esc(s.label)} at ${esc(at)}: ${row.score.toFixed(0)}${esc(vs)}</b>`;
+    if (help) html += p(help.what);
+    html += p(`Measured on your ${row.maps} different maps from ${starLabel(target.stars - 1)} to ${at} (the closer to ${at}, the more a map counts); the more maps you play there, the more reliable it is.`);
+    if (help) html += p(`To raise it: ${help.practise}`);
+    return html;
+  }
   if (!row || row.score === null || s.score === null)
     return `<b>${esc(s.label)} at ${esc(at)}: ${esc(s.score_text)}</b>${help ? p(help.what) : ""}`;
   const change = row.change ?? 0;
@@ -123,7 +134,9 @@ export function compareBars(skills: Skill[], target: CompareTarget, comfort: num
   const helpOf = Object.fromEntries(help.map((h) => [h.key, h]));
   const rowOf = Object.fromEntries(target.skills.map((k) => [k.key, k]));
   const here = skills.map((s) => rowOf[s.key]?.score ?? null);
-  const before = skills.map((s) => (target.comfort ? null : s.score));
+  // a skill measured at this star rating that has no score yet (consistency): a grey bar saying so, nothing faded
+  const missing = skills.map((s, i) => here[i] === null && !!rowOf[s.key]?.needs);
+  const before = skills.map((s, i) => (target.comfort || missing[i] ? null : s.score));
   const text = (i: number) => {
     const v = here[i];
     if (v === null) return "–";
@@ -176,11 +189,15 @@ export function compareBars(skills: Skill[], target: CompareTarget, comfort: num
           type: "bar",
           barMaxWidth: 22,
           barGap: "-100%",
-          data: here.map((v, i) => ({
-            value: v ?? 0,
-            itemStyle: { color: scoreColor(v), borderRadius: [0, 3, 3, 0] },
-            label: label(!longer(i)),
-          })),
+          data: here.map((v, i) =>
+            missing[i]
+              ? {
+                  value: 100,
+                  itemStyle: { color: alpha(C.muted, 0.18), borderRadius: [0, 3, 3, 0] },
+                  label: { show: true, position: "insideLeft", color: t.muted, formatter: "Not enough data" },
+                }
+              : { value: v ?? 0, itemStyle: { color: scoreColor(v), borderRadius: [0, 3, 3, 0] }, label: label(!longer(i)) },
+          ),
           label: labels,
           markLine: refLine(t, { xAxis: 50 }),
         },
