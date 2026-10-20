@@ -1223,6 +1223,51 @@ export interface components {
             hit: boolean[];
             summary: components["schemas"]["ClickSummary"] | null;
         };
+        /** CompareSkill */
+        CompareSkill: {
+            /** Key */
+            key: string;
+            /**
+             * Gap
+             * @description Your level minus the star rating compared with (★); 0 or more = ready.
+             */
+            gap: number | null;
+            /**
+             * Score
+             * @description 50 + `points_per_star` per star of gap, 0–100: 50 = exactly ready.
+             */
+            score: number | null;
+        };
+        /** CompareTarget */
+        CompareTarget: {
+            /**
+             * Stars
+             * @description The star rating compared with.
+             */
+            stars: number;
+            /**
+             * Comfort
+             * @description Whether this is the comfort level.
+             */
+            comfort: boolean;
+            /** Skills */
+            skills: components["schemas"]["CompareSkill"][];
+            /**
+             * Effective
+             * @description Your effective level on typical maps of this star rating (★): your skill levels, weighted by how much those maps test each skill, with the weakest deciding most.
+             */
+            effective: number | null;
+            /**
+             * Limiting
+             * @description Key of the skill that holds the effective level back most.
+             */
+            limiting: string | null;
+            /**
+             * Pass Chance
+             * @description Chance to pass a typical map of this star rating cleanly (≤ 5 misses per 100 notes), 0–1.
+             */
+            pass_chance: number | null;
+        };
         /** Consistency */
         Consistency: {
             /** Min Plays */
@@ -2678,6 +2723,28 @@ export interface components {
             /** Sayo Rt Lower Mm */
             sayo_rt_lower_mm?: number | null;
         };
+        /** SkillLevel */
+        SkillLevel: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Level
+             * @description The star rating whose typical maps demand of this skill what you showed (★); null without enough data. Consistency has none (it is no level skill).
+             */
+            level: number | null;
+            /**
+             * Bound
+             * @description `at_least`: you held (nearly) everything you played and nothing much harder, or the level is beyond 13★, so it may be higher; `at_most`: below 1★.
+             */
+            bound: ("at_least" | "at_most") | null;
+            /**
+             * Tested
+             * @description ★ of the hardest demand of this skill you played, when known.
+             */
+            tested: number | null;
+        };
         /** SkillMeta */
         SkillMeta: {
             /** Key */
@@ -2809,29 +2876,29 @@ export interface components {
         StarCompare: {
             /**
              * Comfort
-             * @description The comfort level (★) every comparison is counted from.
+             * @description The comfort level (★) the skill levels are counted from.
              */
             comfort: number | null;
             /**
-             * Ahead
-             * @description Star ratings more than this many stars above comfort are locked.
+             * Points Per Star
+             * @description Points of a comparison bar per star of gap.
              */
-            ahead: number;
+            points_per_star: number;
             /**
-             * Step
-             * @description Distance between the star ratings offered near comfort (★).
+             * Levels
+             * @description Every skill as a star level (empty without a comfort level).
              */
-            step: number;
+            levels: components["schemas"]["SkillLevel"][];
             /**
-             * Min Target
-             * @description Lowest star rating to compare with.
+             * Targets
+             * @description The star ratings to compare with, easiest first.
              */
-            min_target: number;
+            targets: components["schemas"]["CompareTarget"][];
             /**
-             * Max Target
-             * @description Highest star rating to compare with.
+             * Default Target
+             * @description The star rating shown first: one star above comfort.
              */
-            max_target: number;
+            default_target: number | null;
         };
         /** StreamAlong */
         StreamAlong: {

@@ -3606,6 +3606,112 @@
         "title": "Clicks",
         "description": "Where clicks land, in circle radii from the note centre (y down)."
       },
+      "CompareSkill": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "gap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap",
+            "description": "Your level minus the star rating compared with (★); 0 or more = ready."
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "50 + `points_per_star` per star of gap, 0–100: 50 = exactly ready."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "gap",
+          "score"
+        ],
+        "title": "CompareSkill"
+      },
+      "CompareTarget": {
+        "properties": {
+          "stars": {
+            "type": "number",
+            "title": "Stars",
+            "description": "The star rating compared with."
+          },
+          "comfort": {
+            "type": "boolean",
+            "title": "Comfort",
+            "description": "Whether this is the comfort level."
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/CompareSkill"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "effective": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective",
+            "description": "Your effective level on typical maps of this star rating (★): your skill levels, weighted by how much those maps test each skill, with the weakest deciding most."
+          },
+          "limiting": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limiting",
+            "description": "Key of the skill that holds the effective level back most."
+          },
+          "pass_chance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass Chance",
+            "description": "Chance to pass a typical map of this star rating cleanly (≤ 5 misses per 100 notes), 0–1."
+          }
+        },
+        "type": "object",
+        "required": [
+          "stars",
+          "comfort",
+          "skills",
+          "effective",
+          "limiting",
+          "pass_chance"
+        ],
+        "title": "CompareTarget"
+      },
       "Consistency": {
         "properties": {
           "min_plays": {
@@ -8057,6 +8163,67 @@
         "type": "object",
         "title": "SetupUpdate"
       },
+      "SkillLevel": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level",
+            "description": "The star rating whose typical maps demand of this skill what you showed (★); null without enough data. Consistency has none (it is no level skill)."
+          },
+          "bound": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "at_least",
+                  "at_most"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bound",
+            "description": "`at_least`: you held (nearly) everything you played and nothing much harder, or the level is beyond 13★, so it may be higher; `at_most`: below 1★."
+          },
+          "tested": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tested",
+            "description": "★ of the hardest demand of this skill you played, when known."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "level",
+          "bound",
+          "tested"
+        ],
+        "title": "SkillLevel"
+      },
       "SkillMeta": {
         "properties": {
           "key": {
@@ -8430,36 +8597,49 @@
               }
             ],
             "title": "Comfort",
-            "description": "The comfort level (★) every comparison is counted from."
+            "description": "The comfort level (★) the skill levels are counted from."
           },
-          "ahead": {
+          "points_per_star": {
             "type": "number",
-            "title": "Ahead",
-            "description": "Star ratings more than this many stars above comfort are locked."
+            "title": "Points Per Star",
+            "description": "Points of a comparison bar per star of gap."
           },
-          "step": {
-            "type": "number",
-            "title": "Step",
-            "description": "Distance between the star ratings offered near comfort (★)."
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/SkillLevel"
+            },
+            "type": "array",
+            "title": "Levels",
+            "description": "Every skill as a star level (empty without a comfort level)."
           },
-          "min_target": {
-            "type": "number",
-            "title": "Min Target",
-            "description": "Lowest star rating to compare with."
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/CompareTarget"
+            },
+            "type": "array",
+            "title": "Targets",
+            "description": "The star ratings to compare with, easiest first."
           },
-          "max_target": {
-            "type": "number",
-            "title": "Max Target",
-            "description": "Highest star rating to compare with."
+          "default_target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Target",
+            "description": "The star rating shown first: one star above comfort."
           }
         },
         "type": "object",
         "required": [
           "comfort",
-          "ahead",
-          "step",
-          "min_target",
-          "max_target"
+          "points_per_star",
+          "levels",
+          "targets",
+          "default_target"
         ],
         "title": "StarCompare"
       },

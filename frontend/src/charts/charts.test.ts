@@ -134,30 +134,48 @@ describe("timing", () => {
 
 describe("comparison bars", () => {
   const skills = [skill("aim", 67), skill("sliders", 28), skill("stamina", null)];
-
-  it("moves the comfort scores to the picked star rating", () => {
-    const at = (target: number) => {
-      const o = (compareBars(skills, 6.59, target, t) as { baseOption: AnyOption }).baseOption;
-      return (o.series![0].data as { value: number }[]).map((d) => Math.round(d.value));
-    };
-    expect(at(6.59)).toEqual([67, 28, 0]);
-    expect(at(7.6)).toEqual([Math.round(67 * (2 - (7.6 / 6.59) ** 2)), Math.round(28 * (2 - (7.6 / 6.59) ** 2)), 0]);
-    expect(at(5)[0]).toBeGreaterThan(67);
+  const levels: Schemas["SkillLevel"][] = [
+    { key: "aim", label: "Jump aim", level: 13, bound: "at_least", tested: 9.1 },
+    { key: "sliders", label: "Sliders", level: 6.12, bound: null, tested: 7 },
+    { key: "stamina", label: "Stamina", level: null, bound: null, tested: null },
+  ];
+  const at = (stars: number): Schemas["CompareTarget"] => ({
+    stars,
+    comfort: false,
+    skills: levels.map((l) => {
+      const gap = l.level === null ? null : Math.round((l.level - stars) * 100) / 100;
+      return { key: l.key, gap, score: gap === null ? null : Math.max(0, Math.min(100, 50 + 10 * gap)) };
+    }),
+    effective: 6.2,
+    limiting: "sliders",
+    pass_chance: 0.2,
   });
 
-  it("labels out-of-reach and unmeasured skills", () => {
-    const o = (compareBars(skills, 6.59, 9.5, t) as { baseOption: AnyOption }).baseOption;
+  it("puts each skill level against the picked star rating", () => {
+    const values = (stars: number) => {
+      const o = (compareBars(skills, levels, at(stars), t) as { baseOption: AnyOption }).baseOption;
+      return (o.series![0].data as { value: number }[]).map((d) => Math.round(d.value));
+    };
+    expect(values(6.12)).toEqual([100, 50, 0]);
+    expect(values(8.3)).toEqual([97, 28, 0]);
+  });
+
+  it("labels the gaps in stars, a lower bound with ≥ and unmeasured skills with –", () => {
+    const o = (compareBars(skills, levels, at(8.3), t) as { baseOption: AnyOption }).baseOption;
     const label = (o.series![0] as { label: { formatter: (p: unknown) => string } }).label.formatter;
-    expect([0, 1, 2].map((i) => label({ dataIndex: i }))).toEqual(["out of reach", "out of reach", "–"]);
+    expect([0, 1, 2].map((i) => label({ dataIndex: i }))).toEqual(["≥ +4.7★", "−2.2★", "–"]);
   });
 
   it("explains where the number comes from", () => {
-    const help = { key: "aim", label: "Jump aim", what: "W <b>", how: "H", practise: "P" };
-    const html = compareHover(skills[0], 6.59, 7.6, help);
-    expect(html).toContain("feels 33% harder");
-    expect(html).toContain("67 at your 6.6★ comfort level");
+    const help = { key: "sliders", label: "Sliders", what: "W <b>", how: "H", practise: "P" };
+    const html = compareHover(skills[1], levels[1], at(8.3), help);
+    expect(html).toContain("sliders label at 8.3★: 28 (−2.2★)");
+    expect(html).toContain("Your level: 6.1★");
+    expect(html).toContain("2.2★ short of what typical 8.3★ maps demand");
     expect(html).toContain("W &lt;b&gt;");
-    expect(compareHover(skills[0], 6.59, 5)).toContain("feels 42% easier");
-    expect(compareHover(skills[2], 6.59, 7.6)).toContain("not enough data");
+    expect(compareHover(skills[0], levels[0], at(8.3))).toContain("so it may be higher");
+    expect(compareHover(skills[0], levels[0], at(5))).toContain("8.0★ above what typical 5★ maps demand");
+    expect(compareHover(skills[2], levels[2], at(8.3))).toContain("not enough data");
   });
 });
+

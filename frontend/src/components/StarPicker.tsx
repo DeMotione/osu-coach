@@ -31,7 +31,7 @@ export function StarPicker({
         ]
           .filter(Boolean)
           .join(" ");
-        const spoken = o.disabled ? `${o.label}, locked: not enough skill to compare with this level` : o.comfort ? `${o.label}, your comfort level` : o.label;
+        const spoken = o.disabled ? `${o.label}, locked: not enough skill to compare with this level` : o.title ? `${o.label}, ${o.title}` : o.label;
         return (
           <label key={o.value} className={cls} style={style} title={o.title}>
             <input

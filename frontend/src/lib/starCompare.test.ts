@@ -1,56 +1,51 @@
 import { describe, expect, it } from "vitest";
 
-import { COMFORT_HINT, LOCKED_HINT, defaultTarget, feltHarder, outOfReachFrom, scoreAt, starLabel, targetOptions } from "./starCompare";
+import type { Schemas } from "../api/client";
+import { COMFORT_HINT, chanceLabel, gapLabel, levelLabel, pickTarget, starLabel, targetOptions } from "./starCompare";
 import { starColor, starGlow, starTextColor } from "./starColors";
 
-const range = (comfort: number) => ({ comfort, ahead: 2, step: 0.5, min: 1, max: 13 });
+const target = (stars: number, pass_chance: number | null, comfort = false): Schemas["CompareTarget"] => ({
+  stars,
+  comfort,
+  skills: [],
+  effective: null,
+  limiting: null,
+  pass_chance,
+});
+
+const compare: Schemas["StarCompare"] = {
+  comfort: 6.59,
+  points_per_star: 10,
+  levels: [],
+  targets: [target(1, 1), target(6, 0.9), target(6.6, 0.75, true), target(7.6, 0.3), target(13, 0.0001)],
+  default_target: 7.6,
+};
 
 describe("comparing with other star ratings", () => {
-  it("takes the felt difficulty off the comfort score on harder maps", () => {
-    expect(feltHarder(5, 6)).toBeCloseTo(0.44);
-    expect(scoreAt(67, 6.59, 6.59)).toBe(67);
-    expect(scoreAt(60, 5, 6)).toBeCloseTo(60 * 0.56);
-    expect(scoreAt(88, 7, 7 * Math.SQRT2)).toBeCloseTo(0);
-    expect(scoreAt(88, 7, 11)).toBe(0);
-    expect(outOfReachFrom(7)).toBeCloseTo(9.9, 1);
+  it("offers the star ratings from the API, none locked, with the clean-pass chance", () => {
+    const options = targetOptions(compare);
+    expect(options.map((o) => o.label)).toEqual(["1★", "6★", "6.6★", "7.6★", "13★"]);
+    expect(options.some((o) => o.disabled)).toBe(false);
+    expect(options.find((o) => o.comfort)).toMatchObject({ value: 6.6, title: `${COMFORT_HINT} · clean pass 75%` });
+    expect(options.at(-1)?.title).toBe("clean pass <1%");
+    expect(targetOptions({ ...compare, targets: [target(5, null)] })[0].title).toBeUndefined();
   });
 
-  it("closes the gap to 100 on easier maps", () => {
-    expect(scoreAt(60, 6, 3)).toBeCloseTo(100 - 40 * 0.25);
-    expect(scoreAt(28, 6.59, 1)).toBeGreaterThan(98);
-    expect(scoreAt(null, 6.59, 5)).toBeNull();
+  it("starts with the default target and keeps a picked one", () => {
+    expect(pickTarget(compare, null)?.stars).toBe(7.6);
+    expect(pickTarget(compare, 13)?.stars).toBe(13);
+    expect(pickTarget(compare, 9.9)?.stars).toBe(7.6); // no longer offered
+    expect(pickTarget({ ...compare, targets: [], default_target: null }, null)).toBeNull();
   });
 
-  it("is never higher for a harder star rating", () => {
-    for (const score of [12, 50, 88]) {
-      const values = [1, 3, 5, 6.59, 7, 8, 9, 13].map((t) => scoreAt(score, 6.59, t) as number);
-      expect(values).toEqual([...values].sort((a, b) => b - a));
-    }
-  });
-
-  it("offers every easier star, comfort, two stars above it, and locks the rest up to 13★", () => {
-    const options = targetOptions(range(7));
-    expect(options.map((o) => o.label)).toEqual(["1★", "2★", "3★", "4★", "5★", "6★", "7★", "7.5★", "8★", "8.5★", "9★", "10★", "11★", "12★", "13★"]);
-    expect(options.filter((o) => o.disabled).map((o) => o.value)).toEqual([10, 11, 12, 13]);
-    expect(options.find((o) => o.value === 10)?.title).toBe(LOCKED_HINT);
-    expect(options.find((o) => o.comfort)).toMatchObject({ value: 7, title: COMFORT_HINT });
-  });
-
-  it("keeps comfort levels with decimals and stops at 13★", () => {
-    expect(targetOptions(range(6.59)).map((o) => o.label)).toEqual(
-      ["1★", "2★", "3★", "4★", "5★", "6★", "6.6★", "7.1★", "7.6★", "8.1★", "8.6★", "9★", "10★", "11★", "12★", "13★"],
-    );
-    const top = targetOptions(range(12));
-    expect(top.at(-1)).toMatchObject({ value: 13, disabled: false });
-    expect(top.some((o) => o.disabled)).toBe(false);
-  });
-
-  it("starts one star above comfort", () => {
-    expect(defaultTarget(range(5))).toBe(6);
-    expect(defaultTarget(range(6.59))).toBe(7.6);
-    expect(defaultTarget(range(12.5))).toBe(13);
+  it("labels stars, gaps, levels and chances", () => {
     expect(starLabel(7.5)).toBe("7.5★");
     expect(starLabel(8)).toBe("8★");
+    expect([gapLabel(1.23), gapLabel(-0.4), gapLabel(0.02)]).toEqual(["+1.2★", "−0.4★", "±0★"]);
+    expect(levelLabel({ level: 13, bound: "at_least" })).toBe("≥ 13★");
+    expect(levelLabel({ level: 6.61, bound: null })).toBe("6.6★");
+    expect(levelLabel({ level: null, bound: null })).toBe("–");
+    expect([chanceLabel(0.004), chanceLabel(0.236), chanceLabel(0.999), chanceLabel(null)]).toEqual(["<1%", "24%", ">99%", "–"]);
   });
 });
 

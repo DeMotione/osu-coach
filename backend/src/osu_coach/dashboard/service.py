@@ -16,6 +16,7 @@ from osu_coach.maps.service import map_rows
 from osu_coach.maps.skillset import recommend
 from osu_coach.profile.domain import SKILL_LABELS, Profile, weight_table
 from osu_coach.profile.domain.consistency import BAND_MIN_PLAYS, consistency_bands
+from osu_coach.profile.domain.readiness import POINTS_PER_STAR, compare_at, default_target, skill_levels, targets
 from osu_coach.tips.service import tip_out, tips
 
 if TYPE_CHECKING:
@@ -285,9 +286,7 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         skills=skills,
         reading_split=reading_split,
         few_data=few,
-        compare=S.StarCompare(
-            comfort=num(comfort_level), ahead=AHEAD, step=STEP, min_target=TARGETS[0], max_target=TARGETS[1]
-        ),
+        compare=star_compare(p),
         consistency=consistency(p),
         stamina=stamina,
         sliders_scored=relative_scores.get("sliders") is not None,
@@ -310,9 +309,45 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
 
 
 # ------------------------------------------------------------------ comparing with other star ratings, consistency
-AHEAD = 2.0  # star ratings more than this many stars above comfort are locked
-STEP = 0.5  # the star ratings offered near comfort
-TARGETS = (1.0, 13.0)  # the star ratings a player can compare with
+def star_compare(p: Profile) -> S.StarCompare:
+    """Every skill as a star level (from the comfort-level ratings) and against each star rating offered."""
+    comfort = num(p.levels.get("comfort_stars"))
+    if comfort is None:
+        return S.StarCompare(comfort=None, points_per_star=POINTS_PER_STAR, levels=[], targets=[], default_target=None)
+    levels = skill_levels(p.experimental_skills, comfort)
+    out_levels = [
+        S.SkillLevel(
+            key=k,
+            label=SKILL_LABELS.get(k, k),
+            level=num(lv["level"]) if lv else None,
+            bound=lv["bound"] if lv else None,
+            tested=num(lv["tested"]) if lv else None,
+        )
+        for k, lv in levels.items()
+    ]
+    out_targets = []
+    for t in targets(comfort):
+        c = compare_at(levels, t)
+        out_targets.append(
+            S.CompareTarget(
+                stars=t,
+                comfort=t == round(comfort, 1),
+                skills=[
+                    S.CompareSkill(key=k, gap=num(v["gap"]) if v else None, score=num(v["score"]) if v else None)
+                    for k, v in c["skills"].items()
+                ],
+                effective=num(c["effective"]),
+                limiting=c["limiting"],
+                pass_chance=num(c["pass_chance"]),
+            )
+        )
+    return S.StarCompare(
+        comfort=comfort,
+        points_per_star=POINTS_PER_STAR,
+        levels=out_levels,
+        targets=out_targets,
+        default_target=default_target(comfort),
+    )
 
 
 def consistency(p: Profile) -> S.Consistency:

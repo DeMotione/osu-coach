@@ -11,7 +11,7 @@ import { StarPicker } from "../components/StarPicker";
 import { QueryView } from "../components/states";
 import { Alert, Badge, Card, Page, Progress, Row, Stat, Switch, Tiles, type TileCount } from "../components/ui";
 import { fmt, int, pct, span, stars } from "../lib/format";
-import { defaultTarget, feltHarder, starLabel, targetOptions } from "../lib/starCompare";
+import { chanceLabel, levelLabel, pickTarget, starLabel, targetOptions } from "../lib/starCompare";
 
 type Overview = Schemas["Overview"];
 
@@ -223,9 +223,8 @@ function LevelCard({ ov }: { ov: Overview }) {
   );
 }
 
-/** Each skill's readiness for a harder target: one star above comfort first, up to `ahead` stars, further ones locked. */
-/** The comfort-level scores at another star rating: easier ones down to 1★, harder ones up to `ahead` stars above
- * comfort; further ones are locked. */
+/** Every skill as a star level, against typical maps of a star rating picked from 1★ to 13★ (one star above comfort
+ * first): the gaps, the effective level there and the chance to pass such a map cleanly. */
 function CompareCard({
   compare,
   skills,
@@ -238,43 +237,43 @@ function CompareCard({
   height: number;
 }) {
   const [picked, setPicked] = useState<number | null>(null);
-  const { comfort } = compare;
-  const range = useMemo(
-    () => (comfort === null ? null : { comfort, ahead: compare.ahead, step: compare.step, min: compare.min_target, max: compare.max_target }),
-    [comfort, compare.ahead, compare.step, compare.min_target, compare.max_target],
-  );
-  const options = useMemo(() => (range ? targetOptions(range) : []), [range]);
-  const open = (v: number | null) => v !== null && options.some((o) => o.value === v && !o.disabled);
-  const target = open(picked) ? picked : range ? defaultTarget(range) : null;
+  const options = useMemo(() => targetOptions(compare), [compare]);
+  const target = pickTarget(compare, picked);
   const build = useCallback(
-    (t: ChartTheme) => compareBars(skills, comfort ?? 1, target ?? 1, t, help ?? []),
-    [skills, comfort, target, help],
+    (t: ChartTheme) => (target ? compareBars(skills, compare.levels, target, t, help ?? []) : {}),
+    [skills, compare.levels, target, help],
   );
-  let how = "";
-  if (target !== null && comfort !== null) {
-    const felt = feltHarder(comfort, target);
-    how =
-      Math.abs(felt) < 0.005
-        ? `${starLabel(target)} is your comfort level: the scores above.`
-        : felt > 0
-          ? `${starLabel(target)} feels ${Math.round(felt * 100)}% harder than your ${starLabel(comfort)} comfort level, so every comfort score drops by ${Math.round(felt * 100)}%; at ${(comfort * Math.SQRT2).toFixed(1)}★ (twice the strain) they reach 0.`
-          : `${starLabel(target)} feels ${Math.round(-felt * 100)}% easier than your ${starLabel(comfort)} comfort level, so every comfort score closes ${Math.round(-felt * 100)}% of its gap to 100.`;
-  }
+  const limiting = compare.levels.find((l) => l.key === target?.limiting)?.label;
+  const levels = compare.levels.filter((l) => l.level !== null);
   return (
     <Card
       title="Compare with other star ratings"
       sub={
-        target === null
-          ? "Your comfort-level scores on easier and harder maps."
-          : `${how} You can compare up to ${compare.ahead}★ above your comfort; further ones are locked until you get there.`
+        compare.comfort === null
+          ? "Your skills against easier and harder maps."
+          : `Every skill as a star level: the star rating whose typical maps demand of it what you showed at your ${starLabel(compare.comfort)} comfort level. The bars put them against typical maps of the star rating you pick.`
       }
     >
-      {target === null ? (
+      {target === null || compare.comfort === null ? (
         <Alert>Your comfort level isn't known yet: analyse at least 3 recent maps you finished cleanly.</Alert>
       ) : (
         <div className="stack" style={{ gap: 14 }}>
-          <StarPicker label="Compare with" options={options} value={target} onChange={setPicked} />
-          <Chart build={build} height={height} label={`Skill scores at ${starLabel(target)}`} />
+          <StarPicker label="Compare with" options={options} value={target.stars} onChange={setPicked} />
+          {target.effective !== null && (
+            <p>
+              {target.comfort ? "Your comfort level. " : ""}On typical {starLabel(target.stars)} maps your effective level is{" "}
+              <b>{starLabel(target.effective)}</b>
+              {limiting ? <>, held back most by {limiting.toLowerCase()}</> : null}: about <b>{chanceLabel(target.pass_chance)}</b> chance to
+              pass one cleanly (at most 5 misses per 100 notes).
+            </p>
+          )}
+          <Chart build={build} height={height} label={`Skills against ${starLabel(target.stars)} maps`} />
+          {levels.length > 0 && (
+            <p className="small muted">
+              Your levels: {levels.map((l) => `${l.label} ${levelLabel(l)}`).join(" · ")}. ≥ = you held nearly everything you played, so it may
+              be higher. Accuracy (timing) has its bar but doesn't decide a clean pass.
+            </p>
+          )}
         </div>
       )}
     </Card>

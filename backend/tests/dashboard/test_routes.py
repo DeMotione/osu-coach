@@ -10,7 +10,7 @@ import pytest
 from osu_coach.library.repository import analyze_files
 from osu_coach.profile.domain import SKILL_LABELS, build_profile, stream_fall_behind, stream_speed_profile
 from osu_coach.settings.repository import load_settings, save_settings
-from tests.conftest import sample_paths, workspace
+from tests.conftest import INDEX, analyse, plays_folder, sample_paths, scan, workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
 
@@ -31,6 +31,33 @@ def test_every_page_renders_with_real_replays(analysed, page):
     assert r.json()
 
 
+def test_skills_against_other_star_ratings(tmp_path, client):
+    """With a comfort level, every skill becomes a star level, and every star rating offered gets each skill's gap,
+    the effective level and the chance to pass a typical map of it cleanly."""
+    scan(client, plays_folder(tmp_path, names=list(INDEX)))
+    analyse(client, player="*")
+    ov = client.get("/api/profile/overview").json()
+    cmp = ov["compare"]
+    assert cmp["comfort"] == pytest.approx(ov["kpis"]["comfort_stars"]) and cmp["comfort"] > 5
+    levels = {lv["key"]: lv for lv in cmp["levels"]}
+    assert set(levels) == set(SKILL_LABELS) - {"consistency"}  # consistency is no level skill
+    assert sum(lv["level"] is not None for lv in levels.values()) >= 4
+    stars = [t["stars"] for t in cmp["targets"]]
+    assert stars[0] == 1 and stars[-1] == 13 and stars == sorted(stars) and cmp["default_target"] in stars
+    assert [t["stars"] for t in cmp["targets"] if t["comfort"]] == [round(cmp["comfort"], 1)]
+    chances = [t["pass_chance"] for t in cmp["targets"]]
+    assert chances == sorted(chances, reverse=True) and chances[0] > 0.9 and chances[-1] < 0.01
+    for t in cmp["targets"]:
+        assert t["limiting"] in levels and t["effective"] is not None
+        for sk in t["skills"]:
+            level = levels[sk["key"]]["level"]
+            if level is None:
+                assert sk["gap"] is None and sk["score"] is None
+            else:
+                assert sk["gap"] == pytest.approx(level - t["stars"], abs=0.02)
+                assert sk["score"] == pytest.approx(min(100, max(0, 50 + cmp["points_per_star"] * sk["gap"])), abs=0.2)
+
+
 def test_replays_table_newest_first_with_weights(analysed):
     rows = analysed.get("/api/profile/replays").json()
     assert len(rows) == 3
@@ -49,11 +76,9 @@ def test_overview_explains_every_skill(analysed):
             assert s["score_text"]  # the reason for an unmeasured experimental rating
         else:
             assert s["score_text"].startswith(f"{s['score']:.0f}")
-    cmp = ov["compare"]  # the "Compare with other star ratings" picker counts from the comfort level ...
-    assert (
-        cmp["comfort"] == (ov["kpis"]["comfort_stars"] or ov["level"]["stars"]) and cmp["ahead"] == 2
-    )  # ... or the level
-    assert (cmp["min_target"], cmp["max_target"]) == (1, 13)
+    cmp = ov["compare"]  # 3 plays make no comfort level yet (3 recent maps finished cleanly), so nothing to compare
+    assert cmp["comfort"] is None and ov["kpis"]["comfort_stars"] is None
+    assert cmp["levels"] == [] and cmp["targets"] == [] and cmp["default_target"] is None
     cs = ov["consistency"]  # 3 replays: no band reaches 10 plays, so nothing is scored yet
     assert cs["min_plays"] == 10 and sum(b["plays"] for b in cs["bands"]) == 3
     assert all(b["score"] is None for b in cs["bands"])

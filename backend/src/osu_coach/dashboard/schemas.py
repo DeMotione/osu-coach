@@ -75,12 +75,46 @@ class SkillScore(BaseModel):
     facts: list[str] = Field(description="The player's own numbers behind the score.")
 
 
+class SkillLevel(BaseModel):
+    key: str
+    label: str
+    level: float | None = Field(
+        description="The star rating whose typical maps demand of this skill what you showed (★); null without "
+        "enough data. Consistency has none (it is no level skill)."
+    )
+    bound: Literal["at_least", "at_most"] | None = Field(
+        description="`at_least`: you held (nearly) everything you played and nothing much harder, or the level is "
+        "beyond 13★, so it may be higher; `at_most`: below 1★."
+    )
+    tested: float | None = Field(description="★ of the hardest demand of this skill you played, when known.")
+
+
+class CompareSkill(BaseModel):
+    key: str
+    gap: float | None = Field(description="Your level minus the star rating compared with (★); 0 or more = ready.")
+    score: float | None = Field(description="50 + `points_per_star` per star of gap, 0–100: 50 = exactly ready.")
+
+
+class CompareTarget(BaseModel):
+    stars: float = Field(description="The star rating compared with.")
+    comfort: bool = Field(description="Whether this is the comfort level.")
+    skills: list[CompareSkill]
+    effective: float | None = Field(
+        description="Your effective level on typical maps of this star rating (★): your skill levels, weighted by "
+        "how much those maps test each skill, with the weakest deciding most."
+    )
+    limiting: str | None = Field(description="Key of the skill that holds the effective level back most.")
+    pass_chance: float | None = Field(
+        description="Chance to pass a typical map of this star rating cleanly (≤ 5 misses per 100 notes), 0–1."
+    )
+
+
 class StarCompare(BaseModel):
-    comfort: float | None = Field(description="The comfort level (★) every comparison is counted from.")
-    ahead: float = Field(description="Star ratings more than this many stars above comfort are locked.")
-    step: float = Field(description="Distance between the star ratings offered near comfort (★).")
-    min_target: float = Field(description="Lowest star rating to compare with.")
-    max_target: float = Field(description="Highest star rating to compare with.")
+    comfort: float | None = Field(description="The comfort level (★) the skill levels are counted from.")
+    points_per_star: float = Field(description="Points of a comparison bar per star of gap.")
+    levels: list[SkillLevel] = Field(description="Every skill as a star level (empty without a comfort level).")
+    targets: list[CompareTarget] = Field(description="The star ratings to compare with, easiest first.")
+    default_target: float | None = Field(description="The star rating shown first: one star above comfort.")
 
 
 class ConsistencyBand(BaseModel):
