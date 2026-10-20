@@ -302,7 +302,7 @@ def cmd_analyze(args) -> int:
     pool = load_pool()
     if not pool.empty:
         t = targets_from_profile(prof)
-        print("\nMap Suggestion")
+        print("\nSkill Development")
         for sk, df in recommendations(pool, prof, per_skill=3):
             print(f"  {skill_label(sk, t)}:")
             for _, r in df.iterrows():
@@ -673,7 +673,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dpi", type=int, help="mouse DPI")
     p.add_argument("--rapid-trigger", action="store_true", help="you use a rapid-trigger keyboard")
     p.set_defaults(func=cmd_analyze)
-    p = sub.add_parser("playlist", help="Skill Development: practice playlist for one skill")
+    p = sub.add_parser("playlist", help="Goals & Training: practice playlist for one skill")
     p.add_argument("skill", choices=PLAYLIST_SKILLS)
     discovery(p)
     p.add_argument("--comfort", type=float, help="your comfortable star rating (skips replay analysis)")

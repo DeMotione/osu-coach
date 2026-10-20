@@ -36,7 +36,7 @@ Fixes:
   ([#46](https://github.com/DeMotione/osu-coach/issues/46)).
 - [ ] Hide maps you have already completed from the playlist, with a "show completed" toggle
   ([#47](https://github.com/DeMotione/osu-coach/issues/47)).
-- [ ] Rename Map Suggestion to **Skill Development** and Skill Development to **Goals & Training**
+- [x] Rename Map Suggestion to **Skill Development** and Skill Development to **Goals & Training**
   ([#48](https://github.com/DeMotione/osu-coach/issues/48)).
 
 UI rework:

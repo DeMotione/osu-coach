@@ -163,7 +163,7 @@ def suggestions(
         pool_size=len(ws.pool()),
         hidden=len(hidden),
         sections=sections,
-        collection_name=f"osu-coach: Map Suggestion ({theta:.1f}★)",
+        collection_name=f"osu-coach: Skill Development ({theta:.1f}★)",
         preferred_client=ws.preferred_client(),
         has_profile=p is not None,
         unmeasured_skills=[skill_label(key) for key in SKILLS if key not in abilities],

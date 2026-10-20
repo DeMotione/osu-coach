@@ -15,12 +15,12 @@ export default function MapsPage() {
   const q = useSuggestions(options);
   return (
     <Page
-      title="Map Suggestion"
+      title="Skill Development"
       sub={
         q.data ? (
           <>
             Comfort-level maps for your measured weak skills, picked from {int(q.data.pool_size)} ranked maps. Maps in your replay dataset are excluded. To choose a skill and build a staged playlist, use{" "}
-            <Link to="/skills">Skill Development</Link>.
+            <Link to="/skills">Goals & Training</Link>.
           </>
         ) : (
           "Comfort-level maps for your measured weak skills from the bundled ranked pool."

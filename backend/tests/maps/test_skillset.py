@@ -33,7 +33,7 @@ def test_a_reachable_target_is_used_as_it_is():
 
 
 def test_weak_other_skills_only_count_beyond_what_every_map_asks():
-    """Three weak skills, as Map Suggestion assesses them: no map at these stars spares the other two, so only the
+    """Three weak skills, as Skill Development assesses them: no map at these stars spares the other two, so only the
     overload beyond the least any of them asks is a risk."""
     abilities = {"accuracy": 0.0, "aim": 10.0, "speed": 20.0}
     for skill in abilities:

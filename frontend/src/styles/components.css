@@ -1113,7 +1113,7 @@ input[type="range"] {
   height: var(--chart-h, 320px);
 }
 
-/* The map tables of Map Suggestion and Skill Development (10 columns; 11 with Hide), by the width they get:
+/* The map tables of Skill Development and Goals & Training (10 columns; 11 with Hide), by the width they get:
  * - over 1120 px: the table as it is;
  * - 880–1120 px (the desktop app's window as it opens): still a table, a tighter one (less padding, the two text
  *   columns narrower, headers wrapping), so it fits instead of falling apart into cards (#31);

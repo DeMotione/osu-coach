@@ -104,14 +104,14 @@ export const NAV: NavGroup[] = [
       },
       {
         path: "/maps",
-        label: "Map Suggestion",
+        label: "Skill Development",
         icon: IconMap,
         needsAnalysis: true,
         about: "Maps at your comfort level that train your weak skills, ready to put into osu! as a collection.",
       },
       {
         path: "/skills",
-        label: "Skill Development",
+        label: "Goals & Training",
         icon: IconStairs,
         needsAnalysis: true,
         about: "Goals for your skills, and playlists (warm-up, comfort, push) to train one skill at a time.",

@@ -49,7 +49,7 @@ def practice_plan(p: Profile) -> list[str]:
     lvl = f"{comfort:.1f}★" if comfort and not math.isnan(comfort) else "your comfort level"
     return [
         f"Warm-up (10 min): 2-3 maps about 1★ below {lvl}, aiming for full combos.",
-        f"Focus block (20-30 min): the '{weak[0]}' playlist from Skill Development — repeat each map until the "
+        f"Focus block (20-30 min): the '{weak[0]}' playlist from Goals & Training — repeat each map until the "
         "target in the playlist note is met.",
         f"Push (10 min): one or two maps slightly above {lvl}.",
         "Cool-down: replay a favourite map for fun.",

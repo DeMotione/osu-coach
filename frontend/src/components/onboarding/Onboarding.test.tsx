@@ -92,7 +92,7 @@ describe("the setup guide", () => {
       click(/Next/);
     }
     expect(heading("Improve")).toBeInTheDocument();
-    expect(screen.getByText("Map Suggestion")).toBeInTheDocument();
+    expect(screen.getByText("Skill Development")).toBeInTheDocument();
     click(/Finish the tour/);
 
     expect(heading("You're all set!")).toBeInTheDocument();
