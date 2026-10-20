@@ -9,7 +9,7 @@ import type { ChartTheme } from "../charts/palette";
 import { IconCheck } from "../components/icons";
 import { StarPicker } from "../components/StarPicker";
 import { QueryView } from "../components/states";
-import { Alert, Badge, Card, Page, Progress, Row, Stat, Switch, Tiles, type TileCount } from "../components/ui";
+import { Alert, Badge, Card, Page, Row, Stat, Switch, Tiles, type TileCount } from "../components/ui";
 import { fmt, int, pct, span, stars } from "../lib/format";
 import { chanceLabel, fromComfort, pickTarget, starLabel, targetOptions } from "../lib/starCompare";
 
@@ -33,15 +33,15 @@ function OverviewBody({ ov }: { ov: Overview }) {
   const meta = useMeta();
   const k = ov.kpis;
   const help = meta.data?.skills;
-  // consistency has its own card (per star band), so the skill charts leave it out
-  const skills = useMemo(() => ov.skills.filter((s) => s.key !== "consistency"), [ov.skills]);
-  const skillsChart = useCallback((t: ChartTheme) => skillBars(skills, help ?? [], t), [skills, help]);
+  // consistency is measured around the comfort level only, so the comparison with other star ratings leaves it out
+  const compared = useMemo(() => ov.skills.filter((s) => s.key !== "consistency"), [ov.skills]);
+  const skillsChart = useCallback((t: ChartTheme) => skillBars(ov.skills, help ?? [], t), [ov.skills, help]);
   const descriptions = useMemo(
     () => Object.fromEntries((meta.data?.miss_causes ?? []).map((m) => [m.key, m.description])),
     [meta.data],
   );
   const missChart = useCallback((t: ChartTheme) => missCauses(ov.miss_causes, descriptions, t), [ov.miss_causes, descriptions]);
-  const skillsHeight = Math.max(320, skills.length * 44);
+  const skillsHeight = Math.max(320, ov.skills.length * 44);
 
   return (
     <>
@@ -57,12 +57,11 @@ function OverviewBody({ ov }: { ov: Overview }) {
       </Tiles>
       <Card
         title="Skills at your comfort level"
-        sub={`Experimental replay ratings, 0–100; 50 = expected performance at your ${stars(k.comfort_stars, 1)} comfort level under assumed curves. Most skills use the best play per map/mod; Timing accuracy uses weighted hit single notes from all selected replays. Grey = unmeasured or insufficient challenge.`}
+        sub={`Experimental replay ratings, 0–100; 50 = expected performance at your ${stars(k.comfort_stars, 1)} comfort level under assumed curves. Most skills use the best play per map/mod; Timing accuracy uses weighted hit single notes from all selected replays. Consistency: how steadily you hold combo and accuracy on different maps within ±1★ of your comfort level. Grey = not measured yet: point at a bar to see what to play.`}
       >
         <Chart build={skillsChart} height={skillsHeight} label="Skill scores against your level" />
       </Card>
-      <CompareCard compare={ov.compare} skills={skills} help={help} height={skillsHeight} />
-      <ConsistencyCard cs={ov.consistency} />
+      <CompareCard compare={ov.compare} skills={compared} help={help} height={Math.max(320, compared.length * 44)} />
       <Row>
         <Card
           title="Why you miss"
@@ -268,43 +267,6 @@ function CompareCard({
           </p>
           <Chart build={build} height={height} label={`Skill scores at ${starLabel(target.stars)}`} />
         </div>
-      )}
-    </Card>
-  );
-}
-
-/** How steadily combo and accuracy hold across plays of the same star rating; a band needs `min_plays` plays. */
-function ConsistencyCard({ cs }: { cs: Schemas["Consistency"] }) {
-  return (
-    <Card
-      title="Consistency"
-      sub={`How steadily you keep your combo and your accuracy across plays of the same star rating (with mods), per 0.5★ with at least ${cs.min_plays} plays. Keeping either one well is good; keeping both is close to 100.`}
-    >
-      {cs.bands.length ? (
-        <ul className="list">
-          {cs.bands.map((b) => {
-            const range = `${b.low.toFixed(1)}–${b.high.toFixed(1)}★`;
-            return (
-              <li key={b.low}>
-                {b.score === null ? (
-                  <p className="small muted">
-                    {range}: {b.plays} of {cs.min_plays} plays, not enough yet
-                  </p>
-                ) : (
-                  <>
-                    <Progress value={b.score / 100} text={`${range} · ${b.plays} plays`} right={fmt(b.score, 0)} />
-                    <p className="small muted">
-                      Combo held {pct(b.combo, 0)} (full combo on {pct(b.full_combo_share, 0)} of plays) · accuracy {pct(b.mean_accuracy)} on
-                      average, held {pct(b.accuracy, 0)} of the 93–99% scale
-                    </p>
-                  </>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="muted">No plays with a star rating yet.</p>
       )}
     </Card>
   );

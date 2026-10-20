@@ -15,7 +15,6 @@ from osu_coach.maps.domain import targets_from_profile
 from osu_coach.maps.service import map_rows
 from osu_coach.maps.skillset import recommend
 from osu_coach.profile.domain import SKILL_LABELS, Profile, weight_table
-from osu_coach.profile.domain.consistency import BAND_MIN_PLAYS, consistency_bands
 from osu_coach.profile.domain.readiness import MAX_GAP, compare_at, default_target, targets
 from osu_coach.tips.service import tip_out, tips
 
@@ -162,26 +161,17 @@ def score_text(v: dict) -> str:
 
 def experimental_facts(skill: str, row: dict) -> list[str]:
     if skill == "consistency":
-        facts = [f"{row.get('maps', 0)} analysed replays"]
-        observed = num(row.get("observed_followup_misses"))
-        expected_misses = num(row.get("expected_followup_misses"))
-        if observed is not None and expected_misses is not None:
+        low, high = num(row.get("low")), num(row.get("high"))
+        where = f" between {low:.1f}★ and {high:.1f}★" if low is not None and high is not None else ""
+        facts = [
+            f"{row.get('maps', 0)} of {row.get('min_maps', 0)} different maps{where} ({row.get('plays', 0)} plays)"
+        ]
+        combo, acc = num(row.get("combo")), num(row.get("accuracy"))
+        if combo is not None and acc is not None:
             facts.append(
-                f"after a miss: {observed:.1f} weighted misses vs {expected_misses:.1f} expected "
-                f"across {row.get('followup_notes', 0)} following notes"
+                f"combo held {combo:.0%} (full combo on {num(row.get('full_combo_share')) or 0:.0%} of the maps), "
+                f"accuracy {num(row.get('mean_accuracy')) or 0:.1%} on average, held {acc:.0%} of the 93–99% scale"
             )
-        chain_score = num(row.get("chain_score"))
-        if chain_score is not None:
-            facts.append(f"miss recovery {chain_score:.1f}/100")
-        steady_score = num(row.get("steady_score"))
-        spread = num(row.get("steady_spread"))
-        if steady_score is not None and spread is not None:
-            facts.append(
-                f"between-play steadiness {steady_score:.1f}/100 "
-                f"({spread:.1f} misses per 100 notes spread across {row.get('steady_plays', 0)} plays)"
-            )
-        if row.get("reason"):
-            facts.append(str(row["reason"]))
         return facts
     facts = [f"{row.get('maps', 0)} relevant map/mod configurations"]
     measured, expected = num(row.get("measured")), num(row.get("expected"))
@@ -242,11 +232,14 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
             score=num(relative_scores.get(k)),
             score_text=(p.experimental_skills.get(k) or {}).get("reason")
             if relative_scores.get(k) is None
+            else f"{relative_scores[k]:.0f} · combo and accuracy held from map to map around your level"
+            if k == "consistency"
             else f"{relative_scores[k]:.0f} · experimental comfort-relative performance",
             low_data=relative_scores.get(k) is not None and (p.experimental_skills.get(k) or {}).get("maps", 0) < 10,
             too_few_misses=False,
             n=int(v.get("n") or 0),
             facts=experimental_facts(k, p.experimental_skills.get(k) or {}),
+            needs=(p.experimental_skills.get(k) or {}).get("needs") if relative_scores.get(k) is None else None,
         )
         for k, v in p.skills.items()
     ]
@@ -287,7 +280,6 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         reading_split=reading_split,
         few_data=few,
         compare=star_compare(p),
-        consistency=consistency(p),
         stamina=stamina,
         sliders_scored=relative_scores.get("sliders") is not None,
         strengths=[
@@ -308,7 +300,7 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
     )
 
 
-# ------------------------------------------------------------------ comparing with other star ratings, consistency
+# ------------------------------------------------------------------ comparing with other star ratings
 def star_compare(p: Profile) -> S.StarCompare:
     """The comfort-level scores moved to each star rating offered, with the chance to pass its maps cleanly."""
     comfort = num(p.levels.get("comfort_stars"))
@@ -340,13 +332,6 @@ def star_compare(p: Profile) -> S.StarCompare:
             )
         )
     return S.StarCompare(comfort=comfort, max_gap=MAX_GAP, targets=out, default_target=default_target(comfort))
-
-
-def consistency(p: Profile) -> S.Consistency:
-    return S.Consistency(
-        min_plays=BAND_MIN_PLAYS,
-        bands=[S.ConsistencyBand(**b) for b in consistency_bands(p.replays)],
-    )
 
 
 # ------------------------------------------------------------------ aim

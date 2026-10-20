@@ -84,3 +84,14 @@ def test_lower_level_accuracy_reports_when_no_od_qualified_maps():
     for stage in result["goals"].values():
         assert stage["maps"] == []
         assert stage["excluded"]["No qualified timing map within 1★ of target"] == 1
+
+
+def test_a_playlist_opens_on_a_weakness_with_a_rating():
+    """A weakness without a rating (consistency before 8 maps around the comfort level) has no maps to offer."""
+    from types import SimpleNamespace
+
+    from osu_coach.maps.service import default_skill
+
+    p = SimpleNamespace(weaknesses=["consistency", "speed", "aim"])
+    assert default_skill(p, {"speed": 30.0, "aim": 40.0}) == "speed"
+    assert default_skill(p, {}) == "aim" and default_skill(None, {}) == "aim"

@@ -80,12 +80,13 @@ SKILL_HELP = {
         "with BPM changes, hitting the first notes after each change on time.",
     ),
     "consistency": (
-        "Consistency: recovery across the 10 notes after a miss (excluding notelock), and how much "
-        "your miss rate changes between plays of similar difficulty.",
-        "Score: average of available miss-recovery and between-play steadiness scores. "
-        "For recovery, a follow-up miss ratio of 2.0 = 50; for steadiness, a spread of "
-        "2 misses per 100 notes = 50. Halving either measure adds 30 points to that part.",
-        "Recover after a miss, and practise longer maps with steady difficulty to make your results more repeatable.",
+        "Consistency: how steadily you keep your combo and your accuracy from map to map on different maps "
+        "within ±1★ of your comfort level.",
+        "Score: per map (the average of its plays), the share of the max combo you held and your accuracy on a "
+        "93–99% scale; each is your usual level minus how much it swings between maps. The better of the two "
+        "counts 70%, the other 30%: holding one well is good, holding both is close to 100. Needs 8 different maps.",
+        "Play many different maps around your comfort level instead of retrying one, and aim to finish each one "
+        "cleanly rather than chase one great result.",
     ),
 }
 MISS_LABELS = {

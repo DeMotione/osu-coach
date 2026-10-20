@@ -1273,44 +1273,6 @@ export interface components {
              */
             pass_chance: number | null;
         };
-        /** Consistency */
-        Consistency: {
-            /** Min Plays */
-            min_plays: number;
-            /** Bands */
-            bands: components["schemas"]["ConsistencyBand"][];
-        };
-        /** ConsistencyBand */
-        ConsistencyBand: {
-            /**
-             * Low
-             * @description Star rating (with mods) the band starts at.
-             */
-            low: number;
-            /** High */
-            high: number;
-            /** Plays */
-            plays: number;
-            /**
-             * Score
-             * @description 0–100; null with fewer than `min_plays` plays in the band.
-             */
-            score: number | null;
-            /**
-             * Combo
-             * @description Combo held: share of the map's max combo, average minus its spread, 0–1.
-             */
-            combo: number | null;
-            /**
-             * Accuracy
-             * @description Accuracy held on the 93–99% scale (0–1), average minus its spread.
-             */
-            accuracy: number | null;
-            /** Full Combo Share */
-            full_combo_share: number;
-            /** Mean Accuracy */
-            mean_accuracy: number;
-        };
         /**
          * Count
          * @description A reason / name with how often it occurs.
@@ -2047,7 +2009,6 @@ export interface components {
              */
             few_data: string[];
             compare: components["schemas"]["StarCompare"];
-            consistency: components["schemas"]["Consistency"];
             /**
              * Stamina
              * @description Tempo kept per duration (empty without a stamina score).
@@ -2774,6 +2735,11 @@ export interface components {
              * @description The player's own numbers behind the score.
              */
             facts: string[];
+            /**
+             * Needs
+             * @description Without a score: what to play to get one. null when it can't be said.
+             */
+            needs: string | null;
         };
         /** SkillValue */
         SkillValue: {

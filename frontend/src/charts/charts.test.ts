@@ -44,7 +44,7 @@ describe("helpers", () => {
   });
 });
 
-const skill = (key: string, score: number | null): Schemas["SkillScore"] => ({
+const skill = (key: string, score: number | null, needs: string | null = null): Schemas["SkillScore"] => ({
   key,
   label: `${key} label`,
   score,
@@ -53,6 +53,7 @@ const skill = (key: string, score: number | null): Schemas["SkillScore"] => ({
   too_few_misses: score === null,
   n: 100,
   facts: ["100 notes"],
+  needs,
 });
 
 describe("overview charts", () => {
@@ -68,6 +69,16 @@ describe("overview charts", () => {
     const o = (skillBars([skill("aim", 61), skill("flow_aim", null)], [], t) as { baseOption: AnyOption }).baseOption;
     const data = (o.series![0].data as { value: number }[]).map((d) => d.value);
     expect(data).toEqual([61, 0]);
+  });
+
+  it("shows a skill that needs more plays as a full grey bar saying so, its hover what to play", () => {
+    const needs = "Play 3 more different maps between 4.0★ and 6.0★";
+    const o = (skillBars([skill("aim", 61), skill("consistency", null, needs)], [], t) as { baseOption: AnyOption }).baseOption;
+    const bar = (o.series![0].data as { value: number; label?: { formatter: string } }[])[1];
+    expect(bar.value).toBe(100);
+    expect(bar.label?.formatter).toBe("Not enough data");
+    expect(skillHover(skill("consistency", null, needs))).toContain(`To get a score: ${needs}`);
+    expect(skillHover(skill("aim", 61))).not.toContain("To get a score");
   });
 
   it("sorts miss causes so the biggest is on top", () => {

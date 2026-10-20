@@ -73,6 +73,7 @@ class SkillScore(BaseModel):
     too_few_misses: bool
     n: int
     facts: list[str] = Field(description="The player's own numbers behind the score.")
+    needs: str | None = Field(description="Without a score: what to play to get one. null when it can't be said.")
 
 
 class CompareSkill(BaseModel):
@@ -108,22 +109,6 @@ class StarCompare(BaseModel):
     default_target: float | None = Field(description="The star rating shown first: one star above comfort.")
 
 
-class ConsistencyBand(BaseModel):
-    low: float = Field(description="Star rating (with mods) the band starts at.")
-    high: float
-    plays: int
-    score: float | None = Field(description="0–100; null with fewer than `min_plays` plays in the band.")
-    combo: float | None = Field(description="Combo held: share of the map's max combo, average minus its spread, 0–1.")
-    accuracy: float | None = Field(description="Accuracy held on the 93–99% scale (0–1), average minus its spread.")
-    full_combo_share: float
-    mean_accuracy: float
-
-
-class Consistency(BaseModel):
-    min_plays: int
-    bands: list[ConsistencyBand]
-
-
 class StaminaPoint(BaseModel):
     seconds: float
     bpm: float
@@ -155,7 +140,6 @@ class Overview(BaseModel):
     reading_split: ReadingSplit
     few_data: list[str] = Field(description="Skills measured on few maps or notes.")
     compare: StarCompare
-    consistency: Consistency
     stamina: list[StaminaPoint] = Field(description="Tempo kept per duration (empty without a stamina score).")
     sliders_scored: bool
     strengths: list[str]

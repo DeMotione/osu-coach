@@ -23,6 +23,7 @@ export const MISS_SHORT: Record<string, string> = {
 export function skillHover(s: Skill, help?: SkillMeta): string {
   const p = (text: string, cls = "") => `<div style="margin-top:6px${cls}">${esc(text)}</div>`;
   let html = `<b>${esc(s.label)}: ${esc(s.score_text)}</b>`;
+  if (s.needs) html += p(`To get a score: ${s.needs}`);
   if (help) html += p(help.what);
   html += p(`You: ${s.facts.join("; ")}`);
   if (help) html += p(`To raise it: ${help.practise}`);
@@ -64,10 +65,16 @@ export function skillBars(skills: Skill[], help: SkillMeta[], t: ChartTheme): Op
         {
           type: "bar",
           barMaxWidth: 22,
-          data: skills.map((s) => ({
-            value: s.score ?? 0,
-            itemStyle: { color: scoreColor(s.score), borderRadius: [0, 3, 3, 0] },
-          })),
+          // no score yet but a way to get one: a faint full-width bar saying so, whose hover says what to play
+          data: skills.map((s) =>
+            s.score === null && s.needs
+              ? {
+                  value: 100,
+                  itemStyle: { color: alpha(C.muted, 0.18), borderRadius: [0, 3, 3, 0] },
+                  label: { position: "insideLeft", color: t.muted, formatter: "Not enough data" },
+                }
+              : { value: s.score ?? 0, itemStyle: { color: scoreColor(s.score), borderRadius: [0, 3, 3, 0] } },
+          ),
           label: {
             show: true,
             position: "right",

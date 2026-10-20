@@ -3718,100 +3718,6 @@
         ],
         "title": "CompareTarget"
       },
-      "Consistency": {
-        "properties": {
-          "min_plays": {
-            "type": "integer",
-            "title": "Min Plays"
-          },
-          "bands": {
-            "items": {
-              "$ref": "#/components/schemas/ConsistencyBand"
-            },
-            "type": "array",
-            "title": "Bands"
-          }
-        },
-        "type": "object",
-        "required": [
-          "min_plays",
-          "bands"
-        ],
-        "title": "Consistency"
-      },
-      "ConsistencyBand": {
-        "properties": {
-          "low": {
-            "type": "number",
-            "title": "Low",
-            "description": "Star rating (with mods) the band starts at."
-          },
-          "high": {
-            "type": "number",
-            "title": "High"
-          },
-          "plays": {
-            "type": "integer",
-            "title": "Plays"
-          },
-          "score": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score",
-            "description": "0–100; null with fewer than `min_plays` plays in the band."
-          },
-          "combo": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Combo",
-            "description": "Combo held: share of the map's max combo, average minus its spread, 0–1."
-          },
-          "accuracy": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Accuracy",
-            "description": "Accuracy held on the 93–99% scale (0–1), average minus its spread."
-          },
-          "full_combo_share": {
-            "type": "number",
-            "title": "Full Combo Share"
-          },
-          "mean_accuracy": {
-            "type": "number",
-            "title": "Mean Accuracy"
-          }
-        },
-        "type": "object",
-        "required": [
-          "low",
-          "high",
-          "plays",
-          "score",
-          "combo",
-          "accuracy",
-          "full_combo_share",
-          "mean_accuracy"
-        ],
-        "title": "ConsistencyBand"
-      },
       "Count": {
         "properties": {
           "label": {
@@ -5946,9 +5852,6 @@
           "compare": {
             "$ref": "#/components/schemas/StarCompare"
           },
-          "consistency": {
-            "$ref": "#/components/schemas/Consistency"
-          },
           "stamina": {
             "items": {
               "$ref": "#/components/schemas/StaminaPoint"
@@ -6030,7 +5933,6 @@
           "reading_split",
           "few_data",
           "compare",
-          "consistency",
           "stamina",
           "sliders_scored",
           "strengths",
@@ -8250,6 +8152,18 @@
             "type": "array",
             "title": "Facts",
             "description": "The player's own numbers behind the score."
+          },
+          "needs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs",
+            "description": "Without a score: what to play to get one. null when it can't be said."
           }
         },
         "type": "object",
@@ -8261,7 +8175,8 @@
           "low_data",
           "too_few_misses",
           "n",
-          "facts"
+          "facts",
+          "needs"
         ],
         "title": "SkillScore"
       },

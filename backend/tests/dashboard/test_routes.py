@@ -80,9 +80,10 @@ def test_overview_explains_every_skill(analysed):
     cmp = ov["compare"]  # 3 plays make no comfort level yet (3 recent maps finished cleanly), so nothing to compare
     assert cmp["comfort"] is None and ov["kpis"]["comfort_stars"] is None
     assert cmp["targets"] == [] and cmp["default_target"] is None and cmp["max_gap"] == 2
-    cs = ov["consistency"]  # 3 replays: no band reaches 10 plays, so nothing is scored yet
-    assert cs["min_plays"] == 10 and sum(b["plays"] for b in cs["bands"]) == 3
-    assert all(b["score"] is None for b in cs["bands"])
+    cs = next(s for s in ov["skills"] if s["key"] == "consistency")  # no comfort level yet: says what to play
+    assert cs["score"] is None and cs["score_text"] == "Not enough data"
+    assert cs["needs"].startswith("First your comfort level")
+    assert all(s["needs"] is None for s in ov["skills"] if s["score"] is not None)
     first = ov["level"]["weights"][0]  # README: "1★ off 61%"
     assert (
         ov["level"]["stars"] is not None

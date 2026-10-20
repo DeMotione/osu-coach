@@ -99,62 +99,83 @@ def consistency_score(P: pd.DataFrame, weights: pd.Series, n_total: int) -> dict
     return out
 
 
-# ------------------------------------------------------------------ consistency per star band
-BAND = 0.5  # stars (with mods)
-BAND_MIN_PLAYS = 10
+# ------------------------------------------------------------------ consistency around the comfort level
+COMFORT_RANGE = 1.0  # stars (with mods) either side of the comfort level whose plays count
+COMFORT_MIN_MAPS = 8  # different maps needed in that range before there is a score
 ACC_BAD, ACC_GOOD = 0.93, 0.99  # accuracy scale: 93% → 0, 99% → 1
 BEST_WEIGHT = 0.7  # the better of combo and accuracy carries the score; both good = top score
 FULL_COMBO = 0.98  # share of the map's max combo (no misses) that counts as a full combo
 
 
 def _held(x: np.ndarray) -> float:
-    """Usual level minus how much it swings between plays (one standard deviation), clipped to 0–1."""
+    """Usual level minus how much it swings from map to map (one standard deviation), clipped to 0–1."""
     return float(np.clip(x.mean() - x.std(), 0, 1))
 
 
-def band_consistency(combo: float, accuracy: float) -> float:
+def held_score(combo: float, accuracy: float) -> float:
     """0–100: the better of combo and accuracy held carries the score, both good = top score, both bad = low."""
     return 100 * (BEST_WEIGHT * max(combo, accuracy) + (1 - BEST_WEIGHT) * min(combo, accuracy))
 
 
-def consistency_bands(metas: pd.DataFrame) -> list[dict]:
-    """Per 0.5★ band (star rating with mods): how consistently combo and accuracy hold across the plays there.
-    Scored only with 10+ plays in the band."""
-    need = {"stars", "max_combo", "map_max_combo", "accuracy"}
+def _plays_near(metas: pd.DataFrame | None, low: float, high: float) -> pd.DataFrame:
+    """The plays (star rating with mods) from ``low`` to ``high``, with their combo share and accuracy scale."""
+    need = {"stars", "max_combo", "map_max_combo", "accuracy", "beatmap_md5"}
     if metas is None or metas.empty or not need <= set(metas.columns):
-        return []
+        return pd.DataFrame()
     m = metas.drop_duplicates("key") if "key" in metas else metas
     m = m.assign(
         stars=pd.to_numeric(m["stars"], errors="coerce"),
         accuracy=pd.to_numeric(m["accuracy"], errors="coerce"),
         top=pd.to_numeric(m["map_max_combo"], errors="coerce"),
     )
-    m = m[m["stars"].notna() & m["accuracy"].notna() & (m["top"] > 0)]
+    m = m[m["stars"].between(low, high) & m["accuracy"].notna() & (m["top"] > 0)]
     if m.empty:
-        return []
+        return m
     combo = (pd.to_numeric(m["max_combo"], errors="coerce").fillna(0) / m["top"]).clip(0, 1)
     misses = pd.to_numeric(m["nmiss"], errors="coerce").fillna(0) if "nmiss" in m else pd.Series(0, index=m.index)
-    m = m.assign(
+    return m.assign(
         combo=combo,
         acc_scale=((m["accuracy"] - ACC_BAD) / (ACC_GOOD - ACC_BAD)).clip(0, 1),
-        full=(combo >= FULL_COMBO) & (misses == 0),
-        band=np.floor(m["stars"] / BAND) * BAND,
+        full=((combo >= FULL_COMBO) & (misses == 0)).astype(float),
     )
-    bands = []
-    for low, d in m.groupby("band", sort=True):
-        enough = len(d) >= BAND_MIN_PLAYS
-        combo_held = _held(d["combo"].to_numpy(float)) if enough else None
-        acc_held = _held(d["acc_scale"].to_numpy(float)) if enough else None
-        bands.append(
-            {
-                "low": float(low),
-                "high": float(low) + BAND,
-                "plays": len(d),
-                "combo": combo_held,
-                "accuracy": acc_held,
-                "score": band_consistency(combo_held, acc_held) if enough else None,
-                "full_combo_share": float(d["full"].mean()),
-                "mean_accuracy": float(d["accuracy"].mean()),
-            }
+
+
+def comfort_consistency(metas: pd.DataFrame | None, comfort: float | None) -> dict:
+    """How steadily combo and accuracy hold from map to map around the comfort level: the plays (star rating with
+    mods) within ``COMFORT_RANGE`` stars of it, each map once (the average of its plays, so retrying one map can't
+    carry the score). Scored from ``COMFORT_MIN_MAPS`` different maps; until then ``needs`` says what to play."""
+    out = {"score": None, "maps": 0, "plays": 0, "min_maps": COMFORT_MIN_MAPS, "low": None, "high": None, "needs": None}
+    if comfort is None or not math.isfinite(comfort):
+        out["needs"] = (
+            "First your comfort level: pass 3 different maps (with at most 2 misses per 100 notes) and analyse your "
+            f"replays. Then play {COMFORT_MIN_MAPS} different maps within ±{COMFORT_RANGE:g}★ of it."
         )
-    return bands
+        return {**out, "reason": "Not enough data"}
+    low, high = max(0.0, comfort - COMFORT_RANGE), comfort + COMFORT_RANGE
+    m = _plays_near(metas, low, high)
+    per_map = (
+        m.groupby(m["beatmap_md5"].astype(str))[["combo", "acc_scale", "full", "accuracy"]].mean()
+        if not m.empty
+        else pd.DataFrame()
+    )
+    out.update(low=low, high=high, maps=len(per_map), plays=len(m))
+    if len(per_map) < COMFORT_MIN_MAPS:
+        more = COMFORT_MIN_MAPS - len(per_map)
+        out["needs"] = (
+            f"Play {more} more different map{'s' if more > 1 else ''} between {low:.1f}★ and {high:.1f}★ (your "
+            f"{comfort:.1f}★ comfort level ±{COMFORT_RANGE:g}★), then analyse your replays again: consistency is "
+            f"scored from {COMFORT_MIN_MAPS} different maps in that range ({len(per_map)} so far). Passed and failed "
+            "plays both count; playing a map you already have again doesn't add one."
+        )
+        return {**out, "reason": "Not enough data"}
+    combo_held = _held(per_map["combo"].to_numpy(float))
+    acc_held = _held(per_map["acc_scale"].to_numpy(float))
+    return {
+        **out,
+        "score": round(held_score(combo_held, acc_held), 1),
+        "combo": combo_held,
+        "accuracy": acc_held,
+        "full_combo_share": float(per_map["full"].mean()),
+        "mean_accuracy": float(per_map["accuracy"].mean()),
+        "reason": f"Combo and accuracy held across {len(per_map)} different maps within ±{COMFORT_RANGE:g}★",
+    }
