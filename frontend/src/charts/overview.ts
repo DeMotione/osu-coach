@@ -19,17 +19,6 @@ export const MISS_SHORT: Record<string, string> = {
   notelock: "Notelock",
 };
 
-/** What a skill measures, how it is scored, the player's numbers and what raises it (the bar's hover). */
-export function skillHover(s: Skill, help?: SkillMeta): string {
-  const p = (text: string, cls = "") => `<div style="margin-top:6px${cls}">${esc(text)}</div>`;
-  let html = `<b>${esc(s.label)}: ${esc(s.score_text)}</b>`;
-  if (s.needs) html += p(`To get a score: ${s.needs}`);
-  if (help) html += p(help.what);
-  html += p(`You: ${s.facts.join("; ")}`);
-  if (help) html += p(`To raise it: ${help.practise}`);
-  return html;
-}
-
 const SKILL_AXIS = (t: ChartTheme, labels: string[], width: number) =>
   categoryAxis(t, labels, {
     inverse: true,
@@ -41,54 +30,6 @@ const NARROW_SKILLS = (right: number) => ({
   yAxis: { axisLabel: { width: 92, fontSize: 11 } },
   series: [{ label: { fontSize: 11 } }],
 });
-
-export function skillBars(skills: Skill[], help: SkillMeta[], t: ChartTheme): Option {
-  const helpOf = Object.fromEntries(help.map((h) => [h.key, h]));
-  return responsive(
-    base(t, {
-      grid: grid({ right: 96, bottom: 8 }),
-      xAxis: valueAxis(t, { min: 0, max: 100, interval: 25, name: "50 = assumed comfort baseline · higher is better", nameGap: 26 }),
-      yAxis: SKILL_AXIS(
-        t,
-        skills.map((s) => s.label),
-        230,
-      ),
-      tooltip: tooltip(t, {
-        trigger: "axis",
-        axisPointer: { type: "shadow", shadowStyle: { color: t.split } },
-        formatter: (p: unknown) => {
-          const s = skills[params(p)[0].dataIndex];
-          return skillHover(s, helpOf[s.key]);
-        },
-      }),
-      series: [
-        {
-          type: "bar",
-          barMaxWidth: 22,
-          // no score yet but a way to get one: a faint full-width bar saying so, whose hover says what to play
-          data: skills.map((s) =>
-            s.score === null && s.needs
-              ? {
-                  value: 100,
-                  itemStyle: { color: alpha(C.muted, 0.18), borderRadius: [0, 3, 3, 0] },
-                  label: { position: "insideLeft", color: t.muted, formatter: "Not enough data" },
-                }
-              : { value: s.score ?? 0, itemStyle: { color: scoreColor(s.score), borderRadius: [0, 3, 3, 0] } },
-          ),
-          label: {
-            show: true,
-            position: "right",
-            color: t.text,
-            fontSize: 12,
-            formatter: (p: unknown) => skills[params(p)[0].dataIndex].score?.toFixed(0) ?? "–",
-          },
-          markLine: refLine(t, { xAxis: 50 }),
-        },
-      ],
-    }),
-    NARROW_SKILLS(80),
-  );
-}
 
 type CompareTarget = Schemas["CompareTarget"];
 
@@ -155,7 +96,7 @@ export function compareBars(skills: Skill[], target: CompareTarget, comfort: num
         max: 100,
         interval: 25,
         name: target.comfort
-          ? "Your scores at your comfort level · 50 = expected there"
+          ? `Your scores at your ${starLabel(comfort)} comfort level · 50 = expected there`
           : `Your scores at ${starLabel(target.stars)} · faded = at your ${starLabel(comfort)} comfort level`,
         nameGap: 26,
       }),

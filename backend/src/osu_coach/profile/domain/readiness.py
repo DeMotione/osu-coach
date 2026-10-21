@@ -120,6 +120,6 @@ def targets(comfort: float) -> list[tuple[float, bool]]:
 
 
 def default_target(comfort: float) -> float:
-    """The half star a star above the comfort level (6.15★: 7★), or the highest one offered."""
-    _, half = _half_star_below(comfort)
-    return round(min(half + 1.0, TARGET_RANGE[1]), 1)
+    """The star rating shown first: the comfort level itself (to 0.1★, within 1–13★)."""
+    base, _ = _half_star_below(comfort)
+    return base
