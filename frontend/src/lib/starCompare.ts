@@ -32,12 +32,6 @@ export function chanceLabel(chance: number | null): string {
   return `${Math.round(chance * 100)}%`;
 }
 
-/** Where a star rating lies from the comfort level: "1★ above your comfort level". */
-export function fromComfort(stars: number, comfort: number): string {
-  const d = tenth(stars - comfort);
-  return d === 0 ? "your comfort level" : `${starLabel(Math.abs(d))} ${d > 0 ? "above" : "below"} your comfort level`;
-}
-
 export interface TargetOption {
   value: number;
   label: string;
@@ -52,7 +46,8 @@ export function targetOptions(compare: StarCompare): TargetOption[] {
     const title = t.locked
       ? `Locked: more than ${starLabel(compare.max_gap)} above your comfort level is too big a step to compare yet.`
       : [t.comfort ? COMFORT_HINT : "", t.pass_chance === null ? "" : `clean pass ${chanceLabel(t.pass_chance)}`].filter(Boolean).join(" · ");
-    return { value: t.stars, label: starLabel(t.stars), disabled: t.locked, comfort: t.comfort, title: title || undefined };
+    const label = t.comfort ? `${starLabel(t.stars)} · your comfort` : starLabel(t.stars);
+    return { value: t.stars, label, disabled: t.locked, comfort: t.comfort, title: title || undefined };
   });
 }
 
