@@ -111,7 +111,7 @@ class StarCompare(BaseModel):
     comfort: float | None = Field(description="The comfort level (★) the scores are moved from.")
     max_gap: float = Field(description="Star ratings more than this above the comfort level are locked (★).")
     targets: list[CompareTarget] = Field(description="The star ratings to compare with, easiest first.")
-    default_target: float | None = Field(description="The star rating shown first: one star above comfort.")
+    default_target: float | None = Field(description="The star rating shown first: the comfort level.")
 
 
 class StaminaPoint(BaseModel):
