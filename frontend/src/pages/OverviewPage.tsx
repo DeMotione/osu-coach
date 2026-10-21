@@ -1,17 +1,16 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { Link } from "react-router";
 
 import type { Schemas } from "../api/client";
 import { useMeta, useOverview, usePatchSettings, useSettings } from "../api/queries";
 import { Chart } from "../charts/Chart";
-import { compareBars, missCauses, skillBars } from "../charts/overview";
+import { compareBars, missCauses } from "../charts/overview";
 import type { ChartTheme } from "../charts/palette";
 import { IconCheck } from "../components/icons";
 import { StarPicker } from "../components/StarPicker";
 import { QueryView } from "../components/states";
 import { Alert, Badge, Card, Page, Row, Stat, Switch, Tiles, type TileCount } from "../components/ui";
 import { fmt, int, pct, span, stars } from "../lib/format";
-import { chanceLabel, fromComfort, pickTarget, starLabel, targetOptions } from "../lib/starCompare";
+import { pickTarget, starLabel, targetOptions } from "../lib/starCompare";
 
 type Overview = Schemas["Overview"];
 
@@ -33,7 +32,6 @@ function OverviewBody({ ov }: { ov: Overview }) {
   const meta = useMeta();
   const k = ov.kpis;
   const help = meta.data?.skills;
-  const skillsChart = useCallback((t: ChartTheme) => skillBars(ov.skills, help ?? [], t), [ov.skills, help]);
   const descriptions = useMemo(
     () => Object.fromEntries((meta.data?.miss_causes ?? []).map((m) => [m.key, m.description])),
     [meta.data],
@@ -53,17 +51,11 @@ function OverviewBody({ ov }: { ov: Overview }) {
         <Stat label="Misses / 100 notes" value={fmt(k.misses_per_100, 1)} />
         <Stat label="Accuracy" value={pct(k.accuracy)} />
       </Tiles>
-      <Card
-        title="Skills at your comfort level"
-        sub={`Experimental replay ratings, 0–100; 50 = expected performance at your ${stars(k.comfort_stars, 1)} comfort level under assumed curves. Most skills use the best play per map/mod; Timing accuracy uses weighted hit single notes from all selected replays. Consistency: how steadily you hold combo and accuracy on different maps from a star below your comfort level up to it (harder maps don't count yet). Grey = not measured yet: point at a bar to see what to play.`}
-      >
-        <Chart build={skillsChart} height={skillsHeight} label="Skill scores against your level" />
-      </Card>
       <CompareCard compare={ov.compare} skills={ov.skills} help={help} height={skillsHeight} />
       <Row>
         <Card
           title="Why you miss"
-          sub="Share of your misses by cause (weighted by difficulty). Aim = jumps and single notes; speed-aim = tapped in time but the cursor couldn't keep up in a stream, burst or very fast jump; the others are tapping / reading misses."
+          hint="Share of your misses by cause (weighted by difficulty). Aim = jumps and single notes; speed-aim = tapped in time but the cursor couldn't keep up in a stream, burst or very fast jump; the others are tapping / reading misses."
           foot={
             ov.aim_split
               ? `Against what the difficulty predicts: on fast patterns you miss ${ov.aim_split.fast_ratio.toFixed(1)}× the expected, on normal-speed jumps and notes ${ov.aim_split.normal_ratio.toFixed(1)}× (1.0× = as expected for your level).`
@@ -220,8 +212,8 @@ function LevelCard({ ov }: { ov: Overview }) {
   );
 }
 
-/** The comfort-level scores moved to a star rating picked within 2★ of comfort (one star above first): lower on
- * harder maps, by how much more their typical maps demand of each skill, with the chance to pass one cleanly. */
+/** The skill scores at the comfort level (shown first) or at another star rating: any easier one, up to `max_gap` above
+ * comfort; lower on harder maps, by how much more their typical maps demand of each skill. */
 function CompareCard({
   compare,
   skills,
@@ -241,28 +233,16 @@ function CompareCard({
     (t: ChartTheme) => (target ? compareBars(skills, target, comfort, t, help ?? []) : {}),
     [skills, target, comfort, help],
   );
-  const weakest = target?.skills.find((k) => k.key === target.weakest);
-  const weakestLabel = skills.find((s) => s.key === target?.weakest)?.label;
   return (
     <Card
-      title="Compare with other star ratings"
-      sub={`Your comfort-level scores (above) on easier and harder maps. Harder maps demand more of every skill, so the scores drop, each by how much more typical maps of that star rating demand of it (measured on ranked maps). Consistency is measured on your own maps from a star below that star rating up to it instead (at 7★: 6–7★), so play some to see it. You can compare any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level.`}
+      title="Current skill level"
+      hint={`Your skill scores from 0 to 100: 50 = what is expected at your ${starLabel(comfort)} comfort level. Most skills use your best play per map; timing accuracy uses all hit single notes. Pick another star rating to see the scores on easier or harder maps: on harder ones they drop, each by how much more typical maps of that star rating demand of the skill (measured on ranked maps). Consistency is measured on your own maps from a star below the star rating up to it. You can pick any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level. Grey = not measured yet: point at a bar to see what to play.`}
     >
       {target === null || compare.comfort === null ? (
         <Alert>Your comfort level isn't known yet: analyse at least 3 recent maps you finished cleanly.</Alert>
       ) : (
         <div className="stack" style={{ gap: 14 }}>
           <StarPicker label="Compare with" options={options} value={target.stars} onChange={setPicked} />
-          <p>
-            {target.comfort ? "At your comfort level" : `On typical ${starLabel(target.stars)} maps (${fromComfort(target.stars, comfort)})`}: about{" "}
-            <b>{chanceLabel(target.pass_chance)}</b> chance to pass one cleanly (completed, at most 2 misses per 100 notes).
-            {weakestLabel && weakest?.score !== null && weakest?.score !== undefined ? (
-              <>
-                {" "}
-                Your weakest skill there: {weakestLabel.toLowerCase()} ({weakest.score.toFixed(0)}).
-              </>
-            ) : null}
-          </p>
           <Chart build={build} height={height} label={`Skill scores at ${starLabel(target.stars)}`} />
         </div>
       )}
@@ -273,7 +253,7 @@ function CompareCard({
 function StrengthsCard({ ov }: { ov: Overview }) {
   const rs = ov.reading_split;
   return (
-    <Card title="Strengths & weaknesses" sub="Your three best skills (score ≥ 55) and up to three to work on (≤ 45).">
+    <Card title="Strengths & weaknesses" hint="Your three best skills (score ≥ 55) and up to three to work on (≤ 45).">
       <div className="split">
         <div className="stack" style={{ gap: 8 }}>
           <Badge tone="good">Strong</Badge>
@@ -325,11 +305,7 @@ function TopTips({ tips }: { tips: Schemas["TipOut"][] }) {
   return (
     <Card
       title="Top tips"
-      sub={
-        <>
-          The most important tips; all of them, with what to do, are on <Link to="/tips">Tips & Setup</Link>.
-        </>
-      }
+      hint="The most important tips. All of them, with what to do, are on the Tips & Setup page."
     >
       <Tiles n={tips.length as TileCount}>
         {tips.map((t) => (

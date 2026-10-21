@@ -921,6 +921,13 @@
   line-height: 1.35;
 }
 
+.card__title .hint {
+  margin-left: 6px;
+  vertical-align: -2px;
+  font-size: var(--t-sm);
+  font-weight: 400;
+}
+
 .card__sub {
   margin-top: var(--s-1);
   max-width: 78ch;

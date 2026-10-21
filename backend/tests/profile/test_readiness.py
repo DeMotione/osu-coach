@@ -109,7 +109,7 @@ def test_the_star_ratings_to_compare_with(comfort):
 
 @pytest.mark.parametrize(
     "comfort,near,default",
-    [(6.15, [5.5, 6.0, 6.5, 7.0], 7.0), (6.55, [6.0, 6.5, 7.0, 7.5], 7.5), (6.0, [5.5, 6.0, 6.5, 7.0], 7.0)],
+    [(6.15, [5.5, 6.0, 6.5, 7.0], 6.2), (6.55, [6.0, 6.5, 7.0, 7.5], round(6.55, 1)), (6.0, [5.5, 6.0, 6.5, 7.0], 6.0)],
 )
 def test_half_stars_near_the_comfort_level(comfort, near, default):
     """The two half stars either side of the comfort level, the whole stars and the comfort level itself."""

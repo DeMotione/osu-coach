@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Schemas } from "../api/client";
 import { circle, merge, niceMax, responsive } from "./base";
 import { mmss, playTimingChart, rangeStats } from "./check";
-import { MISS_SHORT, compareBars, compareHover, missCauses, skillBars, skillHover } from "./overview";
+import { MISS_SHORT, compareBars, compareHover, missCauses } from "./overview";
 import { alpha, chartTheme, heat, scoreColor, C } from "./palette";
 import { timingChart } from "./tapping";
 
@@ -57,30 +57,6 @@ const skill = (key: string, score: number | null, needs: string | null = null): 
 });
 
 describe("overview charts", () => {
-  it("explains a skill with what it measures, the player's numbers and what raises it", () => {
-    const html = skillHover(skill("aim", null), { key: "aim", label: "Jump aim", what: "W <b>", how: "H", practise: "P" });
-    expect(html).toContain("not enough data");
-    expect(html).toContain("W &lt;b&gt;");
-    expect(html).toContain("You: 100 notes");
-    expect(html).toContain("To raise it: P");
-  });
-
-  it("draws one bar per skill, empty ones at 0", () => {
-    const o = (skillBars([skill("aim", 61), skill("flow_aim", null)], [], t) as { baseOption: AnyOption }).baseOption;
-    const data = (o.series![0].data as { value: number }[]).map((d) => d.value);
-    expect(data).toEqual([61, 0]);
-  });
-
-  it("shows a skill that needs more plays as a full grey bar saying so, its hover what to play", () => {
-    const needs = "Play 3 more different maps between 4.0★ and 6.0★";
-    const o = (skillBars([skill("aim", 61), skill("consistency", null, needs)], [], t) as { baseOption: AnyOption }).baseOption;
-    const bar = (o.series![0].data as { value: number; label?: { formatter: string } }[])[1];
-    expect(bar.value).toBe(100);
-    expect(bar.label?.formatter).toBe("Not enough data");
-    expect(skillHover(skill("consistency", null, needs))).toContain(`To get a score: ${needs}`);
-    expect(skillHover(skill("aim", 61))).not.toContain("To get a score");
-  });
-
   it("sorts miss causes so the biggest is on top", () => {
     const o = missCauses(
       [
