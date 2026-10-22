@@ -876,12 +876,12 @@ def test_songs_folder_find_after_a_scan_has_nothing_left(tmp_path):
     assert songs.find(["0" * 32]) == {}
 
 
-def test_songs_folder_find_progress_every_1000_files(tmp_path):
+def test_songs_folder_find_progress_every_500_files(tmp_path):
     for i in range(1000):
         put(tmp_path / f"{i}.osu", f"osu file format v14 {i}".encode())
     messages: list[str] = []
     SongsFolder(tmp_path, {}).find(["0" * 32], progress=messages.append)
-    assert messages == ["looking for beatmaps in Songs: 1000"]
+    assert messages == ["looking for beatmaps in Songs: 500", "looking for beatmaps in Songs: 1000"]
 
 
 def test_index_songs_is_a_songs_folder_scan(tmp_path):

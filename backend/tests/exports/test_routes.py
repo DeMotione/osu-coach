@@ -58,7 +58,7 @@ def test_lazer_zip_download(client, export):
 
 
 def test_lazer_import_folder(client, export, monkeypatch):
-    def fake_download(set_id, dest, progress=None):
+    def fake_download(set_id, dest, progress=None, stop=None):
         dest = Path(dest)
         dest.mkdir(parents=True, exist_ok=True)
         osz = dest / f"{set_id}.osz"
@@ -80,7 +80,7 @@ def test_lazer_import_folder(client, export, monkeypatch):
 def test_lazer_import_folder_can_be_cancelled(client, export, monkeypatch):
     first, go = threading.Event(), threading.Event()
 
-    def slow_download(set_id, dest, progress=None):
+    def slow_download(set_id, dest, progress=None, stop=None):
         first.set()
         go.wait(5)
         return None

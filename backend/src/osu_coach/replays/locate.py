@@ -304,7 +304,7 @@ class LazerStore:
         while i < len(self.unread) and remaining:
             path = self.unread[i][0]
             i += 1
-            if progress and i % 2000 == 0:
+            if progress and i % 500 == 0:
                 progress(f"looking for beatmaps in lazer's files: {i}")
             info = self._info(path)
             if info and info["k"] == "osu":
@@ -350,7 +350,7 @@ class SongsFolder:
         while i < len(self.unread) and remaining:
             path = self.unread[i][0]
             i += 1
-            if progress and i % 1000 == 0:
+            if progress and i % 500 == 0:
                 progress(f"looking for beatmaps in Songs: {i}")
             md5 = _cached_md5(Path(path), self.cache)
             if md5:
