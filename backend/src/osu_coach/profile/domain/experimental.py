@@ -14,6 +14,7 @@ import pandas as pd
 from osu_coach.analysis.skill_scale import SPEED_POINTS, expected_speed_bpm
 from osu_coach.profile.domain.aim import aim_values, flow_values
 from osu_coach.profile.domain.consistency import star_consistency
+from osu_coach.profile.domain.demand import log_demand
 from osu_coach.profile.domain.levels import RECENT_DAYS, RECENT_MIN, replay_weight
 from osu_coach.profile.domain.reading import reading_values
 from osu_coach.profile.domain.sliders import slider_difficulty
@@ -37,6 +38,11 @@ STAMINA_SHARES = {10: 0.55, 30: 0.47, 60: 0.41, 120: 0.38, 300: 0.33}
 ACCURACY_SIGMA_MS = (79.5 - 6 * 8) / 1.959963984540054
 ACCURACY_LOW_SIGMA_MS = (79.5 - 6 * 8) / 1.6448536269514722
 ACCURACY_TRANSITION_STARS = 5.5
+# Slider control: what the 30 hardest held sliders of a typical 6★ map score (slider_difficulty), measured on 38 real
+# maps of 5.7–7★ normalised to 6★ along the pool's slider curve (median 19.1, middle half 15–25). Harder maps ask for
+# more as their sliders get faster (demand.log_demand), about 15% per ★ around 6★ — the old 40 × 2^((★−6)/3) asked for
+# twice as much at 6★, so most players who don't break sliders were never "tested" (#54).
+SLIDERS_AT_6 = 19.0
 
 
 def comfort(metas: pd.DataFrame) -> float | None:
@@ -67,7 +73,7 @@ def _expected(skill: str, theta: float, *, duration: int | None = None) -> float
         "flow_aim": 11 * 2 ** ((theta - 6) / 12),
         "speed": expected_speed_bpm(theta),
         "stamina": bpm * STAMINA_SHARES[duration] if duration else math.nan,
-        "sliders": 40 * 2 ** ((theta - 6) / 3),
+        "sliders": SLIDERS_AT_6 * 2 ** (log_demand("sliders", theta) - log_demand("sliders", 6.0)),
         "reading": 0.95**8,
     }.get(skill, math.nan)
 

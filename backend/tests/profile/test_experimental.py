@@ -47,3 +47,14 @@ def test_reference_and_score_transition_smoothly_into_5_5_stars():
         abs(_accuracy_score(0.11, _accuracy_expected(windows, 5.4999), 5.4999) - _accuracy_score(0.11, high, 5.5))
         <= 0.1
     )
+
+
+def test_slider_expectation_is_what_typical_maps_ask():
+    """#54: the reference was 40 × 2^((★−6)/3), twice what a typical 6★ map's hardest sliders score, so players who
+    don't break sliders were "not tested" whatever they played. Now 19 at 6★, growing like real slider speed."""
+    from osu_coach.profile.domain.experimental import SLIDERS_AT_6, _expected
+
+    assert _expected("sliders", 6.0) == pytest.approx(SLIDERS_AT_6) == pytest.approx(19.0)
+    assert 1.05 < _expected("sliders", 7.0) / _expected("sliders", 6.0) < 1.3  # ~15% per ★, not 26%
+    assert _expected("sliders", 8.0) < 30 < 40  # the old curve asked 63.5 at 8★
+    assert _expected("sliders", 4.0) < _expected("sliders", 6.0) < _expected("sliders", 9.0)
