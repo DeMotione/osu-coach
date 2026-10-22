@@ -14,6 +14,8 @@ interface JobsContext {
   /** Start a job (the request that answers with it) and follow it until it has finished. */
   start: (request: Promise<Job>) => Promise<Job>;
   dismiss: (kind: JobKind) => void;
+  /** Ask the slot's running job to stop (only ``cancellable`` jobs); polling picks up when it has. */
+  cancel: (kind: JobKind) => Promise<void>;
 }
 
 const Ctx = createContext<JobsContext | null>(null);
@@ -93,7 +95,17 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const value = useMemo(() => ({ jobs, start, dismiss }), [jobs, start, dismiss]);
+  const cancel = useCallback(
+    async (kind: JobKind) => {
+      const job = jobs[kind];
+      if (!job || job.status !== "running" || !job.cancellable) return;
+      const next = await unwrap(api.POST("/api/jobs/{job_id}/cancel", { params: { path: { job_id: job.id } } }));
+      setJobs((s) => (s[next.kind]?.id === next.id ? { ...s, [next.kind]: next } : s));
+    },
+    [jobs],
+  );
+
+  const value = useMemo(() => ({ jobs, start, dismiss, cancel }), [jobs, start, dismiss, cancel]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -105,7 +117,7 @@ export function useJobs(): JobsContext {
 
 /** The slot's job and a function to start a new one; ``error`` = why the start was refused. */
 export function useJob(kind: JobKind) {
-  const { jobs, start, dismiss } = useJobs();
+  const { jobs, start, dismiss, cancel } = useJobs();
   const [error, setError] = useState<ApiError | null>(null);
   const job = jobs[kind];
   const run = useCallback(
@@ -125,6 +137,10 @@ export function useJob(kind: JobKind) {
     running: job?.status === "running",
     error,
     run,
+    cancel: () => {
+      setError(null);
+      cancel(kind).catch((e) => setError(e instanceof ApiError ? e : new ApiError(0, "error", String(e))));
+    },
     dismiss: () => {
       setError(null);
       dismiss(kind);

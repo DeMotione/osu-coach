@@ -62,7 +62,10 @@ def lazer_pack(req: ExportRequest, ws: WorkspaceDep) -> LazerPackJob:
     return job_view(
         LazerPackJob,
         ws.jobs.start(
-            "lazer_pack", "Making the lazer import folder", lambda report: svc.build_lazer_pack(ws, req, report)
+            "lazer_pack",
+            "Making the lazer import folder",
+            lambda report: svc.build_lazer_pack(ws, req, report),
+            cancellable=True,
         ),
     )
 
@@ -84,5 +87,6 @@ def osz(req: OszRequest, ws: WorkspaceDep) -> OszJob:
             "Downloading maps",
             lambda report: svc.download_osz(req.folder, req.set_ids, report),
             exclusive=False,
+            cancellable=True,
         ),
     )

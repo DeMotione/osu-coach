@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-JobStatus = Literal["running", "succeeded", "failed"]
+JobStatus = Literal["running", "succeeded", "failed", "cancelled"]
 
 
 class JobBase(BaseModel):
@@ -19,6 +19,7 @@ class JobBase(BaseModel):
     error: str | None
     created_at: dt.datetime
     finished_at: dt.datetime | None
+    cancellable: bool = Field(description="Whether POST /api/jobs/{id}/cancel can stop it.")
 
 
 def job_view(model: type[JobBase], job) -> JobBase:
@@ -32,5 +33,6 @@ def job_view(model: type[JobBase], job) -> JobBase:
         error=job.error,
         created_at=job.created_at,
         finished_at=job.finished_at,
+        cancellable=job.cancellable,
         result=job.result,
     )

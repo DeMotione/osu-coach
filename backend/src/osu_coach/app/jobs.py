@@ -27,3 +27,11 @@ def running(ws: WorkspaceDep) -> list[Job]:
 def get_job(job_id: str, ws: WorkspaceDep) -> Job:
     job = ws.jobs.get(job_id)
     return job_view(JOB_MODELS[job.kind], job)
+
+
+@router.post("/jobs/{job_id}/cancel", summary="Stop a job", responses=responses(404, 409))
+def cancel_job(job_id: str, ws: WorkspaceDep) -> Job:
+    """Only jobs with ``cancellable`` (409 ``not_cancellable`` otherwise). The job stops between two steps, so poll
+    it until its status is ``cancelled``; one that finished in the meantime keeps its result."""
+    job = ws.jobs.cancel(job_id)
+    return job_view(JOB_MODELS[job.kind], job)
