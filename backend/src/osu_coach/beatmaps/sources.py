@@ -9,15 +9,24 @@ official https://osu.ppy.sh/osu/{id} for raw .osu files, and several public
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 import threading
 import time
+from collections.abc import Callable, Iterable, Iterator
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
 import requests
 
+log = logging.getLogger("osu_coach.beatmaps.sources")
+
 UA = "osu-coach/0.1 (local replay-analysis app)"
 TIMEOUT = 25
+# .osz: 10 s to connect, 30 s without data before a mirror counts as down (a big file may take longer in total);
+# one try per mirror, then the next one
+OSZ_TIMEOUT = (10, 30)
+DOWNLOAD_WORKERS = 3  # .osz downloads at a time
 
 _lock = threading.Lock()
 _last_call: dict[str, float] = {}
@@ -56,9 +65,9 @@ def _throttle(host: str):
         _last_call[host] = time.monotonic()
 
 
-def _get(url: str, host: str, **kw) -> requests.Response | None:
+def _get(url: str, host: str, attempts: int = 3, **kw) -> requests.Response | None:
     timeout = kw.pop("timeout", TIMEOUT)
-    for attempt in range(3):
+    for attempt in range(attempts):
         _throttle(host)
         try:
             r = session().get(url, timeout=timeout, **kw)
@@ -139,18 +148,20 @@ def search_sets(
     return d if isinstance(d, list) else []
 
 
-def download_osz(set_id: int, dest_dir: Path, progress=None) -> Path | None:
-    """Download a beatmapset (.osz, no video) trying mirrors in order."""
+def download_osz(set_id: int, dest_dir: Path, progress=None, stop: threading.Event | None = None) -> Path | None:
+    """Download a beatmapset (.osz, no video) trying mirrors in order. ``stop``: once set, give up (None)."""
     dest_dir = Path(dest_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
     existing = list(dest_dir.glob(f"{set_id} *.osz")) + list(dest_dir.glob(f"{set_id}.osz"))
     if existing:
         return existing[0]
     for name, tpl in OSZ_MIRRORS:
+        if stop is not None and stop.is_set():
+            return None
         url = tpl.format(id=set_id)
         if progress:
             progress(f"{set_id}: trying {name}")
-        r = _get(url, name, timeout=120, allow_redirects=True, stream=True)
+        r = _get(url, name, attempts=1, timeout=OSZ_TIMEOUT, allow_redirects=True, stream=True)
         if r is None or r.status_code != 200:
             continue
         ctype = r.headers.get("content-type", "")
@@ -162,11 +173,16 @@ def download_osz(set_id: int, dest_dir: Path, progress=None) -> Path | None:
         try:
             with open(tmp, "wb") as f:
                 for chunk in r.iter_content(1 << 16):
+                    if stop is not None and stop.is_set():
+                        break
                     f.write(chunk)
                     size += len(chunk)
         except requests.RequestException:
             tmp.unlink(missing_ok=True)
             continue
+        if stop is not None and stop.is_set():
+            tmp.unlink(missing_ok=True)
+            return None
         if size < 1024 or not _looks_like_zip(tmp):
             tmp.unlink(missing_ok=True)
             continue
@@ -174,6 +190,42 @@ def download_osz(set_id: int, dest_dir: Path, progress=None) -> Path | None:
         tmp.replace(final)
         return final
     return None
+
+
+def download_many(
+    set_ids: Iterable[int],
+    dest_dir: Path,
+    progress: Callable[[int, int, str], None] | None = None,
+    workers: int = DOWNLOAD_WORKERS,
+    download: Callable[[int, Path, threading.Event], Path | None] | None = None,
+) -> Iterator[tuple[int, Path | None]]:
+    """Download beatmapsets (.osz) ``workers`` at a time, yielding ``(set id, .osz or None)`` as each finishes.
+
+    ``progress(done, total, message)`` is called at least twice a second while waiting; when it raises (a cancelled
+    job), the downloads still running stop at their next chunk and the exception goes on. ``download(set_id,
+    dest_dir, stop)`` defaults to :func:`download_osz`."""
+    ids = list(dict.fromkeys(int(s) for s in set_ids))
+    stop = threading.Event()
+    fetch = download or (lambda sid, folder, stop: download_osz(sid, folder, stop=stop))
+    pool = ThreadPoolExecutor(max_workers=max(1, workers), thread_name_prefix="osz")
+    try:
+        futures = {pool.submit(fetch, sid, Path(dest_dir), stop): sid for sid in ids}
+        pending, done = set(futures), 0
+        while pending:
+            if progress:
+                progress(done, len(ids), f"Downloading map sets: {done} of {len(ids)} done")
+            finished, pending = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
+            for future in finished:
+                done += 1
+                try:
+                    path = future.result()
+                except Exception:  # noqa: BLE001 - one failed set doesn't stop the others
+                    log.exception("downloading set %s failed", futures[future])
+                    path = None
+                yield futures[future], path
+    finally:
+        stop.set()
+        pool.shutdown(wait=True, cancel_futures=True)
 
 
 def _filename_from_headers(r: requests.Response, set_id: int) -> str:

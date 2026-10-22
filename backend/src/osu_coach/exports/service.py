@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import closing
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -68,7 +69,9 @@ def build_lazer_pack(ws: Workspace, req: ExportRequest, report: Reporter) -> Laz
     lib = ws.library
     if lib is not None and lib.has_unread_maps("lazer"):
         report.note("Checking which of these maps you already have…")
-        lib.find_maps(set(hashes))
+        # reads every file of the install a limited scan skipped when a map isn't there: the reports along the way
+        # show that it is still going, and let a cancel stop it
+        lib.find_maps(set(hashes), lambda msg: report.note(f"Checking which of these maps you already have ({msg})…"))
     sets = sets_to_download(rows, lib.installed["lazer"] if lib is not None else set())
     res = lazer_import.build_pack(lazer_import.default_pack_dir(req.name), {req.name: hashes}, sets, progress=report)
     if ws.config.reveal_folders:
@@ -94,10 +97,10 @@ def download_osz(folder: str, set_ids: list[int], report: Reporter) -> OszResult
         raise Invalid(f"Can't use {folder}: {exc}", "bad_folder") from exc
     sets = list(dict.fromkeys(int(s) for s in set_ids))
     ok, failed = 0, []
-    for i, sid in enumerate(sets, 1):
-        report(i - 1, len(sets), f"Downloading {i}/{len(sets)} (set {sid})")
-        if sources.download_osz(sid, dest):
-            ok += 1
-        else:
-            failed.append(sid)
-    return OszResult(folder=str(dest), downloaded=ok, failed=failed)
+    with closing(sources.download_many(sets, dest, report)) as done:
+        for sid, path in done:
+            if path:
+                ok += 1
+            else:
+                failed.append(sid)
+    return OszResult(folder=str(dest), downloaded=ok, failed=sorted(failed, key=sets.index))
