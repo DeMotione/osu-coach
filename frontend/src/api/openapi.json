@@ -726,6 +726,92 @@
         }
       }
     },
+    "/api/jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Stop a job",
+        "description": "Only jobs with ``cancellable`` (409 ``not_cancellable`` otherwise). The job stops between two steps, so poll\nit until its status is ``cancelled``; one that finished in the meantime keeps its result.",
+        "operationId": "cancel_job_api_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ScanJob"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AnalysisJob"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LazerPackJob"
+                    },
+                    {
+                      "$ref": "#/components/schemas/OszJob"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "kind",
+                    "mapping": {
+                      "scan": "#/components/schemas/ScanJob",
+                      "analysis": "#/components/schemas/AnalysisJob",
+                      "lazer_pack": "#/components/schemas/LazerPackJob",
+                      "osz_download": "#/components/schemas/OszJob"
+                    }
+                  },
+                  "title": "Response Cancel Job Api Jobs  Job Id  Cancel Post"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found; `code` says what is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/profile/summary": {
       "get": {
         "tags": [
@@ -2359,7 +2445,8 @@
             "enum": [
               "running",
               "succeeded",
-              "failed"
+              "failed",
+              "cancelled"
             ],
             "title": "Status"
           },
@@ -2407,6 +2494,11 @@
             ],
             "title": "Finished At"
           },
+          "cancellable": {
+            "type": "boolean",
+            "title": "Cancellable",
+            "description": "Whether POST /api/jobs/{id}/cancel can stop it."
+          },
           "kind": {
             "type": "string",
             "const": "analysis",
@@ -2432,6 +2524,7 @@
           "error",
           "created_at",
           "finished_at",
+          "cancellable",
           "kind",
           "result"
         ],
@@ -4863,7 +4956,8 @@
             "enum": [
               "running",
               "succeeded",
-              "failed"
+              "failed",
+              "cancelled"
             ],
             "title": "Status"
           },
@@ -4911,6 +5005,11 @@
             ],
             "title": "Finished At"
           },
+          "cancellable": {
+            "type": "boolean",
+            "title": "Cancellable",
+            "description": "Whether POST /api/jobs/{id}/cancel can stop it."
+          },
           "kind": {
             "type": "string",
             "const": "lazer_pack",
@@ -4936,6 +5035,7 @@
           "error",
           "created_at",
           "finished_at",
+          "cancellable",
           "kind",
           "result"
         ],
@@ -5719,7 +5819,8 @@
             "enum": [
               "running",
               "succeeded",
-              "failed"
+              "failed",
+              "cancelled"
             ],
             "title": "Status"
           },
@@ -5767,6 +5868,11 @@
             ],
             "title": "Finished At"
           },
+          "cancellable": {
+            "type": "boolean",
+            "title": "Cancellable",
+            "description": "Whether POST /api/jobs/{id}/cancel can stop it."
+          },
           "kind": {
             "type": "string",
             "const": "osz_download",
@@ -5792,6 +5898,7 @@
           "error",
           "created_at",
           "finished_at",
+          "cancellable",
           "kind",
           "result"
         ],
@@ -7079,7 +7186,8 @@
             "enum": [
               "running",
               "succeeded",
-              "failed"
+              "failed",
+              "cancelled"
             ],
             "title": "Status"
           },
@@ -7127,6 +7235,11 @@
             ],
             "title": "Finished At"
           },
+          "cancellable": {
+            "type": "boolean",
+            "title": "Cancellable",
+            "description": "Whether POST /api/jobs/{id}/cancel can stop it."
+          },
           "kind": {
             "type": "string",
             "const": "scan",
@@ -7152,6 +7265,7 @@
           "error",
           "created_at",
           "finished_at",
+          "cancellable",
           "kind",
           "result"
         ],

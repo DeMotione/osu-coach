@@ -69,6 +69,43 @@ def test_exclusive_jobs_wait_for_each_other_and_release_the_gate():
     assert gate.holder is None
 
 
+def test_a_cancelled_job_stops_at_its_next_report_and_frees_the_gate():
+    gate = BusyGate()
+    jobs = JobManager(gate)
+    started, go, steps = threading.Event(), threading.Event(), []
+
+    def work(report):
+        for i in range(100):
+            report(i, 100, f"step {i}")
+            steps.append(i)
+            started.set()
+            go.wait(5)
+        return "all done"
+
+    job = jobs.start("lazer_pack", "Downloading", work, cancellable=True)
+    assert started.wait(5)
+    assert jobs.cancel(job.id) is job and job.message == "Stopping…"
+    go.set()
+    _finish(job)
+    assert job.status == "cancelled" and job.result is None and job.error is None and steps == [0]
+    assert gate.holder is None and jobs.running() == []
+    assert jobs.cancel(job.id).status == "cancelled"  # again: nothing changes
+    _finish(jobs.start("scan", "Scanning", lambda r: 1))  # the gate is free
+
+
+def test_only_cancellable_jobs_can_be_cancelled():
+    jobs = JobManager(BusyGate())
+    go = threading.Event()
+    job = jobs.start("scan", "Scanning", lambda r: go.wait(5))
+    with pytest.raises(ApiError) as exc:
+        jobs.cancel(job.id)
+    assert exc.value.code == "not_cancellable" and job.status == "running"
+    go.set()
+    assert _finish(job).status == "succeeded"
+    done = _finish(jobs.start("osz_download", "x", lambda r: 7, exclusive=False, cancellable=True))
+    assert jobs.cancel(done.id).status == "succeeded" and done.result == 7  # finished first: keeps its result
+
+
 def test_unknown_job_and_old_jobs_are_forgotten():
     jobs = JobManager(BusyGate(), keep=3)
     with pytest.raises(NotFound):

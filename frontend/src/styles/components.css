@@ -767,6 +767,18 @@ input[type="range"] {
   gap: 7px;
 }
 
+/* a running job's progress with its Cancel button beside it */
+.job-status {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.job-status > .progress {
+  flex: 1;
+  min-width: 0;
+}
+
 .progress__bar {
   position: relative;
   height: 8px;

@@ -82,27 +82,29 @@ def build_pack(dest, collections: dict, sets=(), progress=None, download=None) -
     tmp = dest / "_downloading"
     sets = list(dict.fromkeys(int(s) for s in sets))
     got, failed = [], []
-    for i, sid in enumerate(sets, 1):
-        if progress:
-            progress(i - 1, len(sets), f"Downloading map set {i}/{len(sets)} ({sid})")
-        target = songs / str(sid)  # short paths: Windows' 260-character limit
-        if _has_maps(target):
-            got.append(sid)
-            continue
-        osz = download(sid, tmp)
-        if not osz:
-            failed.append(sid)
-            continue
-        try:
-            _extract_osz(Path(osz), target)
-        except (zipfile.BadZipFile, OSError):
-            shutil.rmtree(target, ignore_errors=True)
-            failed.append(sid)
-            continue
-        finally:
-            Path(osz).unlink(missing_ok=True)
-        (got if _has_maps(target) else failed).append(sid)
-    shutil.rmtree(tmp, ignore_errors=True)
+    try:  # ``progress`` raises to stop a cancelled job: the sets done so far stay for the next run
+        for i, sid in enumerate(sets, 1):
+            if progress:
+                progress(i - 1, len(sets), f"Downloading map set {i}/{len(sets)} ({sid})")
+            target = songs / str(sid)  # short paths: Windows' 260-character limit
+            if _has_maps(target):
+                got.append(sid)
+                continue
+            osz = download(sid, tmp)
+            if not osz:
+                failed.append(sid)
+                continue
+            try:
+                _extract_osz(Path(osz), target)
+            except (zipfile.BadZipFile, OSError):
+                shutil.rmtree(target, ignore_errors=True)
+                failed.append(sid)
+                continue
+            finally:
+                Path(osz).unlink(missing_ok=True)
+            (got if _has_maps(target) else failed).append(sid)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
     if progress and sets:
         progress(len(sets), len(sets), "Done")
     return {"path": dest, "maps": got, "failed": failed}
