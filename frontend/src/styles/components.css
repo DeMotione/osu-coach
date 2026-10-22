@@ -1448,6 +1448,44 @@ details.disclosure > .disclosure__body {
   padding: 0 14px 14px;
 }
 
+/* F(m) terms in a map table cell: "Stars  −0.03" over a muted "5.47★ vs 5.56★" */
+.map-breakdown > summary {
+  cursor: pointer;
+}
+
+.map-breakdown dl {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  min-width: 150px;
+  max-width: 220px;
+  white-space: normal;
+  text-align: left;
+}
+
+.map-breakdown dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+}
+
+.map-breakdown dt {
+  color: var(--muted);
+  font-size: var(--t-sm);
+}
+
+.map-breakdown dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.map-breakdown .map-breakdown__detail {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: var(--t-xs);
+  overflow-wrap: anywhere;
+}
+
 /* ------------------------------------------------------------------ tip card */
 .tip {
   display: grid;

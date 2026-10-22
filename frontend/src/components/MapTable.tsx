@@ -1,11 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { Schemas } from "../api/client";
-import { clock, fmt, mapName } from "../lib/format";
+import { useMeta } from "../api/queries";
+import { breakdownLines } from "../lib/breakdown";
+import { clock, fmt, mapName, NONE } from "../lib/format";
 import { DataTable, type Column } from "./DataTable";
 import { EmptyState } from "./states";
 
 type MapRow = Schemas["MapRow"];
+
+/** The F(m) terms of a map as a short list behind a "Calculation" toggle. */
+function Breakdown({ map }: { map: MapRow }) {
+  const meta = useMeta();
+  const label = (key: string) => meta.data?.skills.find((s) => s.key === key)?.label ?? key;
+  const lines = breakdownLines(map.breakdown, map.stars, map.skill_demand, label);
+  if (!lines.length) return NONE;
+  return (
+    <details className="map-breakdown">
+      <summary>Calculation</summary>
+      <dl>
+        {lines.map((line) => (
+          <div key={line.label}>
+            <dt>{line.label}</dt>
+            <dd>{line.value}</dd>
+            <dd className="map-breakdown__detail">{line.detail}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
 
 const COLUMNS: Column<MapRow>[] = [
   { key: "map", header: "Map", cell: mapName, strong: true, wrap: true },
@@ -19,9 +43,8 @@ const COLUMNS: Column<MapRow>[] = [
     title: "Experimental 0–100 demand projection for the target skill." },
   { key: "score", header: "F(m)", cell: (m) => fmt(m.formula_score, 4), value: (m) => m.formula_score, align: "right",
     title: "Goal-conditioned ranking score; higher is better within this goal." },
-  { key: "breakdown", header: "Breakdown", value: () => null, cell: (m) => m.breakdown ? (
-    <details><summary>Calculation</summary><pre style={{ maxWidth: 360, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(m.breakdown, null, 2)}</pre></details>
-  ) : "–" },
+  { key: "breakdown", header: "Breakdown", value: () => null, cell: (m) => <Breakdown map={m} />,
+    title: "How F(m) adds up: each term is 0 at best and lower the further the map is from what this goal asks." },
   {
     key: "link",
     header: "Link",
