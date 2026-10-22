@@ -31,8 +31,9 @@ sed -i.bak "s/^__version__ = \".*\"$/__version__ = \"$version\"/" backend/src/os
 sed -i.bak "s/^version = \".*\"$/version = \"$version\"/" desktop/src-tauri/Cargo.toml   # dependencies use inline tables
 sed -i.bak "/^name = \"osu-coach-desktop\"$/{n;s/^version = \".*\"$/version = \"$version\"/;}" desktop/src-tauri/Cargo.lock
 sed -i.bak "s/^  \"version\": \".*\",$/  \"version\": \"$version\",/" desktop/src-tauri/tauri.conf.json
+sed -i.bak "s/^pkgver=.*$/pkgver=$version/" packaging/arch/PKGBUILD
 rm -f backend/pyproject.toml.bak backend/src/osu_coach/__init__.py.bak desktop/src-tauri/Cargo.toml.bak \
-  desktop/src-tauri/Cargo.lock.bak desktop/src-tauri/tauri.conf.json.bak
+  desktop/src-tauri/Cargo.lock.bak desktop/src-tauri/tauri.conf.json.bak packaging/arch/PKGBUILD.bak
 # package.json and package-lock.json (both of its version fields), without npm touching git or node_modules
 for dir in frontend desktop; do
   (cd "$dir" && npm version "$version" --no-git-tag-version --allow-same-version >/dev/null)
@@ -51,6 +52,7 @@ found = {
     "backend/src/osu_coach/__init__.py": first("backend/src/osu_coach/__init__.py", r'^__version__ = "(.+)"$'),
     "desktop/src-tauri/Cargo.toml": first("desktop/src-tauri/Cargo.toml", r'^version = "(.+)"$'),
     "desktop/src-tauri/Cargo.lock": first("desktop/src-tauri/Cargo.lock", r'^name = "osu-coach-desktop"\nversion = "(.+)"$'),
+    "packaging/arch/PKGBUILD": first("packaging/arch/PKGBUILD", r"^pkgver=(.+)$"),
     "frontend/src/api/openapi.json": json.load(open("frontend/src/api/openapi.json"))["info"]["version"],
 }
 for path in ("frontend/package.json", "desktop/package.json", "desktop/src-tauri/tauri.conf.json"):
