@@ -2850,7 +2850,7 @@ export interface components {
             targets: components["schemas"]["CompareTarget"][];
             /**
              * Default Target
-             * @description The star rating shown first: one star above comfort.
+             * @description The star rating shown first: the comfort level.
              */
             default_target: number | null;
         };
