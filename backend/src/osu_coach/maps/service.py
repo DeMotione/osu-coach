@@ -49,6 +49,20 @@ def map_rows(df: pd.DataFrame | None) -> list[MapRow]:
     ]
 
 
+def _played(ws: Workspace, t: Targets) -> frozenset[str]:
+    """Maps the player already finished: those of the analysed replays plus those of every osu!standard replay of the
+    player the scan found (osu! saves a replay only for a finished play), so a map completed outside the analysed set
+    (only the latest N analysed, or picked files) isn't suggested again (#47)."""
+    player = ws.settings().get("player")
+    replays = ws.library.replays if ws.library is not None else []
+    scanned = {
+        str(r["beatmap_md5"])
+        for r in replays
+        if r.get("mode") == 0 and r.get("beatmap_md5") and (not player or player == "*" or r.get("player") == player)
+    }
+    return t.played | frozenset(scanned)
+
+
 def _pool(ws: Workspace) -> pd.DataFrame:
     pool = ws.pool()
     if pool.empty:
@@ -133,6 +147,7 @@ def suggestions(
     )[:3]
     t = targets_from_profile(p) if p else Targets(comfort=theta)
     t.comfort = theta
+    t.played = _played(ws, t)
     hidden = set(ws.settings().get("hidden_maps") or [])
     if hidden:
         pool = pool[~pool["md5"].isin(hidden)]
@@ -191,6 +206,7 @@ def playlist(
     target, checked, abilities, theta, source = _options(p, skill, assessed, ratings, comfort, kappa, min_relevance)
     t = targets_from_profile(p) if p else Targets(comfort=theta)
     t.comfort = theta
+    t.played = _played(ws, t)
     default = default_skill(p, abilities)
     try:
         ranked = recommend(
