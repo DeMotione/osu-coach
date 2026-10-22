@@ -6,3 +6,4 @@
 *.osz binary
 *.db binary
 *.gz binary
+PKGBUILD text eol=lf

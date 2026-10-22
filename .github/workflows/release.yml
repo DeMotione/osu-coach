@@ -45,6 +45,7 @@ jobs:
             'desktop/src-tauri/tauri.conf.json' = (Get-Content desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json -AsHashtable).version
             'desktop/src-tauri/Cargo.toml' = (Select-String -Path desktop/src-tauri/Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
             'desktop/src-tauri/Cargo.lock' = (Get-Content desktop/src-tauri/Cargo.lock -Raw | Select-String -Pattern '(?m)^name = "osu-coach-desktop"\r?\nversion = "(.+)"').Matches[0].Groups[1].Value
+            'packaging/arch/PKGBUILD' = (Select-String -Path packaging/arch/PKGBUILD -Pattern '^pkgver=(.+)$').Matches[0].Groups[1].Value
           }
           $v = if ($env:REF_TYPE -eq 'tag') { ($env:REF_NAME).TrimStart("v") } else { $found['backend/pyproject.toml'] }
           $bad = $found.GetEnumerator() | Where-Object { $_.Value -ne $v }
@@ -196,10 +197,60 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  arch:
+    name: Linux (Arch package)
+    # the .deb from the linux job, repackaged by packaging/arch/PKGBUILD (makepkg refuses to run as root)
+    needs: [version, linux]
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux
+          path: deb
+
+      - name: pkg.tar.zst (makepkg)
+        run: |
+          useradd -m builder
+          mkdir /tmp/pkg
+          cp packaging/arch/PKGBUILD "deb/osu-coach_${VERSION}_amd64.deb" /tmp/pkg/
+          chown -R builder /tmp/pkg
+          (cd /tmp/pkg && sudo -u builder makepkg --nodeps --noconfirm)
+          mkdir release
+          cp /tmp/pkg/osu-coach-"${VERSION}"-1-x86_64.pkg.tar.zst "release/osu-coach-${VERSION}-1-x86_64.pkg.tar.zst"
+          pacman -Qip release/*.pkg.tar.zst
+          pacman -Qlp release/*.pkg.tar.zst
+
+      - name: The installed package starts its server
+        run: |
+          pacman -Syu --noconfirm xorg-server-xvfb
+          pacman -U --noconfirm release/*.pkg.tar.zst
+          sudo -u builder xvfb-run -a osu-coach-desktop &
+          for i in $(seq 120); do
+            if curl -fs http://127.0.0.1:8511/api/health; then
+              # unpacked by the app, not some other osu-coach-api (the app's fallback)
+              pgrep -af 'app.osucoach.desktop/runtime/.*/osu-coach ' && pkill -f osu-coach-desktop && exit 0
+            fi
+            sleep 1
+          done
+          echo "the app's server did not answer" >&2
+          exit 1
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: arch
+          path: release/*
+          if-no-files-found: error
+          retention-days: 7
+
   publish:
     name: Publish the release
     if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: [version, windows, linux]
+    needs: [version, windows, linux, arch]
     runs-on: ubuntu-latest
     permissions:
       contents: write

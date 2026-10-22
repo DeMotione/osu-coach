@@ -1,0 +1,24 @@
+# The osu! coach desktop app for Arch Linux (and Manjaro, EndeavourOS, ...): the release's .deb, repackaged.
+# That .deb is built on Ubuntu 22.04, so its binary runs on any newer glibc; the server is inside the binary.
+#
+#   makepkg -si          downloads the .deb of v$pkgver from GitHub, builds osu-coach-<version>-1-x86_64.pkg.tar.zst
+#                        and installs it with pacman (remove it with: sudo pacman -R osu-coach)
+#
+# A .deb already next to this file is used instead of downloading it (the release workflow does that).
+# pkgver is set by packaging/bump-version.sh with every other version number.
+pkgname=osu-coach
+pkgver=0.10.0
+pkgrel=1
+pkgdesc="Analyses your osu! replays and gives coaching advice (desktop app)"
+arch=('x86_64')
+url="https://github.com/DeMotione/osu-coach"
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'hicolor-icon-theme')
+options=('!strip' '!debug')
+source=("osu-coach_${pkgver}_amd64.deb::${url}/releases/download/v${pkgver}/osu-coach_${pkgver}_amd64.deb")
+sha256sums=('SKIP')
+
+package() {
+  bsdtar -xf "$srcdir"/data.tar.* -C "$pkgdir"
+  chmod -R u+rwX,go+rX,go-w "$pkgdir"
+}
