@@ -1,28 +1,14 @@
 import { Children, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { int } from "../lib/format";
-import { useReportTitleVisibility } from "../lib/pageTitleState";
 import { IconCheck, IconHelp, IconInfo, IconUpload, IconWarn } from "./icons";
 
 // ------------------------------------------------------------------ page structure
-export function PageHeader({ title, sub, aside }: { title: string; sub?: ReactNode; aside?: ReactNode }) {
-  const h1 = useRef<HTMLHeadingElement>(null);
-  useReportTitleVisibility(h1);
-  return (
-    <header className="page-header">
-      <div>
-        <h1 ref={h1}>{title}</h1>
-        {sub && <p>{sub}</p>}
-      </div>
-      {aside && <div className="page-header__aside">{aside}</div>}
-    </header>
-  );
-}
-
-export function Page({ title, sub, aside, children }: { title: string; sub?: ReactNode; aside?: ReactNode; children: ReactNode }) {
+/** A page. Its title is a heading for screen readers only: the sidebar and the toolbar show which page this is. */
+export function Page({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="page">
-      <PageHeader title={title} sub={sub} aside={aside} />
+      <h1 className="visually-hidden">{title}</h1>
       {children}
     </div>
   );

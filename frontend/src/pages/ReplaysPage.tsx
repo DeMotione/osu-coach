@@ -29,10 +29,7 @@ const LATEST_LABEL = (n: number) => (n ? `Latest ${n}` : "All");
 export default function ReplaysPage() {
   const settings = useSettings();
   return (
-    <Page
-      title="Your replays"
-      sub="osu! coach reads your replay files (.osr), replays every note against the beatmap and measures how you aim and tap. Everything runs on this computer."
-    >
+    <Page title="Your replays">
       {settings.data ? (
         <>
           <Row>

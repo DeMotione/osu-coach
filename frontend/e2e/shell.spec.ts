@@ -25,7 +25,7 @@ for (const desktop of [false, true]) {
       expect(bounds!.y).toBeCloseTo(bars[0].bottom, 0);
       expect(bounds!.y + bounds!.height).toBeCloseTo(bars[1].top, 0);
       await scroll.evaluate((el) => el.scrollTo(0, 500));
-      await expect(page.getByTestId("toolbar-title")).toHaveClass(/shown/);
+      await expect(page.getByTestId("toolbar-title")).toHaveText("Replays");
       expect(await page.evaluate(() => window.scrollY)).toBe(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
       expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(700);
@@ -35,7 +35,7 @@ for (const desktop of [false, true]) {
       if (width < 961) await page.getByRole("button", { name: "Menu" }).click();
       await page.getByRole("navigation", { name: "Pages" }).getByRole("link", { name: "Overview" }).click();
       await expect.poll(() => scroll.evaluate((el) => el.scrollTop)).toBe(0);
-      await expect(page.getByTestId("toolbar-title")).not.toHaveClass(/shown/);
+      await expect(page.getByTestId("toolbar-title")).toHaveText("Overview");
     });
   }
 }

@@ -17,10 +17,7 @@ type Overview = Schemas["Overview"];
 export default function OverviewPage() {
   const q = useOverview();
   return (
-    <Page
-      title="Overview"
-      sub="Your main numbers at a glance. Every number is weighted by difficulty: plays close to your level count fully, plays far below or above it hardly count (see Your level)."
-    >
+    <Page title="Overview">
       <QueryView query={q} tiles={6}>
         {(ov) => <OverviewBody ov={ov} />}
       </QueryView>

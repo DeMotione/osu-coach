@@ -25,10 +25,7 @@ type Tapping = Schemas["TappingPage"];
 export default function TappingPage() {
   const q = useTapping();
   return (
-    <Page
-      title="Tapping"
-      sub="How you tap: timing spread and bias, how fast you can stream, whether your stamina holds in long streams, and how you use your keys."
-    >
+    <Page title="Tapping">
       <QueryView query={q} tiles={6}>
         {(t) => <TappingBody t={t} />}
       </QueryView>

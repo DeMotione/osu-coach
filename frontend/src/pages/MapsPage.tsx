@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router";
 
 import type { Schemas } from "../api/client";
 import { useHideMaps, useSuggestions } from "../api/queries";
@@ -7,26 +6,13 @@ import { ExportPanel } from "../components/ExportPanel";
 import { MapTable } from "../components/MapTable";
 import { QueryView } from "../components/states";
 import { Alert, Card, Field, Page } from "../components/ui";
-import { int } from "../lib/format";
 import { speedFitNotice } from "../lib/recommendationFit";
 
 export default function MapsPage() {
   const [options, setOptions] = useState<{ kappa?: number; min_relevance?: number }>({});
   const q = useSuggestions(options);
   return (
-    <Page
-      title="Skill Development"
-      sub={
-        q.data ? (
-          <>
-            Comfort-level maps for your measured weak skills, picked from {int(q.data.pool_size)} ranked maps. Maps you have already completed are left out. To choose a skill and build a staged playlist, use{" "}
-            <Link to="/skills">Goals & Training</Link>.
-          </>
-        ) : (
-          "Comfort-level maps for your measured weak skills from the bundled ranked pool."
-        )
-      }
-    >
+    <Page title="Skill Development">
       <QueryView query={q}>{(s) => <Body s={s} onApply={setOptions} />}</QueryView>
     </Page>
   );

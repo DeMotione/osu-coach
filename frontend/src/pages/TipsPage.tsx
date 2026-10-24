@@ -23,10 +23,7 @@ export default function TipsPage() {
   const setup = useSetup();
   const settings = useSettings();
   return (
-    <Page
-      title="Tips & Setup"
-      sub="Concrete tips from your numbers, most important first — each with the evidence it is based on — and setup changes to try (tablet area / sensitivity, keys)."
-    >
+    <Page title="Tips & Setup">
       {/* the setup doesn't need analysed replays: what was entered (here or in the setup guide) is always shown */}
       {setup.data && settings.data && <SetupCard key={JSON.stringify(setup.data)} setup={setup.data} open={!settings.data.setup_saved} />}
       <QueryView query={q}>
