@@ -35,6 +35,7 @@ or Node.js):
 | `osu-coach-<version>-x64.msi` | Windows 10 / 11 | The desktop app (its own window), installed for all users |
 | `osu-coach-<version>-windows-portable.zip` | Windows 10 / 11 | The desktop app, nothing to install: unzip and start `osu! coach.exe` |
 | `osu-coach_<version>_amd64.deb` | Ubuntu 22.04+, Debian 12+ | The desktop app (its own window) |
+| `osu-coach-<version>-1-x86_64.pkg.tar.zst` | Arch Linux, Manjaro, EndeavourOS | The same desktop app for pacman |
 
 **Windows setup:** no admin rights needed. It installs for your user, adds a Start menu (and optional desktop)
 shortcut, and opens the app in your browser. A small window stays open while osu! coach runs; close it to
@@ -45,8 +46,9 @@ anyway**.
 
 **Linux:** `sudo apt install ./osu-coach_<version>_amd64.deb`, then start **osu! coach** from the app menu
 (`sudo apt remove osu-coach` removes it). To build that package from the source code yourself and install it,
-run `bash packaging/build-deb.sh` (Debian / Ubuntu / Mint; it sets up everything else it needs). On other
-distributions, run it from source (below).
+run `bash packaging/build-deb.sh` (Debian / Ubuntu / Mint; it sets up everything else it needs). On Arch-based
+distributions: `sudo pacman -U osu-coach-<version>-1-x86_64.pkg.tar.zst` (`sudo pacman -R osu-coach` removes it),
+or `makepkg -si` in `packaging/arch`. On other distributions, run it from source (below).
 
 The app is a progressive web app: in Chrome or Edge, *Install osu! coach* in the address bar gives it its own
 window and Start menu entry. Its pages open even while osu! coach isn't running and say so until you start it.
@@ -130,7 +132,7 @@ git tag -a v0.9.2 -m "osu! coach 0.9.2" && git push origin v0.9.2
 ```
 
 The tag starts the *Release* workflow: it checks that every version number matches the tag, builds every installer,
-checks that the portable app and the `.deb` start their server, and publishes them with `packaging/release-notes.md`
+checks that the portable app, the `.deb` and the Arch package start their server, and publishes them with `packaging/release-notes.md`
 as the release notes. Pull requests that change `packaging/`, `desktop/` or that workflow build the installers too,
 without publishing.
 

@@ -96,6 +96,13 @@ The package is `src-tauri/target/release/bundle/deb/osu! coach_<version>_amd64.d
 `/usr/bin/osu-coach-desktop` (menu entry *osu! coach*); the server is inside that binary. A package built on
 an older distribution also runs on newer ones (the release builds it on Ubuntu 22.04).
 
+### Arch Linux (.pkg.tar.zst)
+
+`packaging/arch/PKGBUILD` repackages that `.deb` for pacman (Arch, Manjaro, EndeavourOS). In `packaging/arch`,
+`makepkg -si` downloads the `.deb` of the release named by `pkgver` and installs the package; a
+`osu-coach_<version>_amd64.deb` put next to the PKGBUILD first (e.g. one you built) is used instead. The release
+workflow does the latter with the `.deb` it has just built, and checks that the installed package starts its server.
+
 ### Releases
 
 `.github/workflows/release.yml` builds all of this when a tag

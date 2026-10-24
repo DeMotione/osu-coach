@@ -289,6 +289,24 @@ test.describe("after the setup", () => {
     await expect(dialog).toBeHidden();
   });
 
+  test("playlist stages show five maps each, and Other maps shows the next five", async ({ page }) => {
+    await page.goto("/skills?tab=playlist");
+    const tables = page.locator(".map-table");
+    await expect(tables.first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator(".map-pagination")).toHaveCount(0);
+    for (const table of await tables.all()) expect(await table.locator("tbody tr").count()).toBeLessThanOrEqual(5);
+    const stage = page.locator(".card").filter({ has: page.getByRole("button", { name: "Other maps" }) }).first();
+    if (await stage.count()) {
+      const firstMap = () => stage.locator(".map-table tbody tr").first().locator("td").first().innerText();
+      const before = await firstMap();
+      await expect(stage.getByText(/showing 1–5 of \d+/)).toBeVisible();
+      await stage.getByRole("button", { name: "Other maps" }).click();
+      await expect(stage.getByText(/showing 6–\d+ of \d+/)).toBeVisible();
+      expect(await firstMap()).not.toBe(before);
+    }
+    expect(await layoutProblems(page)).toEqual([]);
+  });
+
   test("a big drop of replay files names only the first 15 (#37)", async ({ page }) => {
     await page.goto("/replays");
     const files = INDEX.flatMap((r) => [path.join(RES, "replays", r.replay), path.join(RES, "maps", `${r.md5}.osu`)]);
