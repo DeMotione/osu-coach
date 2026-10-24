@@ -1,4 +1,4 @@
-version: 2
+hversion: 2
 
 updates:
   - package-ecosystem: pip
@@ -17,6 +17,11 @@ updates:
       web:
         patterns: ["*"]
         update-types: [minor, patch]
+    ignore:
+      # TypeScript stays on 5 until the tools built on its API support a newer one (#59): openapi-typescript
+      # (npm run gen:api) accepts only 5, typescript-eslint below 6.1, and 7 no longer ships that API at all
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /desktop
