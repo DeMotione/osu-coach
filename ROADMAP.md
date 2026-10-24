@@ -30,11 +30,11 @@ away.
 
 Fixes:
 
-- [ ] Cancel a running job, such as a map download, so it no longer blocks scanning and imports
+- [x] Cancel a running job, such as a map download, so it no longer blocks scanning and imports
   ([#45](https://github.com/DeMotione/osu-coach/issues/45)).
-- [ ] Show the map score calculation as readable values instead of raw JSON
+- [x] Show the map score calculation as readable values instead of raw JSON
   ([#46](https://github.com/DeMotione/osu-coach/issues/46)).
-- [ ] Hide maps you have already completed from the playlist, with a "show completed" toggle
+- [x] Hide maps you have already completed from the playlist, with a "show completed" toggle
   ([#47](https://github.com/DeMotione/osu-coach/issues/47)).
 - [x] Rename Map Suggestion to **Skill Development** and Skill Development to **Goals & Training**
   ([#48](https://github.com/DeMotione/osu-coach/issues/48)).
@@ -52,7 +52,7 @@ UI rework:
 
 - [ ] **One rating scale.** The comfort-relative skill ratings lose their "experimental" label and replace the old
   scale everywhere, including goals.
-- [ ] **Skills against a 10★ reference** that realistically predicts how you would do on a 10★ map
+- [x] **Skills against a 10★ reference** that realistically predicts how you would do on a 10★ map
   ([#39](https://github.com/DeMotione/osu-coach/issues/39)).
 - [ ] **Rating tests** on fixed sets of replays at several levels, run on every change.
 - [ ] **Better map pool** with newer ranked maps and good coverage at every star level and skill.
@@ -67,7 +67,7 @@ UI rework:
 
 ## 0.11.1: every platform
 
-- [ ] More Linux distributions: an Arch Linux package (`.pkg.tar.zst`,
+- [x] More Linux distributions: an Arch Linux package (`.pkg.tar.zst`,
   [#44](https://github.com/DeMotione/osu-coach/issues/44)), and AppImage or Flatpak for the rest.
 - [ ] A macOS app (`.dmg`), signed and notarized.
 - [ ] Signed Windows installers, so SmartScreen stops warning.
