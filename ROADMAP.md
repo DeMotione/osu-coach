@@ -19,11 +19,11 @@ flowchart LR
     D --> E
 ```
 
-0.10.1 and the 0.11 series make the app clear and its advice trustworthy; 0.12 then brings it to more modes,
+0.10.x and the 0.11 series make the app clear and its advice trustworthy; 0.12 then brings it to more modes,
 languages and osu! chat. Analysis always stays on your computer. From 0.12.2 osu! coach can also sign in to osu! for
 the chat bot; without signing in, everything else works as before.
 
-## 0.10.1: fixes and a clearer UI
+## 0.10.x: fixes and a clearer UI
 
 Clears the open issues and reworks the pages so each piece of information appears once, with explanations one hover
 away.
