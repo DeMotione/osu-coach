@@ -268,6 +268,27 @@ test.describe("after the setup", () => {
     }
   });
 
+  test("Add goal opens a dialog with a button per skill; a skill with a goal can't get a second one", async ({ page }) => {
+    await page.goto("/skills");
+    await page.getByRole("button", { name: "Add goal" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add a goal" });
+    await expect(dialog).toBeVisible();
+    expect(await layoutProblems(page)).toEqual([]);
+    const skill = dialog.getByRole("group", { name: "Skill" }).getByRole("button").and(page.locator(":enabled")).first();
+    const name = (await skill.locator("span").innerText()).trim();
+    await skill.click();
+    await dialog.getByRole("button", { name: "2 weeks" }).click();
+    await dialog.getByRole("button", { name: "Add goal" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator(".goal__title").filter({ hasText: name })).toBeVisible();
+    // the dialog again: that skill is taken now, and listed under Your goals
+    await page.getByRole("button", { name: "Add goal" }).click();
+    await expect(dialog.locator(".chip").filter({ hasText: name })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: new RegExp(`^${name}`) })).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+  });
+
   test("a big drop of replay files names only the first 15 (#37)", async ({ page }) => {
     await page.goto("/replays");
     const files = INDEX.flatMap((r) => [path.join(RES, "replays", r.replay), path.join(RES, "maps", `${r.md5}.osu`)]);

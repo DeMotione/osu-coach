@@ -5,6 +5,7 @@ import { circle, merge, niceMax, responsive } from "./base";
 import { mmss, playTimingChart, rangeStats } from "./check";
 import { MISS_SHORT, compareBars, compareHover, missCauses } from "./overview";
 import { alpha, chartTheme, heat, scoreColor, C } from "./palette";
+import { goalsChart } from "./progress";
 import { timingChart } from "./tapping";
 
 const t = chartTheme(true);
@@ -193,3 +194,22 @@ describe("comparison bars", () => {
 });
 
 
+
+describe("goalsChart", () => {
+  it("puts plays and plans on one timeline, with today between them", () => {
+    const history = [
+      {
+        goal_id: "g1",
+        skill: "speed",
+        label: "Tapping speed",
+        points: [{ day: "2026-10-18", score: 38 }, { day: "2026-10-20", score: null }, { day: "2026-10-23", score: 23 }],
+        target: [{ day: "2026-10-24", score: 66 }, { day: "2026-11-07", score: 70 }],
+      },
+    ] as Schemas["GoalHistory"][];
+    const o = goalsChart(history, chartTheme(true), "2026-10-24") as { xAxis: { type: string }; series: { data: unknown[]; markLine?: { data: unknown[] } }[] };
+    expect(o.xAxis.type).toBe("time");
+    expect(o.series[0].data).toEqual([["2026-10-18", 38], ["2026-10-23", 23]]); // a day without a score is left out
+    expect(o.series[1].data).toEqual([["2026-10-24", 66], ["2026-11-07", 70]]);
+    expect(o.series[0].markLine?.data).toEqual([{ xAxis: "2026-10-24" }]);
+  });
+});

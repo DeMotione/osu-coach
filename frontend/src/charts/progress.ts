@@ -92,27 +92,32 @@ export function skillsChart(rows: Row[], skills: { key: string; label: string }[
   });
 }
 
-export function goalsChart(history: Schemas["GoalHistory"][], t: ChartTheme): Option {
-  const days = [...new Set(history.flatMap((h) => [...h.points.map((p) => p.day), ...h.target.map((p) => p.day)]))].sort();
-  const at = (pts: Schemas["HistoryPoint"][]) => {
-    const m = new Map(pts.map((p) => [p.day, p.score]));
-    return days.map((d) => (m.has(d) ? m.get(d)! : null));
-  };
+/** The goal skills on a real timeline (a time axis: two weeks are twice as wide as one), the plays so far and each
+ * goal's path to its deadline, with today marked between them. ``today``: YYYY-MM-DD. */
+export function goalsChart(history: Schemas["GoalHistory"][], t: ChartTheme, today = localDay()): Option {
+  const pairs = (pts: Schemas["HistoryPoint"][]) => pts.filter((p) => p.score !== null).map((p) => [p.day, p.score]);
   return base(t, {
     grid: grid({}, true),
     legend: legend(t),
     tooltip: tooltip(t, { trigger: "axis", valueFormatter: (v: number | null) => (v === null || v === undefined ? "–" : v.toFixed(0)) }),
-    xAxis: categoryAxis(t, days, { boundaryGap: false }),
+    xAxis: valueAxis(t, { type: "time", splitLine: { show: false }, axisLabel: { formatter: "{MMM} {d}", hideOverlap: true } }),
     yAxis: valueAxis(t, { name: "score", nameGap: 32, nameRotate: 90, min: 0, max: 100 }),
     series: history.flatMap((h, i) => {
       const color = SERIES[i % SERIES.length];
       return [
-        { name: h.label, type: "line", data: at(h.points), connectNulls: true, symbolSize: 7, lineStyle: { color, width: 2 }, itemStyle: { color } },
+        {
+          name: h.label,
+          type: "line",
+          data: pairs(h.points),
+          symbolSize: 7,
+          lineStyle: { color, width: 2 },
+          itemStyle: { color },
+          ...(i === 0 ? { markLine: refLine(t, { xAxis: today }, t.muted, { label: { show: true, formatter: "today", color: t.muted } }) } : {}),
+        },
         {
           name: `${h.label} target`,
           type: "line",
-          data: at(h.target),
-          connectNulls: true,
+          data: pairs(h.target),
           showSymbol: false,
           lineStyle: { color, width: 1, type: "dotted" },
           itemStyle: { color },
@@ -120,4 +125,9 @@ export function goalsChart(history: Schemas["GoalHistory"][], t: ChartTheme): Op
       ];
     }),
   });
+}
+
+function localDay(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

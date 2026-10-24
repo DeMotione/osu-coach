@@ -1,18 +1,19 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 
 import type { Schemas } from "../api/client";
-import { useAddGoal, useAddPlan, useGoals, usePlaylist, useRemoveGoal } from "../api/queries";
+import { useAddPlan, useGoals, usePlaylist, useRemoveGoal } from "../api/queries";
 import { Chart } from "../charts/Chart";
 import type { ChartTheme } from "../charts/palette";
 import { goalsChart } from "../charts/progress";
+import { AddGoal } from "../components/AddGoalDialog";
 import { ExportPanel } from "../components/ExportPanel";
-import { IconPlus, IconTrash } from "../components/icons";
+import { IconTrash } from "../components/icons";
 import { MapTable } from "../components/MapTable";
 import { RecommendationControls, type RecommendationOptions } from "../components/RecommendationControls";
 import { EmptyState, ErrorCard, LoadingPage } from "../components/states";
-import { Alert, Badge, Card, Field, Page, Progress, Row, Stat, Tabs, Tiles } from "../components/ui";
-import { fmt, isoDay } from "../lib/format";
+import { Alert, Badge, Card, Page, Progress, Stat, Tabs, Tiles } from "../components/ui";
+import { fmt } from "../lib/format";
 import { speedFitNotice } from "../lib/recommendationFit";
 
 type Tab = "goals" | "playlist";
@@ -57,18 +58,19 @@ function GoalsTab() {
         <Stat label="Reached" value={g.done.length} />
         <Stat label="Behind or overdue" value={g.behind} />
       </Tiles>
-      <Card title="Your goals" sub="Each goal: a skill score to reach by a date. On track = you are at least as far as the time that has passed.">
+      <Card
+        title="Your goals"
+        sub="Each goal: a skill score to reach by a date. On track = you are at least as far as the time that has passed."
+        foot={g.history.length ? undefined : <AddGoal goals={g} />}
+      >
         {g.open.length ? (
           <div className="stack">{g.open.map((x) => <GoalRow key={x.id} goal={x} />)}</div>
         ) : (
           <EmptyState title="No open goals yet">Add one below or make a plan from your weakest skills.</EmptyState>
         )}
       </Card>
-      {g.history.length > 0 && <HistoryCard history={g.history} />}
-      <Row>
-        <AddGoalCard goals={g} />
-        <PlanCard goals={g} />
-      </Row>
+      {g.history.length > 0 && <HistoryCard history={g.history} foot={<AddGoal goals={g} />} />}
+      <PlanCard goals={g} />
       {g.done.length > 0 && (
         <Card title="Reached goals">
           <ul className="list list--bullets">
@@ -87,7 +89,10 @@ function GoalsTab() {
 
 function GoalRow({ goal }: { goal: Schemas["GoalOut"] }) {
   const remove = useRemoveGoal();
-  const [tone, word] = STATE[goal.state];
+  const [tone, stateWord] = STATE[goal.state];
+  // set before 0.10: those scores can't be compared with today's, so the goal isn't followed any more (#70)
+  const oldScale = goal.score_source === "legacy";
+  const word = goal.state === "paused" && oldScale ? "paused · previous rating scale" : stateWord;
   return (
     <div className="goal">
       <div className="stack" style={{ gap: 4 }}>
@@ -99,8 +104,13 @@ function GoalRow({ goal }: { goal: Schemas["GoalOut"] }) {
         <span className="goal__meta">
           <span>{goal.state === "paused" ? `Original deadline ${goal.deadline}` : goal.days_left >= 0 ? `${goal.days_left} days left` : `${-goal.days_left} days overdue`}</span>
           {goal.left !== null && goal.left > 0 && <span>{goal.left.toFixed(0)} points to go</span>}
-          {goal.state === "paused" && <span>Create a new goal to track the recalibrated score.</span>}
-          {goal.score_source === "legacy" && <span>Previous rating scale</span>}
+          {goal.state === "paused" &&
+            (oldScale ? (
+              <span>Set on the previous rating scale, which no longer matches your scores. Add a new goal to follow this skill.</span>
+            ) : (
+              <span>Create a new goal to track the recalibrated score.</span>
+            ))}
+          {oldScale && goal.state !== "paused" && <span>Previous rating scale</span>}
         </span>
       </div>
       <button type="button" className="btn btn--ghost btn--sm btn--danger" onClick={() => remove.mutate(goal.id)} disabled={remove.isPending}>
@@ -111,60 +121,15 @@ function GoalRow({ goal }: { goal: Schemas["GoalOut"] }) {
   );
 }
 
-function HistoryCard({ history }: { history: Schemas["GoalHistory"][] }) {
+function HistoryCard({ history, foot }: { history: Schemas["GoalHistory"][]; foot: ReactNode }) {
   const build = useCallback((t: ChartTheme) => goalsChart(history, t), [history]);
   return (
     <Card
       title="Goal skills day by day"
-      sub="Previous-scale goals only. Solid lines: your score each day you analysed replays; dotted: the path from where you started to the target by the deadline. Above the dotted line = ahead of plan."
+      sub="Goals on the current rating scale. Solid lines: your score over the plays of the last 7 days, on each day you played; dotted: the path from where you started to the target by the deadline. Above the dotted line = ahead of plan."
+      foot={foot}
     >
       <Chart build={build} height={320} label="Goal skills day by day" />
-    </Card>
-  );
-}
-
-function AddGoalCard({ goals }: { goals: Schemas["GoalsOut"] }) {
-  const add = useAddGoal();
-  const [skill, setSkill] = useState<string | null>(null);
-  const [target, setTarget] = useState<string>("");
-  const [deadline, setDeadline] = useState(isoDay(28));
-  const chosen = goals.skills.find((s) => s.key === skill) ?? goals.skills[0];
-  const tgt = target === "" && chosen ? String(Math.min(100, Math.round(chosen.score + 10))) : target;
-  if (!goals.has_profile || !chosen)
-    return (
-      <Card title="Add a goal">
-        <EmptyState title="Analyse your replays first">Goals follow your skill scores.</EmptyState>
-      </Card>
-    );
-  return (
-    <Card title="Add a goal" sub="A skill, the score to reach and by when.">
-      <Field label="Skill">
-        <select className="select" value={chosen.key} onChange={(e) => (setSkill(e.target.value), setTarget(""))}>
-          {goals.skills.map((s) => (
-            <option key={s.key} value={s.key}>
-              {s.label} · now {s.score.toFixed(0)}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <div className="split">
-        <Field label="Target score">
-          <input className="input" type="number" min={1} max={100} value={tgt} onChange={(e) => setTarget(e.target.value)} />
-        </Field>
-        <Field label="By">
-          <input className="input" type="date" min={isoDay()} value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-        </Field>
-      </div>
-      {add.isError && <Alert tone="bad">{add.error.message}</Alert>}
-      <div className="grow" />
-      <button
-        type="button"
-        className="btn btn--primary btn--block"
-        disabled={add.isPending || !tgt || !deadline}
-        onClick={() => add.mutate({ skill: chosen.key, target: Number(tgt), deadline }, { onSuccess: () => setTarget("") })}
-      >
-        <IconPlus /> Add
-      </button>
     </Card>
   );
 }
@@ -193,7 +158,7 @@ function PlanCard({ goals }: { goals: Schemas["GoalsOut"] }) {
       )}
       {plan.isError && <Alert tone="bad">{plan.error.message}</Alert>}
       <div className="grow" />
-      <button type="button" className="btn btn--block" disabled={!goals.suggested.length || plan.isPending} onClick={() => plan.mutate()}>
+      <button type="button" className="btn" disabled={!goals.suggested.length || plan.isPending} onClick={() => plan.mutate()}>
         Make this plan
       </button>
     </Card>
