@@ -767,6 +767,18 @@ input[type="range"] {
   gap: 7px;
 }
 
+/* a running job's progress with its Cancel button beside it */
+.job-status {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.job-status > .progress {
+  flex: 1;
+  min-width: 0;
+}
+
 .progress__bar {
   position: relative;
   height: 8px;
@@ -1434,6 +1446,154 @@ details.disclosure[open] > summary::before {
 
 details.disclosure > .disclosure__body {
   padding: 0 14px 14px;
+}
+
+/* "Add goal": the goals you have, a button per skill, then target and date; the body scrolls, head and foot stay */
+.goal-dialog {
+  width: min(100% - 32px, 620px);
+  max-height: min(100% - 32px, 720px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--glass-edge), var(--elev-4);
+}
+
+.goal-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.goal-dialog::backdrop {
+  background: var(--overlay);
+  backdrop-filter: blur(6px);
+}
+
+.goal-dialog__head,
+.goal-dialog__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-4) var(--s-5);
+}
+
+.goal-dialog__foot {
+  justify-content: flex-end;
+}
+
+.goal-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-height: 0;
+  padding: 0 var(--s-5);
+  overflow-y: auto;
+}
+
+.goal-dialog__chips,
+.goal-dialog__dates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.goal-dialog__dates .input {
+  width: auto;
+}
+
+.goal-dialog__when {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--s-3);
+}
+
+.skill-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--s-2);
+}
+
+.skill-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 560;
+  text-align: left;
+  cursor: pointer;
+}
+
+.skill-pick small {
+  color: var(--muted);
+  font-size: var(--t-xs);
+  font-weight: 400;
+}
+
+.skill-pick:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.skill-pick[aria-pressed="true"],
+.goal-dialog__dates .btn[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.skill-pick:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 560px) {
+  .goal-dialog__when {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* F(m) terms in a map table cell: "Stars  −0.03" over a muted "5.47★ vs 5.56★" */
+.map-breakdown > summary {
+  cursor: pointer;
+}
+
+.map-breakdown dl {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  min-width: 150px;
+  max-width: 220px;
+  white-space: normal;
+  text-align: left;
+}
+
+.map-breakdown dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+}
+
+.map-breakdown dt {
+  color: var(--muted);
+  font-size: var(--t-sm);
+}
+
+.map-breakdown dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.map-breakdown .map-breakdown__detail {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: var(--t-xs);
+  overflow-wrap: anywhere;
 }
 
 /* ------------------------------------------------------------------ tip card */

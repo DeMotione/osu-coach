@@ -1,5 +1,6 @@
 import hashlib
 import io
+import threading
 import zipfile
 from types import SimpleNamespace
 
@@ -192,7 +193,7 @@ def test_get_custom_timeout_is_used_on_the_first_attempt(http):
 
 
 def test_get_custom_timeout_survives_a_retry(http):
-    # The caller's timeout (download_osz asks for 120 s) must apply to every attempt.
+    # The caller's timeout must apply to every attempt.
     s = http(requests.ConnectionError("boom"), FakeResponse(200))
     sources._get("https://x/y", "h", timeout=120)
     assert [kw["timeout"] for _, kw in s.calls] == [120, 120]
@@ -408,7 +409,7 @@ def test_download_osz_saves_the_first_mirror_that_works(http, tmp_path):
     assert s.urls == ["https://osu.direct/api/d/123"]
     assert progress == ["123: trying osu.direct"]
     kw = s.calls[0][1]
-    assert kw["timeout"] == 120
+    assert kw["timeout"] == sources.OSZ_TIMEOUT
     assert kw["stream"] is True
     assert kw["allow_redirects"] is True
 
@@ -500,8 +501,73 @@ def test_download_osz_returns_none_when_every_mirror_fails(http, tmp_path):
 
 def test_download_osz_survives_mirrors_that_are_unreachable(http, tmp_path, sleeps):
     n = len(sources.OSZ_MIRRORS)
-    http(*[requests.ConnectionError("down")] * (3 * (n - 1)), osz_response())
+    s = http(*[requests.ConnectionError("down")] * (n - 1), osz_response())
     assert sources.download_osz(9, tmp_path) == tmp_path / "9.osz"
+    assert len(s.calls) == n  # one try per mirror: a mirror that is down costs one timeout, not three
+
+
+def test_download_osz_gives_up_once_stopped(http, tmp_path):
+    stop = threading.Event()
+    stop.set()
+    s = http()
+    assert sources.download_osz(9, tmp_path, stop=stop) is None
+    assert s.calls == []
+
+
+def test_download_osz_drops_a_download_stopped_halfway(http, tmp_path):
+    stop = threading.Event()
+
+    class Halfway(FakeResponse):
+        def iter_content(self, size):
+            yield self.content[:10]
+            stop.set()
+            yield self.content[10:]
+
+    http(Halfway(200, content=make_osz(), headers={"content-type": "application/x-osu-beatmap-archive"}))
+    assert sources.download_osz(9, tmp_path, stop=stop) is None
+    assert list(tmp_path.iterdir()) == []
+
+
+# --- download_many ----------------------------------------------------------------------------------------------
+
+
+def test_download_many_downloads_three_at_a_time(tmp_path):
+    together = threading.Barrier(3, timeout=5)  # only passes when three downloads run at once
+
+    def download(sid, folder, stop):
+        together.wait()
+        return None if sid == 2 else folder / f"{sid}.osz"
+
+    progress = []
+    got = dict(sources.download_many([1, 2, 3, 3], tmp_path, lambda *a: progress.append(a), download=download))
+    assert got == {1: tmp_path / "1.osz", 2: None, 3: tmp_path / "3.osz"}
+    assert progress[0] == (0, 3, "Downloading map sets: 0 of 3 done")
+
+
+def test_download_many_counts_a_crashed_download_as_failed(tmp_path):
+    def download(sid, folder, stop):
+        if sid == 1:
+            raise RuntimeError("boom")
+        return folder / f"{sid}.osz"
+
+    assert dict(sources.download_many([1, 2], tmp_path, download=download)) == {1: None, 2: tmp_path / "2.osz"}
+
+
+def test_download_many_stops_the_running_downloads_when_progress_raises(tmp_path):
+    started, stopped = threading.Event(), []
+
+    def download(sid, folder, stop):
+        started.set()
+        stopped.append(stop.wait(5))  # a real download checks ``stop`` between chunks
+        return None
+
+    def progress(done, total, message):
+        if started.is_set():
+            raise KeyboardInterrupt  # stands in for the job's Cancelled
+
+    with pytest.raises(KeyboardInterrupt):
+        list(sources.download_many(range(10), tmp_path, progress, download=download))
+    assert stopped and all(stopped) and len(stopped) <= 3  # the queued ones never started
 
 
 # --- filenames --------------------------------------------------------------------------------------------------

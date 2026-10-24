@@ -254,3 +254,31 @@ def test_cli_saves_progress_and_prints_it(tmp_path, capsys):
     assert main(["progress", "--cache", cache]) == 0
     out = capsys.readouterr().out
     assert "Mot1one" in out and "2026-09" in out and "comfort" in out.lower()
+
+
+def test_rolling_day_scores_rate_the_plays_of_the_last_7_days(tmp_path, nm):
+    """One play a day says little; the goals chart follows the score of the last week's plays on each day (#70)."""
+    early, late = _months(nm)  # one play a day: Aug 10-14 and Sep 10-14
+    conn = progress.connect(tmp_path)
+    progress.record(conn, early + late, UTC)
+    progress.rebuild_months(conn, "Mot1one", early + late, UTC)
+    months = progress.monthly(conn, "Mot1one").set_index("month")
+    days = progress.by_period(conn, "Mot1one", "day", tz=UTC).set_index("month")
+    rolling = progress.by_period(conn, "Mot1one", "day", tz=UTC, rolling=True).set_index("month")
+    assert days["skill_aim"].isna().all()  # a single play a day: too few for a score of its own
+    assert rolling.loc["2026-08-12", "skill_aim"] != rolling.loc["2026-08-12", "skill_aim"]  # 3 plays so far: too few
+    # Aug 14 looks back to Aug 8: all five August plays, so the same score as the month
+    assert rolling.loc["2026-08-14", "skill_aim"] == months.loc["2026-08", "skill_aim"]
+    assert rolling.loc["2026-09-14", "skill_aim"] == months.loc["2026-09", "skill_aim"]
+    assert (rolling["plays"] == days["plays"]).all()  # only the skills roll; the rest is still the day's
+
+
+def test_rolling_falls_back_to_day_scores_saved_before_it_existed(tmp_path):
+    conn = _two_months(tmp_path)
+    with conn:
+        conn.executemany(
+            "INSERT INTO month_metrics VALUES ('P', ?, ?, ?, 0, '')",
+            [("day:2026-09-05", "skill_aim", 40.0), ("day:2026-09-05", "skill_reference_stars", 5.0)],
+        )
+    rolling = progress.by_period(conn, "P", "day", tz=UTC, rolling=True).set_index("month")
+    assert rolling.loc["2026-09-05", "skill_aim"] == 40.0

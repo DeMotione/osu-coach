@@ -67,7 +67,7 @@ def _isolated(monkeypatch, tmp_path):
     monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
     (tmp_path / "home").mkdir()
     monkeypatch.setattr(sources, "fetch_beatmap_by_md5", lambda md5: None)
-    monkeypatch.setattr(sources, "download_osz", lambda set_id, dest, progress=None: None)
+    monkeypatch.setattr(sources, "download_osz", lambda set_id, dest, progress=None, stop=None: None)
 
 
 def make_client(cache: Path, web_dir: Path | None = None, api_docs: bool = True) -> TestClient:

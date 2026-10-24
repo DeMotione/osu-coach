@@ -34,6 +34,11 @@ class Busy(ApiError):
         super().__init__(409, "busy", f"Another task is still running ({running}). Wait until it has finished.")
 
 
+class NotCancellable(ApiError):
+    def __init__(self):
+        super().__init__(409, "not_cancellable", "This task can't be stopped; wait until it has finished.")
+
+
 class NotFound(ApiError):
     def __init__(self, message: str, code: str = "not_found"):
         super().__init__(404, code, message)

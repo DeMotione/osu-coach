@@ -57,6 +57,7 @@ def app_settings(ws: Workspace) -> AppSettings:
         "manual_comfort": s.get("manual_comfort"),
         "setup_saved": bool(s.get("setup_saved")),
         "onboarded": bool(s.get("onboarded")),
+        "auto_analyse": s.get("auto_analyse"),
     }
     out = {}
     for k, v in raw.items():

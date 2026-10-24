@@ -108,6 +108,8 @@ function LazerTab({ body, preview, onZip }: {
         <JobStatus
           job={pack.job}
           error={pack.error}
+          onCancel={pack.cancel}
+          cancelled="Cancelled. The map sets downloaded so far stay in the folder; making it again picks up where it stopped."
           done={(j) =>
             j.kind === "lazer_pack" && j.result ? (
               <Alert tone="good">
@@ -187,6 +189,8 @@ function StableTab({ body, preview, setIds, onCollection }: {
         <JobStatus
           job={osz.job}
           error={osz.error}
+          onCancel={osz.cancel}
+          cancelled="Cancelled. The maps downloaded so far stay in the folder."
           done={(j) =>
             j.kind === "osz_download" && j.result ? (
               <Alert tone={j.result.failed.length ? "warn" : "good"}>

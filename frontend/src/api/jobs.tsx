@@ -14,27 +14,36 @@ interface JobsContext {
   /** Start a job (the request that answers with it) and follow it until it has finished. */
   start: (request: Promise<Job>) => Promise<Job>;
   dismiss: (kind: JobKind) => void;
+  /** Ask the slot's running job to stop (only ``cancellable`` jobs); polling picks up when it has. */
+  cancel: (kind: JobKind) => Promise<void>;
 }
 
 const Ctx = createContext<JobsContext | null>(null);
 const POLL_MS = 450;
+const DISCOVER_MS = 4000;
 
 export function JobsProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const [jobs, setJobs] = useState<Slots>({});
   const polling = useRef(new Set<string>());
 
+  const seen = useRef(new Set<string>());
+
   const finished = useCallback(
     (job: Job) => {
       if (job.status !== "succeeded") return;
       if (job.kind === "scan") void invalidateLibrary(qc);
-      if (job.kind === "analysis") void invalidateResults(qc);
+      if (job.kind === "analysis") {
+        void invalidateResults(qc);
+        if (job.result?.new_plays?.length) void invalidateLibrary(qc); // the new plays were added to the library
+      }
     },
     [qc],
   );
 
   const follow = useCallback(
     (job: Job) => {
+      seen.current.add(job.id);
       setJobs((s) => ({ ...s, [job.kind]: job }));
       if (job.status !== "running") {
         finished(job);
@@ -76,6 +85,22 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       .catch(() => undefined);
   }, [follow]);
 
+  // jobs the server starts by itself (a new play analysed, #71): look every few seconds, also for the ones that
+  // finished in between, so a short one isn't missed
+  useEffect(() => {
+    let since = new Date().toISOString();
+    const id = window.setInterval(() => {
+      const asked = new Date().toISOString();
+      unwrap(api.GET("/api/jobs", { params: { query: { finished_after: since } } }))
+        .then((jobs) => {
+          since = asked;
+          jobs.filter((j) => !seen.current.has(j.id)).forEach(follow);
+        })
+        .catch(() => undefined);
+    }, DISCOVER_MS);
+    return () => window.clearInterval(id);
+  }, [follow]);
+
   const start = useCallback(
     async (request: Promise<Job>) => {
       const job = await request;
@@ -93,7 +118,17 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const value = useMemo(() => ({ jobs, start, dismiss }), [jobs, start, dismiss]);
+  const cancel = useCallback(
+    async (kind: JobKind) => {
+      const job = jobs[kind];
+      if (!job || job.status !== "running" || !job.cancellable) return;
+      const next = await unwrap(api.POST("/api/jobs/{job_id}/cancel", { params: { path: { job_id: job.id } } }));
+      setJobs((s) => (s[next.kind]?.id === next.id ? { ...s, [next.kind]: next } : s));
+    },
+    [jobs],
+  );
+
+  const value = useMemo(() => ({ jobs, start, dismiss, cancel }), [jobs, start, dismiss, cancel]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -105,7 +140,7 @@ export function useJobs(): JobsContext {
 
 /** The slot's job and a function to start a new one; ``error`` = why the start was refused. */
 export function useJob(kind: JobKind) {
-  const { jobs, start, dismiss } = useJobs();
+  const { jobs, start, dismiss, cancel } = useJobs();
   const [error, setError] = useState<ApiError | null>(null);
   const job = jobs[kind];
   const run = useCallback(
@@ -125,6 +160,10 @@ export function useJob(kind: JobKind) {
     running: job?.status === "running",
     error,
     run,
+    cancel: () => {
+      setError(null);
+      cancel(kind).catch((e) => setError(e instanceof ApiError ? e : new ApiError(0, "error", String(e))));
+    },
     dismiss: () => {
       setError(null);
       dismiss(kind);

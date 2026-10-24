@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse
@@ -9,6 +11,7 @@ from scalar_fastapi import AgentScalarConfig, get_scalar_api_reference
 
 from osu_coach import __version__
 from osu_coach.app import errors, jobs, session, web
+from osu_coach.app.autoanalyse import AutoAnalyser
 from osu_coach.app.security import LocalOnlyMiddleware
 from osu_coach.app.workspace import Workspace
 from osu_coach.check import routes as check
@@ -62,7 +65,18 @@ TAGS = [
 
 def create_app(config: Settings | None = None) -> FastAPI:
     config = config or Settings()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        auto = app.state.auto_analyser = AutoAnalyser(app.state.workspace)  # new plays, analysed as they come (#71)
+        auto.start()
+        try:
+            yield
+        finally:
+            auto.stop()
+
     app = FastAPI(
+        lifespan=lifespan,
         title="osu! coach API",
         version=__version__,
         description=DESCRIPTION,

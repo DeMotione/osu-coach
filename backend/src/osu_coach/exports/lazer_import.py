@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import zipfile
+from contextlib import closing
 from pathlib import Path
 
 from osu_coach.beatmaps import sources
@@ -70,39 +71,42 @@ def build_pack(dest, collections: dict, sets=(), progress=None, download=None) -
 
     ``collections``: {name: [beatmap md5, ...]}; ``sets``: beatmapset ids to put into
     ``Songs/<set id>/`` (downloaded as .osz, unpacked, the .osz deleted again; sets already
-    there from an earlier run are kept).  ``download(set_id, dir) -> Path | None`` defaults to
-    :func:`sources.download_osz`.  Returns {"path", "maps": [set ids], "failed": [set ids]}."""
+    there from an earlier run are kept), a few downloads at a time (:func:`sources.download_many`).
+    ``download(set_id, dir) -> Path | None`` replaces :func:`sources.download_osz`.
+    Returns {"path", "maps": [set ids], "failed": [set ids]}, each in the order of ``sets``."""
     dest = Path(dest)
     dest.mkdir(parents=True, exist_ok=True)
     (dest / STABLE_MARKER).write_text("", encoding="utf-8")
     write_collection_db(dest / "collection.db", collections)
     songs = dest / "Songs"
     songs.mkdir(exist_ok=True)
-    download = download or sources.download_osz
+    fetch = (lambda sid, folder, stop: download(sid, folder)) if download else None
     tmp = dest / "_downloading"
     sets = list(dict.fromkeys(int(s) for s in sets))
-    got, failed = [], []
-    for i, sid in enumerate(sets, 1):
-        if progress:
-            progress(i - 1, len(sets), f"Downloading map set {i}/{len(sets)} ({sid})")
-        target = songs / str(sid)  # short paths: Windows' 260-character limit
-        if _has_maps(target):
-            got.append(sid)
-            continue
-        osz = download(sid, tmp)
-        if not osz:
-            failed.append(sid)
-            continue
-        try:
-            _extract_osz(Path(osz), target)
-        except (zipfile.BadZipFile, OSError):
-            shutil.rmtree(target, ignore_errors=True)
-            failed.append(sid)
-            continue
-        finally:
-            Path(osz).unlink(missing_ok=True)
-        (got if _has_maps(target) else failed).append(sid)
-    shutil.rmtree(tmp, ignore_errors=True)
+    # short paths (Songs/<set id>): Windows' 260-character limit
+    got = [sid for sid in sets if _has_maps(songs / str(sid))]
+    failed = []
+    # ``progress`` raises to stop a cancelled job: the sets done so far stay for the next run
+    try:
+        with closing(sources.download_many([s for s in sets if s not in got], tmp, progress, download=fetch)) as done:
+            for sid, osz in done:
+                target = songs / str(sid)
+                if not osz:
+                    failed.append(sid)
+                    continue
+                try:
+                    _extract_osz(Path(osz), target)
+                except (zipfile.BadZipFile, OSError):
+                    shutil.rmtree(target, ignore_errors=True)
+                    failed.append(sid)
+                    continue
+                finally:
+                    Path(osz).unlink(missing_ok=True)
+                (got if _has_maps(target) else failed).append(sid)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    got.sort(key=sets.index)
+    failed.sort(key=sets.index)
     if progress and sets:
         progress(len(sets), len(sets), "Done")
     return {"path": dest, "maps": got, "failed": failed}

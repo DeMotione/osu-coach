@@ -34,7 +34,7 @@ def test_pack_looks_like_a_stable_install_with_maps_and_collection(tmp_path):
     dest = tmp_path / "pack"
     res = lazer_import.build_pack(dest, {"osu-coach: Aim (2.5★)": MD5S}, [1, 2, 2, 3], download=download)
     assert res["path"] == dest and res["maps"] == [1, 2] and res["failed"] == [3]
-    assert calls == [1, 2, 3]
+    assert sorted(calls) == [1, 2, 3]
     assert (dest / "osu!.user.cfg").read_bytes() == b""  # lazer: "osu!.*.cfg" marks a stable install
     assert read_collection_db(dest / "collection.db")[1] == [("osu-coach: Aim (2.5★)", MD5S)]
     assert (dest / "Songs" / "1" / "Artist - Title (mapper) [Easy].osu").exists()

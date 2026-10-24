@@ -212,7 +212,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Jobs still running */
+        /**
+         * Jobs still running
+         * @description ``finished_after``: also the jobs that finished since then, so a client checking every few seconds sees
+         *     the short ones it didn't start itself (a new play analysed by itself).
+         */
         get: operations["running_api_jobs_get"];
         put?: never;
         post?: never;
@@ -233,6 +237,27 @@ export interface paths {
         get: operations["get_job_api_jobs__job_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop a job
+         * @description Only jobs with ``cancellable`` (409 ``not_cancellable`` otherwise). The job stops between two steps, so poll
+         *     it until its status is ``cancelled``; one that finished in the meantime keeps its result.
+         */
+        post: operations["cancel_job_api_jobs__job_id__cancel_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -794,7 +819,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "running" | "succeeded" | "failed";
+            status: "running" | "succeeded" | "failed" | "cancelled";
             /**
              * Progress
              * @description 0–1 when known.
@@ -811,6 +836,11 @@ export interface components {
             created_at: string;
             /** Finished At */
             finished_at: string | null;
+            /**
+             * Cancellable
+             * @description Whether POST /api/jobs/{id}/cancel can stop it.
+             */
+            cancellable: boolean;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -862,6 +892,11 @@ export interface components {
             profile_ready: boolean;
             /** Warnings */
             warnings: string[];
+            /**
+             * New Plays
+             * @description Analysed because osu! just saved them (auto-analyse); empty otherwise.
+             */
+            new_plays?: components["schemas"]["NewPlay"][];
         };
         /** AnalysisStatus */
         AnalysisStatus: {
@@ -963,6 +998,12 @@ export interface components {
              * @default false
              */
             onboarded: boolean;
+            /**
+             * Auto Analyse
+             * @description Analyse new plays by themselves: the replays osu! saves while osu! coach runs.
+             * @default true
+             */
+            auto_analyse: boolean;
         };
         /** ArMissRow */
         ArMissRow: {
@@ -1673,7 +1714,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "running" | "succeeded" | "failed";
+            status: "running" | "succeeded" | "failed" | "cancelled";
             /**
              * Progress
              * @description 0–1 when known.
@@ -1690,6 +1731,11 @@ export interface components {
             created_at: string;
             /** Finished At */
             finished_at: string | null;
+            /**
+             * Cancellable
+             * @description Whether POST /api/jobs/{id}/cancel can stop it.
+             */
+            cancellable: boolean;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -1958,6 +2004,16 @@ export interface components {
             /** Description */
             description: string;
         };
+        /** NewPlay */
+        NewPlay: {
+            /**
+             * Path
+             * @description The replay file (opens it in Detailed Map Analysis).
+             */
+            path: string;
+            /** Map */
+            map: string;
+        };
         /** OszJob */
         OszJob: {
             /** Id */
@@ -1966,7 +2022,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "running" | "succeeded" | "failed";
+            status: "running" | "succeeded" | "failed" | "cancelled";
             /**
              * Progress
              * @description 0–1 when known.
@@ -1983,6 +2039,11 @@ export interface components {
             created_at: string;
             /** Finished At */
             finished_at: string | null;
+            /**
+             * Cancellable
+             * @description Whether POST /api/jobs/{id}/cancel can stop it.
+             */
+            cancellable: boolean;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -2388,7 +2449,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "running" | "succeeded" | "failed";
+            status: "running" | "succeeded" | "failed" | "cancelled";
             /**
              * Progress
              * @description 0–1 when known.
@@ -2405,6 +2466,11 @@ export interface components {
             created_at: string;
             /** Finished At */
             finished_at: string | null;
+            /**
+             * Cancellable
+             * @description Whether POST /api/jobs/{id}/cancel can stop it.
+             */
+            cancellable: boolean;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -2537,6 +2603,8 @@ export interface components {
             manual_comfort?: number | null;
             /** Onboarded */
             onboarded?: boolean | null;
+            /** Auto Analyse */
+            auto_analyse?: boolean | null;
         };
         /**
          * SetupModel
@@ -3624,7 +3692,9 @@ export interface operations {
     };
     running_api_jobs_get: {
         parameters: {
-            query?: never;
+            query?: {
+                finished_after?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3638,6 +3708,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": (components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"])[];
+                };
+            };
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -3664,6 +3743,55 @@ export interface operations {
             };
             /** @description Not found; `code` says what is missing. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cancel_job_api_jobs__job_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"];
+                };
+            };
+            /** @description Not found; `code` says what is missing. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

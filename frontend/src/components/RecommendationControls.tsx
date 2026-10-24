@@ -94,7 +94,7 @@ export function RecommendationControls({ current, measured, comfort, onApply }: 
           </div>
           <label className="recommendation-check">
             <input type="checkbox" checked={excludePlayed} onChange={(event) => setExcludePlayed(event.target.checked)} />
-            Exclude maps already in my replay dataset
+            Hide maps I have already completed
           </label>
           <div className="recommendation-assessed">
             <h4>Skills to assess</h4>

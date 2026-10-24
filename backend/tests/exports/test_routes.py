@@ -1,6 +1,7 @@
 """Getting maps into osu!: collection.db, lazer import folder, stable collection, .osz downloads (routes)."""
 
 import io
+import threading
 import zipfile
 from pathlib import Path
 
@@ -57,7 +58,7 @@ def test_lazer_zip_download(client, export):
 
 
 def test_lazer_import_folder(client, export, monkeypatch):
-    def fake_download(set_id, dest, progress=None):
+    def fake_download(set_id, dest, progress=None, stop=None):
         dest = Path(dest)
         dest.mkdir(parents=True, exist_ok=True)
         osz = dest / f"{set_id}.osz"
@@ -74,6 +75,32 @@ def test_lazer_import_folder(client, export, monkeypatch):
     folder = Path(res["path"])
     assert (folder / "collection.db").is_file() and (folder / "osu!.user.cfg").is_file()
     assert sorted(res["maps"]) == sorted({m["beatmapset_id"] for m in export["maps"]}) and res["failed"] == []
+
+
+def test_lazer_import_folder_can_be_cancelled(client, export, monkeypatch):
+    first, go = threading.Event(), threading.Event()
+
+    def slow_download(set_id, dest, progress=None, stop=None):
+        first.set()
+        go.wait(5)
+        return None
+
+    monkeypatch.setattr(sources, "download_osz", slow_download)
+    job = client.post("/api/exports/lazer-pack", json=export).json()
+    assert job["cancellable"] is True
+    assert first.wait(5)
+    r = client.post(f"/api/jobs/{job['id']}/cancel")
+    assert r.status_code == 200 and r.json()["message"] == "Stopping…"
+    go.set()
+    job = wait(client, job)
+    assert job["status"] == "cancelled" and job["result"] is None
+    assert not (lazer_import.default_pack_dir(export["name"]) / "_downloading").exists()
+    assert client.post("/api/exports/lazer-pack", json=export).status_code == 202  # not busy any more
+
+
+def test_cancelling_an_unknown_job(client):
+    r = client.post("/api/jobs/nope/cancel")
+    assert r.status_code == 404 and r.json()["code"] == "job_not_found"
 
 
 def test_stable_collection_needs_a_stable_install(client, export):

@@ -19,7 +19,7 @@ export default function MapsPage() {
       sub={
         q.data ? (
           <>
-            Comfort-level maps for your measured weak skills, picked from {int(q.data.pool_size)} ranked maps. Maps in your replay dataset are excluded. To choose a skill and build a staged playlist, use{" "}
+            Comfort-level maps for your measured weak skills, picked from {int(q.data.pool_size)} ranked maps. Maps you have already completed are left out. To choose a skill and build a staged playlist, use{" "}
             <Link to="/skills">Goals & Training</Link>.
           </>
         ) : (

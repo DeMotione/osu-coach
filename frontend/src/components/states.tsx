@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 import { ApiError, OFFLINE, type Job } from "../api/client";
+import { useJobs } from "../api/jobs";
 import { IconFolder, IconInfo, IconWarn } from "./icons";
 import { Alert, Card, Progress } from "./ui";
 
@@ -102,17 +103,54 @@ export function QueryView<T>({
 }
 
 /** A background job's progress, or how it ended. */
-export function JobStatus({ job, error, done }: { job?: Job; error?: ApiError | null; done?: (job: Job) => ReactNode }) {
-  if (error) return <Alert tone="bad">{error.message}</Alert>;
+/** A job's progress (with Cancel when ``onCancel`` is given and the job can stop), its error or ``done(job)``. A
+ * "busy" error offers to stop the job in the way when that one can be stopped (#45). */
+export function JobStatus({ job, error, done, onCancel, cancelled = "Cancelled." }: {
+  job?: Job;
+  error?: ApiError | null;
+  done?: (job: Job) => ReactNode;
+  onCancel?: () => void;
+  cancelled?: ReactNode;
+}) {
+  if (error) return error.code === "busy" ? <BusyAlert message={error.message} /> : <Alert tone="bad">{error.message}</Alert>;
   if (!job) return null;
-  if (job.status === "running")
+  if (job.status === "running") {
+    const stopping = job.message === "Stopping…";
     return (
-      <Progress
-        value={job.progress}
-        text={job.message || "Working…"}
-        right={job.progress !== null && job.progress !== undefined ? `${Math.round(job.progress * 100)}%` : undefined}
-      />
+      <div className="job-status">
+        <Progress
+          value={job.progress}
+          text={job.message || "Working…"}
+          right={job.progress !== null && job.progress !== undefined ? `${Math.round(job.progress * 100)}%` : undefined}
+        />
+        {job.cancellable && onCancel && (
+          <button type="button" className="btn btn--ghost btn--sm" disabled={stopping} onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+      </div>
     );
+  }
   if (job.status === "failed") return <Alert tone="bad">{job.error}</Alert>;
+  if (job.status === "cancelled") return <Alert tone="info">{cancelled}</Alert>;
   return done ? <>{done(job)}</> : null;
+}
+
+function BusyAlert({ message }: { message: string }) {
+  const { jobs, cancel } = useJobs();
+  const blocking = Object.values(jobs).find((j) => j?.status === "running" && j.cancellable);
+  return (
+    <Alert tone="bad">
+      {message}
+      {blocking && (
+        <>
+          {" "}
+          <button type="button" className="btn btn--ghost btn--sm" disabled={blocking.message === "Stopping…"}
+            onClick={() => void cancel(blocking.kind).catch(() => undefined)}>
+            Stop it
+          </button>
+        </>
+      )}
+    </Alert>
+  );
 }
