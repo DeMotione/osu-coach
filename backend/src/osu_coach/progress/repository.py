@@ -184,12 +184,14 @@ def by_period(
     since: dt.date | None = None,
     until: dt.date | None = None,
     tz=None,
+    rolling: bool = False,
 ) -> pd.DataFrame:
     """Like :func:`monthly`, per ``period`` ("month", "week" or "day"; the ``month`` column holds the period's
-    key), only plays from ``since`` to ``until`` (dates in ``tz``, both included)."""
+    key), only plays from ``since`` to ``until`` (dates in ``tz``, both included); ``rolling``: see
+    :func:`summarize_periods`."""
     df = pd.read_sql_query("SELECT * FROM replays WHERE player = ?", conn, params=(player,))
     mm = pd.read_sql_query("SELECT month, name, value FROM month_metrics WHERE player = ?", conn, params=(player,))
-    return summarize_periods(df, mm, period, since, until, tz)
+    return summarize_periods(df, mm, period, since, until, tz, rolling=rolling)
 
 
 def month_plays(conn: sqlite3.Connection, player: str, month: str, period: str = "month", tz=None) -> pd.DataFrame:

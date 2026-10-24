@@ -183,3 +183,50 @@ def test_old_lower_level_accuracy_goal_is_paused_and_new_goal_uses_new_scale(ana
     new = next(g for g in response.json()["open"] if g["id"] != "old-acc")
     assert new["state"] != "paused" and new["current"] == 33
     assert next(g for g in load_settings(ws.cache_dir)["goals"] if g["id"] == new["id"])["score_version"] == 2
+
+
+def test_goals_of_the_previous_rating_scale_are_paused_not_measured(analysed):
+    """Goals saved before 0.10 have no ``score_source``: their scores can't be compared with the Overview's (#70)."""
+    _measured_profile(analysed)
+    ws = workspace(analysed)
+    weakest = min(analysed.get("/api/goals").json()["skills"], key=lambda s: s["score"])
+    old = {"start": 1.0, "target": 2.0, "created": "2026-10-18", "deadline": "2027-01-01"}
+    save_settings(
+        {
+            **load_settings(ws.cache_dir),
+            "goals": [
+                {"id": "old-open", "skill": weakest["key"], **old, "done": None},
+                {"id": "old-done", "skill": "consistency", **old, "done": "2026-10-19"},
+            ],
+        },
+        ws.cache_dir,
+    )
+    g = analysed.get("/api/goals").json()
+    # an easy target on the old scale is not counted as reached with today's score
+    [paused] = g["open"]
+    assert paused["id"] == "old-open" and paused["state"] == "paused"
+    assert paused["score_source"] == "legacy" and paused["progress"] is None and paused["current"] is None
+    assert load_settings(ws.cache_dir)["goals"][0]["done"] is None
+    assert g["behind"] == 0
+    [done] = g["done"]
+    assert done["id"] == "old-done" and done["state"] == "done" and done["current"] is None
+    # its skill is free again for a goal on the current scale
+    if weakest["score"] <= 45:
+        assert weakest["key"] in [s["key"] for s in g["weak_without_goal"]]
+
+
+def test_one_open_goal_per_skill_with_a_target_above_the_score(analysed):
+    _measured_profile(analysed)
+    first, second = analysed.get("/api/goals").json()["skills"][:2]
+    deadline = (dt.date.today() + dt.timedelta(days=14)).isoformat()
+    assert (
+        analysed.post("/api/goals", json={"skill": first["key"], "target": 100, "deadline": deadline}).status_code
+        == 201
+    )
+    again = analysed.post("/api/goals", json={"skill": first["key"], "target": 100, "deadline": deadline})
+    assert again.status_code == 409 and again.json()["code"] == "goal_exists"
+    low = analysed.post(
+        "/api/goals", json={"skill": second["key"], "target": max(1, second["score"]), "deadline": deadline}
+    )
+    assert low.status_code == 422 and low.json()["code"] == "target_reached"
+    assert len(analysed.get("/api/goals").json()["open"]) == 1

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from osu_coach.app.convert import integer, iso, num, text
-from osu_coach.app.errors import Invalid, NoProfile, NotFound
+from osu_coach.app.errors import ApiError, Invalid, NoProfile, NotFound
 from osu_coach.profile.domain import SKILL_LABELS
 from osu_coach.progress import goals
 from osu_coach.progress import repository as progress
@@ -135,11 +135,6 @@ def _scores(ws: Workspace) -> dict:
     return {k: num((p.experimental_skills.get(k) or {}).get("score")) for k in SKILL_LABELS} if p is not None else {}
 
 
-def _legacy_scores(ws: Workspace) -> dict:
-    p = ws.profile()
-    return {k: num((p.skills.get(k) or {}).get("score")) for k in SKILL_LABELS} if p is not None else {}
-
-
 def _low_comfort(ws: Workspace) -> bool:
     p = ws.profile()
     comfort = num(p.levels.get("comfort_stars")) if p is not None else None
@@ -156,11 +151,19 @@ def _paused_accuracy_goal(g: dict, low_comfort: bool) -> bool:
     )
 
 
-def _goal_score(g: dict, current: dict, legacy: dict, low_comfort: bool = False) -> float | None:
-    if _paused_accuracy_goal(g, low_comfort):
+def _paused(g: dict, low_comfort: bool) -> bool:
+    """An open goal that is no longer followed: set on the previous rating scale (before 0.10; its scores can't be
+    compared with the Overview's, #70), or an accuracy goal of the recalibrated low-comfort scale."""
+    if g.get("done"):
+        return False
+    return g.get("score_source") != "experimental" or _paused_accuracy_goal(g, low_comfort)
+
+
+def _goal_score(g: dict, current: dict, low_comfort: bool = False) -> float | None:
+    """The goal's skill on the Overview's scale; None for a paused goal and for a reached one of the previous scale."""
+    if g.get("score_source") != "experimental" or _paused_accuracy_goal(g, low_comfort):
         return None
-    source = current if g.get("score_source") == "experimental" else legacy
-    return source.get(g["skill"])
+    return current.get(g["skill"])
 
 
 def _plan_targets(scores: dict, open_skills: set[str]) -> list[tuple[str, float, float]]:
@@ -169,11 +172,11 @@ def _plan_targets(scores: dict, open_skills: set[str]) -> list[tuple[str, float,
     return goals.suggested_targets(weak, PLAN_SKILLS)
 
 
-def _goals(ws: Workspace, scores: dict, legacy: dict, low_comfort: bool = False) -> list[dict]:
+def _goals(ws: Workspace, scores: dict, low_comfort: bool = False) -> list[dict]:
     """The saved goals, the ones reached by now marked as done (and saved)."""
     gl, changed = [], False
     for g in ws.settings().get("goals") or []:
-        updated, reached = goals.update([g], {g["skill"]: _goal_score(g, scores, legacy, low_comfort)})
+        updated, reached = goals.update([g], {g["skill"]: _goal_score(g, scores, low_comfort)})
         gl.extend(updated)
         changed |= reached
     if changed:
@@ -183,7 +186,7 @@ def _goals(ws: Workspace, scores: dict, legacy: dict, low_comfort: bool = False)
 
 def _goal_out(g: dict, current, low_comfort: bool = False) -> GoalOut:
     st = goals.status(g, current)
-    paused = _paused_accuracy_goal(g, low_comfort)
+    paused = _paused(g, low_comfort)
     return GoalOut(
         id=g["id"],
         skill=g["skill"],
@@ -214,7 +217,8 @@ def _history(ws: Workspace, gl: list[dict]) -> list[GoalHistory]:
         pref = ws.settings().get("player")
         player = pref if pref in names else (names[0] if names else None)
         since = min(dt.date.fromisoformat(g["created"]) for g in gl) - dt.timedelta(days=HISTORY_LEAD_DAYS)
-        m = progress.by_period(conn, player, "day", since=since) if player is not None else pd.DataFrame()
+        # the rolling day scores: one day's plays swing too much to follow a goal by
+        m = progress.by_period(conn, player, "day", since=since, rolling=True) if player is not None else pd.DataFrame()
     finally:
         conn.close()
     out = []
@@ -236,23 +240,22 @@ def _history(ws: Workspace, gl: list[dict]) -> list[GoalHistory]:
 
 def goals_out(ws: Workspace) -> GoalsOut:
     scores = _scores(ws)
-    legacy = _legacy_scores(ws)
     low_comfort = _low_comfort(ws)
-    gl = _goals(ws, scores, legacy, low_comfort)
+    gl = _goals(ws, scores, low_comfort)
     open_ = [g for g in gl if not g.get("done")]
     done = [g for g in gl if g.get("done")]
-    open_out = [_goal_out(g, _goal_score(g, scores, legacy, low_comfort), low_comfort) for g in open_]
+    open_out = [_goal_out(g, _goal_score(g, scores, low_comfort), low_comfort) for g in open_]
     have = [
         SkillValue(key=k, label=short_label(k), score=float(scores[k]))
         for k in SKILL_LABELS
         if num(scores.get(k)) is not None
     ]
-    open_skills = {g["skill"] for g in open_ if not _paused_accuracy_goal(g, low_comfort)}
+    open_skills = {g["skill"] for g in open_ if not _paused(g, low_comfort)}
     weak = [s for s in sorted(have, key=lambda s: s.score) if s.score <= 45 and s.key not in open_skills]
     return GoalsOut(
         has_profile=ws.profile() is not None,
         open=open_out,
-        done=[_goal_out(g, _goal_score(g, scores, legacy, low_comfort), low_comfort) for g in done],
+        done=[_goal_out(g, _goal_score(g, scores, low_comfort), low_comfort) for g in done],
         behind=sum(g.state in ("behind", "overdue") for g in open_out),
         skills=have,
         suggested=[
@@ -272,7 +275,14 @@ def add_goal(ws: Workspace, req: GoalCreate) -> GoalsOut:
         raise Invalid(f"{short_label(req.skill)} has no score yet, so it can't be followed.", "skill_without_score")
     if req.deadline < dt.date.today():
         raise Invalid("The deadline is in the past.", "deadline_past")
-    gl = _goals(ws, scores, _legacy_scores(ws), _low_comfort(ws))
+    if req.target <= scores[req.skill]:
+        raise Invalid(
+            f"{short_label(req.skill)} is already at {scores[req.skill]:.0f}: pick a higher target.", "target_reached"
+        )
+    low_comfort = _low_comfort(ws)
+    gl = _goals(ws, scores, low_comfort)
+    if any(g["skill"] == req.skill and not g.get("done") and not _paused(g, low_comfort) for g in gl):
+        raise ApiError(409, "goal_exists", f"There is already a goal for {short_label(req.skill)}: remove it first.")
     ws.update_settings(
         goals=gl
         + [
@@ -294,8 +304,8 @@ def add_plan(ws: Workspace) -> GoalsOut:
     if not any(score is not None for score in scores.values()):
         raise NoProfile("No measured skill ratings yet. Analyse more replays before making a plan.")
     low_comfort = _low_comfort(ws)
-    gl = _goals(ws, scores, _legacy_scores(ws), low_comfort)
-    have_open = {g["skill"] for g in gl if not g.get("done") and not _paused_accuracy_goal(g, low_comfort)}
+    gl = _goals(ws, scores, low_comfort)
+    have_open = {g["skill"] for g in gl if not g.get("done") and not _paused(g, low_comfort)}
     deadline = dt.date.today() + dt.timedelta(weeks=PLAN_WEEKS)
     new = [
         goals.new_goal(k, cur, tg, deadline, score_source="experimental", score_version=2 if k == "accuracy" else None)

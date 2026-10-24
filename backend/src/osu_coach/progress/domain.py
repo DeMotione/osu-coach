@@ -4,6 +4,10 @@ Skill scores are the Overview's skill ratings (``experimental_skills``: 50 = exp
 level), each period's measured against ONE reference — the comfort level of all of the player's replays, the
 one the Overview uses — so periods can be compared: playing better than that level expects shows as a rise.
 (Rating each period at its own comfort level would put every period near 50.)
+
+Besides months, weeks and days, every day with plays also gets a *rolling* score: rated over the plays of the
+``ROLLING_DAYS`` days up to it. One day's plays are few and swing a lot; the goals chart follows this steadier line,
+whose last point is close to the score of all plays a goal starts from.
 """
 
 from __future__ import annotations
@@ -18,6 +22,8 @@ from osu_coach.profile.domain.experimental import comfort as experimental_comfor
 
 FEW_PLAYS = 5  # periods with fewer plays are shown, but marked as uncertain
 PERIODS = ("month", "week", "day")
+ROLLING = "rolling"  # metric key prefix of the rolling day scores ("rolling:YYYY-MM-DD")
+ROLLING_DAYS = 7
 # Saved with a period's skill scores: the comfort level (★) they were rated at. Its presence also marks scores of
 # this rating scale; scores saved by older versions (a miss model) have none and are not shown.
 SKILL_REFERENCE = "skill_reference_stars"
@@ -64,9 +70,16 @@ def period_metrics(analyses, tz=None) -> dict[str, list[tuple[str, float | None,
     metas = pd.DataFrame([a.meta for a in analyses])
     reference = experimental_comfort(metas)  # the Overview's comfort level: one yardstick for every period
     groups = defaultdict(list)
+    by_day = defaultdict(list)
     for a in analyses:
         for period in PERIODS:  # months, ISO weeks and days, each kept under its own key
             groups[metric_key(period, period_of(a.meta["date"], period, tz))].append(a)
+        by_day[dt.date.fromisoformat(period_of(a.meta["date"], "day", tz))].append(a)
+    for day in by_day:  # each day with plays: the plays of the last ROLLING_DAYS days up to it
+        first = day - dt.timedelta(days=ROLLING_DAYS - 1)
+        groups[metric_key(ROLLING, day.isoformat())] = [
+            a for d, items in by_day.items() if first <= d <= day for a in items
+        ]
     out: dict[str, list[tuple[str, float | None, int]] | None] = {}
     for key, group in groups.items():
         if len(group) < FEW_PLAYS:  # a play or two say little about a period's skill
@@ -99,10 +112,12 @@ def summarize_periods(
     since: dt.date | None = None,
     until: dt.date | None = None,
     tz=None,
+    rolling: bool = False,
 ) -> pd.DataFrame:
     """One row per period with plays: counts, star rating, accuracy, skills (``skill_<name>``) etc.
     ``df``: the player's saved plays; ``metrics``: their month_metrics rows (month, name, value).
-    Only plays from ``since`` to ``until`` (dates in ``tz``, both included)."""
+    Only plays from ``since`` to ``until`` (dates in ``tz``, both included). ``rolling`` (days only): the skills
+    are the rolling scores of the last ``ROLLING_DAYS`` days, or the day's own until those have been saved."""
     if df.empty:
         return pd.DataFrame(columns=["month", "plays"])
     local = pd.to_datetime(df["played_at"], utc=True, format="ISO8601").dt.tz_convert(
@@ -132,20 +147,27 @@ def summarize_periods(
     out["accuracy"] = g["accuracy"].mean()
     out["misses_per_100"] = g["head_misses"].sum() / g["n_played"].sum().clip(lower=1) * 100
     out["ur"] = g["ur"].median()
-    mm = metrics
-    if period != "month":
-        prefix = f"{period}:"
-        mm = mm[mm["month"].str.startswith(prefix)].assign(month=lambda d: d["month"].str[len(prefix) :])
-    else:
-        mm = mm[~mm["month"].str.contains(":")]
-    rated = set(mm.loc[mm["name"] == SKILL_REFERENCE, "month"])  # skill scores of this rating scale
+    mm = _keyed(metrics, None if period == "month" else period)
+    sm = _keyed(metrics, ROLLING) if rolling and period == "day" else mm
+    if (sm["name"] == SKILL_REFERENCE).sum() == 0:  # rolling scores not saved yet (analysed by an older version)
+        sm = mm
+    rated = set(sm.loc[sm["name"] == SKILL_REFERENCE, "month"])  # skill scores of this rating scale
     for name in [f"skill_{k}" for k in SKILL_LABELS] + [SKILL_REFERENCE, "stream_bpm", "ur_single", "aim_err"]:
-        vals = mm[mm["name"] == name].set_index("month")["value"]
+        src = sm if name.startswith("skill_") else mm
+        vals = src[src["name"] == name].set_index("month")["value"]
         if name.startswith("skill_"):
             vals = vals[vals.index.isin(rated)]
         out[name] = vals.reindex(out.index).astype(float)
     out["few_plays"] = out["plays"] < FEW_PLAYS
     return out.sort_index().reset_index().rename(columns={"index": "month"})
+
+
+def _keyed(metrics: pd.DataFrame, kind: str | None) -> pd.DataFrame:
+    """The metric rows of one kind of period (None: months, whose keys have no prefix), keyed without the prefix."""
+    if kind is None:
+        return metrics[~metrics["month"].str.contains(":")]
+    prefix = f"{kind}:"
+    return metrics[metrics["month"].str.startswith(prefix)].assign(month=lambda d: d["month"].str[len(prefix) :])
 
 
 def mark_full_combos(df: pd.DataFrame) -> pd.DataFrame:
