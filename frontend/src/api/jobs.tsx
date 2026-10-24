@@ -20,23 +20,30 @@ interface JobsContext {
 
 const Ctx = createContext<JobsContext | null>(null);
 const POLL_MS = 450;
+const DISCOVER_MS = 4000;
 
 export function JobsProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const [jobs, setJobs] = useState<Slots>({});
   const polling = useRef(new Set<string>());
 
+  const seen = useRef(new Set<string>());
+
   const finished = useCallback(
     (job: Job) => {
       if (job.status !== "succeeded") return;
       if (job.kind === "scan") void invalidateLibrary(qc);
-      if (job.kind === "analysis") void invalidateResults(qc);
+      if (job.kind === "analysis") {
+        void invalidateResults(qc);
+        if (job.result?.new_plays?.length) void invalidateLibrary(qc); // the new plays were added to the library
+      }
     },
     [qc],
   );
 
   const follow = useCallback(
     (job: Job) => {
+      seen.current.add(job.id);
       setJobs((s) => ({ ...s, [job.kind]: job }));
       if (job.status !== "running") {
         finished(job);
@@ -76,6 +83,22 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     unwrap(api.GET("/api/jobs"))
       .then((running) => running.forEach(follow))
       .catch(() => undefined);
+  }, [follow]);
+
+  // jobs the server starts by itself (a new play analysed, #71): look every few seconds, also for the ones that
+  // finished in between, so a short one isn't missed
+  useEffect(() => {
+    let since = new Date().toISOString();
+    const id = window.setInterval(() => {
+      const asked = new Date().toISOString();
+      unwrap(api.GET("/api/jobs", { params: { query: { finished_after: since } } }))
+        .then((jobs) => {
+          since = asked;
+          jobs.filter((j) => !seen.current.has(j.id)).forEach(follow);
+        })
+        .catch(() => undefined);
+    }, DISCOVER_MS);
+    return () => window.clearInterval(id);
   }, [follow]);
 
   const start = useCallback(

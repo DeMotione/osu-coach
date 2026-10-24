@@ -20,6 +20,7 @@ import {
   IconWinRestore,
   IconX,
 } from "../components/icons";
+import { NewPlayNotice } from "../components/NewPlayNotice";
 import { Onboarding } from "../components/onboarding/Onboarding";
 import { closeWindow, isDesktop, minimizeWindow, toggleMaximizeWindow, useWindowMaximized } from "../lib/desktop";
 import { stars } from "../lib/format";
@@ -359,6 +360,7 @@ function Shell() {
         </div>
         <StatusBar inert={guide} />
       </div>
+      {!guide && <NewPlayNotice />}
       {guide && <Onboarding first={firstStart} onClose={() => setGuideOpened(false)} />}
     </div>
   );

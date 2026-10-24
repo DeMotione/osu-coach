@@ -122,3 +122,16 @@ def test_gate_waits_when_asked():
     threading.Timer(0.1, gate.release).start()
     with gate.hold("second", wait=5):
         assert gate.holder == "second"
+
+
+def test_running_jobs_and_the_ones_finished_since_a_time():
+    jobs = JobManager(BusyGate())
+    go = threading.Event()
+    done = _finish(jobs.start("scan", "Scanning", lambda r: 1))
+    between = done.finished_at
+    later = _finish(jobs.start("analysis", "Analysing", lambda r: 2))
+    running = jobs.start("osz_download", "Downloading", lambda r: go.wait(5), exclusive=False)
+    assert jobs.running() == [running]
+    assert jobs.running(between) == [later, running]  # the scan finished at that time, not after it
+    go.set()
+    _finish(running)

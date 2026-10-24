@@ -60,7 +60,14 @@ def test_scan_and_analyse_a_folder(tmp_path, client):
     sel = client.get("/api/library/selection").json()
     assert sel["player"] == "Mot1one" and sel["replays"] == 3 and sel["missing_maps"] == 0 and not sel["files_mode"]
     job = analyse(client)
-    assert job["result"] == {"analysed": 3, "skipped": 0, "best_replays": None, "profile_ready": True, "warnings": []}
+    assert job["result"] == {
+        "analysed": 3,
+        "skipped": 0,
+        "best_replays": None,
+        "profile_ready": True,
+        "warnings": [],
+        "new_plays": [],  # analysed by hand, not new plays osu! just saved
+    }
     status = client.get("/api/analysis").json()
     assert status["analysed"] == 3 and status["player_label"] == "Mot1one" and status["profile_replays"] == 3
     assert load_settings(workspace(client).cache_dir)["player"] == "Mot1one"  # remembered
