@@ -26,6 +26,9 @@ class AppSettings(BaseModel):
     manual_comfort: float = Field(2.5, description="Star rating for playlists without analysed replays.")
     setup_saved: bool = False
     onboarded: bool = Field(False, description="The first-start setup guide was finished or skipped.")
+    auto_analyse: bool = Field(
+        True, description="Analyse new plays by themselves: the replays osu! saves while osu! coach runs."
+    )
 
 
 class SettingsPatch(Request):
@@ -42,6 +45,7 @@ class SettingsPatch(Request):
     player: str | None = Field(None, max_length=200)
     manual_comfort: float | None = Field(None, ge=1.0, le=8.0)
     onboarded: bool | None = None
+    auto_analyse: bool | None = None
 
 
 class SetupModel(BaseModel):

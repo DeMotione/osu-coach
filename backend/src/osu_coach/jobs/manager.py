@@ -163,6 +163,12 @@ class JobManager:
             job.message = "Stopping…"
         return job
 
-    def running(self) -> list[Job]:
+    def running(self, finished_after: dt.datetime | None = None) -> list[Job]:
+        """The jobs still running, and those that finished after ``finished_after`` (when given)."""
         with self._lock:
-            return [j for j in self._jobs.values() if j.status == "running"]
+            return [
+                j
+                for j in self._jobs.values()
+                if j.status == "running"
+                or (finished_after is not None and j.finished_at is not None and j.finished_at > finished_after)
+            ]

@@ -156,6 +156,15 @@ it for good; the compass button in the toolbar opens it again. Finished or skipp
   (`install_paths` in `settings.json`) and listed and scanned like the others.
 - Any folder with `.osr` files, or drag and drop files into the app.
 
+### New plays, analysed by themselves
+
+While osu! coach is open, it watches the osu! installs that were scanned (`app/autoanalyse.py`,
+`replays/watch.py`). When osu! saves a replay after a play (stable's `Data/r`, lazer's file store), the replay is
+added to the library and the analysis runs again with the Replays page's choices. Only the new play is really
+analysed; the rest comes from the cache, so it takes a few seconds. The pages update and a notice links to the play
+in Detailed Map Analysis. Failed or quit plays have no replay, so they aren't analysed. Turn it off with
+*Analyse new plays automatically* on the Replays page (`auto_analyse` in `settings.json`).
+
 ### Playlists in osu!lazer
 
 lazer can't open a `collection.db` by itself, but *Settings → General → Run setup wizard → Import*

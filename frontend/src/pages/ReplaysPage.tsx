@@ -336,6 +336,12 @@ function AnalyseCard({ settings }: { settings: Settings }) {
             label="Download missing beatmaps from the internet"
             hint="Looks the map up by its MD5 on osu.direct and downloads the .osu from osu.ppy.sh (verified against the replay)."
           />
+          <Switch
+            checked={settings.auto_analyse}
+            onChange={(v) => patch.mutate({ auto_analyse: v })}
+            label="Analyse new plays automatically"
+            hint="While osu! coach is open, a replay osu! saves after a play is analysed with the choices above, and the pages update by themselves. Watches the osu! installs that were scanned."
+          />
           {selection.error && !busy && <Alert tone="bad">{selection.error.message}</Alert>}
           {sel && (
             <div className="stack" style={{ gap: 8 }}>

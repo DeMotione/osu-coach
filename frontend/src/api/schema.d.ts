@@ -212,7 +212,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Jobs still running */
+        /**
+         * Jobs still running
+         * @description ``finished_after``: also the jobs that finished since then, so a client checking every few seconds sees
+         *     the short ones it didn't start itself (a new play analysed by itself).
+         */
         get: operations["running_api_jobs_get"];
         put?: never;
         post?: never;
@@ -888,6 +892,11 @@ export interface components {
             profile_ready: boolean;
             /** Warnings */
             warnings: string[];
+            /**
+             * New Plays
+             * @description Analysed because osu! just saved them (auto-analyse); empty otherwise.
+             */
+            new_plays?: components["schemas"]["NewPlay"][];
         };
         /** AnalysisStatus */
         AnalysisStatus: {
@@ -989,6 +998,12 @@ export interface components {
              * @default false
              */
             onboarded: boolean;
+            /**
+             * Auto Analyse
+             * @description Analyse new plays by themselves: the replays osu! saves while osu! coach runs.
+             * @default true
+             */
+            auto_analyse: boolean;
         };
         /** ArMissRow */
         ArMissRow: {
@@ -1989,6 +2004,16 @@ export interface components {
             /** Description */
             description: string;
         };
+        /** NewPlay */
+        NewPlay: {
+            /**
+             * Path
+             * @description The replay file (opens it in Detailed Map Analysis).
+             */
+            path: string;
+            /** Map */
+            map: string;
+        };
         /** OszJob */
         OszJob: {
             /** Id */
@@ -2578,6 +2603,8 @@ export interface components {
             manual_comfort?: number | null;
             /** Onboarded */
             onboarded?: boolean | null;
+            /** Auto Analyse */
+            auto_analyse?: boolean | null;
         };
         /**
          * SetupModel
@@ -3665,7 +3692,9 @@ export interface operations {
     };
     running_api_jobs_get: {
         parameters: {
-            query?: never;
+            query?: {
+                finished_after?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3679,6 +3708,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": (components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"])[];
+                };
+            };
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

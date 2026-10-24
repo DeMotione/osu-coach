@@ -103,12 +103,20 @@ class AnalysisRequest(Request):
     online: bool = Field(True, description="Download missing beatmaps (osu.direct lookup, osu.ppy.sh file).")
 
 
+class NewPlay(BaseModel):
+    path: str = Field(description="The replay file (opens it in Detailed Map Analysis).")
+    map: str
+
+
 class AnalysisResult(BaseModel):
     analysed: int
     skipped: int
     best_replays: int | None = Field(description="With Best replays chosen: how many of them are best replays.")
     profile_ready: bool
     warnings: list[str]
+    new_plays: list[NewPlay] = Field(
+        default_factory=list, description="Analysed because osu! just saved them (auto-analyse); empty otherwise."
+    )
 
 
 class SkippedReplay(BaseModel):

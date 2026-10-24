@@ -610,13 +610,34 @@
           "Jobs"
         ],
         "summary": "Jobs still running",
+        "description": "``finished_after``: also the jobs that finished since then, so a client checking every few seconds sees\nthe short ones it didn't start itself (a new play analysed by itself).",
         "operationId": "running_api_jobs_get",
+        "parameters": [
+          {
+            "name": "finished_after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Finished After"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "oneOf": [
                       {
@@ -642,8 +663,17 @@
                       }
                     }
                   },
-                  "type": "array",
                   "title": "Response Running Api Jobs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -2628,6 +2658,14 @@
             },
             "type": "array",
             "title": "Warnings"
+          },
+          "new_plays": {
+            "items": {
+              "$ref": "#/components/schemas/NewPlay"
+            },
+            "type": "array",
+            "title": "New Plays",
+            "description": "Analysed because osu! just saved them (auto-analyse); empty otherwise."
           }
         },
         "type": "object",
@@ -2836,6 +2874,12 @@
             "title": "Onboarded",
             "description": "The first-start setup guide was finished or skipped.",
             "default": false
+          },
+          "auto_analyse": {
+            "type": "boolean",
+            "title": "Auto Analyse",
+            "description": "Analyse new plays by themselves: the replays osu! saves while osu! coach runs.",
+            "default": true
           }
         },
         "type": "object",
@@ -5808,6 +5852,25 @@
         ],
         "title": "MissCauseMeta"
       },
+      "NewPlay": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "The replay file (opens it in Detailed Map Analysis)."
+          },
+          "map": {
+            "type": "string",
+            "title": "Map"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "map"
+        ],
+        "title": "NewPlay"
+      },
       "OszJob": {
         "properties": {
           "id": {
@@ -7624,6 +7687,17 @@
               }
             ],
             "title": "Onboarded"
+          },
+          "auto_analyse": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Analyse"
           }
         },
         "additionalProperties": false,
