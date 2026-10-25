@@ -37,7 +37,7 @@ function Body({ s, onApply }: { s: Schemas["Suggestions"]; onApply: (options: { 
           </Field>
           <button type="button" className="btn" disabled={!valid} onClick={() => onApply({ kappa: Number(kappa), min_relevance: Number(relevance) })}>Show maps</button>
         </div>
-        <p className="small muted">These coefficients and map skill demands are experimental. Replays determine your {s.comfort.toFixed(2)}★ comfort level ({s.comfort_source}).</p>
+        <p className="small muted">Your comfort level: {s.comfort.toFixed(2)}★ ({s.comfort_source}).</p>
       </Card>
       {!s.has_profile ? <Alert tone="info">Analyze replays to measure weak skills before map suggestions can be made.</Alert> :
         !s.sections.length ? <Alert tone="info">No measured skill is below the expected level (45/100 or less), so there are no weakness-based suggestions.</Alert> : null}

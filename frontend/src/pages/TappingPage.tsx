@@ -276,7 +276,7 @@ function StaminaSummary({ fb, bySpeed }: { fb: Schemas["FallBehind"]; bySpeed: b
             onChange={setTab}
           />
           <MapTable key={tab} compact maps={(tab === "push" ? fb.practice_maps! : fb.comfortable_maps!).maps} maxHeight={300} />
-          <p className="small muted">Map demand scores are experimental. Lists keep the stated stream-length range and exclude maps in your replay dataset.</p>
+          <p className="small muted">Lists keep the stated stream-length range and exclude maps in your replay dataset.</p>
           {!(tab === "push" ? fb.practice_maps! : fb.comfortable_maps!).maps.length && <p className="small muted">
             {Object.entries((tab === "push" ? fb.practice_maps! : fb.comfortable_maps!).excluded ?? {}).map(([reason, count]) => `${reason}: ${count}`).join(" · ")}
           </p>}

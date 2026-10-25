@@ -631,8 +631,3 @@ def test_looks_like_zip(tmp_path):
     assert sources._looks_like_zip(good)
     assert not sources._looks_like_zip(bad)
     assert not sources._looks_like_zip(empty)
-
-
-def test_beatmap_url():
-    assert sources.beatmap_url(5) == "https://osu.ppy.sh/b/5"
-    assert sources.beatmap_url(5, 9) == "https://osu.ppy.sh/beatmapsets/9#osu/5"

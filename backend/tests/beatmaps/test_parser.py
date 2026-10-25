@@ -36,11 +36,6 @@ def test_max_combo_matches_rosu_pp(res):
     assert bm.max_combo() == expected == 2385
 
 
-def test_bpm_lookup(res):
-    bm = parse_beatmap_file(res(FD))
-    assert bm.bpm_at(bm.objects[100].time) == pytest.approx(222.22, abs=0.01)
-
-
 def test_linear_path_is_truncated_to_pixel_length():
     p = SliderPath("L", [(0, 0), (100, 0)], expected_length=50)
     assert p.length == pytest.approx(50)

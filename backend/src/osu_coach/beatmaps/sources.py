@@ -249,9 +249,3 @@ def _filename_from_headers(r: requests.Response, set_id: int) -> str:
 def _looks_like_zip(path: Path) -> bool:
     with open(path, "rb") as f:
         return f.read(2) == b"PK"
-
-
-def beatmap_url(beatmap_id: int, set_id: int | None = None) -> str:
-    if set_id:
-        return f"https://osu.ppy.sh/beatmapsets/{set_id}#osu/{beatmap_id}"
-    return f"https://osu.ppy.sh/b/{beatmap_id}"

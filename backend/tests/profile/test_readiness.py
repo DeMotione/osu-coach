@@ -5,7 +5,7 @@ import math
 import pytest
 
 from osu_coach.profile.domain.demand import log_demand
-from osu_coach.profile.domain.experimental import POINTS, _accuracy_expected, _expected
+from osu_coach.profile.domain.ratings import POINTS, _accuracy_expected, _expected
 from osu_coach.profile.domain.readiness import (
     MAX_GAP,
     PASS_AT_LEVEL,

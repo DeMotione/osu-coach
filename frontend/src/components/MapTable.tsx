@@ -40,7 +40,7 @@ const COLUMNS: Column<MapRow>[] = [
   { key: "length", header: "Length", cell: (m) => clock(m.length_s), value: (m) => m.length_s, align: "right" },
   { key: "why", header: "Why this map", cell: (m) => m.why, wrap: true, title: "The patterns it has for the skill." },
   { key: "demand", header: "Skill demand", cell: (m) => fmt(m.skill_demand, 1), value: (m) => m.skill_demand, align: "right",
-    title: "Experimental 0–100 demand projection for the target skill." },
+    title: "How much the map asks of the target skill, 0–100." },
   { key: "score", header: "F(m)", cell: (m) => fmt(m.formula_score, 4), value: (m) => m.formula_score, align: "right",
     title: "Goal-conditioned ranking score; higher is better within this goal." },
   { key: "breakdown", header: "Breakdown", value: () => null, cell: (m) => <Breakdown map={m} />,

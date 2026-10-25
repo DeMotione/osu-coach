@@ -48,7 +48,7 @@ def test_progress_range_and_players(analysed):
 def _measured_profile(analysed):
     """Give the small replay fixture measured ratings and one explicitly missing rating."""
     p = workspace(analysed).profile()
-    p.experimental_skills = {
+    p.skill_ratings = {
         skill: {"score": score, "maps": 12, "reason": "Not enough replay data" if score is None else None}
         for skill, score in {
             "aim": 81,

@@ -1,6 +1,6 @@
 """Progress over time: period keys, per-period skill numbers and per-period play statistics.
 
-Skill scores are the Overview's skill ratings (``experimental_skills``: 50 = expected performance at a comfort
+Skill scores are the Overview's skill ratings (``skill_ratings``: 50 = expected performance at a comfort
 level), each period's measured against ONE reference — the comfort level of all of the player's replays, the
 one the Overview uses — so periods can be compared: playing better than that level expects shows as a rise.
 (Rating each period at its own comfort level would put every period near 50.)
@@ -18,7 +18,7 @@ from collections import defaultdict
 import pandas as pd
 
 from osu_coach.profile.domain import SKILL_LABELS, build_profile, clean_pass, comfort_stars
-from osu_coach.profile.domain.experimental import comfort as experimental_comfort
+from osu_coach.profile.domain.ratings import comfort as rated_comfort
 
 FEW_PLAYS = 5  # periods with fewer plays are shown, but marked as uncertain
 PERIODS = ("month", "week", "day")
@@ -68,7 +68,7 @@ def period_metrics(analyses, tz=None) -> dict[str, list[tuple[str, float | None,
     if not analyses:
         return {}
     metas = pd.DataFrame([a.meta for a in analyses])
-    reference = experimental_comfort(metas)  # the Overview's comfort level: one yardstick for every period
+    reference = rated_comfort(metas)  # the Overview's comfort level: one yardstick for every period
     groups = defaultdict(list)
     by_day = defaultdict(list)
     for a in analyses:
@@ -87,10 +87,10 @@ def period_metrics(analyses, tz=None) -> dict[str, list[tuple[str, float | None,
             continue
         try:
             # level=reference: the ratings are measured against it, not against the period's own comfort
-            mp = build_profile(group, level=reference, weighted=False, experimental=reference is not None)
+            mp = build_profile(group, level=reference, weighted=False, with_ratings=reference is not None)
         except Exception:  # noqa: BLE001 - a period with too little data keeps no skill numbers
             continue
-        ratings = mp.experimental_skills
+        ratings = mp.skill_ratings
         rows = [
             (f"skill_{k}", (ratings.get(k) or {}).get("score"), int((ratings.get(k) or {}).get("maps") or 0))
             for k in SKILL_LABELS

@@ -173,7 +173,7 @@ def test_skills_by_month_are_the_overviews_ratings(tmp_path, nm):
     overview = build_profile(early + late)  # the Overview of every play
     reference = overview.levels["comfort_stars"]
     assert m["skill_reference_stars"].tolist() == [reference, reference]
-    september = build_profile(late, level=reference).experimental_skills
+    september = build_profile(late, level=reference).skill_ratings
     for skill, rating in september.items():
         saved = m.loc["2026-09", f"skill_{skill}"]
         assert (saved != saved and rating["score"] is None) or saved == rating["score"], skill

@@ -19,11 +19,11 @@ from osu_coach.profile.domain.aim import (
     worst_quadrant,
 )
 from osu_coach.profile.domain.consistency import _consistency_metrics
-from osu_coach.profile.domain.experimental import comfort as experimental_comfort
-from osu_coach.profile.domain.experimental import ratings as experimental_ratings
 from osu_coach.profile.domain.levels import LEVEL_BAND, LEVEL_SIGMA, _levels, clean_pass, detect_level, replay_weight
 from osu_coach.profile.domain.misses import _local_eq, fit_miss_model, miss_causes
 from osu_coach.profile.domain.model import Profile
+from osu_coach.profile.domain.ratings import comfort as rated_comfort
+from osu_coach.profile.domain.ratings import ratings as rate_skills
 from osu_coach.profile.domain.reading import _reading_metrics, _reading_ratios
 from osu_coach.profile.domain.skills import _rank_skills, compute_skills
 from osu_coach.profile.domain.stamina import STAMINA_REACH
@@ -32,7 +32,7 @@ from osu_coach.profile.domain.tapping import stream_fall_behind, stream_limits, 
 
 
 def build_profile(
-    analyses: list[ReplayAnalysis], level: float | None = None, weighted: bool = True, experimental: bool = True
+    analyses: list[ReplayAnalysis], level: float | None = None, weighted: bool = True, with_ratings: bool = True
 ) -> Profile:
     """Profile of these replays. The player's level is detected from the recent replays
     (:func:`detect_level`) unless ``level`` (★) is given; with ``weighted`` every replay counts by how close
@@ -166,12 +166,12 @@ def build_profile(
         level_sigma=LEVEL_SIGMA,
         weighted=bool(weighted),
     )
-    experimental_skills = {}
-    if experimental:
-        lab_comfort = experimental_comfort(metas)
-        levels["comfort_stars"] = float(level) if override else lab_comfort
+    skill_ratings = {}
+    if with_ratings:
+        comfort = rated_comfort(metas)
+        levels["comfort_stars"] = float(level) if override else comfort
         levels["comfort_source"] = "Manual override" if override else "Recent successful map/mod configurations"
-        experimental_skills = experimental_ratings(O, metas, float(level) if override else lab_comfort)
+        skill_ratings = rate_skills(O, metas, float(level) if override else comfort)
     return Profile(
         overview=overview,
         replays=metas,
@@ -199,5 +199,5 @@ def build_profile(
         model=model,
         miss_breakdown_raw=miss_breakdown_raw,
         fall_behind=fall,
-        experimental_skills=experimental_skills,
+        skill_ratings=skill_ratings,
     )

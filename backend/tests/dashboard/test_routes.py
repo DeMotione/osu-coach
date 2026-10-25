@@ -289,11 +289,11 @@ def test_tapping_page_shows_stream_stamina_and_weak_speeds(client, monkeypatch, 
     for i, bpm in enumerate(range(180, 270, 10)):
         rows += _plays_at(bpm, 100 + 2 * (bpm - 180) + (150 if bpm == 200 else 0), [0, 5, -5], seed=i)
     sp = stream_speed_profile(pd.DataFrame(rows))
-    measured = {**small_profile.experimental_skills, "stamina": {"score": 70}}
+    measured = {**small_profile.skill_ratings, "stamina": {"score": 70}}
     _with_profile(
         client,
         monkeypatch,
-        dataclasses.replace(small_profile, fall_behind=fb, stream_profile=sp, experimental_skills=measured),
+        dataclasses.replace(small_profile, fall_behind=fb, stream_profile=sp, skill_ratings=measured),
     )
     t = client.get("/api/profile/tapping").json()
     f = t["fall_behind"]

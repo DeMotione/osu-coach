@@ -1,5 +1,5 @@
 /** The parts of ECharts' formatter / event parameters the app reads. */
-export interface Param {
+interface Param {
   dataIndex: number;
   seriesIndex?: number;
   seriesName?: string;

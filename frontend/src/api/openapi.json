@@ -5688,7 +5688,7 @@
               }
             ],
             "title": "Breakdown",
-            "description": "JSON calculation terms and experimental inputs."
+            "description": "The terms of the ranking formula and its inputs."
           }
         },
         "type": "object",
@@ -6597,11 +6597,6 @@
               }
             ],
             "title": "Skill Adjusted Stars"
-          },
-          "experimental": {
-            "type": "boolean",
-            "title": "Experimental",
-            "default": true
           },
           "abilities": {
             "additionalProperties": {
@@ -9108,11 +9103,6 @@
               "lazer"
             ],
             "title": "Preferred Client"
-          },
-          "experimental": {
-            "type": "boolean",
-            "title": "Experimental",
-            "default": true
           },
           "has_profile": {
             "type": "boolean",

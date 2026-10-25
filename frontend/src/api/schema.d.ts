@@ -1938,7 +1938,7 @@ export interface components {
             formula_score?: number | null;
             /**
              * Breakdown
-             * @description JSON calculation terms and experimental inputs.
+             * @description The terms of the ranking formula and its inputs.
              */
             breakdown?: {
                 [key: string]: unknown;
@@ -2240,11 +2240,6 @@ export interface components {
             preferred_client: "stable" | "lazer";
             /** Skill Adjusted Stars */
             skill_adjusted_stars?: number | null;
-            /**
-             * Experimental
-             * @default true
-             */
-            experimental: boolean;
             /** Abilities */
             abilities?: {
                 [key: string]: number;
@@ -3065,11 +3060,6 @@ export interface components {
              * @enum {string}
              */
             preferred_client: "stable" | "lazer";
-            /**
-             * Experimental
-             * @default true
-             */
-            experimental: boolean;
             /**
              * Has Profile
              * @default false

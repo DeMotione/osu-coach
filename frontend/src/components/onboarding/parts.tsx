@@ -27,7 +27,7 @@ export function Step({ title, sub, lead, foot, children }: { title: string; sub?
   );
 }
 
-export interface Choice<T> {
+interface Choice<T> {
   value: T;
   title: string;
   text: ReactNode;

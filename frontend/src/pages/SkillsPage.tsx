@@ -203,7 +203,7 @@ function PlaylistTab() {
           ) : null}{" "}
           · collection name: <code>{pl.collection_name}</code>
         </p>
-        <p className="small muted">Skill-adjusted target: {pl.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★. Map demands and coefficients are experimental.</p>
+        <p className="small muted">Skill-adjusted target: {pl.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★.</p>
       </Card>
       {pl.stages.length ? (
         pl.stages.map((st) => {

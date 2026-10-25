@@ -75,92 +75,8 @@ def analysed_replays(p: Profile) -> list[S.AnalysedReplay]:
 
 
 # ------------------------------------------------------------------ skill facts (Overview hover)
-def _n(v, spec: str = ".0f") -> str | None:
-    f = num(v)
-    return None if f is None else format(f, spec)
-
-
-def _dur(seconds) -> str:
-    seconds = float(seconds)
-    return f"{seconds:.0f} s" if seconds < 60 else f"{seconds / 60:.0f} min"
-
-
-def skill_facts(key: str, v: dict) -> list[str]:
-    """The player's own numbers behind a skill score."""
-    facts = []
-    n = v.get("n") or 0
-    if key == "accuracy":
-        r, ur = _n(v.get("three_hundred_rate"), ".0%"), _n(v.get("ur"))
-        facts.append(f"{n:,} single notes" + (f", {r} hit as 300s" if r else "") + (f", UR {ur}" if ur else ""))
-    elif key == "sliders":
-        br, val, ref = _n(v.get("break_rate"), ".1%"), _n(v.get("value")), _n(v.get("ref"))
-        held = _n(v.get("top_held"), ".0%")
-        facts.append(f"{n:,} sliders" + (f", {br} broken" if br else ""))
-        if val:
-            facts.append(
-                f"your best {v.get('plays', 0)} maps: hardest sliders worth {val}"
-                + (f" (typical for your level: {ref})" if ref else "")
-                + (f", {held} of them held" if held else "")
-            )
-    elif key == "consistency":
-        r = _n(v.get("miss_after_miss_ratio"), ".2f")
-        facts.append(f"{n:,} notes" + (f", miss-after-miss ratio {r}" if r else ""))
-        ch, sd, sp = _n(v.get("chain_score")), _n(v.get("steady_score")), _n(v.get("spread"), ".1f")
-        if ch or sd:
-            facts.append(
-                f"miss chains {ch or '–'}, steadiness between plays {sd or '–'}"
-                + (f" (spread {sp} misses / 100 notes)" if sp else "")
-            )
-    elif key == "reading":
-        ar, hit = _n(v.get("lowest_ar"), ".1f"), _n(v.get("bpm_hit"), ".0%")
-        facts.append(f"{v.get('maps', 0)} passed maps" + (f", lowest AR {ar}" if ar else ""))
-        if v.get("bpm_maps"):
-            facts.append(
-                f"{v['bpm_maps']} maps with BPM changes" + (f", {hit} of the notes after them as 300s" if hit else "")
-            )
-        lo, hi = _n(v.get("low_ar_score")), _n(v.get("high_ar_score"))
-        facts.append(f"AR <8: {lo or '–'}, AR 10+: {hi or '–'}")
-    elif key == "aim":
-        val, ref = _n(v.get("value"), ".1f"), _n(v.get("ref"), ".1f")
-        inten, combo = _n(v.get("intensity"), ".0f"), _n(v.get("combo"), ".0%")
-        facts.append(f"{n:,} jumps on {v.get('maps', 0)} passed maps")
-        if val:
-            facts.append(
-                f"cursor speed of your hardest jumps {inten} circles/s, combo held {combo} of the map; "
-                f"value {val} (typical for your level {ref})"
-            )
-    elif key == "speed":
-        bpm, best, ref = _n(v.get("bpm")), _n(v.get("best_bpm")), _n(v.get("ref_bpm"))
-        clean = _n(v.get("clean_share"), ".0%")
-        if bpm:
-            facts.append(f"clean burst / stream speed {bpm} BPM (typical for your level {ref}), fastest map {best}")
-        facts.append(f"{n:,} bursts and streams" + (f", {clean} clean" if clean else ""))
-    elif key == "stamina":
-        curve = v.get("curve") or {}
-        if curve:
-            facts.append("tempo you kept up: " + ", ".join(f"{_dur(w)} {bpm:.0f} BPM" for w, bpm in curve.items()))
-        bs, stead = v.get("best_stream") or {}, _n(v.get("steadiness"), ".0%")
-        if bs or stead:
-            facts.append(
-                (f"hardest stream {bs['notes']} notes at {bs['bpm']:.0f} BPM" if bs else "")
-                + (", " if bs and stead else "")
-                + (f"steadiness {stead}" if stead else "")
-            )
-    else:
-        o, x = _n(v.get("observed")), _n(v.get("expected"))
-        facts.append(f"{n:,} notes" + (f", {o} misses vs {x} expected" if o and x else ""))
-    return facts
-
-
-def score_text(v: dict) -> str:
-    """A skill's score as shown, or why there is none."""
-    s = _n(v.get("score"))
-    if s:
-        return s + (" · few data" if v.get("low_data") else "")
-    return "too few misses to tell" if v.get("too_few_misses") else "not enough data"
-
-
-def experimental_facts(skill: str, row: dict) -> list[str]:
+def skill_facts(skill: str, row: dict) -> list[str]:
+    """The player's own numbers behind a skill rating."""
     if skill == "consistency":
         low, high = num(row.get("low")), num(row.get("high"))
         where = f" of {low:.1f}–{high:.1f}★" if low is not None and high is not None else ""
@@ -229,22 +145,22 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         accuracy=num(ov.get("accuracy")),
     )
     comfort_level = num(lv.get("comfort_stars")) or level
-    relative_scores = {key: row.get("score") for key, row in p.experimental_skills.items()} if comfort_level else {}
+    relative_scores = {key: row.get("score") for key, row in p.skill_ratings.items()} if comfort_level else {}
     skills = [
         S.SkillScore(
             key=k,
             label=v.get("label", SKILL_LABELS.get(k, k)),
             score=num(relative_scores.get(k)),
-            score_text=(p.experimental_skills.get(k) or {}).get("reason")
+            score_text=(p.skill_ratings.get(k) or {}).get("reason")
             if relative_scores.get(k) is None
             else f"{relative_scores[k]:.0f} · combo and accuracy held from map to map around your level"
             if k == "consistency"
-            else f"{relative_scores[k]:.0f} · experimental comfort-relative performance",
-            low_data=relative_scores.get(k) is not None and (p.experimental_skills.get(k) or {}).get("maps", 0) < 10,
+            else f"{relative_scores[k]:.0f} · 50 = typical for your comfort level",
+            low_data=relative_scores.get(k) is not None and (p.skill_ratings.get(k) or {}).get("maps", 0) < 10,
             too_few_misses=False,
             n=int(v.get("n") or 0),
-            facts=experimental_facts(k, p.experimental_skills.get(k) or {}),
-            needs=(p.experimental_skills.get(k) or {}).get("needs") if relative_scores.get(k) is None else None,
+            facts=skill_facts(k, p.skill_ratings.get(k) or {}),
+            needs=(p.skill_ratings.get(k) or {}).get("needs") if relative_scores.get(k) is None else None,
         )
         for k, v in p.skills.items()
     ]
@@ -255,7 +171,7 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         high_ar_score=num(rd.get("high_ar_score")),
         high_ar_maps=int(rd.get("high_ar_maps") or 0),
     )
-    few = [SKILL_LABELS.get(k, k) for k, v in p.experimental_skills.items() if v.get("score") is None]
+    few = [SKILL_LABELS.get(k, k) for k, v in p.skill_ratings.items() if v.get("score") is None]
     stam = p.skills.get("stamina") or {}
     stamina = []
     if stam.get("score") is not None and stam.get("curve"):
@@ -310,7 +226,7 @@ def consistency_at(p: Profile, comfort: float, stars: float, at_comfort: bool) -
     """Consistency isn't moved from the comfort level like the other skills: it is measured on the player's own maps
     of that star rating (7★ and 7.5★: maps of 7.00–7.99★)."""
     row = star_consistency(p.replays, comfort if at_comfort else stars, comfort=at_comfort)
-    base = num((p.experimental_skills.get("consistency") or {}).get("score"))
+    base = num((p.skill_ratings.get("consistency") or {}).get("score"))
     score = num(row["score"])
     return S.CompareSkill(
         key="consistency",
@@ -335,7 +251,7 @@ def star_compare(p: Profile) -> S.StarCompare:
             )
             continue
         at_comfort = stars == round(comfort, 1)  # exactly the comfort level, so it shows its own scores
-        c = compare_at(p.experimental_skills, comfort, comfort if at_comfort else stars)
+        c = compare_at(p.skill_ratings, comfort, comfort if at_comfort else stars)
         skills = [
             S.CompareSkill(
                 key=k, score=num(v["score"]), change=num(v["change"]), demand=num(v["demand"]), maps=None, needs=None
@@ -507,7 +423,7 @@ def _fall_behind(ws: Workspace, p: Profile) -> S.FallBehind:
         if not pool.empty:
             t = targets_from_profile(p)
             easy_lo = max(9, int(comfort * 0.6))
-            stamina = num((p.experimental_skills.get("stamina") or {}).get("score"))
+            stamina = num((p.skill_ratings.get("stamina") or {}).get("score"))
             abilities = {"stamina": stamina} if stamina is not None else {}
             for low, high, goal in ((easy_lo, comfort, "Comfort"), (int(lo), int(hi), "Push")):
                 subset = pool[(pool["max_run"] >= low) & (pool["max_run"] <= high)]

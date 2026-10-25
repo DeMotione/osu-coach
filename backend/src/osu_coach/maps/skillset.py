@@ -1,4 +1,4 @@
-"""Experimental NoMod skillset recommendation over the existing Coach pool.
+"""NoMod map recommendation for one skill from the bundled pool.
 
 Pool ``s_*`` values describe training relevance. Demands are a separate,
 unvalidated projection from pool features, relative to the player's comfort stars.
@@ -326,7 +326,6 @@ def recommend(
                         "history_weight": HISTORY_WEIGHT,
                         "history": 1,
                         "history_source": "Neutral assumption",
-                        "experimental_demands": True,
                     },
                 }
             )
@@ -342,4 +341,4 @@ def recommend(
             "excluded": excluded,
             "maps": ranked,
         }
-    return {"skill_adjusted_stars": adjusted, "goals": result, "candidate_count": len(candidates), "experimental": True}
+    return {"skill_adjusted_stars": adjusted, "goals": result, "candidate_count": len(candidates)}

@@ -97,7 +97,7 @@ def _options(
     if theta is None:
         theta = 2.5  # Visible starting assumption until the user supplies comfort stars.
         source = "Unmeasured 2.5★ starting assumption"
-    measured = {key: row.get("score") for key, row in p.experimental_skills.items()} if p else {}
+    measured = {key: row.get("score") for key, row in p.skill_ratings.items()} if p else {}
     abilities = {k: float(v) for k, v in measured.items() if k in SKILLS and v is not None}
     if ratings:
         try:
@@ -251,7 +251,7 @@ def playlist(
         abilities=abilities,
         measured_abilities={
             key: float(row["score"])
-            for key, row in (p.experimental_skills.items() if p else [])
+            for key, row in (p.skill_ratings.items() if p else [])
             if key in SKILLS and row.get("score") is not None
         },
     )

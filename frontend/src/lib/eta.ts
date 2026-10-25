@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /** A job's progress (0–1) at a moment (ms). */
-export interface Sample {
+interface Sample {
   t: number;
   p: number;
 }

@@ -132,7 +132,7 @@ def period_plays(ws: Workspace, player: str | None, period: str, key: str) -> li
 # ------------------------------------------------------------------ goals
 def _scores(ws: Workspace) -> dict:
     p = ws.profile()
-    return {k: num((p.experimental_skills.get(k) or {}).get("score")) for k in SKILL_LABELS} if p is not None else {}
+    return {k: num((p.skill_ratings.get(k) or {}).get("score")) for k in SKILL_LABELS} if p is not None else {}
 
 
 def _low_comfort(ws: Workspace) -> bool:
