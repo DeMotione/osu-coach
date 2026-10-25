@@ -69,6 +69,10 @@ class SkillScore(BaseModel):
     n: int
     facts: list[str] = Field(description="The player's own numbers behind the score.")
     needs: str | None = Field(description="Without a score: what to play to get one. null when it can't be said.")
+    at_least: float | None = Field(
+        description="Without a score because nothing played was demanding enough (and nearly all of it was held): "
+        "the score that much shows, a lower bound (0–100). null otherwise."
+    )
 
 
 class CompareSkill(BaseModel):
