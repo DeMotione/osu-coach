@@ -87,7 +87,6 @@ export function skillsChart(rows: Row[], skills: { key: string; label: string }[
       symbolSize: 8,
       lineStyle: { width: 2, color: SERIES[i % SERIES.length] },
       itemStyle: { color: SERIES[i % SERIES.length] },
-      markLine: i === 0 ? refLine(t, { yAxis: 50 }) : undefined,
     })),
   });
 }

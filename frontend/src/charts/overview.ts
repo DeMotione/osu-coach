@@ -1,7 +1,7 @@
 import type { Schemas } from "../api/client";
 import { esc } from "../lib/format";
 import { changeLabel, starLabel } from "../lib/starCompare";
-import { base, categoryAxis, grid, niceMax, refLine, responsive, tooltip, valueAxis } from "./base";
+import { base, categoryAxis, grid, niceMax, responsive, tooltip, valueAxis } from "./base";
 import type { Option } from "./echarts";
 import { C, alpha, scoreColor, type ChartTheme } from "./palette";
 import { params } from "./types";
@@ -140,7 +140,6 @@ export function compareBars(skills: Skill[], target: CompareTarget, comfort: num
               : { value: v ?? 0, itemStyle: { color: scoreColor(v), borderRadius: [0, 3, 3, 0] }, label: label(!longer(i)) },
           ),
           label: labels,
-          markLine: refLine(t, { xAxis: 50 }),
         },
       ],
     }),
