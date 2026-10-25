@@ -29,12 +29,7 @@ function AimBody({ aim }: { aim: Schemas["AimPage"] }) {
   const dist = useCallback((t: ChartTheme) => distanceChart(aim.distances, t), [aim.distances]);
   return (
     <>
-      <Tiles n={4}>
-        <Stat
-          label="Aim misses"
-          value={pct(k.aim_miss_share, 0)}
-          hint={`Share of your misses where you tapped in time but outside the circle, on jumps and single notes. Another ${pct(k.speed_aim_miss_share, 0)} are speed-aim misses (in streams, bursts and very fast jumps).`}
-        />
+      <Tiles n={3}>
         <Stat label="Jump miss rate" value={pct(k.jump_miss_rate)} />
         <Stat label="Near misses" value={pct(k.near_miss_share, 0)} hint="Aim misses that landed within 1.4 radii — just outside the circle." />
         <Stat label="Jump distance error" value={signed(k.jump_along_pct, 1, "%")} hint="Median over/undershoot along the jump direction, as % of the jump length." />
@@ -75,7 +70,7 @@ function AimBody({ aim }: { aim: Schemas["AimPage"] }) {
         >
           <Chart build={dist} height={340} label="Miss rate and over/undershoot by jump distance" />
         </Card>
-        <CalibrationCard aim={aim} />
+        <AnglesCard angles={aim.angles} />
       </Row>
     </>
   );
@@ -105,48 +100,25 @@ function ClicksCard() {
   );
 }
 
-function CalibrationCard({ aim }: { aim: Schemas["AimPage"] }) {
-  const reg = aim.regression;
+function AnglesCard({ angles }: { angles: Schemas["AngleRow"][] }) {
   return (
     <Card
-      title="Aim calibration"
-      hint="Your actual cursor movement compared with the movement each jump needed. 0% = exact; + = you move too far. Setup Tips uses it to check your tablet area / sensitivity."
+      title="By angle between jumps"
+      hint="Sharp = back-and-forth jumps, wide = jumps that keep going in one direction. Notes are weighted by difficulty."
     >
-      {reg ? (
-        <>
-          <Tiles n={4}>
-            <Stat label="Horizontal" value={signed((reg.scale_x - 1) * 100, 1, "%")} hint="How far you move compared with the real jump. + = overaim (too far)." />
-            <Stat label="Vertical" value={signed((reg.scale_y - 1) * 100, 1, "%")} />
-            <Stat label="Rotation" value={signed(reg.rotation_deg, 1, "°")} hint="+ = your movements come out clockwise." />
-            <Stat
-              label="Constant offset"
-              value={`${Math.hypot(reg.offset_x, reg.offset_y).toFixed(1)} px`}
-              hint={`x ${signed(reg.offset_x, 1)}, y ${signed(reg.offset_y, 1)} osu!px`}
-            />
-          </Tiles>
-          <p className="small muted">
-            Fitted on {int(reg.n)} jumps: your actual movement vs the movement that was needed. This is what the tablet-area /
-            sensitivity tips are based on.
-          </p>
-        </>
+      {angles.length ? (
+        <DataTable
+          label="Miss rate by angle between jumps"
+          rows={angles}
+          rowKey={(r) => r.bin}
+          columns={[
+            { key: "bin", header: "Angle between jumps", cell: (r) => r.bin },
+            { key: "n", header: "Notes", cell: (r) => int(r.objects), value: (r) => r.objects, align: "right" },
+            { key: "rate", header: "Miss rate", cell: (r) => pct(r.miss_rate), value: (r) => r.miss_rate, align: "right" },
+          ]}
+        />
       ) : (
-        <EmptyState title="Not enough jumps yet">The calibration needs 40+ jumps.</EmptyState>
-      )}
-      {aim.angles.length > 0 && (
-        <div className="section">
-          <h3 className="section__title">By angle between jumps</h3>
-          <p className="small muted">Sharp = back-and-forth jumps, wide = jumps that keep going in one direction. Notes are weighted by difficulty.</p>
-          <DataTable
-            label="Miss rate by angle between jumps"
-            rows={aim.angles}
-            rowKey={(r) => r.bin}
-            columns={[
-              { key: "bin", header: "Angle between jumps", cell: (r) => r.bin },
-              { key: "n", header: "Notes", cell: (r) => int(r.objects), value: (r) => r.objects, align: "right" },
-              { key: "rate", header: "Miss rate", cell: (r) => pct(r.miss_rate), value: (r) => r.miss_rate, align: "right" },
-            ]}
-          />
-        </div>
+        <EmptyState title="Not enough jumps yet" />
       )}
     </Card>
   );

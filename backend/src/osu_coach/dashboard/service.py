@@ -17,7 +17,6 @@ from osu_coach.maps.skillset import recommend
 from osu_coach.profile.domain import SKILL_LABELS, Profile, weight_table
 from osu_coach.profile.domain.consistency import star_consistency
 from osu_coach.profile.domain.readiness import MAX_GAP, compare_at, default_target, targets
-from osu_coach.tips.service import tip_out, tips
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
@@ -33,9 +32,6 @@ DIR_ANGLE = {
     "down": 270,
     "down-right": 315,
 }
-
-
-TOP_TIPS = 3
 
 
 # ------------------------------------------------------------------ summary and replays
@@ -135,12 +131,8 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         weighted_replays=float(ov.get("weighted_replays", len(p.replays))),
     )
     kpis = S.OverviewKpis(
-        replays=int(ov["replays"]),
-        maps=int(ov["maps"]),
-        weighted_replays=float(ov.get("weighted_replays", ov["replays"])),
         play_minutes=num(ov.get("play_minutes")),
         comfort_stars=num(lv.get("comfort_stars")),
-        ur=num(ov.get("ur")),
         misses_per_100=num(ov.get("misses_per_100")),
         accuracy=num(ov.get("accuracy")),
     )
@@ -164,13 +156,6 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         )
         for k, v in p.skills.items()
     ]
-    rd = p.skills.get("reading") or {}
-    reading_split = S.ReadingSplit(
-        low_ar_score=num(rd.get("low_ar_score")),
-        low_ar_maps=int(rd.get("low_ar_maps") or 0),
-        high_ar_score=num(rd.get("high_ar_score")),
-        high_ar_maps=int(rd.get("high_ar_maps") or 0),
-    )
     few = [SKILL_LABELS.get(k, k) for k, v in p.skill_ratings.items() if v.get("score") is None]
     stam = p.skills.get("stamina") or {}
     stamina = []
@@ -192,12 +177,10 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
     aim_split = None
     if a and f and a["expected"] > 0 and f["expected"] > 0:
         aim_split = S.AimSplit(fast_ratio=f["all_misses"] / f["expected"], normal_ratio=a["all_misses"] / a["expected"])
-    top_tips = [tip_out(t) for t in tips(ws, p)][:TOP_TIPS]
     return S.Overview(
         level=level_info,
         kpis=kpis,
         skills=skills,
-        reading_split=reading_split,
         few_data=few,
         compare=star_compare(p),
         stamina=stamina,
@@ -214,7 +197,6 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
         ][:3],
         miss_causes=causes,
         aim_split=aim_split,
-        top_tips=top_tips,
         sim_exact_share=num(ov.get("sim_exact_share")),
         sim_agreement=num(ov.get("sim_agreement")),
     )
@@ -276,10 +258,8 @@ def star_compare(p: Profile) -> S.StarCompare:
 
 # ------------------------------------------------------------------ aim
 def aim(ws: Workspace, p: Profile) -> S.AimPage:
-    a, reg, wq = p.aim, p.regression, p.worst_quadrant
+    a, wq = p.aim, p.worst_quadrant
     kpis = S.AimKpis(
-        aim_miss_share=num(a.get("aim_miss_share")),
-        speed_aim_miss_share=num(a.get("speed_aim_miss_share")),
         jump_miss_rate=num(a.get("jump_miss_rate")),
         near_miss_share=num(a.get("near_miss_share")),
         jump_along_pct=num(a.get("jump_along_pct")),
@@ -324,16 +304,6 @@ def aim(ws: Workspace, p: Profile) -> S.AimPage:
         S.AngleRow(bin=str(r["abin"]), objects=float(r["objects"]), miss_rate=num(r["miss_rate"]))
         for r in ang.to_dict("records")
     ]
-    regression = None
-    if reg:
-        regression = S.Regression(
-            n=int(reg["n"]),
-            scale_x=float(reg["scale_x"]),
-            scale_y=float(reg["scale_y"]),
-            rotation_deg=float(reg["rotation_deg"]),
-            offset_x=float(reg["offset_x"]),
-            offset_y=float(reg["offset_y"]),
-        )
     return S.AimPage(
         kpis=kpis,
         worst_quadrant=worst,
@@ -342,7 +312,6 @@ def aim(ws: Workspace, p: Profile) -> S.AimPage:
         directions=directions,
         distances=distances,
         angles=angles,
-        regression=regression,
     )
 
 

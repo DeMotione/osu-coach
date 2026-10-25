@@ -2207,28 +2207,6 @@
     "schemas": {
       "AimKpis": {
         "properties": {
-          "aim_miss_share": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Aim Miss Share"
-          },
-          "speed_aim_miss_share": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Speed Aim Miss Share"
-          },
           "jump_miss_rate": {
             "anyOf": [
               {
@@ -2266,8 +2244,6 @@
         },
         "type": "object",
         "required": [
-          "aim_miss_share",
-          "speed_aim_miss_share",
           "jump_miss_rate",
           "near_miss_share",
           "jump_along_pct"
@@ -2319,16 +2295,6 @@
             },
             "type": "array",
             "title": "Angles"
-          },
-          "regression": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Regression"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "type": "object",
@@ -2339,8 +2305,7 @@
           "grid",
           "directions",
           "distances",
-          "angles",
-          "regression"
+          "angles"
         ],
         "title": "AimPage"
       },
@@ -6006,9 +5971,6 @@
             "type": "array",
             "title": "Skills"
           },
-          "reading_split": {
-            "$ref": "#/components/schemas/ReadingSplit"
-          },
           "few_data": {
             "items": {
               "type": "string"
@@ -6063,13 +6025,6 @@
               }
             ]
           },
-          "top_tips": {
-            "items": {
-              "$ref": "#/components/schemas/TipOut"
-            },
-            "type": "array",
-            "title": "Top Tips"
-          },
           "sim_exact_share": {
             "anyOf": [
               {
@@ -6098,7 +6053,6 @@
           "level",
           "kpis",
           "skills",
-          "reading_split",
           "few_data",
           "compare",
           "stamina",
@@ -6107,7 +6061,6 @@
           "weaknesses",
           "miss_causes",
           "aim_split",
-          "top_tips",
           "sim_exact_share",
           "sim_agreement"
         ],
@@ -6115,18 +6068,6 @@
       },
       "OverviewKpis": {
         "properties": {
-          "replays": {
-            "type": "integer",
-            "title": "Replays"
-          },
-          "maps": {
-            "type": "integer",
-            "title": "Maps"
-          },
-          "weighted_replays": {
-            "type": "number",
-            "title": "Weighted Replays"
-          },
           "play_minutes": {
             "anyOf": [
               {
@@ -6148,17 +6089,6 @@
               }
             ],
             "title": "Comfort Stars"
-          },
-          "ur": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ur"
           },
           "misses_per_100": {
             "anyOf": [
@@ -6185,12 +6115,8 @@
         },
         "type": "object",
         "required": [
-          "replays",
-          "maps",
-          "weighted_replays",
           "play_minutes",
           "comfort_stars",
-          "ur",
           "misses_per_100",
           "accuracy"
         ],
@@ -7082,86 +7008,6 @@
           "end_object_share"
         ],
         "title": "ReadingKpis"
-      },
-      "ReadingSplit": {
-        "properties": {
-          "low_ar_score": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Low Ar Score"
-          },
-          "low_ar_maps": {
-            "type": "integer",
-            "title": "Low Ar Maps"
-          },
-          "high_ar_score": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "High Ar Score"
-          },
-          "high_ar_maps": {
-            "type": "integer",
-            "title": "High Ar Maps"
-          }
-        },
-        "type": "object",
-        "required": [
-          "low_ar_score",
-          "low_ar_maps",
-          "high_ar_score",
-          "high_ar_maps"
-        ],
-        "title": "ReadingSplit"
-      },
-      "Regression": {
-        "properties": {
-          "n": {
-            "type": "integer",
-            "title": "N"
-          },
-          "scale_x": {
-            "type": "number",
-            "title": "Scale X"
-          },
-          "scale_y": {
-            "type": "number",
-            "title": "Scale Y"
-          },
-          "rotation_deg": {
-            "type": "number",
-            "title": "Rotation Deg"
-          },
-          "offset_x": {
-            "type": "number",
-            "title": "Offset X"
-          },
-          "offset_y": {
-            "type": "number",
-            "title": "Offset Y"
-          }
-        },
-        "type": "object",
-        "required": [
-          "n",
-          "scale_x",
-          "scale_y",
-          "rotation_deg",
-          "offset_x",
-          "offset_y"
-        ],
-        "title": "Regression"
       },
       "ScanJob": {
         "properties": {

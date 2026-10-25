@@ -173,15 +173,8 @@ def _quadrant_tips(p: Profile, s: Setup):
         f"You miss {_pct(w['miss_rate'])} of notes in the {q} quadrant vs {_pct(w['rest_miss_rate'])} "
         f"elsewhere ({w['relative_risk']:.1f}× more, {w['misses']} misses of {w['objects']} notes)."
     )
-    if not w["significant"]:
-        return [
-            Tip(
-                "Quadrant",
-                f"Most misses happen in the {q} quadrant (not yet a clear pattern)",
-                1,
-                evidence + " The difference is still small/noisy — check again after more replays.",
-            )
-        ]
+    if not w["significant"]:  # still noise: the Aim page shows it, there is nothing to do yet
+        return []
     vx, vy = _QUAD_VEC[q]
     dx, dy = w.get("mean_dx", 0.0) or 0.0, w.get("mean_dy", 0.0) or 0.0
     toward_corner = (dx * vx + dy * vy) / math.sqrt(2)

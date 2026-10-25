@@ -50,9 +50,9 @@ def test_significant_weak_quadrant_is_top_priority(base):
     assert "nearest your hand" in text
 
 
-def test_noisy_weak_quadrant_is_low_priority(base):
-    t = tip(make_tips(with_(base, worst_quadrant=_quadrant(False)), Setup()), "Quadrant")
-    assert t.severity == 1
+def test_noisy_weak_quadrant_gives_no_tip(base):
+    """Still noise: the Aim page shows the quadrants, and there is nothing to do yet."""
+    assert tip(make_tips(with_(base, worst_quadrant=_quadrant(False)), Setup()), "Quadrant") is None
 
 
 def _tapping(base, **kw):

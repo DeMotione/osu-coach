@@ -752,10 +752,6 @@ export interface components {
     schemas: {
         /** AimKpis */
         AimKpis: {
-            /** Aim Miss Share */
-            aim_miss_share: number | null;
-            /** Speed Aim Miss Share */
-            speed_aim_miss_share: number | null;
             /** Jump Miss Rate */
             jump_miss_rate: number | null;
             /** Near Miss Share */
@@ -779,7 +775,6 @@ export interface components {
             distances: components["schemas"]["DistanceRow"][];
             /** Angles */
             angles: components["schemas"]["AngleRow"][];
-            regression: components["schemas"]["Regression"] | null;
         };
         /** AimSplit */
         AimSplit: {
@@ -2073,7 +2068,6 @@ export interface components {
             kpis: components["schemas"]["OverviewKpis"];
             /** Skills */
             skills: components["schemas"]["SkillScore"][];
-            reading_split: components["schemas"]["ReadingSplit"];
             /**
              * Few Data
              * @description Skills measured on few maps or notes.
@@ -2094,8 +2088,6 @@ export interface components {
             /** Miss Causes */
             miss_causes: components["schemas"]["MissCause"][];
             aim_split: components["schemas"]["AimSplit"] | null;
-            /** Top Tips */
-            top_tips: components["schemas"]["TipOut"][];
             /** Sim Exact Share */
             sim_exact_share: number | null;
             /** Sim Agreement */
@@ -2103,18 +2095,10 @@ export interface components {
         };
         /** OverviewKpis */
         OverviewKpis: {
-            /** Replays */
-            replays: number;
-            /** Maps */
-            maps: number;
-            /** Weighted Replays */
-            weighted_replays: number;
             /** Play Minutes */
             play_minutes: number | null;
             /** Comfort Stars */
             comfort_stars: number | null;
-            /** Ur */
-            ur: number | null;
             /** Misses Per 100 */
             misses_per_100: number | null;
             /** Accuracy */
@@ -2398,32 +2382,6 @@ export interface components {
             end_miss_share: number | null;
             /** End Object Share */
             end_object_share: number | null;
-        };
-        /** ReadingSplit */
-        ReadingSplit: {
-            /** Low Ar Score */
-            low_ar_score: number | null;
-            /** Low Ar Maps */
-            low_ar_maps: number;
-            /** High Ar Score */
-            high_ar_score: number | null;
-            /** High Ar Maps */
-            high_ar_maps: number;
-        };
-        /** Regression */
-        Regression: {
-            /** N */
-            n: number;
-            /** Scale X */
-            scale_x: number;
-            /** Scale Y */
-            scale_y: number;
-            /** Rotation Deg */
-            rotation_deg: number;
-            /** Offset X */
-            offset_x: number;
-            /** Offset Y */
-            offset_y: number;
         };
         /** ScanJob */
         ScanJob: {

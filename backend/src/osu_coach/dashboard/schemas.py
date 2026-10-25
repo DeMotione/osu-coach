@@ -7,7 +7,6 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from osu_coach.maps.schemas import MapRow
-from osu_coach.tips.schemas import TipOut
 
 
 # ------------------------------------------------------------------ summary and replays
@@ -54,12 +53,8 @@ class LevelInfo(BaseModel):
 
 
 class OverviewKpis(BaseModel):
-    replays: int
-    maps: int
-    weighted_replays: float
     play_minutes: float | None
     comfort_stars: float | None
-    ur: float | None
     misses_per_100: float | None
     accuracy: float | None
 
@@ -120,13 +115,6 @@ class StaminaPoint(BaseModel):
     typical: float | None
 
 
-class ReadingSplit(BaseModel):
-    low_ar_score: float | None
-    low_ar_maps: int
-    high_ar_score: float | None
-    high_ar_maps: int
-
-
 class MissCause(BaseModel):
     cause: str
     share: float
@@ -142,7 +130,6 @@ class Overview(BaseModel):
     level: LevelInfo
     kpis: OverviewKpis
     skills: list[SkillScore]
-    reading_split: ReadingSplit
     few_data: list[str] = Field(description="Skills measured on few maps or notes.")
     compare: StarCompare
     stamina: list[StaminaPoint] = Field(description="Tempo kept per duration (empty without a stamina score).")
@@ -151,15 +138,12 @@ class Overview(BaseModel):
     weaknesses: list[str]
     miss_causes: list[MissCause]
     aim_split: AimSplit | None
-    top_tips: list[TipOut]
     sim_exact_share: float | None
     sim_agreement: float | None
 
 
 # ------------------------------------------------------------------ aim
 class AimKpis(BaseModel):
-    aim_miss_share: float | None
-    speed_aim_miss_share: float | None
     jump_miss_rate: float | None
     near_miss_share: float | None
     jump_along_pct: float | None = Field(description="Median over(+)/undershoot along the jump, % of its length.")
@@ -206,15 +190,6 @@ class AngleRow(BaseModel):
     miss_rate: float | None
 
 
-class Regression(BaseModel):
-    n: int
-    scale_x: float
-    scale_y: float
-    rotation_deg: float
-    offset_x: float
-    offset_y: float
-
-
 class AimPage(BaseModel):
     kpis: AimKpis
     worst_quadrant: WorstQuadrant | None
@@ -223,7 +198,6 @@ class AimPage(BaseModel):
     directions: list[DirectionRow]
     distances: list[DistanceRow]
     angles: list[AngleRow]
-    regression: Regression | None
 
 
 # ------------------------------------------------------------------ tapping

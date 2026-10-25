@@ -54,11 +54,10 @@ function TappingBody({ t }: { t: Tapping }) {
       <Row>
         <KeysCard keys={t.keys} />
         <Card title="Key presses" hint="How long you hold the keys and how clean your presses are.">
-          <Tiles n={4}>
+          <Tiles n={3}>
             <Stat label="Typical key hold" value={fmt(t.keys.hold_ms, 0, " ms")} hint="Median of all presses, in real time." />
             <Stat label="Hold in streams" value={fmt(t.keys.press_ms_streams, 0, " ms")} />
             <Stat label="Chatter" value={fmt(t.keys.chatter_per_1000, 1)} note="per 1000 presses" hint="Double presses a few ms apart: a switch or rapid-trigger setting that bounces." />
-            <Stat label="Alternation" value={pct(k.alternation_in_streams, 0)} note="in streams" />
           </Tiles>
           <p className="small muted">
             Keys: K = keyboard, M = mouse / pen buttons

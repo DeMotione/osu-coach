@@ -8,8 +8,8 @@ import type { ChartTheme } from "../charts/palette";
 import { IconCheck } from "../components/icons";
 import { StarPicker } from "../components/StarPicker";
 import { QueryView } from "../components/states";
-import { Alert, Badge, Card, Page, Row, Stat, Switch, Tiles, type TileCount } from "../components/ui";
-import { fmt, int, pct, span, stars } from "../lib/format";
+import { Alert, Badge, Card, Page, Row, Stat, Switch, Tiles } from "../components/ui";
+import { fmt, pct, span, stars } from "../lib/format";
 import { pickTarget, starLabel, targetOptions } from "../lib/starCompare";
 
 type Overview = Schemas["Overview"];
@@ -39,12 +39,10 @@ function OverviewBody({ ov }: { ov: Overview }) {
   return (
     <>
       <LevelCard ov={ov} />
-      <Tiles n={6}>
-        <Stat label="Replays" value={int(k.replays)} hint={`${k.maps} different maps; they count as ${fmt(k.weighted_replays, 1)} after the weighting.`} />
+      <Tiles n={4}>
         <Stat label="Play time" value={fmt(k.play_minutes, 0, " min")} />
         <Stat label="Comfort level" value={stars(k.comfort_stars, 1)}
           hint="75th percentile of recent completed map/mod configurations with at most 2 head misses per 100 notes; at least 3 configurations required." />
-        <Stat label="Unstable rate" value={fmt(k.ur, 0)} hint="10 × the spread of your hit timing in ms. Lower = steadier timing." />
         <Stat label="Misses / 100 notes" value={fmt(k.misses_per_100, 1)} />
         <Stat label="Accuracy" value={pct(k.accuracy)} />
       </Tiles>
@@ -67,7 +65,6 @@ function OverviewBody({ ov }: { ov: Overview }) {
         </Card>
         <StrengthsCard ov={ov} />
       </Row>
-      <TopTips tips={ov.top_tips} />
       <p className="small muted">
         {ov.sim_agreement === null
           ? "Data check: these replays don't store their results, so the re-simulation couldn't be cross-checked."
@@ -248,7 +245,6 @@ function CompareCard({
 }
 
 function StrengthsCard({ ov }: { ov: Overview }) {
-  const rs = ov.reading_split;
   return (
     <Card title="Strengths & weaknesses" hint="Your three best skills (score ≥ 55) and up to three to work on (≤ 45).">
       <div className="split">
@@ -268,13 +264,6 @@ function StrengthsCard({ ov }: { ov: Overview }) {
             <p className="muted">not clear yet</p>
           )}
         </div>
-      </div>
-      <div className="section">
-        <h3 className="section__title">Reading by approach rate</h3>
-        <Tiles n={2}>
-          <Stat label="Low AR (<8)" value={fmt(rs.low_ar_score, 0)} note={`${rs.low_ar_maps} maps`} />
-          <Stat label="High AR (10+)" value={fmt(rs.high_ar_score, 0)} note={`${rs.high_ar_maps} maps`} />
-        </Tiles>
       </div>
       {ov.stamina.length > 0 && (
         <div className="section">
@@ -297,22 +286,3 @@ function StrengthsCard({ ov }: { ov: Overview }) {
   );
 }
 
-function TopTips({ tips }: { tips: Schemas["TipOut"][] }) {
-  if (!tips.length) return <Alert tone="good">No clear problems found in these replays. Keep playing and re-analyse later.</Alert>;
-  return (
-    <Card
-      title="Top tips"
-      hint="The most important tips. All of them, with what to do, are on the Tips page."
-    >
-      <Tiles n={tips.length as TileCount}>
-        {tips.map((t) => (
-          <div key={t.title} className="mini">
-            <span className="mini__title">{t.title}</span>
-            <span className="small muted">{t.category}</span>
-            <p className="muted">{t.evidence}</p>
-          </div>
-        ))}
-      </Tiles>
-    </Card>
-  );
-}

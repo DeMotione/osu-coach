@@ -96,10 +96,9 @@ def test_overview_explains_every_skill(analysed):
         and first["stars_off"] == 1
         and first["weight"] == pytest.approx(0.61, abs=0.01)
     )
-    assert ov["kpis"]["replays"] == 3 and 0 < ov["kpis"]["accuracy"] <= 1
+    assert ov["level"]["replays"] == 3 and 0 < ov["kpis"]["accuracy"] <= 1
     shares = sum(c["share"] for c in ov["miss_causes"])
     assert shares == pytest.approx(1.0) if ov["miss_causes"] else shares == 0
-    assert len(ov["top_tips"]) <= 3 and not any(t["title"].endswith("fits") for t in ov["top_tips"])
 
 
 def test_aim_page_shapes(analysed):
