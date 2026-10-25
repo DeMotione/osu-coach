@@ -43,10 +43,7 @@ export default function CheckPage() {
   };
 
   return (
-    <Page
-      title="Detailed Map Analysis"
-      sub="One play on its own: every miss and combo break with its time in the map (osu! editor format mm:ss:mmm), where they cluster, your timing, and how the play compares with your other plays of the map."
-    >
+    <Page title="Detailed Map Analysis">
       <Row>
         <Card title="Pick a replay" sub="Newest first. Pick a row on the Replays page and press Detailed map analysis to open it here.">
           <Dropzone

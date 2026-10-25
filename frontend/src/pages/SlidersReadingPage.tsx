@@ -24,10 +24,7 @@ const BREAK_WORDS: Record<string, [string, string]> = {
 export default function SlidersReadingPage() {
   const q = useSlidersReading();
   return (
-    <Page
-      title="Sliders & Reading"
-      sub="Slider control (heads, breaks, ends) and reading: how approach rate and dense parts change your misses, and how you handle misses and the end of maps."
-    >
+    <Page title="Sliders & Reading">
       <QueryView query={q}>{(d) => <Body d={d} />}</QueryView>
     </Page>
   );

@@ -387,18 +387,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 620;
-  opacity: 0;
-  transform: translateY(6px);
-  pointer-events: none;
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
 }
 
-.toolbar__title.shown {
-  opacity: 1;
-  transform: none;
-}
 
 .themeswitch {
   --w: 34px;
@@ -772,46 +762,9 @@
 }
 
 /* page title and what the page is for: the content is the star, so the title is modest */
-.page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--gap);
-  padding-bottom: var(--s-2);
-}
-
-.page-header h1 {
-  font-size: var(--t-2xl);
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-}
-
-.page-header p {
-  margin-top: var(--s-2);
-  max-width: 72ch;
-  color: var(--muted);
-  font-size: var(--t-md);
-  line-height: 1.55;
-}
-
-.page-header__aside {
-  flex: none;
-  display: flex;
-  gap: var(--s-2);
-}
-
 @media (max-width: 760px) {
   .main {
     padding: var(--s-5) var(--s-4) var(--s-6);
-  }
-
-  .page-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .page-header h1 {
-    font-size: var(--t-xl);
   }
 
   .page-header p {

@@ -24,8 +24,6 @@ import { NewPlayNotice } from "../components/NewPlayNotice";
 import { Onboarding } from "../components/onboarding/Onboarding";
 import { closeWindow, isDesktop, minimizeWindow, toggleMaximizeWindow, useWindowMaximized } from "../lib/desktop";
 import { stars } from "../lib/format";
-import { PageTitleProvider } from "../lib/pageTitle";
-import { usePageTitleVisible } from "../lib/pageTitleState";
 import { useSidebarCollapsed } from "../lib/sidebar";
 import { useTheme, type ThemeChoice } from "../lib/theme";
 import { NAV, PAGES, currentPage } from "./nav";
@@ -166,7 +164,6 @@ function Toolbar({
   const meta = useMeta();
   const { pathname } = useLocation();
   const here = currentPage(pathname);
-  const headingVisible = usePageTitleVisible();
   return (
     <header className={`toolbar${isDesktop ? " toolbar--desktop" : ""}`} data-tauri-drag-region inert={inert}>
       <button
@@ -196,7 +193,7 @@ function Toolbar({
         <IconSidebar />
       </button>
       {here && (
-        <div className={`toolbar__title${headingVisible ? "" : " shown"}`} data-testid="toolbar-title" aria-hidden={headingVisible} data-tauri-drag-region>
+        <div className="toolbar__title" data-testid="toolbar-title" data-tauri-drag-region>
           {here.item.label}
         </div>
       )}
@@ -299,11 +296,7 @@ function useShortcuts({ toggleSidebar, closeDrawer }: { toggleSidebar: () => voi
 }
 
 export function Layout() {
-  return (
-    <PageTitleProvider>
-      <Shell />
-    </PageTitleProvider>
-  );
+  return <Shell />;
 }
 
 function Shell() {

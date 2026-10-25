@@ -213,7 +213,7 @@ test.describe("after the setup", () => {
     const nav = page.getByRole("navigation", { name: "Pages" });
     await nav.getByRole("link", { name: "Aim" }).click();
     await expect(page).toHaveURL(/\/aim$/);
-    await expect(page.getByTestId("toolbar-title")).not.toHaveClass(/shown/);
+    await expect(page.getByTestId("toolbar-title")).toHaveText("Aim"); // the pages have no visible heading
     await expect(nav.getByRole("link", { name: "Aim" })).toHaveClass(/active/);
     await expect(page.getByRole("button", { name: "Back" })).toHaveCount(0);
     await nav.getByRole("link", { name: "Overview" }).click();

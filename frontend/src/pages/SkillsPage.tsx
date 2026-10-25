@@ -23,7 +23,7 @@ export default function SkillsPage() {
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get("tab") === "playlist" ? "playlist" : "goals";
   return (
-    <Page title="Goals & Training" sub="Set goals for your skills and follow them, or browse a staged playlist (warm-up / comfort / push) for any skill.">
+    <Page title="Goals & Training">
       <Tabs
         tabs={[
           { value: "goals", label: "Training plan & goals" },

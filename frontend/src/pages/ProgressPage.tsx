@@ -94,10 +94,7 @@ export default function ProgressPage() {
     );
 
   return (
-    <Page
-      title="Progress"
-      sub="Every analysis is saved here (progress.sqlite in the osu! coach data folder), so the history stays even if you delete replays later. These numbers are not weighted by difficulty, so periods stay comparable."
-    >
+    <Page title="Progress">
       {body}
     </Page>
   );

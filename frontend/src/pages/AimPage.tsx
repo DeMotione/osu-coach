@@ -16,10 +16,7 @@ import { fmt, int, pct, signed } from "../lib/format";
 export default function AimPage() {
   const q = useAim();
   return (
-    <Page
-      title="Aim"
-      sub="Where and how your aim misses: by screen area, jump direction and distance, where your clicks land, and how your movement compares with the jumps (aim calibration)."
-    >
+    <Page title="Aim">
       <QueryView query={q}>{(aim) => <AimBody aim={aim} />}</QueryView>
     </Page>
   );
