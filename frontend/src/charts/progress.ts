@@ -5,17 +5,24 @@ import { C, SERIES, type ChartTheme } from "./palette";
 
 type Row = Schemas["PeriodRow"];
 
+/** The periods from the first one with a value on: a chart starts where its data does, not at the first play. */
+export function fromFirstValue(rows: Row[], hasValue: (r: Row) => boolean): Row[] {
+  const first = rows.findIndex(hasValue);
+  return first < 0 ? [] : rows.slice(first);
+}
+
 /** Hollow points for periods with few plays (rough numbers). */
 const points = (rows: Row[], key: keyof Row) =>
   rows.map((r) => ({ value: r[key] as number | null, symbol: r.few_plays ? "emptyCircle" : "circle" }));
 
-export function starsChart(rows: Row[], t: ChartTheme): Option {
+export function starsChart(all: Row[], t: ChartTheme): Option {
   const lines: [keyof Row, string, string, number][] = [
     ["comfort_stars", "comfort", C.accent, 3],
     ["avg_stars", "average played", t.muted, 1.5],
     ["max_stars_passed", "hardest clean pass", C.info, 1.5],
     ["max_stars_fc", "hardest full combo", C.good, 1.5],
   ];
+  const rows = fromFirstValue(all, (r) => lines.some(([key]) => r[key] !== null));
   return base(t, {
     grid: grid({}, true),
     legend: legend(t),
@@ -67,7 +74,8 @@ export function playedChart(rows: Row[], t: ChartTheme): Option {
   });
 }
 
-export function skillsChart(rows: Row[], skills: { key: string; label: string }[], t: ChartTheme): Option {
+export function skillsChart(all: Row[], skills: { key: string; label: string }[], t: ChartTheme): Option {
+  const rows = fromFirstValue(all, (r) => skills.some((s) => r.skills[s.key] !== null && r.skills[s.key] !== undefined));
   const shown = skills.filter((s) => rows.some((r) => r.skills[s.key] !== null && r.skills[s.key] !== undefined));
   return base(t, {
     grid: grid({}, true),
