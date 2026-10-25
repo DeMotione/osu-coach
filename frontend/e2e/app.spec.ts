@@ -434,7 +434,7 @@ test("the setup guide: osu! folder, playstyle, replays, tour", async ({ page, re
 
   // what was entered is on Tips & Setup; the guide opens again from the toolbar
   await page.goto("/tips");
-  await page.getByText("Your setup", { exact: true }).click();
+  await page.locator("summary", { hasText: "Your setup" }).click(); // the folded setup card opens from its header
   await expect(page.getByRole("spinbutton", { name: "Mouse DPI" })).toHaveValue("1600");
   await expect(page.getByRole("spinbutton", { name: "Actuation point (mm)" })).toHaveValue("0.4");
   await page.getByRole("button", { name: "Setup guide" }).click();

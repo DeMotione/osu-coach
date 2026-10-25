@@ -6,7 +6,7 @@ import { DataTable } from "../components/DataTable";
 import { IconSliders } from "../components/icons";
 import { SetupDetails, setupToSave, type Setup } from "../components/SetupForm";
 import { EmptyState, QueryView } from "../components/states";
-import { Alert, Badge, Card, Field, Page, Segmented, Stat, Tiles } from "../components/ui";
+import { Alert, Badge, Card, Field, Hint, Page, Segmented, Stat, Tiles } from "../components/ui";
 import { signed } from "../lib/format";
 import { Md } from "../lib/markdown";
 
@@ -30,14 +30,14 @@ export default function TipsPage() {
         {(page) => (
           <>
             <CalibrationCard page={page} />
-            <Card title="Tips" sub="Red = biggest impact, orange = medium, grey = nice to know.">
+            <Card title="Tips" hint="Red = biggest impact, orange = medium, grey = nice to know.">
               {page.tips.length ? (
                 <div className="stack">{page.tips.map((t, i) => <TipCard key={`${t.title}-${i}`} tip={t} />)}</div>
               ) : (
                 <Alert tone="good">No clear problems found in these replays. Keep playing and re-analyse later.</Alert>
               )}
             </Card>
-            <Card title="Practice plan" sub="A simple daily routine built around your weakest skills.">
+            <Card title="Practice plan" hint="A simple daily routine built around your weakest skills.">
               <ol className="list list--steps">
                 {page.practice_plan.map((s) => (
                   <li key={s}>
@@ -65,8 +65,8 @@ function SetupCard({ setup, open }: { setup: Setup; open: boolean }) {
           <h2 className="card__title">
             <IconSliders width={16} height={16} style={{ verticalAlign: "-3px", marginRight: 8 }} />
             Your setup
+            <Hint text="Makes the tips concrete: tablet area, sensitivity, keyboard / SayoDevice. Click the title to open or fold it." />
           </h2>
-          <p className="card__sub">Makes the tips concrete: tablet area, sensitivity, keyboard / SayoDevice. Click to {open ? "fold" : "edit"}.</p>
         </div>
       </summary>
       <div className="card__body">
@@ -108,7 +108,7 @@ function CalibrationCard({ page }: { page: Schemas["TipsPage"] }) {
   return (
     <Card
       title="Aim calibration → your setup"
-      sub="From the Aim page: how far you move compared with the jumps. Over 4% too far or too short means the tablet area / sensitivity should change; within ±4% keep it."
+      hint="From the Aim page: how far you move compared with the jumps. Over 4% too far or too short means the tablet area / sensitivity should change; within ±4% keep it."
     >
       {!c ? (
         <EmptyState title="Not enough jumps yet">The calibration needs 40+ jumps.</EmptyState>

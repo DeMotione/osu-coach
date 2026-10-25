@@ -29,7 +29,7 @@ class MapRow(BaseModel):
     skill_demand: float | None = Field(None, description="Experimental map demand on the 0–100 skill scale.")
     relevance: float | None = Field(None, description="Target skill training relevance, 0–1.")
     formula_score: float | None = Field(None, description="F(m), comparable within one goal.")
-    breakdown: dict | None = Field(None, description="JSON calculation terms and experimental inputs.")
+    breakdown: dict | None = Field(None, description="The terms of the ranking formula and its inputs.")
 
 
 class SuggestionSection(BaseModel):
@@ -54,7 +54,6 @@ class Suggestions(BaseModel):
     sections: list[SuggestionSection]
     collection_name: str
     preferred_client: Literal["stable", "lazer"]
-    experimental: bool = True
     has_profile: bool = False
     unmeasured_skills: list[str] = Field(default_factory=list)
 
@@ -94,7 +93,6 @@ class Playlist(BaseModel):
     stages: list[PlaylistStage]
     preferred_client: Literal["stable", "lazer"]
     skill_adjusted_stars: float | None = None
-    experimental: bool = True
     abilities: dict[str, float] = Field(default_factory=dict)
     measured_abilities: dict[str, float] = Field(
         default_factory=dict, description="Replay-derived skill ratings before manual overrides."

@@ -61,7 +61,7 @@ function GoalsTab() {
       </Tiles>
       <Card
         title="Your goals"
-        sub="Each goal: a skill score to reach by a date. On track = you are at least as far as the time that has passed."
+        hint="Each goal: a skill score to reach by a date. On track = you are at least as far as the time that has passed."
         foot={g.history.length ? undefined : <AddGoal goals={g} />}
       >
         {g.open.length ? (
@@ -127,7 +127,7 @@ function HistoryCard({ history, foot }: { history: Schemas["GoalHistory"][]; foo
   return (
     <Card
       title="Goal skills day by day"
-      sub="Goals on the current rating scale. Solid lines: your score over the plays of the last 7 days, on each day you played; dotted: the path from where you started to the target by the deadline. Above the dotted line = ahead of plan."
+      hint="Goals on the current rating scale. Solid lines: your score over the plays of the last 7 days, on each day you played; dotted: the path from where you started to the target by the deadline. Above the dotted line = ahead of plan."
       foot={foot}
     >
       <Chart build={build} height={320} label="Goal skills day by day" />
@@ -138,7 +138,7 @@ function HistoryCard({ history, foot }: { history: Schemas["GoalHistory"][]; foo
 function PlanCard({ goals }: { goals: Schemas["GoalsOut"] }) {
   const plan = useAddPlan();
   return (
-    <Card title="A 4-week plan" sub="Up to 3 measured skills below your comfort level, each with a target 10 points higher.">
+    <Card title="A 4-week plan" hint="Up to 3 measured skills below your comfort level, each with a target 10 points higher.">
       {goals.suggested.length ? (
         <ul className="list">
           {goals.suggested.map((s) => (
@@ -203,23 +203,28 @@ function PlaylistTab() {
           ) : null}{" "}
           · collection name: <code>{pl.collection_name}</code>
         </p>
-        <p className="small muted">Skill-adjusted target: {pl.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★. Map demands and coefficients are experimental.</p>
+        <p className="small muted">Skill-adjusted target: {pl.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★.</p>
       </Card>
       {pl.stages.length ? (
         pl.stages.map((st) => {
           const { maps, first } = shown.get(st.stage) ?? { maps: [], first: 0 };
           const fitNotice = pl.skill === "speed" ? speedFitNotice(maps, st.target_demand) : null;
-          const sub = `${st.eligible} eligible · target ${st.target_stars?.toFixed(2) ?? "unknown"}★ · target demand ${st.target_demand?.toFixed(1) ?? "unknown"}`;
           return (
             <Card
               key={st.stage}
               title={st.stage}
-              sub={maps.length ? `${sub} · showing ${first + 1}–${first + maps.length} of ${st.maps.length}` : sub}
+              hint={`${st.eligible} eligible · target ${st.target_stars?.toFixed(2) ?? "unknown"}★ · target demand ${st.target_demand?.toFixed(1) ?? "unknown"}`}
               actions={
                 st.maps.length > STAGE_SIZE && (
-                  <button type="button" className="btn btn--sm" title="Show the next five maps of this stage" onClick={() => next(st.stage)}>
-                    <IconRefresh /> Other maps
-                  </button>
+                  <>
+                    {/* which five of the stage's maps are shown: what Other maps moves on */}
+                    <span className="small muted">
+                      showing {first + 1}–{first + maps.length} of {st.maps.length}
+                    </span>
+                    <button type="button" className="btn btn--sm" title="Show the next five maps of this stage" onClick={() => next(st.stage)}>
+                      <IconRefresh /> Other maps
+                    </button>
+                  </>
                 )
               }
             >

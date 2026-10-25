@@ -6,7 +6,7 @@ import { ApiError, api, unwrap, type Job } from "./client";
 import { invalidateLibrary, invalidateResults } from "./queries";
 
 /** One slot per kind of background work: starting a new job replaces the slot's last one. */
-export type JobKind = Job["kind"];
+type JobKind = Job["kind"];
 type Slots = Partial<Record<JobKind, Job>>;
 
 interface JobsContext {

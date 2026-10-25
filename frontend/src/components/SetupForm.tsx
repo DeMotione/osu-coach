@@ -6,7 +6,7 @@ import { Field, Segmented, Switch } from "./ui";
 export type Setup = Schemas["SetupModel"];
 export type SetupPatch = Partial<Setup>;
 
-export function NumberField({ label, value, onChange, step, min, max, hint, placeholder = "unknown" }: {
+function NumberField({ label, value, onChange, step, min, max, hint, placeholder = "unknown" }: {
   label: string;
   value: number | null | undefined;
   onChange: (v: number | null) => void;

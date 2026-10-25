@@ -1,7 +1,7 @@
-"""Comfort-relative replay abilities adapted from osu-skill-lab.
+"""The skill ratings: comfort-relative replay abilities, adapted from osu-skill-lab.
 
-These are experimental performance anchors, not peer averages or FC chances.
-Unknown ability remains ``None`` when coverage or challenge is insufficient.
+Each skill is scored against what is typical at the player's comfort level (50 = typical), not against other
+players and not as a full-combo chance. A skill stays ``None`` when the replays don't cover or challenge it enough.
 """
 
 from __future__ import annotations

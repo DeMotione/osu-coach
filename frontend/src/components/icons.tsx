@@ -108,9 +108,6 @@ export const IconRefresh = (p: P) => (
 export const IconList = (p: P) => (
   <I {...p}><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></I>
 );
-export const IconEye = (p: P) => (
-  <I {...p}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></I>
-);
 export const IconSliders = (p: P) => (
   <I {...p}><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></I>
 );
@@ -119,9 +116,6 @@ export const IconSidebar = (p: P) => (
 );
 export const IconArrowLeft = (p: P) => (
   <I {...p}><path d="M19 12H5M11 6l-6 6 6 6" /></I>
-);
-export const IconChevronRight = (p: P) => (
-  <I {...p}><path d="m9 6 6 6-6 6" /></I>
 );
 export const IconArrowRight = (p: P) => (
   <I {...p}><path d="M5 12h14M13 6l6 6-6 6" /></I>

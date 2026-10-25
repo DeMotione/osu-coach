@@ -92,7 +92,7 @@ function FindCard({ settings }: { settings: Settings }) {
     );
 
   return (
-    <Card title="1 · Find replays" sub="Where the replays come from: your osu! installs and folders, or only the files you drop here.">
+    <Card title="1 · Find replays" hint="Where the replays come from: your osu! installs and folders, or only the files you drop here.">
       <Field label="Analyse">
         <Segmented
           label="Analyse"
@@ -222,7 +222,7 @@ function AnalyseCard({ settings }: { settings: Settings }) {
 
   if (!scanned)
     return (
-      <Card title="2 · Analyse" sub="Which of the found replays go into the analysis.">
+      <Card title="2 · Analyse" hint="Which of the found replays go into the analysis.">
         <EmptyState icon={<IconSearch />} title="Scan for replays first">
           Choose where your replays are and press Scan. Then pick the player, the time range and how many of the replays to analyse.
         </EmptyState>
@@ -254,7 +254,7 @@ function AnalyseCard({ settings }: { settings: Settings }) {
   return (
     <Card
       title="2 · Analyse"
-      sub="The time range and Replays to read pick the replays before anything is analysed; Best replays keeps your best play per map afterwards."
+      hint="The time range and Replays to read pick the replays before anything is analysed; Best replays keeps your best play per map afterwards."
     >
       {players.length === 0 ? (
         <Alert tone="warn">No osu!standard replays found there (relax/autopilot/autoplay replays are skipped).</Alert>
@@ -432,7 +432,7 @@ function AnalysedCard() {
   return (
     <Card
       title={`Analysed replays (${rows.length})`}
-      sub={
+      hint={
         (best ? "Best replays only — the" : "The") +
         " plays your numbers come from, newest first. Weight = how much a play counts: 100% within ±0.5★ of your level, less the further its difficulty is from it. Pick a row to open it on its own."
       }

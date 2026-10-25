@@ -42,7 +42,7 @@ export function ExportPanel({ maps, name, preferred, title, sub }: {
   return (
     <Card
       title={title}
-      sub={sub}
+      hint={sub}
       actions={
         <button type="button" className="btn btn--sm" onClick={mapList} disabled={!maps.length}>
           <IconList /> Map list (.txt)

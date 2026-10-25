@@ -55,7 +55,7 @@ export function RecommendationControls({ current, measured, comfort, onApply }: 
   };
 
   return (
-    <Card className="recommendation-controls" title="Choose your practice target" sub="Pick a skill, then explore the warm-up, comfort, and push map tables below.">
+    <Card className="recommendation-controls" title="Choose your practice target" hint="Pick a skill, then explore the warm-up, comfort, and push map tables below.">
       <div className="recommendation-target">
         <Field label="Target skill">
           <select className="select" value={skill} onChange={(event) => {
@@ -72,12 +72,12 @@ export function RecommendationControls({ current, measured, comfort, onApply }: 
         <button type="button" className={panel === "fine" ? "recommendation-mode active" : "recommendation-mode"}
           aria-expanded={panel === "fine"} aria-controls={panelId} onClick={() => setPanel(panel === "fine" ? null : "fine")}>⚙ Fine-tune</button>
         <button type="button" className={panel === "ratings" ? "recommendation-mode active" : "recommendation-mode"}
-          aria-expanded={panel === "ratings"} aria-controls={panelId} onClick={() => setPanel(panel === "ratings" ? null : "ratings")}>Experimental · change your profile skillsets</button>
+          aria-expanded={panel === "ratings"} aria-controls={panelId} onClick={() => setPanel(panel === "ratings" ? null : "ratings")}>Try other skill ratings</button>
       </div>
 
-      {panel && <div className="recommendation-panel" id={panelId} role="region" aria-label={panel === "fine" ? "Fine-tune" : "Experimental player ratings"}>
+      {panel && <div className="recommendation-panel" id={panelId} role="region" aria-label={panel === "fine" ? "Fine-tune" : "Skill ratings"}>
         <div className="recommendation-panel__head">
-          <h3>{panel === "fine" ? "Fine-tune" : "Experimental · change your profile skillsets"}</h3>
+          <h3>{panel === "fine" ? "Fine-tune" : "Try other skill ratings"}</h3>
           <button type="button" className="recommendation-close" aria-label="Close settings" onClick={() => setPanel(null)}>×</button>
         </div>
         {panel === "fine" ? <>
@@ -110,7 +110,6 @@ export function RecommendationControls({ current, measured, comfort, onApply }: 
               ))}
             </div>
           </div>
-          <p className="small muted">Star windows, map demands, and the ranking coefficients are experimental. History remains neutral until measured.</p>
         </> : <>
           <p className="small muted">Measured values come from your replay analysis. Edits override them for the next search; blank keeps the measured value or unknown.</p>
           <div className="recommendation-grid recommendation-grid--ratings">

@@ -1,6 +1,6 @@
 """Readiness for another star rating: the comfort-level scores moved to it, and the chance to pass its maps.
 
-The comfort-level ratings (:func:`experimental.ratings`) score each skill against what is typical at the comfort
+The comfort-level ratings (:func:`ratings.ratings`) score each skill against what is typical at the comfort
 level θ: ``50 + P_k · log2(measured / expected)`` (``P_k`` points per doubling). The demand curves (:mod:`demand`)
 say how much more typical maps of another star rating T demand of the skill, ``ΔD_k = D_k(T) − D_k(θ)`` (log2).
 Together::
@@ -19,7 +19,7 @@ from __future__ import annotations
 import math
 
 from osu_coach.profile.domain.demand import log_demand
-from osu_coach.profile.domain.experimental import ACCURACY_TRANSITION_STARS, POINTS
+from osu_coach.profile.domain.ratings import ACCURACY_TRANSITION_STARS, POINTS
 
 SKILLS = ("aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading")
 PASS_SPREAD = 0.6  # ★: a star above the comfort level takes the pass chance from 75% to ~36%, two stars to ~10%

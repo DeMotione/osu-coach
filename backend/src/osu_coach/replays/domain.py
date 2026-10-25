@@ -79,10 +79,6 @@ UNSUPPORTED_LAZER_MODS = {
 }
 
 
-def has_mod(mods: int, name: str) -> bool:
-    return bool(mods & MOD_BITS[name])
-
-
 def mods_to_string(mods: int) -> str:
     names = []
     for n in _DISPLAY_ORDER:

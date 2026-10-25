@@ -3,7 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 
 import { ApiError, api, unwrap, type Schemas } from "./client";
 
-export const keys = {
+const keys = {
   meta: ["meta"] as const,
   health: ["health"] as const,
   settings: ["settings"] as const,
@@ -120,7 +120,7 @@ export function useForgetFiles() {
   });
 }
 
-export type SelectionParams = {
+type SelectionParams = {
   player?: string | null;
   latest: Schemas["Latest"];
   date_range: Schemas["AppSettings"]["date_range"];
@@ -207,7 +207,7 @@ export const useCheckReport = (path: string | null, online: boolean) =>
 export const useProgressPlayers = () =>
   useQuery({ queryKey: [...keys.progress, "players"], queryFn: () => unwrap(api.GET("/api/progress/players")) });
 
-export type ProgressParams = {
+type ProgressParams = {
   player?: string;
   period: Schemas["ProgressOut"]["period"];
   since?: string;

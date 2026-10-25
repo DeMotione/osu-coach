@@ -322,7 +322,7 @@ def _report(a, cmp: dict, path: str) -> CheckReport:
 
 def _single_profile(a):
     try:
-        return build_profile([a], experimental=False)
+        return build_profile([a], with_ratings=False)
     except Exception:  # noqa: BLE001 - a very short play may be too little for a profile
         return None
 

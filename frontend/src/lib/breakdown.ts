@@ -2,7 +2,7 @@
 
 import { fmt, isNum, signed, stars } from "./format";
 
-export interface BreakdownLine {
+interface BreakdownLine {
   label: string;
   /** What the term compares, e.g. "5.47★ vs 5.56★". */
   detail: string;

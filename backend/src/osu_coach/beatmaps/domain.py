@@ -125,9 +125,6 @@ class Beatmap:
         i = bisect.bisect_right(self._red_times, t) - 1
         return self._red_beats[max(i, 0)]
 
-    def bpm_at(self, t: float) -> float:
-        return 60000.0 / self.beat_length_at(t)
-
     def main_bpm(self) -> float:
         """BPM that covers the most playable time (like the website's BPM)."""
         if not self.objects or not self._red_times:

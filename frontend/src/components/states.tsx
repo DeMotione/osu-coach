@@ -40,7 +40,7 @@ export function LoadingPage({ tiles = 4 }: { tiles?: number }) {
 
 const NO_ANALYSIS = "No replays analysed yet";
 
-export function NoAnalysis({ message }: { message?: string }) {
+function NoAnalysis({ message }: { message?: string }) {
   // the API's message repeats the title unless it says something else (e.g. Best replays is empty)
   const text = message && !message.startsWith(NO_ANALYSIS) ? message : undefined;
   return (

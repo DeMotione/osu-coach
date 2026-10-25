@@ -53,7 +53,7 @@ function TappingBody({ t }: { t: Tapping }) {
       <StaminaRow fb={t.fall_behind} />
       <Row>
         <KeysCard keys={t.keys} />
-        <Card title="Key presses" sub="How long you hold the keys and how clean your presses are.">
+        <Card title="Key presses" hint="How long you hold the keys and how clean your presses are.">
           <Tiles n={4}>
             <Stat label="Typical key hold" value={fmt(t.keys.hold_ms, 0, " ms")} hint="Median of all presses, in real time." />
             <Stat label="Hold in streams" value={fmt(t.keys.press_ms_streams, 0, " ms")} />
@@ -79,7 +79,7 @@ function TimingCard({ h }: { h: Schemas["TimingHistogram"] }) {
   return (
     <Card
       title="Hit timing"
-      sub="How early or late each hit was, coloured by what it scored. A narrow green peak = steady timing; the dashed line is your average — left of 0 = you tap early."
+      hint="How early or late each hit was, coloured by what it scored. A narrow green peak = steady timing; the dashed line is your average — left of 0 = you tap early."
       actions={
         <Segmented
           label="Y axis"
@@ -111,7 +111,7 @@ function StreamsCard({ s }: { s: Schemas["StreamsOverTime"] | null }) {
   const build = useCallback((th: ChartTheme) => (s ? streamsChart(s, metric, along, keys, th) : {}), [s, metric, along, keys]);
   if (!s)
     return (
-      <Card title="Streams over time" sub="When your streams start to fall apart.">
+      <Card title="Streams over time" hint="When your streams start to fall apart.">
         <EmptyState title="Not enough streams yet">Streams of 7+ notes in a row: not enough of them in these replays yet.</EmptyState>
       </Card>
     );
@@ -122,7 +122,7 @@ function StreamsCard({ s }: { s: Schemas["StreamsOverTime"] | null }) {
   return (
     <Card
       title="Streams over time"
-      sub="When your streams start to fall apart: misses and timing spread (UR) as the map or the session goes on. UR is measured with each play's own average taken out; points need 30+ notes."
+      hint="When your streams start to fall apart: misses and timing spread (UR) as the map or the session goes on. UR is measured with each play's own average taken out; points need 30+ notes."
     >
       <div className="controls">
         <Segmented label="Show" value={metric} onChange={setMetric} options={[{ value: "miss_rate", label: "Miss rate" }, { value: "ur", label: "UR" }]} />
@@ -138,7 +138,7 @@ function StreamSpeedCard({ sp }: { sp: Schemas["StreamSpeed"] | null }) {
   const build = useCallback((th: ChartTheme) => (sp ? streamSpeedChart(sp, th) : {}), [sp]);
   if (!sp)
     return (
-      <Card title="Stream speed" sub="Misses and UR by stream speed (BPM).">
+      <Card title="Stream speed" hint="Misses and UR by stream speed (BPM).">
         <EmptyState title="Not enough streams yet">Streams of 7+ notes in a row: not enough of them in these replays yet.</EmptyState>
       </Card>
     );
@@ -146,7 +146,7 @@ function StreamSpeedCard({ sp }: { sp: Schemas["StreamSpeed"] | null }) {
   return (
     <Card
       title="Stream speed"
-      sub="Streams of 7+ notes by speed. Pink = misses of the fingers (no tap, too early / late), yellow = the cursor fell behind (speed-aim). Blue line: UR at that speed in the typical play; triangles = your best play; dashed = the UR expected from your other speeds."
+      hint="Streams of 7+ notes by speed. Pink = misses of the fingers (no tap, too early / late), yellow = the cursor fell behind (speed-aim). Blue line: UR at that speed in the typical play; triangles = your best play; dashed = the UR expected from your other speeds."
       foot={
         <>
           Your stream speed is judged on the pink part only: clean up to ≈ {fmt(sp.comfort_bpm, 0)} BPM (green line) ·{" "}
@@ -173,10 +173,10 @@ function StaminaRow({ fb }: { fb: Schemas["FallBehind"] }) {
   if (!fb.available)
     return (
       <>
-        <Card title="Stamina in long streams" sub="How precise your taps stay from the first note of a long stream to the last.">
+        <Card title="Stamina in long streams" hint="How precise your taps stay from the first note of a long stream to the last.">
           <EmptyState title="Not enough long streams yet">Streams of 16+ notes: not enough of them in these replays yet.</EmptyState>
         </Card>
-        <Card title="Stream lengths to practise" sub="Comfortable stream length and maps to train stamina.">
+        <Card title="Stream lengths to practise" hint="Comfortable stream length and maps to train stamina.">
           <EmptyState title="Comes with long streams">Once there are streams of 16+ notes, this shows how long you can stream and maps to practise.</EmptyState>
         </Card>
       </>
@@ -186,7 +186,7 @@ function StaminaRow({ fb }: { fb: Schemas["FallBehind"] }) {
     <Card
       className="stamina-chart-card"
       title="Stamina in long streams"
-        sub={
+        hint={
           bySpeed
             ? "One line per 30-BPM speed. Height = how far off your taps were, as a share of the time between two notes — so a fast stream isn't worse just because it's fast. A line that climbs = your stamina gives in at that speed."
             : "Each line is one stream length; each point = notes 1–4, 5–8, … Height = how far off your taps were on average, early or late alike. Flat = your stamina holds; climbing = your taps scatter more the longer the stream goes." +
@@ -221,7 +221,7 @@ function StaminaSummary({ fb, bySpeed }: { fb: Schemas["FallBehind"]; bySpeed: b
   const at = fb.bpm ? ` at ~${fb.bpm.toFixed(0)} BPM` : "";
   const lists = fb.comfortable_maps && fb.practice_maps;
   return (
-    <Card title="Stream lengths to practise" sub="Where your stamina gives in, and maps with streams of the right length.">
+    <Card title="Stream lengths to practise" hint="Where your stamina gives in, and maps with streams of the right length.">
       {bySpeed ? (
         <>
           <ul className="list list--bullets">
@@ -276,7 +276,7 @@ function StaminaSummary({ fb, bySpeed }: { fb: Schemas["FallBehind"]; bySpeed: b
             onChange={setTab}
           />
           <MapTable key={tab} compact maps={(tab === "push" ? fb.practice_maps! : fb.comfortable_maps!).maps} maxHeight={300} />
-          <p className="small muted">Map demand scores are experimental. Lists keep the stated stream-length range and exclude maps in your replay dataset.</p>
+          <p className="small muted">Lists keep the stated stream-length range and exclude maps in your replay dataset.</p>
           {!(tab === "push" ? fb.practice_maps! : fb.comfortable_maps!).maps.length && <p className="small muted">
             {Object.entries((tab === "push" ? fb.practice_maps! : fb.comfortable_maps!).excluded ?? {}).map(([reason, count]) => `${reason}: ${count}`).join(" · ")}
           </p>}
@@ -289,7 +289,7 @@ function StaminaSummary({ fb, bySpeed }: { fb: Schemas["FallBehind"]; bySpeed: b
 function KeysCard({ keys }: { keys: Schemas["KeyUsage"] }) {
   const build = useCallback((th: ChartTheme) => keysChart(keys.shares, th), [keys.shares]);
   return (
-    <Card title="Keys used" sub="Share of your key presses per key. Even bars = you use both fingers.">
+    <Card title="Keys used" hint="Share of your key presses per key. Even bars = you use both fingers.">
       {keys.shares.length ? <Chart build={build} height={260} label="Key usage" /> : <EmptyState title="No key presses recorded" />}
     </Card>
   );

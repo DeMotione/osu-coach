@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components -- the renderer and its component belong together */
 import { Fragment, type ReactNode } from "react";
 
 /**
@@ -7,7 +6,7 @@ import { Fragment, type ReactNode } from "react";
  */
 const TOKEN = /\*\*([^*]+)\*\*|\*([^*\s][^*]*?)\*|`([^`]+)`/g;
 
-export function inline(text: string): ReactNode[] {
+function inline(text: string): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   let i = 0;

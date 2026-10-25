@@ -14,7 +14,7 @@ export function merge<T extends Obj>(a: T, b: Obj = {}): T {
   return out as T;
 }
 
-export const FONT = '"Inter Variable", Inter, system-ui, sans-serif';
+const FONT = '"Inter Variable", Inter, system-ui, sans-serif';
 
 export function base(t: ChartTheme, extra: Obj = {}): Obj {
   return merge(
@@ -118,7 +118,7 @@ export function circle(r: number, steps = 96): [number, number][] {
 }
 
 /** Charts narrower than this get the ``narrow`` overrides of {@link responsive}. */
-export const NARROW = 520;
+const NARROW = 520;
 
 /** An option with overrides for narrow charts (ECharts media queries on the chart's own width). */
 export function responsive(option: Obj, narrow: Obj): Obj {

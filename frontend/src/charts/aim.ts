@@ -6,7 +6,7 @@ import { C, INK, type ChartTheme } from "./palette";
 import { params } from "./types";
 
 const X_MARK = "path://M2,0L5,3L8,0L10,2L7,5L10,8L8,10L5,7L2,10L0,8L3,5L0,2Z";
-export const CLICK_RANGE = 2.4;
+const CLICK_RANGE = 2.4;
 
 /** Where clicks land, in circle radii (y down, as on screen); the circle and half its radius drawn in. */
 export function clicksChart(c: Schemas["Clicks"], t: ChartTheme): Option {

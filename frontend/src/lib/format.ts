@@ -64,10 +64,6 @@ export function isoDay(days = 0, from: Date = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function plural(n: number, one: string, many = `${one}s`): string {
-  return `${int(n)} ${n === 1 ? one : many}`;
-}
-
 /** The short name of a skill label: "Flow aim (spaced streams)" → "Flow aim". */
 export function shortLabel(label: string): string {
   return label.split(" (")[0];

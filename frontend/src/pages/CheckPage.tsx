@@ -45,7 +45,7 @@ export default function CheckPage() {
   return (
     <Page title="Detailed Map Analysis">
       <Row>
-        <Card title="Pick a replay" sub="Newest first. Pick a row on the Replays page and press Detailed map analysis to open it here.">
+        <Card title="Pick a replay" hint="Newest first. Pick a row on the Replays page and press Detailed map analysis to open it here.">
           <Dropzone
             accept=".osr"
             multiple={false}
@@ -120,7 +120,7 @@ export default function CheckPage() {
 function SummaryCard({ report, pending, current }: { report?: Report; pending: boolean; current?: Schemas["CheckReplay"] }) {
   if (!report)
     return (
-      <Card title="The play" sub="Result, settings and what cost the play.">
+      <Card title="The play" hint="Result, settings and what cost the play.">
         {pending ? (
           <EmptyState icon={<span className="spinner" />} title="Checking the replay…">
             Every note is replayed against the beatmap; your other plays of the map are read for the comparison.
@@ -134,7 +134,7 @@ function SummaryCard({ report, pending, current }: { report?: Report; pending: b
   return (
     <Card
       title={s.map}
-      sub={
+      hint={
         <>
           {s.player || "(no name)"} · played {localTime(s.played_at)} · osu!{s.client} · {s.mods_label} · mapped by {s.creator ?? "?"} ·{" "}
           {clock(s.length_s)}
@@ -189,7 +189,7 @@ function ReportBody({ r, onOpen }: { r: Report; onOpen: (path: string) => void }
       </Tiles>
       <Card
         title="Misses and combo breaks"
-        sub="One row per miss or combo break, in map order. Time = where it is in the map (type it into the osu! editor to jump there); Reason = why it was missed."
+        hint="One row per miss or combo break, in map order. Time = where it is in the map (type it into the osu! editor to jump there); Reason = why it was missed."
       >
         {r.events.length ? (
           <DataTable
@@ -212,7 +212,7 @@ function ReportBody({ r, onOpen }: { r: Report; onOpen: (path: string) => void }
       {r.sections.length > 0 && (
         <Card
           title="Where they cluster — parts to practise"
-          sub="Each part starts a measure before the first miss and ends just after the last one, on the notes of the map, so you can cut it out exactly."
+          hint="Each part starts a measure before the first miss and ends just after the last one, on the notes of the map, so you can cut it out exactly."
           foot="How to practise a part: open the map in the editor and use File → Create a new difficulty (stable copies the current notes into it — delete everything outside the two times; lazer: copy the notes between the times first, then paste them into the new difficulty). Play the part with the same mods and speed until it is clean, then play the whole map again and open the new replay here: the table of your plays shows whether it helped."
         >
           <ul className="list">
@@ -234,10 +234,10 @@ function ReportBody({ r, onOpen }: { r: Report; onOpen: (path: string) => void }
       <MapPlaysCard plays={r.map_plays} onOpen={onOpen} />
       {r.clicks_screen && r.clicks_movement && (
         <Row>
-          <Card title="Where your clicks land — on screen" sub="Every hit and aim miss of this play, in circle radii from the note's centre.">
+          <Card title="Where your clicks land — on screen" hint="Every hit and aim miss of this play, in circle radii from the note's centre.">
             <ClicksView clicks={r.clicks_screen} />
           </Card>
-          <Card title="Where your clicks land — along the jump" sub="The jumps of this play, turned so every jump goes right: over- and undershoot.">
+          <Card title="Where your clicks land — along the jump" hint="The jumps of this play, turned so every jump goes right: over- and undershoot.">
             <ClicksView clicks={r.clicks_movement} />
           </Card>
         </Row>
@@ -264,7 +264,7 @@ function TimingCard({ tm }: { tm: Schemas["PlayTiming"] }) {
   return (
     <Card
       title="Timing through the map"
-      sub="Map time along the bottom. Each dot is one hit; the pink line is your running average (above 0 = late). Dotted lines: the 300 window. Red ×: misses, triangles: combo breaks without a miss. Drag the handles below the chart (or scroll on it) to zoom into a section."
+      hint="Map time along the bottom. Each dot is one hit; the pink line is your running average (above 0 = late). Dotted lines: the 300 window. Red ×: misses, triangles: combo breaks without a miss. Drag the handles below the chart (or scroll on it) to zoom into a section."
     >
       <Tiles n={4}>
         <Stat label={zoomed ? "Hits in range" : "Hits"} value={int(st.n)} note={zoomed ? `${clockMs(range[0])} – ${clockMs(range[1])}` : "whole map"} />
@@ -290,7 +290,7 @@ function MapPlaysCard({ plays, onOpen }: { plays: Schemas["MapPlays"]; onOpen: (
   return (
     <Card
       title="All your plays of this map"
-      sub="Every play of this map in your history and on this computer, newest first. Only plays with the same speed and settings (DT/HT/custom rate, AR/OD/CS/HP, HD/FL) are compared."
+      hint="Every play of this map in your history and on this computer, newest first. Only plays with the same speed and settings (DT/HT/custom rate, AR/OD/CS/HP, HD/FL) are compared."
       actions={
         <button
           type="button"

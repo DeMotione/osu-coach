@@ -13,7 +13,7 @@ import {
   IconWave,
 } from "../components/icons";
 
-export interface NavItem {
+interface NavItem {
   path: string;
   label: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
@@ -23,7 +23,7 @@ export interface NavItem {
   about: string;
 }
 
-export interface NavGroup {
+interface NavGroup {
   group: string;
   /** What the group's pages have in common (the setup guide's tour). */
   about: string;
@@ -123,7 +123,7 @@ export const NAV: NavGroup[] = [
 /** The pages in sidebar order, for the Alt+number shortcuts. */
 export const PAGES: NavItem[] = NAV.flatMap((g) => g.items);
 
-export const isActive = (item: NavItem, pathname: string) => pathname === item.path || pathname.startsWith(`${item.path}/`);
+const isActive = (item: NavItem, pathname: string) => pathname === item.path || pathname.startsWith(`${item.path}/`);
 
 export function currentPage(pathname: string): { group: NavGroup; item: NavItem } | null {
   for (const group of NAV) {
