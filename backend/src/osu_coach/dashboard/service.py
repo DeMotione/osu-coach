@@ -192,8 +192,7 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
     aim_split = None
     if a and f and a["expected"] > 0 and f["expected"] > 0:
         aim_split = S.AimSplit(fast_ratio=f["all_misses"] / f["expected"], normal_ratio=a["all_misses"] / a["expected"])
-    setup = ws.setup()
-    top_tips = [tip_out(t, p, setup) for t in tips(ws, p) if not t.title.endswith("fits")][:TOP_TIPS]
+    top_tips = [tip_out(t) for t in tips(ws, p)][:TOP_TIPS]
     return S.Overview(
         level=level_info,
         kpis=kpis,

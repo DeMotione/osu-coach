@@ -37,7 +37,7 @@ from osu_coach.replays import detect, scope
 from osu_coach.replays.eligibility import EXCLUDE_MODS, skip_reason
 from osu_coach.settings.domain import Setup
 from osu_coach.settings.repository import load_settings, save_settings
-from osu_coach.tips.domain import make_tips, practice_plan
+from osu_coach.tips.domain import make_tips, practice_plan, setup_advice
 
 SEVERITY = {3: "HIGH", 2: "MED ", 1: "LOW "}
 
@@ -296,6 +296,11 @@ def cmd_analyze(args) -> int:
         print(f"        {t.evidence}")
         for a in t.actions:
             print(f"        - {a}")
+    print("\nSetup tips")
+    for a in setup_advice(prof, setup):
+        print(f"  [{a.verdict}] {a.title}: {a.why}")
+        for c in a.changes:
+            print(f"        {c.setting}: {c.now + ' → ' if c.now else ''}{c.to}")
     print("\nPractice plan")
     for i, step in enumerate(practice_plan(prof), 1):
         print(f"  {i}. {step}")

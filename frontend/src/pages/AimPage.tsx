@@ -43,7 +43,7 @@ function AimBody({ aim }: { aim: Schemas["AimPage"] }) {
         (wq.significant ? (
           <Alert tone="warn">
             Weakest quadrant: <strong>{wq.quadrant}</strong> — {pct(wq.miss_rate)} misses vs {pct(wq.rest_miss_rate)} elsewhere (
-            {fmt(wq.relative_risk, 1)}×). See <Link to="/tips">Tips & Setup</Link> for how to fix it.
+            {fmt(wq.relative_risk, 1)}×). See <Link to="/tips">Tips</Link> for how to fix it.
           </Alert>
         ) : (
           <Alert tone="info">
@@ -110,7 +110,7 @@ function CalibrationCard({ aim }: { aim: Schemas["AimPage"] }) {
   return (
     <Card
       title="Aim calibration"
-      hint="Your actual cursor movement compared with the movement each jump needed. 0% = exact; + = you move too far. This drives the tablet area / sensitivity tip on Tips & Setup."
+      hint="Your actual cursor movement compared with the movement each jump needed. 0% = exact; + = you move too far. Setup Tips uses it to check your tablet area / sensitivity."
     >
       {reg ? (
         <>

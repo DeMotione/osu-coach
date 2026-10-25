@@ -140,7 +140,7 @@ without publishing.
 
 The app opens with a five-step guide the first time (a new data folder; anyone with settings from an earlier
 version skips it): **osu! version** (stable or lazer, and its folder if it wasn't found), **playstyle** (mouse or
-tablet; keyboard, rapid-trigger keyboard or SayoDevice, with the same settings as Tips & Setup, where they show
+tablet; keyboard, rapid-trigger keyboard or SayoDevice, with the same settings as Setup Tips, where they show
 afterwards), **replays** (found automatically or added by hand, then scanned and analysed right away, with the
 time left once the analysis is under way), an optional **tour** of the sections, and **done**. *Skip setup* closes
 it for good; the compass button in the toolbar opens it again. Finished or skipped is `onboarded` in
@@ -217,20 +217,27 @@ git) skill by skill. What it changed: **Accuracy** = (300s on single notes − 5
 consistency compare your misses with what the difficulty predicts; a player who barely misses has nothing to
 compare, so those now say **too few misses to tell** instead of *not enough data*. Sliders: top players
 
-### Setup (Tips & Setup page)
+### Setup Tips page
 
-- **Aim calibration → your setup**: the over/underaim measured on the Aim page as a tablet area or
-  sensitivity change (*keep it* within ±4%), also in the tips list.
+What to change in your setup, with the exact new value, and what to keep. A change is suggested only when it is
+**big enough to feel** and **your misses show it costs you**; otherwise the advice is to keep the setting:
 
-- **Aim**: tablet (area width/height and X/Y — OpenTabletDriver values, X/Y = centre of the area) or
-  mouse (DPI, sensitivity). With the area known, *Tablet area to try* gives new width/height (from over/
-  underaim) and X/Y (from a constant click offset; kept if the offset is too small to matter).
-- **Keys**: keyboard, rapid-trigger keyboard (actuation, RT sensitivity) or **SayoDevice keypad** with the
-  configurator's settings: Stroke, Trigger, Release, RT Mode, RT Trigger, RT Release, Full Stroke,
-  RT Upper Bound, RT Lower Bound. The SayoDevice tip shows *Now → Try* for each, from your tapping
-  (double presses, early releases in sliders, falling behind or overlapping keys in streams, presses that
-  didn't register) and checks values that don't fit together (Release below Trigger, RT Lower Bound at the
-  very bottom of the stroke, ...).
+- **Tablet area size** (per axis) or **sensitivity** (mouse): only when it moves where you land on your long jumps
+  (the longest quarter) by at least 0.2 circle radii, and at least 60% of 30+ misses there land past (or short of)
+  the note the way the movement says. The new width / height or sensitivity (and DPI) to set.
+- **Tablet area position**: a constant click offset of at least 0.15 circle radii, with your aim misses leaning to
+  that side: the new X / Y (OpenTabletDriver values, X / Y = the centre of the area).
+- **Tablet area rotation**: when your jumps come out turned enough to move you 0.2 radii on long jumps, and your
+  misses lean to that side.
+- **Audio offset**: when you hit early (or late) on 70%+ of your plays and centring it wins at least 1% more 300s
+  (lazer: the offset change; stable: the Offset wizard). A bias that changes from map to map is timing, a tip.
+- **Keys** (keyboard, rapid trigger, SayoDevice): only for keys firing twice (double presses, extra taps), keys
+  letting go mid-slider (when it happens often enough to matter) and values the device can't work with.
+
+**Your setup** below holds what you play with (also entered in the setup guide): tablet area width / height and
+X / Y or mouse DPI and sensitivity; keyboard, rapid-trigger keyboard (actuation, RT sensitivity) or SayoDevice
+keypad (the configurator's Stroke, Trigger, Release, RT Mode, RT Trigger, RT Release, Full Stroke, RT Upper / Lower
+Bound). With them, the changes come in millimetres and exact values.
 
 ### Command line
 
@@ -280,8 +287,8 @@ Skills: `aim flow_aim speed stamina accuracy sliders reading consistency quadran
      A hit is always inside the circle, so only aim misses land outside it.
    - The quadrant result uses a significance test, so noise isn't reported as a weakness.
 5. **Tips and maps** are built from those numbers. Every tip shows the evidence it is based on.
-6. **The app** shows all of this on ten pages (Replays, Detailed Map Analysis, Overview, Progress, Aim, Tapping,
-   Sliders & Reading, Tips & Setup, Skill Development, Goals & Training). Light and dark mode follow your system or
+6. **The app** shows all of this on eleven pages (Replays, Detailed Map Analysis, Overview, Progress, Aim, Tapping,
+   Sliders & Reading, Tips, Setup Tips, Skill Development, Goals & Training). Light and dark mode follow your system or
    the switch at the bottom of the sidebar, and the charts follow them; pointing at a chart shows its values.
 
 Limitations: lazer replays only record left/right, not which key or mouse button was used, so the

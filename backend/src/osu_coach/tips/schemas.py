@@ -1,4 +1,4 @@
-"""Responses of the Tips & Setup page (and the tips the Overview shows)."""
+"""Responses of the Tips page (and the tips the Overview shows) and of the Setup Tips page."""
 
 from __future__ import annotations
 
@@ -14,13 +14,6 @@ class TipSetting(BaseModel):
     value: str
 
 
-class SayoRow(BaseModel):
-    setting: str
-    now: float | bool
-    suggested: float | bool
-    changed: bool
-
-
 class TipOut(BaseModel):
     category: str
     title: str
@@ -28,36 +21,36 @@ class TipOut(BaseModel):
     evidence: str
     actions: list[str]
     settings: list[TipSetting]
-    sayo: list[SayoRow] | None = Field(description="SayoDevice values now → to try (Keys / SayoDevice tip).")
 
 
 # ------------------------------------------------------------------ tips
-class Calibration(BaseModel):
-    scale: float
-    step: float = Field(description="Area / sensitivity change as a fraction; 0 = keep.")
-    now: str | None
-    suggested: str | None
-    lines: list[str]
-    device: Literal["tablet", "mouse"]
-
-
-class TabletArea(BaseModel):
-    w: float
-    h: float
-    x: float | None
-    y: float | None
-    now_w: float
-    now_h: float
-    now_x: float | None
-    now_y: float | None
-    changed: bool
-    why: list[str]
-
-
 class TipsPage(BaseModel):
     setup: SetupModel
     setup_saved: bool
-    calibration: Calibration | None
-    tablet_area: TabletArea | None
     tips: list[TipOut]
     practice_plan: list[str]
+
+
+# ------------------------------------------------------------------ setup tips
+class SetupChange(BaseModel):
+    setting: str
+    now: str | None = Field(description="The value now; null when it wasn't entered in the setup.")
+    to: str = Field(description="What to set it to: a value, or a direction when the value now is unknown.")
+
+
+class SetupAdvice(BaseModel):
+    key: Literal["area_size", "sensitivity", "area_position", "area_rotation", "offset", "keys"]
+    title: str
+    verdict: Literal["change", "keep", "unknown"] = Field(
+        description="change = worth changing (big enough to feel, and your misses show it costs you); keep; "
+        "unknown = not enough data yet."
+    )
+    why: str = Field(description="One short sentence.")
+    changes: list[SetupChange]
+    where: str | None = Field(description="Where to change it.")
+
+
+class SetupTipsPage(BaseModel):
+    setup: SetupModel
+    setup_saved: bool
+    advice: list[SetupAdvice] = Field(description="The changes first, then what can't be told yet, then what to keep.")

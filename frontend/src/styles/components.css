@@ -1907,3 +1907,118 @@ details.disclosure-card[open] > summary .card__title::after {
 .chip {
   font-family: var(--font-display);
 }
+
+/* Setup Tips: the changes, each with its exact values; then one line per setting to keep */
+.setup-verdict {
+  font-family: var(--font-display);
+  font-size: var(--t-md);
+  font-weight: 650;
+}
+
+.setup-change {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.setup-change__title {
+  font-family: var(--font-display);
+  font-size: var(--t-md);
+  font-weight: 650;
+}
+
+.setup-change__why {
+  color: var(--text-2);
+}
+
+.setup-change__values {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-change__values > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.setup-change__setting {
+  min-width: 9em;
+  color: var(--muted);
+}
+
+.setup-change__now {
+  color: var(--text-2);
+  text-decoration: line-through;
+}
+
+.setup-change__to {
+  font-size: var(--t-md);
+  color: var(--accent);
+}
+
+.setup-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-row {
+  display: grid;
+  grid-template-columns: 22px 12em minmax(0, 1fr); /* the same title width on every row: the reasons line up */
+  align-items: baseline;
+  gap: 4px var(--s-3);
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--border);
+}
+
+.setup-row:first-child {
+  border-top: none;
+}
+
+.setup-row__mark {
+  align-self: center;
+  display: inline-flex;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.setup-row--keep .setup-row__mark {
+  color: var(--good);
+}
+
+.setup-row__mark svg {
+  width: 16px;
+  height: 16px;
+}
+
+.setup-row__title {
+  font-weight: 600;
+}
+
+.setup-row__why {
+  color: var(--muted);
+}
+
+@media (max-width: 760px) {
+  .setup-row {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .setup-row__why {
+    grid-column: 2;
+  }
+}

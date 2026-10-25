@@ -81,7 +81,7 @@ export function Onboarding({ first, onClose }: { first: boolean; onClose: () => 
     if (to) void navigate(to);
   };
 
-  /** Steps 1 and 2 save the setup on the way out, so it is on Tips & Setup right away. */
+  /** Steps 1 and 2 save the setup on the way out, so it is on Setup Tips right away. */
   const saveFoot = (back: StepKey | null, next: StepKey) => (
     <>
       {back && (

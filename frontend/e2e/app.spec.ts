@@ -84,7 +84,8 @@ const PAGES = [
   ["/aim", "Aim"],
   ["/tapping", "Tapping"],
   ["/sliders-reading", "Sliders & Reading"],
-  ["/tips", "Tips & Setup"],
+  ["/tips", "Tips"],
+  ["/setup", "Setup Tips"],
   ["/maps", "Skill Development"],
   ["/skills", "Goals & Training"],
   ["/skills?tab=playlist", "Goals & Training"],
@@ -432,8 +433,8 @@ test("the setup guide: osu! folder, playstyle, replays, tour", async ({ page, re
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect((await (await request.get("/api/settings")).json()).onboarded).toBe(true);
 
-  // what was entered is on Tips & Setup; the guide opens again from the toolbar
-  await page.goto("/tips");
+  // what was entered is on Setup Tips; the guide opens again from the toolbar
+  await page.goto("/setup");
   await page.locator("summary", { hasText: "Your setup" }).click(); // the folded setup card opens from its header
   await expect(page.getByRole("spinbutton", { name: "Mouse DPI" })).toHaveValue("1600");
   await expect(page.getByRole("spinbutton", { name: "Actuation point (mm)" })).toHaveValue("0.4");

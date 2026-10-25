@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- the form and the shape it saves in belong together */
-/** The player's setup as a form: shared by Tips & Setup and the first-start setup guide, so both ask the same. */
+/** The player's setup as a form: shared by Setup Tips and the first-start setup guide, so both ask the same. */
 import type { Schemas } from "../api/client";
 import { Field, Segmented, Switch } from "./ui";
 

@@ -302,7 +302,7 @@ function TopTips({ tips }: { tips: Schemas["TipOut"][] }) {
   return (
     <Card
       title="Top tips"
-      hint="The most important tips. All of them, with what to do, are on the Tips & Setup page."
+      hint="The most important tips. All of them, with what to do, are on the Tips page."
     >
       <Tiles n={tips.length as TileCount}>
         {tips.map((t) => (

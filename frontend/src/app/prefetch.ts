@@ -7,6 +7,7 @@ const loaders: Record<string, () => Promise<unknown>> = {
   "/tapping": () => import("../pages/TappingPage"),
   "/sliders-reading": () => import("../pages/SlidersReadingPage"),
   "/tips": () => import("../pages/TipsPage"),
+  "/setup": () => import("../pages/SetupTipsPage"),
   "/maps": () => import("../pages/MapsPage"),
   "/skills": () => import("../pages/SkillsPage"),
 };

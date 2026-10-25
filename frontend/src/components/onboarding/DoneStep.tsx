@@ -67,7 +67,7 @@ export function DoneStep({ setup, r, onBack, onFinish }: { setup: Setup; r: Repl
             : "Once your replays are analysed, every page fills in with your numbers."}
       </p>
       <p className="small muted">
-        Your setup is on Tips & Setup, where you can change it any time. This guide opens again from the{" "}
+        Your setup is on Setup Tips, where you can change it any time. This guide opens again from the{" "}
         <IconCompass className="inline-icon" /> Setup guide button at the top.
       </p>
     </Step>

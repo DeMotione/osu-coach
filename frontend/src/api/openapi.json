@@ -1095,7 +1095,7 @@
         "tags": [
           "Analysis"
         ],
-        "summary": "Tips & Setup: calibration, tips, practice plan",
+        "summary": "Tips: what to practise, and the practice plan",
         "operationId": "tips_api_profile_tips_get",
         "responses": {
           "200": {
@@ -1104,6 +1104,38 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TipsPage"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile/setup-tips": {
+      "get": {
+        "tags": [
+          "Analysis"
+        ],
+        "summary": "Setup Tips: what to change in your setup, and what to keep",
+        "description": "Tablet area or sensitivity, audio offset and keys: a change only when it is big enough to feel and your misses\nshow it costs you, with the exact new values.",
+        "operationId": "setup_tips_api_profile_setup_tips_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupTipsPage"
                 }
               }
             }
@@ -2951,66 +2983,6 @@
           "share"
         ],
         "title": "BreakShare"
-      },
-      "Calibration": {
-        "properties": {
-          "scale": {
-            "type": "number",
-            "title": "Scale"
-          },
-          "step": {
-            "type": "number",
-            "title": "Step",
-            "description": "Area / sensitivity change as a fraction; 0 = keep."
-          },
-          "now": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Now"
-          },
-          "suggested": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Suggested"
-          },
-          "lines": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Lines"
-          },
-          "device": {
-            "type": "string",
-            "enum": [
-              "tablet",
-              "mouse"
-            ],
-            "title": "Device"
-          }
-        },
-        "type": "object",
-        "required": [
-          "scale",
-          "step",
-          "now",
-          "suggested",
-          "lines",
-          "device"
-        ],
-        "title": "Calibration"
       },
       "CheckEvent": {
         "properties": {
@@ -7191,48 +7163,6 @@
         ],
         "title": "Regression"
       },
-      "SayoRow": {
-        "properties": {
-          "setting": {
-            "type": "string",
-            "title": "Setting"
-          },
-          "now": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "boolean"
-              }
-            ],
-            "title": "Now"
-          },
-          "suggested": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "boolean"
-              }
-            ],
-            "title": "Suggested"
-          },
-          "changed": {
-            "type": "boolean",
-            "title": "Changed"
-          }
-        },
-        "type": "object",
-        "required": [
-          "setting",
-          "now",
-          "suggested",
-          "changed"
-        ],
-        "title": "SayoRow"
-      },
       "ScanJob": {
         "properties": {
           "id": {
@@ -7700,6 +7630,102 @@
         "title": "SettingsPatch",
         "description": "Fields to change; fields left out stay as they are (``null`` clears a nullable one)."
       },
+      "SetupAdvice": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "area_size",
+              "sensitivity",
+              "area_position",
+              "area_rotation",
+              "offset",
+              "keys"
+            ],
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "change",
+              "keep",
+              "unknown"
+            ],
+            "title": "Verdict",
+            "description": "change = worth changing (big enough to feel, and your misses show it costs you); keep; unknown = not enough data yet."
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "One short sentence."
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/SetupChange"
+            },
+            "type": "array",
+            "title": "Changes"
+          },
+          "where": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Where",
+            "description": "Where to change it."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "verdict",
+          "why",
+          "changes",
+          "where"
+        ],
+        "title": "SetupAdvice"
+      },
+      "SetupChange": {
+        "properties": {
+          "setting": {
+            "type": "string",
+            "title": "Setting"
+          },
+          "now": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Now",
+            "description": "The value now; null when it wasn't entered in the setup."
+          },
+          "to": {
+            "type": "string",
+            "title": "To",
+            "description": "What to set it to: a value, or a direction when the value now is unknown."
+          }
+        },
+        "type": "object",
+        "required": [
+          "setting",
+          "now",
+          "to"
+        ],
+        "title": "SetupChange"
+      },
       "SetupModel": {
         "properties": {
           "device": {
@@ -7989,6 +8015,32 @@
         "type": "object",
         "title": "SetupModel",
         "description": "The player's setup: makes the tips concrete (tablet area, sensitivity, keyboard / SayoDevice)."
+      },
+      "SetupTipsPage": {
+        "properties": {
+          "setup": {
+            "$ref": "#/components/schemas/SetupModel"
+          },
+          "setup_saved": {
+            "type": "boolean",
+            "title": "Setup Saved"
+          },
+          "advice": {
+            "items": {
+              "$ref": "#/components/schemas/SetupAdvice"
+            },
+            "type": "array",
+            "title": "Advice",
+            "description": "The changes first, then what can't be told yet, then what to keep."
+          }
+        },
+        "type": "object",
+        "required": [
+          "setup",
+          "setup_saved",
+          "advice"
+        ],
+        "title": "SetupTipsPage"
       },
       "SetupUpdate": {
         "properties": {
@@ -9129,95 +9181,6 @@
         ],
         "title": "Suggestions"
       },
-      "TabletArea": {
-        "properties": {
-          "w": {
-            "type": "number",
-            "title": "W"
-          },
-          "h": {
-            "type": "number",
-            "title": "H"
-          },
-          "x": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "X"
-          },
-          "y": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Y"
-          },
-          "now_w": {
-            "type": "number",
-            "title": "Now W"
-          },
-          "now_h": {
-            "type": "number",
-            "title": "Now H"
-          },
-          "now_x": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Now X"
-          },
-          "now_y": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Now Y"
-          },
-          "changed": {
-            "type": "boolean",
-            "title": "Changed"
-          },
-          "why": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Why"
-          }
-        },
-        "type": "object",
-        "required": [
-          "w",
-          "h",
-          "x",
-          "y",
-          "now_w",
-          "now_h",
-          "now_x",
-          "now_y",
-          "changed",
-          "why"
-        ],
-        "title": "TabletArea"
-      },
       "TappingKpis": {
         "properties": {
           "ur": {
@@ -9495,21 +9458,6 @@
             },
             "type": "array",
             "title": "Settings"
-          },
-          "sayo": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/SayoRow"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sayo",
-            "description": "SayoDevice values now → to try (Keys / SayoDevice tip)."
           }
         },
         "type": "object",
@@ -9519,8 +9467,7 @@
           "severity",
           "evidence",
           "actions",
-          "settings",
-          "sayo"
+          "settings"
         ],
         "title": "TipOut"
       },
@@ -9551,26 +9498,6 @@
             "type": "boolean",
             "title": "Setup Saved"
           },
-          "calibration": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Calibration"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "tablet_area": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TabletArea"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "tips": {
             "items": {
               "$ref": "#/components/schemas/TipOut"
@@ -9590,8 +9517,6 @@
         "required": [
           "setup",
           "setup_saved",
-          "calibration",
-          "tablet_area",
           "tips",
           "practice_plan"
         ],

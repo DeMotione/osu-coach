@@ -5,12 +5,12 @@ import { SetupDetails, type Setup, type SetupPatch } from "../SetupForm";
 import { Section } from "../ui";
 import { ChoiceCards, Step } from "./parts";
 
-/** Step 2: aim device and keys, then their settings — the same form as on Tips & Setup, where they show afterwards. */
+/** Step 2: aim device and keys, then their settings — the same form as on Setup Tips, where they show afterwards. */
 export function PlaystyleStep({ setup, onChange, foot }: { setup: Setup; onChange: (patch: SetupPatch) => void; foot: ReactNode }) {
   return (
     <Step
       title="How do you play?"
-      sub="Your aim device and keys make the tips concrete: a tablet area or sensitivity to try, key settings to change. Fill in what you know and leave the rest empty — you can change all of it later on Tips & Setup."
+      sub="Your aim device and keys make the tips concrete: a tablet area or sensitivity to try, key settings to change. Fill in what you know and leave the rest empty — you can change all of it later on Setup Tips."
       foot={foot}
     >
       <Section title="Aim with">

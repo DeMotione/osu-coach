@@ -180,6 +180,7 @@ export const useTapping = () => useQuery(page("tapping", () => unwrap(api.GET("/
 export const useSlidersReading = () =>
   useQuery(page("sliders-reading", () => unwrap(api.GET("/api/profile/sliders-reading"))));
 export const useTips = () => useQuery(page("tips", () => unwrap(api.GET("/api/profile/tips"))));
+export const useSetupTips = () => useQuery(page("setup-tips", () => unwrap(api.GET("/api/profile/setup-tips"))));
 export const useClicks = (view: "screen" | "movement") =>
   useQuery({
     ...page(`clicks:${view}`, () => unwrap(api.GET("/api/profile/clicks", { params: { query: { view } } }))),
