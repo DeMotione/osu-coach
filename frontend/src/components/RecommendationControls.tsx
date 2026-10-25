@@ -55,7 +55,7 @@ export function RecommendationControls({ current, measured, comfort, onApply }: 
   };
 
   return (
-    <Card className="recommendation-controls" title="Choose your practice target" sub="Pick a skill, then explore the warm-up, comfort, and push map tables below.">
+    <Card className="recommendation-controls" title="Choose your practice target" hint="Pick a skill, then explore the warm-up, comfort, and push map tables below.">
       <div className="recommendation-target">
         <Field label="Target skill">
           <select className="select" value={skill} onChange={(event) => {

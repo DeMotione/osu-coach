@@ -52,10 +52,10 @@ function AimBody({ aim }: { aim: Schemas["AimPage"] }) {
           </Alert>
         ))}
       <Row>
-        <Card title="Miss rate by screen quadrant" sub="The playfield cut into four. Each cell: share of the notes there you missed, and misses / notes. Pinker = more misses.">
+        <Card title="Miss rate by screen quadrant" hint="The playfield cut into four. Each cell: share of the notes there you missed, and misses / notes. Pinker = more misses.">
           <QuadrantGrid cells={aim.quadrants} />
         </Card>
-        <Card title="Where on the playfield you miss" sub="A finer grid of the playfield as you see it: the pinker a cell, the more of its notes you missed. Empty cells: too few notes there.">
+        <Card title="Where on the playfield you miss" hint="A finer grid of the playfield as you see it: the pinker a cell, the more of its notes you missed. Empty cells: too few notes there.">
           <PlayfieldGrid grid={aim.grid} />
         </Card>
       </Row>
@@ -63,7 +63,7 @@ function AimBody({ aim }: { aim: Schemas["AimPage"] }) {
         <ClicksCard />
         <Card
           title="Miss rate by jump direction"
-          sub="Each wedge is a direction the cursor moves in to reach the note (jumps of 1+ circle). The longer the wedge, the more of those jumps you missed."
+          hint="Each wedge is a direction the cursor moves in to reach the note (jumps of 1+ circle). The longer the wedge, the more of those jumps you missed."
         >
           <Chart build={dirs} height={420} label="Miss rate by jump direction" />
         </Card>
@@ -71,7 +71,7 @@ function AimBody({ aim }: { aim: Schemas["AimPage"] }) {
       <Row>
         <Card
           title="By jump distance"
-          sub="Bars: miss rate by how far the note is from the previous one (circle diameters). Line: how far past (+) or short of (−) the note you click, in circle radii."
+          hint="Bars: miss rate by how far the note is from the previous one (circle diameters). Line: how far past (+) or short of (−) the note you click, in circle radii."
         >
           <Chart build={dist} height={340} label="Miss rate and over/undershoot by jump distance" />
         </Card>
@@ -87,7 +87,7 @@ function ClicksCard() {
   return (
     <Card
       title="Where your clicks land"
-      sub="The click that hit each note and the closest click of each aim miss, in circle radii from the note's centre."
+      hint="The click that hit each note and the closest click of each aim miss, in circle radii from the note's centre."
       actions={
         <Segmented
           label="View"
@@ -110,7 +110,7 @@ function CalibrationCard({ aim }: { aim: Schemas["AimPage"] }) {
   return (
     <Card
       title="Aim calibration"
-      sub="Your actual cursor movement compared with the movement each jump needed. 0% = exact; + = you move too far. This drives the tablet area / sensitivity tip on Tips & Setup."
+      hint="Your actual cursor movement compared with the movement each jump needed. 0% = exact; + = you move too far. This drives the tablet area / sensitivity tip on Tips & Setup."
     >
       {reg ? (
         <>

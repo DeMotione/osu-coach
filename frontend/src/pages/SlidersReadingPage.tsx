@@ -50,7 +50,7 @@ function Body({ d }: { d: Page_ }) {
         <Stat label="Missed slider ends" value={pct(k.end_miss_rate)} />
       </Tiles>
       <Row>
-        <Card title="Why your sliders break" sub="Sliders hit at the head but broken later (weighted by difficulty).">
+        <Card title="Why your sliders break" hint="Sliders hit at the head but broken later (weighted by difficulty).">
           {d.breaks.length ? (
             <ul className="list list--fill">
               {d.breaks.map((b) => {
@@ -71,24 +71,24 @@ function Body({ d }: { d: Page_ }) {
         </Card>
         <Card
           title="Misses by approach rate"
-          sub="Miss rate by AR (with mods; DT raises it). Higher AR maps are usually harder too — the Reading tips compare with what the difficulty predicts."
+          hint="Miss rate by AR (with mods; DT raises it). Higher AR maps are usually harder too — the Reading tips compare with what the difficulty predicts."
         >
           {d.ar_misses.length ? <Chart build={ar} height={260} label="Misses by approach rate" /> : <EmptyState title="Not enough notes yet" />}
         </Card>
       </Row>
       <Row>
-        <Card title="Slider misses by length" sub="Head misses and breaks (after hitting the head) by slider length — find the kind of slider to practise." foot={worst(d.by_length)}>
+        <Card title="Slider misses by length" hint="Head misses and breaks (after hitting the head) by slider length — find the kind of slider to practise." foot={worst(d.by_length)}>
           {d.by_length ? <Chart build={byLen} height={300} label="Slider misses by length" /> : <EmptyState title="Not enough sliders yet">Needs 100+ sliders.</EmptyState>}
         </Card>
-        <Card title="Slider misses by speed" sub="The same by how fast the ball moves." foot={worst(d.by_speed)}>
+        <Card title="Slider misses by speed" hint="The same by how fast the ball moves." foot={worst(d.by_speed)}>
           {d.by_speed ? <Chart build={bySpeed} height={300} label="Slider misses by speed" /> : <EmptyState title="Not enough sliders yet">Needs 100+ sliders.</EmptyState>}
         </Card>
       </Row>
       <Row>
-        <Card title="Hits by approach rate" sub="All notes played at each AR (weighted by difficulty), split into 300 / 100 / 50 / miss. The axis starts near your lowest 300 share so the small parts are readable.">
+        <Card title="Hits by approach rate" hint="All notes played at each AR (weighted by difficulty), split into 300 / 100 / 50 / miss. The axis starts near your lowest 300 share so the small parts are readable.">
           {d.hits_by_ar.length ? <Chart build={hits} height={300} label="Hit results by approach rate" /> : <EmptyState title="Not enough notes yet">Needs 200+ notes and 100+ per AR.</EmptyState>}
         </Card>
-        <Card title="Hit results per AR" sub="The same as numbers, with how many plays each AR comes from.">
+        <Card title="Hit results per AR" hint="The same as numbers, with how many plays each AR comes from.">
           {d.hits_by_ar.length ? (
             <DataTable
               label="Hit results per approach rate"
@@ -108,7 +108,7 @@ function Body({ d }: { d: Page_ }) {
           )}
         </Card>
       </Row>
-      <Card title="Reading and consistency" sub="Miss rates in dense parts (many notes on screen) vs the rest, and whether misses cause more misses or pile up at the end of maps.">
+      <Card title="Reading and consistency" hint="Miss rates in dense parts (many notes on screen) vs the rest, and whether misses cause more misses or pile up at the end of maps.">
         <Tiles n={4}>
           <Stat label="Dense parts" value={pct(r.dense_miss_rate)} hint={`Miss rate when ≥ ${fmt(r.dense_threshold, 0)} notes are on screen.`} />
           <Stat label="Sparse parts" value={pct(r.sparse_miss_rate)} />

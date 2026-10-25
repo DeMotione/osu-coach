@@ -881,13 +881,6 @@
   font-weight: 400;
 }
 
-.card__sub {
-  margin-top: var(--s-1);
-  max-width: 78ch;
-  font-size: var(--t-sm);
-  color: var(--muted);
-}
-
 .card__actions {
   flex: none;
   display: flex;

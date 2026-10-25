@@ -18,7 +18,6 @@ interface CardProps {
   title?: ReactNode;
   /** What the card shows and how it is calculated: a "?" next to the title that shows it on hover / focus. */
   hint?: ReactNode;
-  sub?: ReactNode;
   actions?: ReactNode;
   foot?: ReactNode;
   children?: ReactNode;
@@ -26,7 +25,7 @@ interface CardProps {
   style?: CSSProperties;
 }
 
-export function Card({ title, hint, sub, actions, foot, children, className, style }: CardProps) {
+export function Card({ title, hint, actions, foot, children, className, style }: CardProps) {
   return (
     <section className={className ? `card ${className}` : "card"} style={style}>
       {(title || actions) && (
@@ -38,7 +37,6 @@ export function Card({ title, hint, sub, actions, foot, children, className, sty
                 {hint && <Hint text={hint} />}
               </h2>
             )}
-            {sub && <p className="card__sub">{sub}</p>}
           </div>
           {actions && <div className="card__actions">{actions}</div>}
         </div>
