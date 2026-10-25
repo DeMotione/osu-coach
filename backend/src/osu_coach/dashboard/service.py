@@ -138,24 +138,32 @@ def overview(ws: Workspace, p: Profile) -> S.Overview:
     )
     comfort_level = num(lv.get("comfort_stars")) or level
     relative_scores = {key: row.get("score") for key, row in p.skill_ratings.items()} if comfort_level else {}
-    skills = [
-        S.SkillScore(
+
+    def skill_row(k: str, v: dict) -> S.SkillScore:
+        row = p.skill_ratings.get(k) or {}
+        score = num(relative_scores.get(k))
+        at_least = num(row.get("at_least")) if score is None and comfort_level else None
+        if score is not None:
+            what = "combo and accuracy held from map to map around your level" if k == "consistency" else None
+            text = f"{score:.0f} · {what or '50 = typical for your comfort level'}"
+        elif at_least is not None:
+            text = f"at least {at_least:.0f} · your maps haven't tested it to its limit yet"
+        else:
+            text = row.get("reason") or "not enough data"
+        return S.SkillScore(
             key=k,
             label=v.get("label", SKILL_LABELS.get(k, k)),
-            score=num(relative_scores.get(k)),
-            score_text=(p.skill_ratings.get(k) or {}).get("reason")
-            if relative_scores.get(k) is None
-            else f"{relative_scores[k]:.0f} · combo and accuracy held from map to map around your level"
-            if k == "consistency"
-            else f"{relative_scores[k]:.0f} · 50 = typical for your comfort level",
-            low_data=relative_scores.get(k) is not None and (p.skill_ratings.get(k) or {}).get("maps", 0) < 10,
+            score=score,
+            score_text=text,
+            low_data=score is not None and row.get("maps", 0) < 10,
             too_few_misses=False,
             n=int(v.get("n") or 0),
-            facts=skill_facts(k, p.skill_ratings.get(k) or {}),
-            needs=(p.skill_ratings.get(k) or {}).get("needs") if relative_scores.get(k) is None else None,
+            facts=skill_facts(k, row),
+            needs=row.get("needs") if score is None else None,
+            at_least=at_least,
         )
-        for k, v in p.skills.items()
-    ]
+
+    skills = [skill_row(k, v) for k, v in p.skills.items()]
     few = [SKILL_LABELS.get(k, k) for k, v in p.skill_ratings.items() if v.get("score") is None]
     stam = p.skills.get("stamina") or {}
     stamina = []
