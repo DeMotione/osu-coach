@@ -2,6 +2,7 @@ import type { ComponentType, SVGProps } from "react";
 
 import {
   IconBulb,
+  IconSliders,
   IconFolder,
   IconGauge,
   IconKeys,
@@ -97,10 +98,17 @@ export const NAV: NavGroup[] = [
     items: [
       {
         path: "/tips",
-        label: "Tips & Setup",
+        label: "Tips",
         icon: IconBulb,
         needsAnalysis: true,
-        about: "Concrete tips from your numbers, a practice plan, and changes to try in your setup (area, sensitivity, keys).",
+        about: "Concrete tips from your numbers on what to practise, and a practice plan.",
+      },
+      {
+        path: "/setup",
+        label: "Setup Tips",
+        icon: IconSliders,
+        needsAnalysis: true,
+        about: "What to change in your tablet area, sensitivity, offset or keys, with the exact values, and what to keep.",
       },
       {
         path: "/maps",

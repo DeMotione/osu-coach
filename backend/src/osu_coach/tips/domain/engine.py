@@ -1,4 +1,6 @@
-"""The tips engine: ``make_tips`` runs every rule on a profile and the player's setup; ``practice_plan``."""
+"""The tips engine: ``make_tips`` runs every rule on a profile and the player's setup; ``practice_plan``.
+
+What to change in the setup itself is in :mod:`.setup`, not here."""
 
 from __future__ import annotations
 
@@ -8,9 +10,7 @@ from osu_coach.profile.domain import SKILL_LABELS, Profile
 from osu_coach.settings.domain import Setup
 from osu_coach.tips.domain.aim import _direction_tips, _distance_angle_tips, _miss_cause_tip, _quadrant_tips
 from osu_coach.tips.domain.common import Tip
-from osu_coach.tips.domain.keyboard import _keyboard_tips
 from osu_coach.tips.domain.skills import _consistency_tips, _reading_tips, _slider_tips
-from osu_coach.tips.domain.tablet import _area_rotation_offset_tips, _area_scale_tips, _calibration_tip
 from osu_coach.tips.domain.tapping import _key_usage_tips, _stream_tips, _timing_tips
 
 
@@ -19,16 +19,12 @@ def make_tips(p: Profile, setup: Setup | None = None) -> list[Tip]:
     tips: list[Tip] = []
     for rule in (
         _miss_cause_tip,
-        _calibration_tip,
-        _area_scale_tips,
-        _area_rotation_offset_tips,
         _quadrant_tips,
         _direction_tips,
         _distance_angle_tips,
         _timing_tips,
         _stream_tips,
         _key_usage_tips,
-        _keyboard_tips,
         _slider_tips,
         _reading_tips,
         _consistency_tips,

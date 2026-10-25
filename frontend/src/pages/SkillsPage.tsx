@@ -194,14 +194,12 @@ function PlaylistTab() {
       <Card>
         {!pl.has_profile && <Alert tone="info">No replays analysed yet — enter comfort stars and player ratings to get a personal playlist.</Alert>}
         <p className="muted">
-          Your comfort level ≈ <strong>{pl.comfort.toFixed(1)}★</strong> ({pl.comfort_source})
           {(pl.skill === "speed" || pl.skill === "stamina") && pl.stream_bpm ? (
             <>
-              {" "}
-              · stream target ≈ <strong>{pl.stream_bpm.toFixed(0)} BPM</strong>
+              Stream target ≈ <strong>{pl.stream_bpm.toFixed(0)} BPM</strong> ·{" "}
             </>
-          ) : null}{" "}
-          · collection name: <code>{pl.collection_name}</code>
+          ) : null}
+          Collection name: <code>{pl.collection_name}</code>
         </p>
         <p className="small muted">Skill-adjusted target: {pl.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★.</p>
       </Card>

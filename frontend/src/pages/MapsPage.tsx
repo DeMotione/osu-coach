@@ -37,7 +37,6 @@ function Body({ s, onApply }: { s: Schemas["Suggestions"]; onApply: (options: { 
           </Field>
           <button type="button" className="btn" disabled={!valid} onClick={() => onApply({ kappa: Number(kappa), min_relevance: Number(relevance) })}>Show maps</button>
         </div>
-        <p className="small muted">Your comfort level: {s.comfort.toFixed(2)}★ ({s.comfort_source}).</p>
       </Card>
       {!s.has_profile ? <Alert tone="info">Analyze replays to measure weak skills before map suggestions can be made.</Alert> :
         !s.sections.length ? <Alert tone="info">No measured skill is below the expected level (45/100 or less), so there are no weakness-based suggestions.</Alert> : null}
@@ -45,7 +44,7 @@ function Body({ s, onApply }: { s: Schemas["Suggestions"]; onApply: (options: { 
       {s.sections.map((sec) => {
         const fitNotice = sec.skill === "speed" ? speedFitNotice(sec.maps, sec.target_demand) : null;
         return (
-          <Card className="map-suggestion-card" key={sec.skill} title={sec.title} hint={`Weak skill ${sec.score?.toFixed(0) ?? "unknown"}/100 · ${sec.eligible} comfort-level maps · adjusted ${sec.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★ · target ${sec.target_stars?.toFixed(2) ?? "unknown"}★ · demand ${sec.target_demand?.toFixed(1) ?? "unknown"}`}>
+          <Card className="map-suggestion-card" key={sec.skill} title={sec.title} hint={`${sec.eligible} comfort-level maps · adjusted ${sec.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★ · target ${sec.target_stars?.toFixed(2) ?? "unknown"}★ · demand ${sec.target_demand?.toFixed(1) ?? "unknown"}`}>
             {fitNotice && <Alert tone="warn">{fitNotice}</Alert>}
             <MapTable key={`${sec.skill}:${sec.eligible}:${sec.maps[0]?.md5 ?? ""}:${sec.skill_adjusted_stars}`} maps={sec.maps} onHide={(m) => hide.mutate([m.md5])} />
             {!sec.eligible && <p className="small muted">{Object.entries(sec.excluded ?? {}).map(([reason, count]) => `${reason}: ${count}`).join(" · ")}</p>}

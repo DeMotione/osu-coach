@@ -9,7 +9,6 @@ import pandas as pd
 from osu_coach.profile.domain import Profile
 from osu_coach.settings.domain import Setup
 from osu_coach.tips.domain.common import Tip, _nan, _pct
-from osu_coach.tips.domain.tablet import mm_per_osu_px
 
 
 def _miss_cause_tip(p: Profile, s: Setup):
@@ -110,8 +109,7 @@ def _aim_miss_where(p: Profile) -> dict[str, int]:
 def _aim_miss_actions(p: Profile) -> list[str]:
     jump_advice = [
         "Focus practice on aim first (the 'Jump aim' playlist in Goals & Training).",
-        "Your tablet area / sensitivity is checked from your jumps (Aim page → Aim calibration); a "
-        "separate tip appears only if it is off — otherwise it's precision, not calibration.",
+        "If Setup Tips says to keep your tablet area / sensitivity, it's precision, not your setup.",
     ]
     where = _aim_miss_where(p)
     total = sum(where.values())
@@ -175,15 +173,8 @@ def _quadrant_tips(p: Profile, s: Setup):
         f"You miss {_pct(w['miss_rate'])} of notes in the {q} quadrant vs {_pct(w['rest_miss_rate'])} "
         f"elsewhere ({w['relative_risk']:.1f}× more, {w['misses']} misses of {w['objects']} notes)."
     )
-    if not w["significant"]:
-        return [
-            Tip(
-                "Quadrant",
-                f"Most misses happen in the {q} quadrant (not yet a clear pattern)",
-                1,
-                evidence + " The difference is still small/noisy — check again after more replays.",
-            )
-        ]
+    if not w["significant"]:  # still noise: the Aim page shows it, there is nothing to do yet
+        return []
     vx, vy = _QUAD_VEC[q]
     dx, dy = w.get("mean_dx", 0.0) or 0.0, w.get("mean_dy", 0.0) or 0.0
     toward_corner = (dx * vx + dy * vy) / math.sqrt(2)
@@ -200,13 +191,6 @@ def _quadrant_tips(p: Profile, s: Setup):
                 "Do the corner test: rest your hand in your normal position and touch each corner "
                 "of the area — the weak corner must be reachable without stretching or lifting."
             )
-            mm = mm_per_osu_px(s)
-            if mm:
-                actions.append(
-                    f"Shift the area about {abs(dx * mm[0]):.1f} mm {'left' if dx < 0 else 'right'} and "
-                    f"{abs(dy * mm[1]):.1f} mm {'up' if dy < 0 else 'down'} so that corner sits closer to "
-                    "your hand (or move the tablet itself a little)."
-                )
         elif toward_corner > 1.0:
             actions.append(
                 f"You overshoot towards that corner by ~{toward_corner:.1f} px: slow the movement "

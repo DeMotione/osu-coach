@@ -96,10 +96,9 @@ def test_overview_explains_every_skill(analysed):
         and first["stars_off"] == 1
         and first["weight"] == pytest.approx(0.61, abs=0.01)
     )
-    assert ov["kpis"]["replays"] == 3 and 0 < ov["kpis"]["accuracy"] <= 1
+    assert ov["level"]["replays"] == 3 and 0 < ov["kpis"]["accuracy"] <= 1
     shares = sum(c["share"] for c in ov["miss_causes"])
     assert shares == pytest.approx(1.0) if ov["miss_causes"] else shares == 0
-    assert len(ov["top_tips"]) <= 3 and not any(t["title"].endswith("fits") for t in ov["top_tips"])
 
 
 def test_aim_page_shapes(analysed):
@@ -162,32 +161,7 @@ def test_level_override_is_used_and_remembered(client):
     assert client.get("/api/profile/overview").json()["level"]["override"] is False
 
 
-# ------------------------------------------------------------------ tips & setup
-REG = {
-    "n": 500,
-    "scale_x": 1.0,
-    "scale_y": 1.0,
-    "rotation_deg": 0.0,
-    "offset_x": 8.0,
-    "offset_y": -4.0,
-    "offset_se": 0.2,
-    "residual_px": 15.0,
-    "radius": 36.5,
-}
-SAYO = {
-    "keyboard": "sayo",
-    "sayo_stroke_mm": 4.0,
-    "sayo_trigger_mm": 0.4,
-    "sayo_release_mm": 0.35,
-    "sayo_rt": True,
-    "sayo_rt_trigger_mm": 0.1,
-    "sayo_rt_release_mm": 0.15,
-    "sayo_full_stroke": False,
-    "sayo_rt_upper_mm": 0.1,
-    "sayo_rt_lower_mm": 3.8,
-}
-
-
+# ------------------------------------------------------------------ tips and setup tips
 @pytest.fixture(scope="module")
 def small_profile():
     names = ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr"]
@@ -200,36 +174,27 @@ def _with_profile(client, monkeypatch, prof):
     return ws
 
 
-def test_tips_page_shows_tablet_area_and_sayo_settings(client, monkeypatch, small_profile):
-    ws = _with_profile(client, monkeypatch, dataclasses.replace(small_profile, regression=REG))
+def test_setup_tips_page(client, monkeypatch, small_profile):
+    """Setup Tips: one piece of advice per check of the player's devices, with what to change or why to keep it."""
+    ws = _with_profile(client, monkeypatch, small_profile)
     save_settings(
-        {
-            "setup_saved": True,
-            "device": "tablet",
-            "area_w_mm": 100.0,
-            "area_h_mm": 56.25,
-            "area_x_mm": 76.0,
-            "area_y_mm": 47.0,
-            **SAYO,
-        },
+        {"setup_saved": True, "device": "tablet", "area_w_mm": 100.0, "area_h_mm": 56.25, "keyboard": "sayo"},
         ws.cache_dir,
     )
-    page = client.get("/api/profile/tips").json()
-    area = page["tablet_area"]
-    assert (area["now_w"], area["now_h"], area["now_x"], area["now_y"]) == (100, 56.25, 76, 47)
-    assert area["x"] != 76  # the 8 px offset moves the area
-    sayo = next(t for t in page["tips"] if t["category"] == "Keys / SayoDevice")["sayo"]
-    rows = {r["setting"]: r for r in sayo}
-    assert "RT Lower Bound" in rows and rows["Trigger"]["now"] == 0.4 and rows["RT Mode"]["now"] is True
-    assert page["calibration"]["lines"] and page["setup"]["keyboard"] == "sayo" and page["setup_saved"]
-    assert page["practice_plan"]
+    page = client.get("/api/profile/setup-tips").json()
+    assert page["setup"]["keyboard"] == "sayo" and page["setup_saved"]
+    keys = [a["key"] for a in page["advice"]]
+    assert {"offset", "keys"} <= set(keys) and ("area_size" in keys) and "sensitivity" not in keys
+    order = ["change", "unknown", "keep"]
+    assert [a["verdict"] for a in page["advice"]] == sorted((a["verdict"] for a in page["advice"]), key=order.index)
+    assert all(a["why"] for a in page["advice"])
+    tips = client.get("/api/profile/tips").json()
+    assert "calibration" not in tips and tips["practice_plan"]
+    assert not any(t["category"].startswith(("Setup", "Keys", "Tablet")) for t in tips["tips"])
 
 
-def test_tip_settings_are_listed_as_text(client, monkeypatch, small_profile):
-    _with_profile(client, monkeypatch, dataclasses.replace(small_profile, regression={**REG, "rotation_deg": 9.0}))
-    tips = client.get("/api/profile/tips").json()["tips"]
-    rotation = next(t for t in tips if "rotated" in t["title"])
-    assert {"name": "rotation_deg", "value": "9.0"} in rotation["settings"]
+def test_setup_tips_need_an_analysis(client):
+    assert client.get("/api/profile/setup-tips").json()["code"] == "no_profile"
 
 
 def _long_streams(n_runs, length, err_fn, seed=3, bpm=200.0):

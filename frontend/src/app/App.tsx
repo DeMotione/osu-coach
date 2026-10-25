@@ -15,6 +15,7 @@ const AimPage = lazy(() => import("../pages/AimPage"));
 const TappingPage = lazy(() => import("../pages/TappingPage"));
 const SlidersReadingPage = lazy(() => import("../pages/SlidersReadingPage"));
 const TipsPage = lazy(() => import("../pages/TipsPage"));
+const SetupTipsPage = lazy(() => import("../pages/SetupTipsPage"));
 const MapsPage = lazy(() => import("../pages/MapsPage"));
 const SkillsPage = lazy(() => import("../pages/SkillsPage"));
 const NotFoundPage = lazy(() => import("../pages/NotFoundPage"));
@@ -38,6 +39,7 @@ export function App() {
                 <Route path="tapping" element={<TappingPage />} />
                 <Route path="sliders-reading" element={<SlidersReadingPage />} />
                 <Route path="tips" element={<TipsPage />} />
+                <Route path="setup" element={<SetupTipsPage />} />
                 <Route path="maps" element={<MapsPage />} />
                 <Route path="skills" element={<SkillsPage />} />
                 <Route path="*" element={<NotFoundPage />} />

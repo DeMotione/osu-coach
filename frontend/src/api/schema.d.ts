@@ -394,8 +394,29 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Tips & Setup: calibration, tips, practice plan */
+        /** Tips: what to practise, and the practice plan */
         get: operations["tips_api_profile_tips_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profile/setup-tips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Setup Tips: what to change in your setup, and what to keep
+         * @description Tablet area or sensitivity, audio offset and keys: a change only when it is big enough to feel and your misses
+         *     show it costs you, with the exact new values.
+         */
+        get: operations["setup_tips_api_profile_setup_tips_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -731,10 +752,6 @@ export interface components {
     schemas: {
         /** AimKpis */
         AimKpis: {
-            /** Aim Miss Share */
-            aim_miss_share: number | null;
-            /** Speed Aim Miss Share */
-            speed_aim_miss_share: number | null;
             /** Jump Miss Rate */
             jump_miss_rate: number | null;
             /** Near Miss Share */
@@ -758,7 +775,6 @@ export interface components {
             distances: components["schemas"]["DistanceRow"][];
             /** Angles */
             angles: components["schemas"]["AngleRow"][];
-            regression: components["schemas"]["Regression"] | null;
         };
         /** AimSplit */
         AimSplit: {
@@ -1028,27 +1044,6 @@ export interface components {
             reason: string;
             /** Share */
             share: number;
-        };
-        /** Calibration */
-        Calibration: {
-            /** Scale */
-            scale: number;
-            /**
-             * Step
-             * @description Area / sensitivity change as a fraction; 0 = keep.
-             */
-            step: number;
-            /** Now */
-            now: string | null;
-            /** Suggested */
-            suggested: string | null;
-            /** Lines */
-            lines: string[];
-            /**
-             * Device
-             * @enum {string}
-             */
-            device: "tablet" | "mouse";
         };
         /** CheckEvent */
         CheckEvent: {
@@ -2073,7 +2068,6 @@ export interface components {
             kpis: components["schemas"]["OverviewKpis"];
             /** Skills */
             skills: components["schemas"]["SkillScore"][];
-            reading_split: components["schemas"]["ReadingSplit"];
             /**
              * Few Data
              * @description Skills measured on few maps or notes.
@@ -2094,8 +2088,6 @@ export interface components {
             /** Miss Causes */
             miss_causes: components["schemas"]["MissCause"][];
             aim_split: components["schemas"]["AimSplit"] | null;
-            /** Top Tips */
-            top_tips: components["schemas"]["TipOut"][];
             /** Sim Exact Share */
             sim_exact_share: number | null;
             /** Sim Agreement */
@@ -2103,18 +2095,10 @@ export interface components {
         };
         /** OverviewKpis */
         OverviewKpis: {
-            /** Replays */
-            replays: number;
-            /** Maps */
-            maps: number;
-            /** Weighted Replays */
-            weighted_replays: number;
             /** Play Minutes */
             play_minutes: number | null;
             /** Comfort Stars */
             comfort_stars: number | null;
-            /** Ur */
-            ur: number | null;
             /** Misses Per 100 */
             misses_per_100: number | null;
             /** Accuracy */
@@ -2399,43 +2383,6 @@ export interface components {
             /** End Object Share */
             end_object_share: number | null;
         };
-        /** ReadingSplit */
-        ReadingSplit: {
-            /** Low Ar Score */
-            low_ar_score: number | null;
-            /** Low Ar Maps */
-            low_ar_maps: number;
-            /** High Ar Score */
-            high_ar_score: number | null;
-            /** High Ar Maps */
-            high_ar_maps: number;
-        };
-        /** Regression */
-        Regression: {
-            /** N */
-            n: number;
-            /** Scale X */
-            scale_x: number;
-            /** Scale Y */
-            scale_y: number;
-            /** Rotation Deg */
-            rotation_deg: number;
-            /** Offset X */
-            offset_x: number;
-            /** Offset Y */
-            offset_y: number;
-        };
-        /** SayoRow */
-        SayoRow: {
-            /** Setting */
-            setting: string;
-            /** Now */
-            now: number | boolean;
-            /** Suggested */
-            suggested: number | boolean;
-            /** Changed */
-            changed: boolean;
-        };
         /** ScanJob */
         ScanJob: {
             /** Id */
@@ -2601,6 +2548,49 @@ export interface components {
             /** Auto Analyse */
             auto_analyse?: boolean | null;
         };
+        /** SetupAdvice */
+        SetupAdvice: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "area_size" | "sensitivity" | "area_position" | "area_rotation" | "offset" | "keys";
+            /** Title */
+            title: string;
+            /**
+             * Verdict
+             * @description change = worth changing (big enough to feel, and your misses show it costs you); keep; unknown = not enough data yet.
+             * @enum {string}
+             */
+            verdict: "change" | "keep" | "unknown";
+            /**
+             * Why
+             * @description One short sentence.
+             */
+            why: string;
+            /** Changes */
+            changes: components["schemas"]["SetupChange"][];
+            /**
+             * Where
+             * @description Where to change it.
+             */
+            where: string | null;
+        };
+        /** SetupChange */
+        SetupChange: {
+            /** Setting */
+            setting: string;
+            /**
+             * Now
+             * @description The value now; null when it wasn't entered in the setup.
+             */
+            now: string | null;
+            /**
+             * To
+             * @description What to set it to: a value, or a direction when the value now is unknown.
+             */
+            to: string;
+        };
         /**
          * SetupModel
          * @description The player's setup: makes the tips concrete (tablet area, sensitivity, keyboard / SayoDevice).
@@ -2682,6 +2672,17 @@ export interface components {
             sayo_rt_upper_mm?: number | null;
             /** Sayo Rt Lower Mm */
             sayo_rt_lower_mm?: number | null;
+        };
+        /** SetupTipsPage */
+        SetupTipsPage: {
+            setup: components["schemas"]["SetupModel"];
+            /** Setup Saved */
+            setup_saved: boolean;
+            /**
+             * Advice
+             * @description The changes first, then what can't be told yet, then what to keep.
+             */
+            advice: components["schemas"]["SetupAdvice"][];
         };
         /** SetupUpdate */
         SetupUpdate: {
@@ -3068,29 +3069,6 @@ export interface components {
             /** Unmeasured Skills */
             unmeasured_skills?: string[];
         };
-        /** TabletArea */
-        TabletArea: {
-            /** W */
-            w: number;
-            /** H */
-            h: number;
-            /** X */
-            x: number | null;
-            /** Y */
-            y: number | null;
-            /** Now W */
-            now_w: number;
-            /** Now H */
-            now_h: number;
-            /** Now X */
-            now_x: number | null;
-            /** Now Y */
-            now_y: number | null;
-            /** Changed */
-            changed: boolean;
-            /** Why */
-            why: string[];
-        };
         /** TappingKpis */
         TappingKpis: {
             /** Ur */
@@ -3165,11 +3143,6 @@ export interface components {
             actions: string[];
             /** Settings */
             settings: components["schemas"]["TipSetting"][];
-            /**
-             * Sayo
-             * @description SayoDevice values now → to try (Keys / SayoDevice tip).
-             */
-            sayo: components["schemas"]["SayoRow"][] | null;
         };
         /** TipSetting */
         TipSetting: {
@@ -3183,8 +3156,6 @@ export interface components {
             setup: components["schemas"]["SetupModel"];
             /** Setup Saved */
             setup_saved: boolean;
-            calibration: components["schemas"]["Calibration"] | null;
-            tablet_area: components["schemas"]["TabletArea"] | null;
             /** Tips */
             tips: components["schemas"]["TipOut"][];
             /** Practice Plan */
@@ -4030,6 +4001,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TipsPage"];
+                };
+            };
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    setup_tips_api_profile_setup_tips_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupTipsPage"];
                 };
             };
             /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */

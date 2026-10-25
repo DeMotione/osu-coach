@@ -7,25 +7,27 @@ import math
 from osu_coach.profile.domain import Profile
 from osu_coach.settings.domain import Setup
 from osu_coach.tips.domain.common import Tip, _nan, _pct
+from osu_coach.tips.domain.setup import SAME_BIAS, timing_bias
 
 
 def _timing_tips(p: Profile, s: Setup):
     t = p.tapping
     tips = []
     me, n = t.get("mean_error"), p.overview.get("objects", 0)
-    if not _nan(me) and abs(me) >= 7 and n >= 300:
+    bias = timing_bias(p)
+    offset = bias is not None and bias["same"] >= SAME_BIAS  # the same on every map: Setup Tips → Audio offset
+    if not _nan(me) and abs(me) >= 7 and n >= 300 and not offset:
         word = "early" if me < 0 else "late"
         tips.append(
             Tip(
                 "Accuracy",
                 f"You hit {abs(me):.0f} ms {word} on average",
                 2,
-                f"Mean hit error {me:+.1f} ms over {n} notes (UR {t.get('ur', math.nan):.0f}).",
+                f"Mean hit error {me:+.1f} ms over {n} notes (UR {t.get('ur', math.nan):.0f}), not the same on every "
+                "map, so it's your timing rather than the offset.",
                 [
-                    "If this is the same on every map, it is an offset problem: lazer → Settings → Audio → "
-                    "'Calibrate using last play'; stable → Options → Audio → Offset wizard.",
-                    f"If it is mostly on jumps, you are {'rushing' if me < 0 else 'reacting'} — tap with the "
-                    "music, not when the cursor arrives.",
+                    f"You are {'rushing' if me < 0 else 'reacting'}: tap with the music, not when the cursor arrives.",
+                    "Turn on the hit-error meter and keep the marks in the middle.",
                 ],
                 {"bias_ms": round(me, 1)},
             )
