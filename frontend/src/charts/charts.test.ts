@@ -5,7 +5,7 @@ import { circle, merge, niceMax, responsive } from "./base";
 import { mmss, playTimingChart, rangeStats } from "./check";
 import { MISS_SHORT, compareBars, compareHover, missCauses } from "./overview";
 import { alpha, chartTheme, heat, scoreColor, C } from "./palette";
-import { goalsChart } from "./progress";
+import { goalsChart, skillsChart, starsChart } from "./progress";
 import { timingChart } from "./tapping";
 
 const t = chartTheme(true);
@@ -236,3 +236,40 @@ describe("a skill the maps haven't tested to its limit", () => {
     expect(compareHover(stamina, comfort, 4.8)).toContain(`To see your full score: ${needs}`);
   });
 });
+
+describe("progress charts start where their data does", () => {
+  const row = (key: string, extra: Partial<Schemas["PeriodRow"]> = {}): Schemas["PeriodRow"] => ({
+    key,
+    plays: 3,
+    maps: 3,
+    new_maps: 3,
+    minutes: 10,
+    comfort_stars: null,
+    avg_stars: null,
+    max_stars_passed: null,
+    max_stars_fc: null,
+    accuracy: 0.9,
+    misses_per_100: 3,
+    ur: null,
+    stream_bpm: null,
+    few_plays: true,
+    skills: { aim: null },
+    ...extra,
+  });
+  // plays saved since 2017, skill scores only from 2021-07 (months with 5+ plays)
+  const rows = [row("2017-11"), row("2017-12"), row("2021-07", { skills: { aim: 66 }, comfort_stars: 5.5 }), row("2021-08", { skills: { aim: 67 } })];
+  const keys = (o: AnyOption) => (o.xAxis as { data: string[] }).data;
+
+  it("skills by month: from the first month with a skill score", () => {
+    expect(keys(skillsChart(rows, [{ key: "aim", label: "Jump aim" }], t) as AnyOption)).toEqual(["2021-07", "2021-08"]);
+  });
+
+  it("star rating by month: from the first month with a star rating", () => {
+    expect(keys(starsChart(rows, t) as AnyOption)).toEqual(["2021-07", "2021-08"]);
+  });
+
+  it("no values at all: an empty chart, not empty months", () => {
+    expect(keys(skillsChart([row("2017-11")], [{ key: "aim", label: "Jump aim" }], t) as AnyOption)).toEqual([]);
+  });
+});
+
