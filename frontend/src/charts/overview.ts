@@ -50,8 +50,11 @@ export function compareHover(s: Skill, target: CompareTarget, comfort: number, h
     if (help) html += p(`To raise it: ${help.practise}`);
     return html;
   }
-  if (!row || row.score === null || s.score === null)
-    return `<b>${esc(s.label)} at ${esc(at)}: ${esc(s.score_text)}</b>${help ? p(help.what) : ""}`;
+  if (!row || row.score === null || s.score === null) {
+    // no score: what to play to get one (or, with a lower bound, to see the full score)
+    const needs = s.needs ? p(`${s.at_least !== null ? "To see your full score" : "To get a score"}: ${s.needs}`) : "";
+    return `<b>${esc(s.label)} at ${esc(at)}: ${esc(s.score_text)}</b>${needs}${help ? p(help.what) : ""}`;
+  }
   const change = row.change ?? 0;
   let html = `<b>${esc(s.label)} at ${esc(at)}: ${row.score.toFixed(0)}${target.comfort ? "" : ` (${esc(changeLabel(change))})`}</b>`;
   if (help) html += p(help.what);
@@ -78,9 +81,11 @@ export function compareBars(skills: Skill[], target: CompareTarget, comfort: num
   // a skill measured at this star rating that has no score yet (consistency): a grey bar saying so, nothing faded
   const missing = skills.map((s, i) => here[i] === null && !!rowOf[s.key]?.needs);
   const before = skills.map((s, i) => (target.comfort || missing[i] ? null : s.score));
+  // at the comfort level, a skill the maps haven't tested to its limit shows its lower bound as a light bar
+  const atLeast = skills.map((s, i) => (target.comfort && here[i] === null ? s.at_least : null));
   const text = (i: number) => {
     const v = here[i];
-    if (v === null) return "–";
+    if (v === null) return atLeast[i] !== null ? `≥ ${atLeast[i]!.toFixed(0)}` : "–";
     const change = rowOf[skills[i].key]?.change ?? 0;
     return target.comfort ? v.toFixed(0) : `${v.toFixed(0)} (${changeLabel(change)})`;
   };
@@ -137,7 +142,13 @@ export function compareBars(skills: Skill[], target: CompareTarget, comfort: num
                   itemStyle: { color: alpha(C.muted, 0.18), borderRadius: [0, 3, 3, 0] },
                   label: { show: true, position: "insideLeft", color: t.muted, formatter: "Not enough data" },
                 }
-              : { value: v ?? 0, itemStyle: { color: scoreColor(v), borderRadius: [0, 3, 3, 0] }, label: label(!longer(i)) },
+              : atLeast[i] !== null
+                ? {
+                    value: atLeast[i],
+                    itemStyle: { color: alpha(scoreColor(atLeast[i]), 0.35), borderRadius: [0, 3, 3, 0] },
+                    label: { show: true, color: t.muted },
+                  }
+                : { value: v ?? 0, itemStyle: { color: scoreColor(v), borderRadius: [0, 3, 3, 0] }, label: label(!longer(i)) },
           ),
           label: labels,
         },

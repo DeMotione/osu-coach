@@ -268,3 +268,20 @@ def test_tapping_page_shows_stream_stamina_and_weak_speeds(client, monkeypatch, 
     assert f["practice_maps"]["min_notes"] == fb["practice_notes"][0]
     weak = [r["bpm"] for r in t["stream_speed"]["rows"] if r["weak"]]
     assert weak == [200]
+
+
+def test_skills_not_tested_to_their_limit_show_a_lower_bound(tmp_path, client):
+    """At a 12★ level the sample maps are far easier than expected, and nearly all of them are held: a skill they
+    don't test gets no score, but at least the score they show, and what to play to find the limit (e.g. stamina with
+    no dense enough stretch). Too few maps: how many more."""
+    scan(client, plays_folder(tmp_path, names=list(INDEX)))
+    analyse(client, player="*")
+    client.patch("/api/settings", json={"level_override": 12.0})
+    skills = {s["key"]: s for s in client.get("/api/profile/overview").json()["skills"]}
+    for s in (s for s in skills.values() if s["at_least"] is not None):  # see test_ratings for one that is
+        assert s["score"] is None and 0 <= s["at_least"] < 50
+        assert s["score_text"].startswith(f"at least {s['at_least']:.0f}")
+        assert "below what your comfort level expects" in s["needs"]
+    flow = skills["flow_aim"]
+    assert flow["score"] is None and flow["at_least"] is None and flow["needs"].startswith("Play 1 more different map")
+    assert all(s["at_least"] is None and s["needs"] is None for s in skills.values() if s["score"] is not None)

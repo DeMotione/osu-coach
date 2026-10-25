@@ -8271,6 +8271,18 @@
             ],
             "title": "Needs",
             "description": "Without a score: what to play to get one. null when it can't be said."
+          },
+          "at_least": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At Least",
+            "description": "Without a score because nothing played was demanding enough (and nearly all of it was held): the score that much shows, a lower bound (0–100). null otherwise."
           }
         },
         "type": "object",
@@ -8283,7 +8295,8 @@
           "too_few_misses",
           "n",
           "facts",
-          "needs"
+          "needs",
+          "at_least"
         ],
         "title": "SkillScore"
       },

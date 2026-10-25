@@ -2814,6 +2814,11 @@ export interface components {
              * @description Without a score: what to play to get one. null when it can't be said.
              */
             needs: string | null;
+            /**
+             * At Least
+             * @description Without a score because nothing played was demanding enough (and nearly all of it was held): the score that much shows, a lower bound (0–100). null otherwise.
+             */
+            at_least: number | null;
         };
         /** SkillValue */
         SkillValue: {

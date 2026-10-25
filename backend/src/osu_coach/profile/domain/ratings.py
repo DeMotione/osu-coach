@@ -78,11 +78,16 @@ def _expected(skill: str, theta: float, *, duration: int | None = None) -> float
     }.get(skill, math.nan)
 
 
+# Slider control read about a tenth too high for everyone after #54 lowered its reference: its scores are scaled down
+SCORE_FACTOR = {"sliders": 0.9}
+
+
 def _score(skill: str, value: float | None, expected: float, *, inverse: bool = False) -> float | None:
     if value is None or not math.isfinite(value) or not math.isfinite(expected) or expected <= 0:
         return None
     ratio = max(value, 1e-6) / expected
-    return round(float(np.clip(50 + (-1 if inverse else 1) * POINTS[skill] * math.log2(ratio), 0, 100)), 1)
+    score = np.clip(50 + (-1 if inverse else 1) * POINTS[skill] * math.log2(ratio), 0, 100)
+    return round(float(score * SCORE_FACTOR.get(skill, 1.0)), 1)
 
 
 def _accuracy_sigma(theta: float) -> float:
@@ -107,6 +112,37 @@ def _accuracy_score(value: float | None, expected: float, theta: float) -> float
     low_blend = min(1.0, max(0.0, ACCURACY_TRANSITION_STARS - theta))
     points = POINTS["accuracy"] + 5 * low_blend
     return round(float(np.clip(50 - points * math.log2(max(value, 1e-6) / expected), 0, 100)), 1)
+
+
+# what each skill is measured on, the unit of that measure, and the maps that test it
+_TESTS = {
+    "aim": ("the cursor speed of your hardest jumps", "{:.1f} circle widths/s", "jumps", "bigger or faster jumps"),
+    "flow_aim": (
+        "the cursor speed of your fastest spaced streams",
+        "{:.1f} circle widths/s",
+        "spaced streams",
+        "wider or faster spaced streams",
+    ),
+    "speed": ("your fastest bursts and streams", "{:.0f} BPM", "bursts or streams", "faster bursts and streams"),
+    "sliders": ("the difficulty of your hardest sliders", "{:.1f}", "sliders", "long, fast or curvy sliders"),
+    "reading": ("", "", "", ""),  # never untested; too few maps: see _needs
+}
+
+
+def _needs(skill: str, maps: int, untested: bool, tested: float, expected: float) -> str:
+    """What to play to get a score for ``skill``: harder maps when everything played was easier than expected and
+    nearly all of it was held, else more maps."""
+    what, unit, noun, harder = _TESTS[skill]
+    if untested:
+        return (
+            f"You held almost everything you played, but {what} so far ({unit.format(tested)}) is below what your "
+            f"comfort level expects ({unit.format(expected)}): play maps with {harder} to find your limit."
+        )
+    more = max(1, MIN_MAPS - maps)
+    maps_text = f"{more} more different map{'s' if more > 1 else ''}"
+    if skill == "reading":
+        return f"Pass {maps_text} to get a score."
+    return f"Play {maps_text} with {noun} to get a score."
 
 
 def _aggregate(rows: list[dict]) -> tuple[float | None, list[dict]]:
@@ -182,13 +218,17 @@ def ratings(objects: pd.DataFrame, metas: pd.DataFrame, theta: float | None) -> 
         exposure = max((row["exposure"] for row in chosen if math.isfinite(row["exposure"])), default=0.0)
         share = float(np.mean([row["success_share"] for row in chosen])) if chosen else None
         untested = bool(chosen and skill != "reading" and exposure < expected and share >= 0.95)
+        score = _score(skill, value, expected) if len(chosen) >= MIN_MAPS and not untested else None
         result[skill] = {
-            "score": _score(skill, value, expected) if len(chosen) >= MIN_MAPS and not untested else None,
+            "score": score,
             "maps": len(chosen),
             "measured": value,
             "expected": expected,
             "tested_demand": exposure,
             "success_share": share,
+            # held ~everything played, all of it easier than expected: the skill is at least as good as that
+            "at_least": _score(skill, exposure, expected) if untested else None,
+            "needs": None if score is not None else _needs(skill, len(chosen), untested, exposure, expected),
             "reason": "Insufficient challenge"
             if untested
             else f"Need {MIN_MAPS} relevant map/mod configurations"
@@ -214,7 +254,8 @@ def ratings(objects: pd.DataFrame, metas: pd.DataFrame, theta: float | None) -> 
         expected = _expected("stamina", theta, duration=duration)
         exposure = max((r["bpm"] for r in demands.to_dict("records") if r["window"] == duration), default=0.0)
         share = float(np.mean([r["value"] / max(r["exposure"], 1e-6) for r in chosen]))
-        usable = len(chosen) >= MIN_MAPS and not (exposure < expected and share >= 0.95)
+        untested = exposure < expected and share >= 0.95
+        usable = len(chosen) >= MIN_MAPS and not untested
         duration_parts.append(
             {
                 "duration": duration,
@@ -222,14 +263,35 @@ def ratings(objects: pd.DataFrame, metas: pd.DataFrame, theta: float | None) -> 
                 "maps": len(chosen),
                 "tested_demand": exposure,
                 "success_share": share,
+                "expected": expected,
+                "untested": untested,
             }
         )
         if usable:
             parts.append(_score("stamina", value, expected))
+    # no duration scored, but some only because nothing was demanding enough: a lower bound, and what to play
+    open_parts = [d for d in duration_parts if d["untested"]]
+    at_least = (
+        round(float(np.mean([_score("stamina", d["tested_demand"], d["expected"]) for d in open_parts])), 1)
+        if open_parts and not parts
+        else None
+    )
+    stamina_needs = None
+    if not parts:
+        first = open_parts[0] if open_parts else None
+        stamina_needs = (
+            f"You kept up with almost every stretch you played, but your densest {first['duration']}-second stretch so "
+            f"far ({first['tested_demand']:.0f} BPM of 1/4 notes) is below what your comfort level expects "
+            f"({first['expected']:.0f} BPM): play maps with longer streams or dense 1/4 sections."
+            if first
+            else f"Play {MIN_MAPS} different maps with streams or dense 1/4 sections of at least 10 seconds."
+        )
     result["stamina"] = {
         "score": round(float(np.mean(parts)), 1) if parts else None,
         "maps": int(duration_rows["map"].nunique()) if not duration_rows.empty else 0,
         "parts": duration_parts,
+        "at_least": at_least,
+        "needs": stamina_needs,
         "reason": "Mean of measured duration scores; easy or untested durations stay unknown",
     }
     singles = P[(P["run_len"] < 3) & P["head_hit"].astype(bool)]

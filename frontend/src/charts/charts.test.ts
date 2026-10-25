@@ -45,7 +45,7 @@ describe("helpers", () => {
   });
 });
 
-const skill = (key: string, score: number | null, needs: string | null = null): Schemas["SkillScore"] => ({
+const skill = (key: string, score: number | null, needs: string | null = null, atLeast: number | null = null): Schemas["SkillScore"] => ({
   key,
   label: `${key} label`,
   score,
@@ -55,6 +55,7 @@ const skill = (key: string, score: number | null, needs: string | null = null): 
   n: 100,
   facts: ["100 notes"],
   needs,
+  at_least: atLeast,
 });
 
 describe("overview charts", () => {
@@ -211,5 +212,27 @@ describe("goalsChart", () => {
     expect(o.series[0].data).toEqual([["2026-10-18", 38], ["2026-10-23", 23]]); // a day without a score is left out
     expect(o.series[1].data).toEqual([["2026-10-24", 66], ["2026-11-07", 70]]);
     expect(o.series[0].markLine?.data).toEqual([{ xAxis: "2026-10-24" }]);
+  });
+});
+
+describe("a skill the maps haven't tested to its limit", () => {
+  it("shows its lower bound at the comfort level as a light bar, and its hover says what to play", () => {
+    const needs = "play maps with longer streams or dense 1/4 sections";
+    const stamina = { ...skill("stamina", null, needs, 41), score_text: "at least 41 · your maps haven't tested it to its limit yet" };
+    const comfort: Schemas["CompareTarget"] = {
+      stars: 4.8,
+      comfort: true,
+      locked: false,
+      skills: [{ key: "stamina", score: null, change: null, demand: null, maps: null, needs: null }],
+      weakest: null,
+      pass_chance: null,
+    };
+    const o = (compareBars([stamina], comfort, 4.8, t) as { baseOption: AnyOption }).baseOption;
+    const bar = (o.series![1].data as { value: number; itemStyle: { color: string } }[])[0];
+    expect(bar.value).toBe(41);
+    expect(bar.itemStyle.color).toBe(alpha(scoreColor(41), 0.35));
+    const label = (o.series![1].label as { formatter: (p: unknown) => string }).formatter([{ dataIndex: 0 }]);
+    expect(label).toBe("≥ 41");
+    expect(compareHover(stamina, comfort, 4.8)).toContain(`To see your full score: ${needs}`);
   });
 });
