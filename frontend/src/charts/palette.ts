@@ -3,7 +3,7 @@ export const C = {
   accent: "#ff66aa",
   good: "#88da20",
   bad: "#ff5a6e",
-  muted: "#9994a8",
+  muted: "#9a9a9a",
   info: "#66ccff",
   missRed: "#ff3b3b",
   warn: "#ffa51f",
@@ -15,7 +15,7 @@ export const C = {
 } as const;
 
 /** Dark text on a bright bar, and the outline of a marker on a plot: the darkest neutral of the CSS tokens. */
-export const INK = "#14111c";
+export const INK = "#141414";
 
 /** Lines / bars of several series, in order. */
 export const SERIES = [C.accent, C.info, C.purple, C.yellow, C.good, C.orange, C.cyan, C.brown];
@@ -35,30 +35,30 @@ export interface ChartTheme {
   heatLow: string;
 }
 
-/** Mirrors `--text`, `--muted`, `--surface` (the card) and `--raised` of `styles/tokens.css` (the ink neutrals, hue 255). */
+/** Mirrors `--text`, `--muted`, `--surface` (the card) and `--raised` of `styles/tokens.css` (true neutrals). */
 export function chartTheme(dark: boolean): ChartTheme {
   return dark
     ? {
         dark,
-        text: "#f8f7fc",
-        muted: "#b7b3c6",
-        line: "rgba(225,220,250,0.26)",
-        split: "rgba(225,220,250,0.1)",
-        tooltipBg: "#46405a",
-        tooltipBorder: "rgba(225,220,250,0.16)",
-        surface: "#24202f",
-        heatLow: "rgba(150,140,185,0.16)",
+        text: "#ffffff",
+        muted: "#b0b0b0",
+        line: "rgba(255,255,255,0.26)",
+        split: "rgba(255,255,255,0.08)",
+        tooltipBg: "#3b3b3b",
+        tooltipBorder: "rgba(255,255,255,0.1)",
+        surface: "#1c1c1c",
+        heatLow: "rgba(255,255,255,0.09)",
       }
     : {
         dark,
-        text: "#110f18",
-        muted: "#666175",
-        line: "rgba(40,30,90,0.2)",
-        split: "rgba(40,30,90,0.08)",
+        text: "#121212",
+        muted: "#616161",
+        line: "rgba(0,0,0,0.2)",
+        split: "rgba(0,0,0,0.07)",
         tooltipBg: "#ffffff",
-        tooltipBorder: "rgba(40,30,90,0.16)",
+        tooltipBorder: "rgba(0,0,0,0.12)",
         surface: "#ffffff",
-        heatLow: "rgba(140,130,185,0.14)",
+        heatLow: "rgba(0,0,0,0.06)",
       };
 }
 

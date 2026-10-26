@@ -24,10 +24,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-:root.is-mica-desktop body {
-  background: transparent;
-}
-
 ::selection {
   background: var(--accent-soft);
 }
