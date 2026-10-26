@@ -323,6 +323,49 @@ test.describe("after the setup", () => {
     }
   });
 
+  test("Where your clicks land: how to read it is in its hint; plays by star rating and by days with plays", async ({ page }) => {
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 820 });
+      await page.goto("/aim");
+      const card = page.locator(".clicks-card");
+      await expect(card.locator("canvas")).toBeVisible({ timeout: 60_000 });
+      await expect(card.locator(".card__title .hint")).toHaveAttribute("aria-label", /Each dot is one click/);
+      await expect(card.getByText("Each dot is one click")).toBeHidden();
+      await expect(card.getByText(/\d+ of \d+ plays/)).toBeVisible();
+      // side by side, the two filters line up: label lines, controls and bottoms
+      const lines = await card.locator(".labelled").evaluateAll((els) =>
+        els.map((e) => [e.firstElementChild!, e.lastElementChild!].map((c) => Math.round(c.getBoundingClientRect().top)).concat(Math.round(e.getBoundingClientRect().bottom)).join()),
+      );
+      if (width === 1280) expect(new Set(lines).size, `filters at ${width}px`).toBe(1);
+      expect(await layoutProblems(page), `aim at ${width}px`).toEqual([]);
+    }
+    const card = page.locator(".clicks-card");
+    const count = card.getByText(/\d+ of \d+ plays/);
+    const all = await count.innerText();
+    // the low handle to the top end: only the hardest plays count
+    const low = card.getByRole("slider", { name: "Lowest" });
+    if (await low.count()) {
+      await low.focus();
+      await page.keyboard.press("End");
+      await expect(count).not.toHaveText(all);
+      await page.keyboard.press("Home");
+      await expect(count).toHaveText(all);
+    }
+    // the calendar starts from the last day with plays; days without plays can't be picked
+    await card.getByRole("button", { name: /Played: all dates/ }).click();
+    const calendar = page.getByRole("dialog", { name: "Pick the first and the last day" });
+    await expect(calendar).toBeVisible();
+    expect(await layoutProblems(page)).toEqual([]);
+    await expect(calendar.locator(".calendar__day[aria-pressed=true]")).toHaveCount(1);
+    await expect(calendar.locator(".calendar__day:not(.has-plays)").first()).toBeDisabled();
+    await expect(calendar.getByRole("button", { name: "Next month" })).toBeDisabled();
+    await calendar.getByRole("button", { name: "Apply" }).click();
+    await expect(calendar).toBeHidden();
+    await expect(count).not.toHaveText(all);
+    await card.getByRole("button", { name: "All dates" }).click();
+    await expect(count).toHaveText(all);
+  });
+
   test("a big drop of replay files names only the first 15 (#37)", async ({ page }) => {
     await page.goto("/replays");
     const files = INDEX.flatMap((r) => [path.join(RES, "replays", r.replay), path.join(RES, "maps", `${r.md5}.osu`)]);

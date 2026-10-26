@@ -1343,10 +1343,350 @@ input[type="range"] {
   margin: auto;
 }
 
-.chart__caption {
+/* "Where your clicks land": how to read it is a long hint, so it opens below the title, wider, in paragraphs */
+.clicks-card .card__title .hint__bubble {
+  top: calc(100% + 8px);
+  bottom: auto;
+  max-width: min(420px, 80vw);
+  white-space: pre-line;
+}
+
+/* equal columns (one when the card is narrow); with one filter it takes the whole row */
+.clicks-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--s-3) var(--s-4);
+}
+
+/* a control under a line with its label on the left and its value on the right */
+.labelled {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.labelled__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+  min-height: 20px;
+}
+
+.labelled__value {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* two range inputs on one track: only their handles take the pointer */
+.range-slider__track {
+  position: relative;
+  height: 32px;
+}
+
+.range-slider__track::before,
+.range-slider__track::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  border-radius: 2px;
+  transform: translateY(-50%);
+}
+
+.range-slider__track::before {
+  left: 0;
+  right: 0;
+  background: var(--surface-3);
+}
+
+.range-slider__track::after {
+  left: var(--low);
+  right: calc(100% - var(--high));
+  background: var(--accent);
+}
+
+.range-slider__track input[type="range"] {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: none;
+  appearance: none;
+  pointer-events: none;
+}
+
+.range-slider__track input[type="range"]::-webkit-slider-runnable-track {
+  background: none;
+}
+
+.range-slider__track input[type="range"]::-moz-range-track {
+  background: none;
+}
+
+.range-slider__track input[type="range"]::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-line), 0 1px 2px rgb(0 0 0 / 0.3);
+  appearance: none;
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.range-slider__track input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-line);
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.range-slider__track input[type="range"]:focus-visible {
+  outline: none;
+}
+
+.range-slider__track input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: var(--focus);
+}
+
+.range-slider__track input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow: var(--focus);
+}
+
+/* ------------------------------------------------------------------ date range: a button and its calendar */
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.date-range__button {
+  flex: 1;
+  justify-content: flex-start;
+  min-width: 0;
+  height: 32px;
+  font-variant-numeric: tabular-nums;
+}
+
+.date-range__button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.date-range .btn--icon {
+  width: 32px;
+  height: 32px;
+}
+
+.calendar {
+  --band: color-mix(in srgb, var(--accent) 24%, transparent);
+  width: min(100% - 32px, 360px);
+  max-height: min(100% - 32px, 640px);
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--glass-edge), var(--elev-4);
+  overflow-y: auto;
+}
+
+.calendar::backdrop {
+  background: var(--overlay);
+  backdrop-filter: blur(6px);
+}
+
+.calendar__ends {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+}
+
+.calendar__ends > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--s-4) var(--s-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.calendar__ends > div + div {
+  border-left: 1px solid var(--border);
+}
+
+.calendar__ends span {
   font-size: var(--t-sm);
   color: var(--muted);
-  line-height: 1.5;
+}
+
+.calendar__month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-4) var(--s-4) var(--s-2);
+  font-size: var(--t-md);
+  font-weight: 500;
+}
+
+.calendar__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.calendar__step:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.calendar__step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.calendar__step svg {
+  width: 18px;
+  height: 18px;
+}
+
+.calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  row-gap: 6px;
+  padding: 0 var(--s-3);
+}
+
+.calendar__weekday {
+  padding: var(--s-2) 0;
+  text-align: center;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.calendar__day {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.calendar__day > span {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+}
+
+.calendar__day:hover:not(:disabled) > span {
+  background: var(--surface-3);
+}
+
+/* only days with plays can be picked; the days of the months around are fainter still */
+.calendar__day.has-plays {
+  font-weight: 600;
+}
+
+/* (the number fades, not the button: the range's band runs on through days without plays) */
+.calendar__day:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.calendar__day:disabled > span {
+  opacity: 0.6;
+}
+
+.calendar__day.is-outside > span {
+  opacity: 0.35;
+}
+
+/* the range: a band through the days, round at the start and end of each week and of the range */
+.calendar__day.is-in::before {
+  content: "";
+  position: absolute;
+  inset: 1px 0;
+  background: var(--band);
+}
+
+.calendar__day.is-in:nth-child(7n + 1)::before {
+  left: 4px;
+  border-radius: 17px 0 0 17px;
+}
+
+.calendar__day.is-in:nth-child(7n)::before {
+  right: 4px;
+  border-radius: 0 17px 17px 0;
+}
+
+/* (the 7 weekday names come first in the grid, so Mondays are children 7n + 1 and Sundays 7n) */
+.calendar__day.is-in.is-first::before {
+  left: 50%;
+}
+
+.calendar__day.is-in.is-last::before {
+  right: 50%;
+}
+
+.calendar__day.is-first:nth-child(7n)::before,
+.calendar__day.is-last:nth-child(7n + 1)::before {
+  display: none;
+}
+
+.calendar__day.is-in:hover:not(:disabled) > span {
+  background: none;
+}
+
+.calendar__day.is-end > span,
+.calendar__day.is-end:hover > span {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--accent);
+}
+
+.calendar__foot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+  padding: var(--s-4);
+}
+
+.calendar__action {
+  height: 44px;
+  border-radius: 999px;
 }
 
 /* 2 × 2 screen quadrants */

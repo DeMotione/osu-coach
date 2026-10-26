@@ -976,7 +976,7 @@
           "Analysis"
         ],
         "summary": "Where your clicks land",
-        "description": "``screen``: as on screen (a constant offset shows); ``movement``: jumps only, turned so every jump goes right\n(over / undershoot).",
+        "description": "``screen``: as on screen (a constant offset shows); ``movement``: jumps only, turned so every jump goes right\n(over / undershoot). Only the plays rated ``stars_min``–``stars_max`` ★ (both included) and played from\n``since`` up to ``until`` (not included; ISO 8601, UTC without an offset) count; each is open when left out.",
         "operationId": "clicks_api_profile_clicks_get",
         "parameters": [
           {
@@ -991,6 +991,74 @@
               "type": "string",
               "default": "screen",
               "title": "View"
+            }
+          },
+          {
+            "name": "stars_min",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stars Min"
+            }
+          },
+          {
+            "name": "stars_max",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stars Max"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Until"
             }
           }
         ],
@@ -3624,6 +3692,11 @@
             "type": "boolean",
             "title": "Enough"
           },
+          "plays": {
+            "type": "integer",
+            "title": "Plays",
+            "description": "Plays the clicks are from."
+          },
           "n": {
             "type": "integer",
             "title": "N",
@@ -3670,6 +3743,7 @@
         "required": [
           "view",
           "enough",
+          "plays",
           "n",
           "drawn",
           "x",

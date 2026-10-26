@@ -342,7 +342,8 @@ export interface paths {
         /**
          * Where your clicks land
          * @description ``screen``: as on screen (a constant offset shows); ``movement``: jumps only, turned so every jump goes right
-         *     (over / undershoot).
+         *     (over / undershoot). Only the plays rated ``stars_min``–``stars_max`` ★ (both included) and played from
+         *     ``since`` up to ``until`` (not included; ISO 8601, UTC without an offset) count; each is open when left out.
          */
         get: operations["clicks_api_profile_clicks_get"];
         put?: never;
@@ -1241,6 +1242,11 @@ export interface components {
             view: "screen" | "movement";
             /** Enough */
             enough: boolean;
+            /**
+             * Plays
+             * @description Plays the clicks are from.
+             */
+            plays: number;
             /**
              * N
              * @description All clicks.
@@ -3896,6 +3902,10 @@ export interface operations {
         parameters: {
             query?: {
                 view?: "screen" | "movement";
+                stars_min?: number | null;
+                stars_max?: number | null;
+                since?: string | null;
+                until?: string | null;
             };
             header?: never;
             path?: never;

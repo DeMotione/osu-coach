@@ -1,16 +1,20 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 
 import type { Schemas } from "../api/client";
-import { useAim, useClicks } from "../api/queries";
+import { useAim, useAnalysedReplays, useClicks } from "../api/queries";
 import { directionsChart, distanceChart } from "../charts/aim";
 import { Chart } from "../charts/Chart";
 import type { ChartTheme } from "../charts/palette";
 import { ClicksView } from "../components/Clicks";
 import { DataTable } from "../components/DataTable";
+import { DateRangePicker } from "../components/DateRangePicker";
 import { PlayfieldGrid, QuadrantGrid } from "../components/Heat";
+import { RangeSlider } from "../components/RangeSlider";
 import { EmptyState, QueryView } from "../components/states";
 import { Alert, Card, Page, Row, Segmented, Stat, Tiles } from "../components/ui";
+import { clickFilter, clicksCaption, starBounds } from "../lib/clicks";
+import { dayOf, type DayRange } from "../lib/dateRange";
 import { fmt, int, pct, signed } from "../lib/format";
 
 export default function AimPage() {
@@ -76,13 +80,31 @@ function AimBody({ aim }: { aim: Schemas["AimPage"] }) {
   );
 }
 
+const CLICKS_HINT = "The click that hit each note and the closest click of each aim miss, in circle radii from the note's centre.";
+
 function ClicksCard() {
   const [view, setView] = useState<"screen" | "movement">("screen");
-  const q = useClicks(view);
+  const replays = useAnalysedReplays();
+  const plays = useMemo(() => replays.data ?? [], [replays.data]);
+  const bounds = useMemo(() => starBounds(plays), [plays]);
+  const played = useMemo(() => new Set(plays.flatMap((r) => (r.played_at ? [dayOf(r.played_at)] : []))), [plays]);
+  const [stars, setStars] = useState<[number, number] | null>(null);
+  const [dates, setDates] = useState<DayRange | null>(null);
+  // the chart follows the slider once it stops moving
+  const [chosen, setChosen] = useState(stars);
+  useEffect(() => {
+    const t = setTimeout(() => setChosen(stars), 300);
+    return () => clearTimeout(t);
+  }, [stars]);
+  const filter = useMemo(() => clickFilter(chosen, bounds, dates), [chosen, bounds, dates]);
+  const q = useClicks(view, filter);
+  const [low, high] = stars ?? bounds ?? [0, 0];
+  const caption = q.data?.enough ? clicksCaption(q.data) : "";
   return (
     <Card
+      className="clicks-card"
       title="Where your clicks land"
-      hint="The click that hit each note and the closest click of each aim miss, in circle radii from the note's centre."
+      hint={caption ? `${CLICKS_HINT}\n\n${caption}` : CLICKS_HINT}
       actions={
         <Segmented
           label="View"
@@ -95,7 +117,29 @@ function ClicksCard() {
         />
       }
     >
-      {q.data ? <ClicksView clicks={q.data} /> : <div className="skeleton grow" style={{ minHeight: 360 }} />}
+      {/* two equal columns, each a label and its value over a control, one column on narrow cards */}
+      <div className="clicks-filters">
+        {bounds && bounds[1] > bounds[0] && (
+          <RangeSlider label="Star rating" min={bounds[0]} max={bounds[1]} step={0.1} value={[low, high]}
+            onChange={setStars} format={(v) => `${v.toFixed(1)}★`} />
+        )}
+        <div className="labelled">
+          <div className="labelled__head">
+            <span className="field__label">Played</span>
+            {q.data && plays.length > 0 && (
+              <span className="labelled__value">
+                {int(q.data.plays)} of {int(plays.length)} plays
+              </span>
+            )}
+          </div>
+          <DateRangePicker value={dates} onChange={setDates} played={played} label="Played" />
+        </div>
+      </div>
+      {q.data ? (
+        <ClicksView clicks={q.data} empty={Object.keys(filter).length ? "Not enough clicks in these plays" : undefined} />
+      ) : (
+        <div className="skeleton grow" style={{ minHeight: 360 }} />
+      )}
     </Card>
   );
 }

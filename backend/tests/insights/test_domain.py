@@ -149,3 +149,21 @@ def test_play_timing(analyses):
     assert t["window_300"] == pytest.approx(80 - 6 * od)
     assert t["top"] > 0 and t["length_ms"] >= max(t["time"])
     assert not math.isnan(np.nanmean(t["trend"]))
+
+
+def test_notes_of_plays_by_stars_and_date(prof):
+    R = prof.replays
+    stars = pd.to_numeric(R["stars"], errors="coerce")
+    dates = pd.to_datetime(R["date"], utc=True)
+    every = insights.notes_of_plays(prof)
+    assert len(every) == len(prof.objects)
+    top = R.loc[stars.idxmax(), "key"]
+    assert set(insights.notes_of_plays(prof, (float(stars.max()), None))["replay_key"]) == {top}
+    assert insights.notes_of_plays(prof, (None, float(stars.min()) - 0.1)).empty
+    first, last = dates.min(), dates.max()
+    newest = set(R.loc[dates == last, "key"])
+    assert set(insights.notes_of_plays(prof, since=last.to_pydatetime())["replay_key"]) == newest
+    assert newest.isdisjoint(insights.notes_of_plays(prof, until=last.to_pydatetime())["replay_key"])
+    # a naive time is UTC
+    naive = (first + pd.Timedelta(seconds=1)).tz_localize(None).to_pydatetime()
+    assert set(insights.notes_of_plays(prof, until=naive)["replay_key"]) == set(R.loc[dates == first, "key"])

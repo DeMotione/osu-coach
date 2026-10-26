@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Literal
+import datetime as dt
+from typing import Annotated, Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from osu_coach.app.deps import ProfileDep, WorkspaceDep
-from osu_coach.app.errors import responses
+from osu_coach.app.errors import Invalid, responses
 from osu_coach.dashboard import service as svc
 from osu_coach.dashboard.schemas import (
     AimPage,
@@ -42,11 +43,28 @@ def aim(ws: WorkspaceDep, p: ProfileDep) -> AimPage:
     return svc.aim(ws, p)
 
 
-@router.get("/clicks", summary="Where your clicks land")
-def clicks(ws: WorkspaceDep, p: ProfileDep, view: Literal["screen", "movement"] = "screen") -> Clicks:
+@router.get("/clicks", summary="Where your clicks land", responses=responses(422))
+def clicks(
+    ws: WorkspaceDep,
+    p: ProfileDep,
+    view: Literal["screen", "movement"] = "screen",
+    stars_min: Annotated[float | None, Query(ge=0)] = None,
+    stars_max: Annotated[float | None, Query(ge=0)] = None,
+    since: dt.datetime | None = None,
+    until: dt.datetime | None = None,
+) -> Clicks:
     """``screen``: as on screen (a constant offset shows); ``movement``: jumps only, turned so every jump goes right
-    (over / undershoot)."""
-    return svc.clicks(ws, p, view)
+    (over / undershoot). Only the plays rated ``stars_min``–``stars_max`` ★ (both included) and played from
+    ``since`` up to ``until`` (not included; ISO 8601, UTC without an offset) count; each is open when left out."""
+    if stars_min is not None and stars_max is not None and stars_min > stars_max:
+        raise Invalid("The lowest star rating is above the highest.", "invalid_star_range")
+    if since is not None and until is not None and _utc(since) >= _utc(until):
+        raise Invalid("The first day is after the last.", "invalid_date_range")
+    return svc.clicks(ws, p, view, (stars_min, stars_max), since, until)
+
+
+def _utc(t: dt.datetime) -> dt.datetime:
+    return t.replace(tzinfo=dt.UTC) if t.tzinfo is None else t
 
 
 @router.get("/tapping", summary="Tapping: timing, stream speed, stamina, keys")
