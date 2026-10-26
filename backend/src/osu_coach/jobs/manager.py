@@ -131,20 +131,26 @@ class JobManager:
         return job
 
     def _run(self, job: Job, work: Callable[[Reporter], Any], exclusive: bool) -> None:
+        # the gate opens before the job shows as finished: a client that sees it finished may start the next task
+        # (e.g. clear the added files right after a scan) and must not be refused as busy
+        done: dict[str, Any] = {"status": "failed", "error": "The task stopped."}
         try:
-            job.result = work(Reporter(job))
-            job.status, job.progress = "succeeded", 1.0
+            done = {"status": "succeeded", "result": work(Reporter(job)), "progress": 1.0}
         except Cancelled:
-            job.status, job.message = "cancelled", "Cancelled."
+            done = {"status": "cancelled", "message": "Cancelled."}
         except ApiError as exc:
-            job.status, job.error = "failed", exc.message
+            done = {"status": "failed", "error": exc.message}
         except Exception as exc:  # noqa: BLE001 - a job failure is reported to the client, not raised
             log.exception("job %s (%s) failed", job.id, job.kind)
-            job.status, job.error = "failed", f"{type(exc).__name__}: {exc}"
+            done = {"status": "failed", "error": f"{type(exc).__name__}: {exc}"}
         finally:
-            job.finished_at = _now()
             if exclusive:
                 self._gate.release()
+            job.finished_at = _now()
+            status = done.pop("status")
+            for key, value in done.items():
+                setattr(job, key, value)
+            job.status = status  # last: once it is set, everything else is there
 
     def get(self, job_id: str) -> Job:
         with self._lock:
