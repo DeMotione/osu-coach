@@ -10,9 +10,16 @@
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   padding: var(--s-5);
+  animation: onboarding-in 0.2s ease-out;
+}
+
+/* the scrim is a layer of its own: a backdrop-filter on .onboarding would be the root its dialog's glass blurs */
+.onboarding::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   background: var(--overlay);
   backdrop-filter: blur(6px);
-  animation: onboarding-in 0.2s ease-out;
 }
 
 /* the desktop app's title bar stays above it, usable */
@@ -32,7 +39,8 @@
   width: min(100%, 780px);
   height: min(100%, 780px);
   overflow: hidden;
-  background: var(--surface);
+  background: var(--grain), var(--sheen), var(--pane-dense);
+  backdrop-filter: var(--blur-glass);
   border-radius: var(--radius);
   box-shadow: var(--glass-edge), var(--elev-4);
   animation: onboarding-rise 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.05);
@@ -86,6 +94,7 @@
 .stepper__item {
   flex: 1;
   min-width: 0;
+  margin-top: 0; /* the steps share one line (not the `li + li` rhythm) */
 }
 
 .stepper__btn {
@@ -112,7 +121,7 @@ button.stepper__btn:hover .stepper__label {
 .stepper__bar {
   height: 4px;
   border-radius: 999px;
-  background: var(--surface-3);
+  background: var(--border-strong);
   transition: background 0.25s;
 }
 

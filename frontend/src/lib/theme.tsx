@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- the provider and its hook belong together */
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 
 import { setWindowMica } from "./desktop";
 
@@ -28,8 +29,6 @@ const systemDark = () => typeof window !== "undefined" && !window.matchMedia?.("
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [choice, setChoiceState] = useState<ThemeChoice>(stored);
   const [sysDark, setSysDark] = useState(systemDark);
-  const applied = useRef<ThemeChoice | null>(null);
-  const fade = useRef(0);
 
   useEffect(() => {
     const mq = window.matchMedia?.("(prefers-color-scheme: light)");
@@ -39,15 +38,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  useEffect(() => {
+  // a layout effect, so the view transition below sees the new theme in the page it snapshots
+  useLayoutEffect(() => {
     const root = document.documentElement;
-    // fade only on a real change: not on the first paint, nor on StrictMode's second effect run
-    if (applied.current !== null && applied.current !== choice) {
-      root.classList.add("theme-fade");
-      window.clearTimeout(fade.current);
-      fade.current = window.setTimeout(() => root.classList.remove("theme-fade"), 350);
-    }
-    applied.current = choice;
     if (choice === "system") delete root.dataset.theme;
     else root.dataset.theme = choice;
   }, [choice]);
@@ -56,7 +49,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => setWindowMica(dark), [dark]);
 
   const setChoice = useCallback((c: ThemeChoice) => {
-    setChoiceState(c);
+    // where the browser can, the whole page cross-fades between two snapshots (see ::view-transition-* in base.css)
+    if (typeof document.startViewTransition === "function") {
+      document.startViewTransition(() => flushSync(() => setChoiceState(c)));
+    } else {
+      setChoiceState(c);
+    }
     try {
       if (c === "system") localStorage.removeItem(KEY);
       else localStorage.setItem(KEY, c);

@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="Analyses your osu!standard replays and tells you what to work on." />
-    <meta name="theme-color" content="#0c0a13" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f3f2f8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f3f3f3" media="(prefers-color-scheme: light)" />
     <meta name="color-scheme" content="dark light" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -16,9 +16,25 @@
         var t = localStorage.getItem("osu-coach:theme");
         if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
       } catch (e) {}
+      // engines that render SVG filters in backdrop-filter (see --blur-glass in tokens.css)
+      if (/Chrome\//.test(navigator.userAgent)) document.documentElement.classList.add("has-refraction");
     </script>
   </head>
   <body>
+    <!-- Refraction for floating panes (--blur-glass): bends the backdrop at the edge, blue slightly more than red -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
+      <filter id="glass-refract" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feImage href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='x' x1='0' x2='1' y1='0' y2='0'%3E%3Cstop offset='0' stop-color='rgb(214,0,0)'/%3E%3Cstop offset='.12' stop-color='rgb(128,0,0)'/%3E%3Cstop offset='.88' stop-color='rgb(128,0,0)'/%3E%3Cstop offset='1' stop-color='rgb(42,0,0)'/%3E%3C/linearGradient%3E%3ClinearGradient id='y' x1='0' x2='0' y1='0' y2='1'%3E%3Cstop offset='0' stop-color='rgb(0,214,0)'/%3E%3Cstop offset='.12' stop-color='rgb(0,128,0)'/%3E%3Cstop offset='.88' stop-color='rgb(0,128,0)'/%3E%3Cstop offset='1' stop-color='rgb(0,42,0)'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='black'/%3E%3Crect width='100' height='100' fill='url(%23x)' style='mix-blend-mode:screen'/%3E%3Crect width='100' height='100' fill='url(%23y)' style='mix-blend-mode:screen'/%3E%3C/svg%3E" x="0" y="0" width="100%" height="100%" preserveAspectRatio="none" result="map" />
+        <feDisplacementMap in="SourceGraphic" in2="map" scale="26" xChannelSelector="R" yChannelSelector="G" result="dr" />
+        <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r" />
+        <feDisplacementMap in="SourceGraphic" in2="map" scale="34" xChannelSelector="R" yChannelSelector="G" result="dg" />
+        <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g" />
+        <feDisplacementMap in="SourceGraphic" in2="map" scale="42" xChannelSelector="R" yChannelSelector="G" result="db" />
+        <feColorMatrix in="db" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b" />
+        <feBlend in="r" in2="g" mode="screen" result="rg" />
+        <feBlend in="rg" in2="b" mode="screen" />
+      </filter>
+    </svg>
     <div id="root"></div>
     <noscript>osu! coach needs JavaScript.</noscript>
     <script type="module" src="/src/main.tsx"></script>

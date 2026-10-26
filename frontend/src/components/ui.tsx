@@ -71,11 +71,39 @@ export function Section({ title, children }: { title?: ReactNode; children: Reac
 }
 
 // ------------------------------------------------------------------ values
+/** A "?" with its explanation in a popover: the top layer, so no scroll area or dialog clips it. It opens above the icon, or below when there is no room. */
 export function Hint({ text }: { text: ReactNode }) {
+  const icon = useRef<HTMLSpanElement>(null);
+  const bubble = useRef<HTMLSpanElement>(null);
+  const show = () => {
+    const b = bubble.current;
+    const r = icon.current?.getBoundingClientRect();
+    if (!b || !r || typeof b.showPopover !== "function") return;
+    if (!b.matches(":popover-open")) b.showPopover();
+    const w = b.offsetWidth;
+    const h = b.offsetHeight;
+    const top = r.top - h - 8 >= 8 ? r.top - h - 8 : r.bottom + 8;
+    b.style.top = `${top}px`;
+    b.style.left = `${Math.max(8, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 8))}px`;
+  };
+  const hide = () => {
+    const b = bubble.current;
+    if (b?.matches(":popover-open")) b.hidePopover();
+  };
   return (
-    <span className="hint" tabIndex={0} role="note" aria-label={typeof text === "string" ? text : undefined}>
+    <span
+      ref={icon}
+      className="hint"
+      tabIndex={0}
+      role="note"
+      aria-label={typeof text === "string" ? text : undefined}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+    >
       <IconHelp />
-      <span className="hint__bubble">{text}</span>
+      <span ref={bubble} className="hint__bubble" popover="manual">{text}</span>
     </span>
   );
 }
