@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { stageMaps } from "./playlist";
+import { canGoBack, canGoForward, FIRST_ROUND, HISTORY, moveRound, type Rounds, stageMaps } from "./playlist";
 
 describe("stageMaps", () => {
   const maps = Array.from({ length: 12 }, (_, i) => i);
@@ -18,5 +18,34 @@ describe("stageMaps", () => {
   it("handles short and empty lists", () => {
     expect(stageMaps([1, 2], 4)).toEqual({ maps: [1, 2], first: 0 });
     expect(stageMaps([], 1)).toEqual({ maps: [], first: 0 });
+  });
+});
+
+describe("moveRound", () => {
+  const go = (...moves: ("back" | "forward" | "other")[]) => moves.reduce<Rounds>(moveRound, FIRST_ROUND);
+
+  it("starts with only Other maps", () => {
+    expect(canGoBack(FIRST_ROUND)).toBe(false);
+    expect(canGoForward(FIRST_ROUND)).toBe(false);
+  });
+
+  it("goes back and forward through the groups shown, Forward only behind the newest", () => {
+    const r = go("other", "other", "back");
+    expect(r).toEqual({ at: 1, latest: 2 });
+    expect(canGoBack(r) && canGoForward(r)).toBe(true);
+    expect(go("other", "other", "back", "forward")).toEqual({ at: 2, latest: 2 });
+    expect(canGoForward(go("other", "other", "back", "forward"))).toBe(false);
+  });
+
+  it("brings up a new group after the newest from anywhere in the history", () => {
+    expect(go("other", "other", "back", "back", "other")).toEqual({ at: 3, latest: 3 });
+  });
+
+  it("keeps the last 20 groups", () => {
+    let r = go(...Array<"other">(HISTORY + 5).fill("other"));
+    for (let i = 0; i < 40; i++) r = moveRound(r, "back");
+    expect(r).toEqual({ at: 6, latest: HISTORY + 5 });
+    expect(r.latest - r.at + 1).toBe(HISTORY);
+    expect(canGoBack(r)).toBe(false);
   });
 });

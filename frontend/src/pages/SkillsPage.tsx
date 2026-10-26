@@ -8,13 +8,14 @@ import type { ChartTheme } from "../charts/palette";
 import { goalsChart } from "../charts/progress";
 import { AddGoal } from "../components/AddGoalDialog";
 import { ExportPanel } from "../components/ExportPanel";
-import { IconRefresh, IconTrash } from "../components/icons";
+import { IconTrash } from "../components/icons";
 import { MapTable } from "../components/MapTable";
 import { RecommendationControls, type RecommendationOptions } from "../components/RecommendationControls";
+import { StageNav } from "../components/StageNav";
 import { EmptyState, ErrorCard, LoadingPage } from "../components/states";
 import { Alert, Badge, Card, Page, Progress, Stat, Tabs, Tiles } from "../components/ui";
 import { fmt } from "../lib/format";
-import { STAGE_SIZE, stageMaps } from "../lib/playlist";
+import { STAGE_SIZE, stageMaps, useRounds } from "../lib/playlist";
 import { speedFitNotice } from "../lib/recommendationFit";
 
 type Tab = "goals" | "playlist";
@@ -172,10 +173,9 @@ function PlaylistTab() {
   const q = usePlaylist(options);
   const pl = q.data;
   // which group of five each stage shows; a new playlist starts again with the best ones
-  const [rounds, setRounds] = useState<{ of?: typeof pl; by: Record<string, number> }>({ by: {} });
-  if (rounds.of !== pl) setRounds({ of: pl, by: {} });
+  const { rounds, move } = useRounds(pl);
   const shown = useMemo(
-    () => new Map((pl?.stages ?? []).map((st) => [st.stage, stageMaps(st.maps, rounds.by[st.stage] ?? 0)])),
+    () => new Map((pl?.stages ?? []).map((st) => [st.stage, stageMaps(st.maps, rounds(st.stage).at)])),
     [pl, rounds],
   );
   // the export takes the maps on screen: five per stage
@@ -183,7 +183,6 @@ function PlaylistTab() {
     () => [...new Map([...shown.values()].flatMap((s) => s.maps).map((m) => [m.md5, m])).values()],
     [shown],
   );
-  const next = (stage: string) => setRounds((r) => ({ ...r, by: { ...r.by, [stage]: (r.by[stage] ?? 0) + 1 } }));
 
   if (q.isPending) return <LoadingPage tiles={2} />;
   if (q.error && !pl) return <ErrorCard error={q.error} onRetry={() => void q.refetch()} />;
@@ -214,15 +213,7 @@ function PlaylistTab() {
               hint={`${st.eligible} eligible · target ${st.target_stars?.toFixed(2) ?? "unknown"}★ · target demand ${st.target_demand?.toFixed(1) ?? "unknown"}`}
               actions={
                 st.maps.length > STAGE_SIZE && (
-                  <>
-                    {/* which five of the stage's maps are shown: what Other maps moves on */}
-                    <span className="small muted">
-                      showing {first + 1}–{first + maps.length} of {st.maps.length}
-                    </span>
-                    <button type="button" className="btn btn--sm" title="Show the next five maps of this stage" onClick={() => next(st.stage)}>
-                      <IconRefresh /> Other maps
-                    </button>
-                  </>
+                  <StageNav rounds={rounds(st.stage)} first={first} count={maps.length} total={st.maps.length} onMove={(to) => move(st.stage, to)} />
                 )
               }
             >

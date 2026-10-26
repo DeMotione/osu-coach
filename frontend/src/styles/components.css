@@ -76,6 +76,19 @@
   padding: 0;
 }
 
+.btn--sm.btn--icon {
+  width: 28px;
+}
+
+/* a playlist stage's "showing 1–5 of N", Back, Forward and Other maps: wraps on narrow cards */
+.stage-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+
 .btn svg {
   width: 16px;
   height: 16px;

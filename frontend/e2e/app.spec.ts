@@ -290,22 +290,37 @@ test.describe("after the setup", () => {
     await expect(dialog).toBeHidden();
   });
 
-  test("playlist stages show five maps each, and Other maps shows the next five", async ({ page }) => {
-    await page.goto("/skills?tab=playlist");
-    const tables = page.locator(".map-table");
-    await expect(tables.first()).toBeVisible({ timeout: 60_000 });
-    await expect(page.locator(".map-pagination")).toHaveCount(0);
-    for (const table of await tables.all()) expect(await table.locator("tbody tr").count()).toBeLessThanOrEqual(5);
-    const stage = page.locator(".card").filter({ has: page.getByRole("button", { name: "Other maps" }) }).first();
-    if (await stage.count()) {
-      const firstMap = () => stage.locator(".map-table tbody tr").first().locator("td").first().innerText();
-      const before = await firstMap();
-      await expect(stage.getByText(/showing 1–5 of \d+/)).toBeVisible();
-      await stage.getByRole("button", { name: "Other maps" }).click();
-      await expect(stage.getByText(/showing 6–\d+ of \d+/)).toBeVisible();
-      expect(await firstMap()).not.toBe(before);
+  test("playlist stages show five maps each; Other maps shows the next five, Back and Forward go between them", async ({ page }) => {
+    for (const path of ["/skills?tab=playlist", "/maps"]) {
+      await page.goto(path);
+      const tables = page.locator(".map-table");
+      await expect(tables.first()).toBeVisible({ timeout: 60_000 });
+      await expect(page.locator(".map-pagination")).toHaveCount(0);
+      for (const table of await tables.all()) expect(await table.locator("tbody tr").count()).toBeLessThanOrEqual(5);
+      const stage = page.locator(".card").filter({ has: page.getByRole("button", { name: "Other maps" }) }).first();
+      if (await stage.count()) {
+        const firstMap = () => stage.locator(".map-table tbody tr").first().locator("td").first().innerText();
+        const back = stage.getByRole("button", { name: "Back" });
+        const forward = stage.getByRole("button", { name: "Forward" });
+        const before = await firstMap();
+        await expect(stage.getByText(/showing 1–5 of \d+/)).toBeVisible();
+        await expect(back).toHaveCount(0);
+        await expect(forward).toHaveCount(0);
+        await stage.getByRole("button", { name: "Other maps" }).click();
+        await expect(stage.getByText(/showing 6–\d+ of \d+/)).toBeVisible();
+        expect(await firstMap()).not.toBe(before);
+        // the newest group: Back and Other maps, no Forward
+        await expect(forward).toHaveCount(0);
+        await back.click();
+        await expect(stage.getByText(/showing 1–5 of \d+/)).toBeVisible();
+        expect(await firstMap(), path).toBe(before);
+        await expect(back).toHaveCount(0);
+        await forward.click();
+        await expect(stage.getByText(/showing 6–\d+ of \d+/)).toBeVisible();
+        await expect(forward).toHaveCount(0);
+      }
+      expect(await layoutProblems(page), path).toEqual([]);
     }
-    expect(await layoutProblems(page)).toEqual([]);
   });
 
   test("a big drop of replay files names only the first 15 (#37)", async ({ page }) => {
