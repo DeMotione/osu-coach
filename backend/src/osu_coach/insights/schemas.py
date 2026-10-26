@@ -27,6 +27,7 @@ class Clicks(BaseModel):
 
     view: Literal["screen", "movement"]
     enough: bool
+    plays: int = Field(description="Plays the clicks are from.")
     n: int = Field(description="All clicks.")
     drawn: int = Field(description="Clicks in x / y (a weighted random sample).")
     x: list[float]

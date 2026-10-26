@@ -120,6 +120,15 @@ export const IconArrowLeft = (p: P) => (
 export const IconArrowRight = (p: P) => (
   <I {...p}><path d="M5 12h14M13 6l6 6-6 6" /></I>
 );
+export const IconChevronLeft = (p: P) => (
+  <I {...p}><path d="m15 6-6 6 6 6" /></I>
+);
+export const IconChevronRight = (p: P) => (
+  <I {...p}><path d="m9 6 6 6-6 6" /></I>
+);
+export const IconCalendar = (p: P) => (
+  <I {...p}><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></I>
+);
 export const IconMouse = (p: P) => (
   <I {...p}><rect x="6" y="3" width="12" height="18" rx="6" /><path d="M12 7v3.5" /></I>
 );

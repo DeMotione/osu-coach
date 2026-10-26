@@ -17,6 +17,36 @@ def _finish(job, timeout=5):
     return job
 
 
+@pytest.mark.parametrize("fails", [False, True])
+def test_the_gate_is_open_once_an_exclusive_job_shows_finished(fails):
+    """A client that sees the job finished may start the next task right away (#38: Clear after a scan)."""
+    gate = BusyGate()
+    jobs = JobManager(gate)
+    release, seen = gate.release, []
+
+    def watched_release():
+        seen.append(job.status)
+        release()
+
+    gate.release = watched_release
+
+    go = threading.Event()
+
+    def work(report):
+        go.wait(5)  # until ``job`` below is set
+        if fails:
+            raise RuntimeError("broken")
+        return 1
+
+    job = jobs.start("scan", "Scanning", work, exclusive=True)
+    go.set()
+    _finish(job)
+    assert seen == ["running"]
+    assert job.status == ("failed" if fails else "succeeded") and job.finished_at
+    with gate.hold("next"):
+        pass
+
+
 def test_a_job_reports_progress_and_its_result():
     jobs = JobManager(BusyGate())
     seen = threading.Event()

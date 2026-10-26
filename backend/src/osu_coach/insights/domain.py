@@ -10,6 +10,7 @@ same numbers. All of them work on the profile's per-note table and respect the d
 
 from __future__ import annotations
 
+import datetime as dt
 import math
 
 import numpy as np
@@ -56,6 +57,35 @@ def playfield_grid(p: Profile) -> dict:
         "rate": rate.T.tolist(),
         "notes": allh.T.tolist(),
     }
+
+
+def notes_of_plays(
+    p: Profile,
+    stars: tuple[float | None, float | None] = (None, None),
+    since: dt.datetime | None = None,
+    until: dt.datetime | None = None,
+) -> pd.DataFrame:
+    """The notes (``p.objects``) of the plays rated ``stars`` (low, high ★, both included; ``None``: no limit) and
+    played from ``since`` up to ``until`` (not included; naive times are UTC, as in replays). Plays without a star
+    rating or a date are left out once that is limited."""
+    R = p.replays
+    keep = np.ones(len(R), bool)
+    low, high = stars
+    if low is not None or high is not None:
+        s = pd.to_numeric(R["stars"], errors="coerce").to_numpy(float) if "stars" in R else np.full(len(R), np.nan)
+        keep &= (s >= (-np.inf if low is None else low - 1e-9)) & (s <= (np.inf if high is None else high + 1e-9))
+    if since is not None or until is not None:
+        d = pd.to_datetime(R["date"], utc=True, errors="coerce") if "date" in R else pd.Series(pd.NaT, index=R.index)
+        if since is not None:
+            keep &= (d >= _utc(since)).to_numpy(bool)
+        if until is not None:
+            keep &= (d < _utc(until)).to_numpy(bool)
+    return p.objects[p.objects["replay_key"].isin(R.loc[keep, "key"])]
+
+
+def _utc(t: dt.datetime) -> pd.Timestamp:
+    ts = pd.Timestamp(t)
+    return ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
 
 
 CLICKS_DRAWN = 4000

@@ -12,6 +12,7 @@ import { DataTable } from "../components/DataTable";
 import { IconArrowLeft, IconExternal, IconMagnify, IconPlay } from "../components/icons";
 import { EmptyState, ErrorCard } from "../components/states";
 import { Alert, Card, Dropzone, Field, Page, Row, Stat, Switch, Tiles } from "../components/ui";
+import { clicksCaption } from "../lib/clicks";
 import { clock, fmt, int, localTime, pct, signed, stars } from "../lib/format";
 import { Md } from "../lib/markdown";
 
@@ -234,10 +235,12 @@ function ReportBody({ r, onOpen }: { r: Report; onOpen: (path: string) => void }
       <MapPlaysCard plays={r.map_plays} onOpen={onOpen} />
       {r.clicks_screen && r.clicks_movement && (
         <Row>
-          <Card title="Where your clicks land — on screen" hint="Every hit and aim miss of this play, in circle radii from the note's centre.">
+          <Card className="clicks-card" title="Where your clicks land — on screen"
+            hint={withCaption("Every hit and aim miss of this play, in circle radii from the note's centre.", r.clicks_screen)}>
             <ClicksView clicks={r.clicks_screen} />
           </Card>
-          <Card title="Where your clicks land — along the jump" hint="The jumps of this play, turned so every jump goes right: over- and undershoot.">
+          <Card className="clicks-card" title="Where your clicks land — along the jump"
+            hint={withCaption("The jumps of this play, turned so every jump goes right: over- and undershoot.", r.clicks_movement)}>
             <ClicksView clicks={r.clicks_movement} />
           </Card>
         </Row>
@@ -330,4 +333,9 @@ function MapPlaysCard({ plays, onOpen }: { plays: Schemas["MapPlays"]; onOpen: (
       )}
     </Card>
   );
+}
+
+/** A clicks card's hint: what it shows, then how to read it with this play's numbers. */
+function withCaption(hint: string, clicks: Schemas["Clicks"]): string {
+  return clicks.enough ? `${hint}\n\n${clicksCaption(clicks)}` : hint;
 }

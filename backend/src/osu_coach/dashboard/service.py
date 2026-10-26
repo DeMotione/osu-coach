@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -550,5 +551,16 @@ def sliders_reading(ws: Workspace, p: Profile) -> S.SlidersReadingPage:
     )
 
 
-def clicks(ws: Workspace, p: Profile, view: str) -> Clicks:
-    return ws.memo(f"clicks:{view}", lambda: insights_service.clicks(p.objects, view))
+def clicks(
+    ws: Workspace,
+    p: Profile,
+    view: str,
+    stars: tuple[float | None, float | None] = (None, None),
+    since: dt.datetime | None = None,
+    until: dt.datetime | None = None,
+) -> Clicks:
+    """Of the plays with ``stars`` ★ played from ``since`` up to ``until`` (all of them, kept until the profile
+    changes, when nothing is limited)."""
+    if stars == (None, None) and since is None and until is None:
+        return ws.memo(f"clicks:{view}", lambda: insights_service.clicks(p.objects, view))
+    return insights_service.clicks(insights.notes_of_plays(p, stars, since, until), view)

@@ -119,6 +119,29 @@ def test_clicks(analysed, view):
     assert analysed.get("/api/profile/clicks", params={"view": "sideways"}).status_code == 422
 
 
+def test_clicks_of_some_plays(analysed):
+    """Only the plays in the star range and dates count; the bounds come from the analysed replays."""
+    plays = analysed.get("/api/profile/replays").json()
+    all_clicks = analysed.get("/api/profile/clicks").json()
+    every = all_clicks["n"]
+    assert all_clicks["plays"] == len(plays)
+    stars = sorted(r["stars"] for r in plays)
+    top = analysed.get("/api/profile/clicks", params={"stars_min": stars[-1]}).json()
+    assert 0 < top["n"] < every and top["plays"] == stars.count(stars[-1])
+    assert (
+        analysed.get("/api/profile/clicks", params={"stars_min": stars[0], "stars_max": stars[-1]}).json()["n"] == every
+    )
+    none = analysed.get("/api/profile/clicks", params={"stars_max": stars[0] - 0.5}).json()
+    assert none["n"] == none["plays"] == 0 and not none["enough"]
+    last = max(r["played_at"] for r in plays)
+    assert analysed.get("/api/profile/clicks", params={"since": last}).json()["n"] < every
+    assert analysed.get("/api/profile/clicks", params={"until": "2100-01-01T00:00:00Z"}).json()["n"] == every
+    bad = analysed.get("/api/profile/clicks", params={"stars_min": 6, "stars_max": 5})
+    assert bad.status_code == 422 and bad.json()["code"] == "invalid_star_range"
+    bad = analysed.get("/api/profile/clicks", params={"since": "2024-02-01T00:00:00Z", "until": "2024-01-01"})
+    assert bad.status_code == 422 and bad.json()["code"] == "invalid_date_range"
+
+
 def test_tapping_and_sliders_pages(analysed):
     t = analysed.get("/api/profile/tapping").json()
     assert len(t["timing"]["centers"]) == len(t["timing"]["n300"]) == 100

@@ -15,8 +15,9 @@ CLICKS_MIN = 30
 def clicks(objects: pd.DataFrame, view: str) -> Clicks:
     """Where clicks land (a weighted random sample) and the summary of all of them."""
     C = click_points(objects, view)
+    plays = int(objects["replay_key"].nunique()) if "replay_key" in objects else 0
     if len(C) < CLICKS_MIN:
-        return Clicks(view=view, enough=False, n=len(C), drawn=0, x=[], y=[], hit=[], summary=None)
+        return Clicks(view=view, enough=False, plays=plays, n=len(C), drawn=0, x=[], y=[], hit=[], summary=None)
     s = click_summary(C)
     drawn = insights.click_sample(C)
     labels = [label for _, _, label in CLICK_BANDS]
@@ -32,6 +33,7 @@ def clicks(objects: pd.DataFrame, view: str) -> Clicks:
     return Clicks(
         view=view,
         enough=True,
+        plays=plays,
         n=len(C),
         drawn=len(drawn),
         x=[round(float(v), 4) for v in drawn["x"]],

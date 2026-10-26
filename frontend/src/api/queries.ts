@@ -181,9 +181,18 @@ export const useSlidersReading = () =>
   useQuery(page("sliders-reading", () => unwrap(api.GET("/api/profile/sliders-reading"))));
 export const useTips = () => useQuery(page("tips", () => unwrap(api.GET("/api/profile/tips"))));
 export const useSetupTips = () => useQuery(page("setup-tips", () => unwrap(api.GET("/api/profile/setup-tips"))));
-export const useClicks = (view: "screen" | "movement") =>
+/** Which plays the clicks chart counts: a star range (both included) and a time range (``until`` not included). */
+export interface ClickFilter {
+  stars_min?: number;
+  stars_max?: number;
+  since?: string;
+  until?: string;
+}
+
+export const useClicks = (view: "screen" | "movement", filter: ClickFilter = {}) =>
   useQuery({
-    ...page(`clicks:${view}`, () => unwrap(api.GET("/api/profile/clicks", { params: { query: { view } } }))),
+    ...page(`clicks:${view}`, () => unwrap(api.GET("/api/profile/clicks", { params: { query: { view, ...filter } } }))),
+    queryKey: [...keys.profile, `clicks:${view}`, filter],
     placeholderData: keepPreviousData,
   });
 
