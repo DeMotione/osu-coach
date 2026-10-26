@@ -44,9 +44,9 @@ export function chartTheme(dark: boolean): ChartTheme {
         muted: "#b0b0b0",
         line: "rgba(255,255,255,0.26)",
         split: "rgba(255,255,255,0.08)",
-        tooltipBg: "#3b3b3b",
+        tooltipBg: "#2c2c2e",
         tooltipBorder: "rgba(255,255,255,0.1)",
-        surface: "#1c1c1c",
+        surface: "#141416",
         heatLow: "rgba(255,255,255,0.09)",
       }
     : {

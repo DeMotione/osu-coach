@@ -34,11 +34,13 @@
   --gap: var(--s-5);
   --pad: var(--s-5);
 
-  /* radii: tags / inner parts / controls / cards and dialogs; only the circle motif is fully round */
+  /* radii between Windows 11 (4 / 8px) and Apple's rounder, concentric corners: 6px for controls in the page, 10px for the
+   * containers and floating surfaces (cards, dialogs, flyouts); smaller steps for tags and parts nested in a control
+   * (a nested radius is its parent's minus the padding). Only the circle motif is fully round. */
   --radius-xs: 2px;
   --radius-sm: 4px;
   --radius-btn: 6px;
-  --radius: 12px;
+  --radius: 10px;
 
   /* shell sizes */
   --sidebar-w: 248px;
@@ -60,7 +62,7 @@
   --n-750: hsl(0 0% 17.5%);
   --n-800: hsl(0 0% 14.5%);
   --n-900: hsl(0 0% 8.5%);
-  --n-950: hsl(0 0% 5.5%);
+  --n-950: hsl(0 0% 0%); /* true black: OLED pixels switch off */
 
   /* ---- pink scale: the one brand colour; rotated a few degrees towards orange as it darkens */
   --p-100: hsl(333 100% 96%);
@@ -74,23 +76,26 @@
   --p-900: hsl(338 72% 19%);
 
   /* ---- surfaces: lighter = closer to you; cards are a veil over the canvas, fields lighter than their card */
-  --bg: light-dark(var(--n-100), var(--n-950));
+  --bg: light-dark(hsl(220 14% 88%), var(--n-950));
   --sidebar: light-dark(var(--n-50), var(--n-950));
   --surface: light-dark(#fff, var(--n-800));
   --surface-2: light-dark(var(--n-50), var(--n-750));
   --surface-3: light-dark(var(--n-200), hsl(0 0% 21%));
   --raised: light-dark(#fff, hsl(0 0% 23%));
-  --field: light-dark(var(--n-50), rgb(255 255 255 / 0.06));
-  --border: light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.08));
+  --field: light-dark(rgb(255 255 255 / 0.62), rgb(255 255 255 / 0.08));
+  /* wells and tiles inside a card: a lighter veil of the same glass */
+  --well: light-dark(rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.04));
+  --border: light-dark(rgb(60 30 90 / 0.07), rgb(255 255 255 / 0.08));
   --border-strong: light-dark(rgb(0 0 0 / 0.2), rgb(255 255 255 / 0.17));
-  /* outline of controls (3:1 against their card) */
-  --control-stroke: light-dark(rgb(0 0 0 / 0.46), rgb(255 255 255 / 0.35));
-  /* outline of bars and wells: light only (dark layers use fill) */
-  --edge: light-dark(rgb(0 0 0 / 0.08), transparent);
+  /* controls: a faint all-round stroke, and (Fluent) a firm bottom edge that carries the 3:1 against the card */
+  --control-stroke: light-dark(rgb(60 30 90 / 0.08), rgb(255 255 255 / 0.08));
+  --control-base: light-dark(rgb(0 0 0 / 0.52), rgb(255 255 255 / 0.4));
+  /* outline of bars and wells: none; layers are told apart by fill, light and shadow (restored for more contrast) */
+  --edge: transparent;
 
   --text: light-dark(hsl(0 0% 7%), hsl(0 0% 100%));
   --text-2: light-dark(var(--n-700), hsl(0 0% 85%));
-  --muted: light-dark(hsl(0 0% 38%), hsl(0 0% 69%));
+  --muted: light-dark(hsl(0 0% 34%), hsl(0 0% 72%));
 
   --accent: light-dark(var(--p-600), var(--p-400));
   --accent-hover: light-dark(var(--p-700), var(--p-300));
@@ -125,32 +130,48 @@
   --elev-2: 0 1px 2px light-dark(rgb(0 0 0 / 0.1), rgb(0 0 0 / 0.4)), 0 4px 14px light-dark(rgb(0 0 0 / 0.09), rgb(0 0 0 / 0.3));
   --elev-3: 0 1px 2px light-dark(rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.3)), 0 10px 28px light-dark(rgb(0 0 0 / 0.16), rgb(0 0 0 / 0.5));
   --elev-4: 0 24px 64px light-dark(rgb(0 0 0 / 0.25), rgb(0 0 0 / 0.65));
-  --elev-glass: 0 0 2px light-dark(rgb(0 0 0 / 0.1), rgb(0 0 0 / 0.2)), 0 2px 6px light-dark(rgb(0 0 0 / 0.06), rgb(0 0 0 / 0.22));
-  --btn-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 1px 2px light-dark(rgb(120 10 60 / 0.3), rgb(0 0 0 / 0.4));
+  --elev-glass: 0 1px 2px light-dark(rgb(70 30 110 / 0.07), rgb(0 0 0 / 0.2)), 0 8px 24px -6px light-dark(rgb(90 40 140 / 0.16), rgb(0 0 0 / 0.22));
+  --btn-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 1px 2px light-dark(rgb(120 10 60 / 0.3), rgb(0 0 0 / 0.4)), 0 4px 12px -4px light-dark(rgb(214 30 110 / 0.22), transparent);
+  /* glass buttons: a lit pane on light, the old grey fill on dark */
+  --btn-fill: light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.1));
+  --btn-fill-hover: light-dark(rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.16));
+  --btn-edge: inset 0 1px 0 light-dark(#fff, rgb(255 255 255 / 0.12)), 0 1px 2px light-dark(rgb(70 30 110 / 0.16), transparent);
+  --gloss: linear-gradient(180deg, light-dark(rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.08)), rgb(255 255 255 / 0) 55%);
+  --hover: light-dark(rgb(60 30 90 / 0.07), rgb(255 255 255 / 0.08));
   --focus: 0 0 0 2px transparent, 0 0 0 4px light-dark(hsl(335 76% 47% / 0.9), hsl(332 100% 72% / 0.85));
   /* ---- layers: a card is a faint white veil with a lit top edge (works on the canvas and over Mica); glass is
    * for floating chrome. The canvas has a few soft pink, violet and amber lights for the veil to show through;
    * Mica replaces them on desktop. */
   --backdrop:
-    radial-gradient(820px 560px at 92% -8%, light-dark(hsl(333 100% 66% / 0.15), hsl(333 100% 56% / 0.1)), transparent 70%),
-    radial-gradient(700px 560px at 4% 44%, light-dark(hsl(268 100% 72% / 0.09), hsl(268 100% 60% / 0.055)), transparent 70%),
-    radial-gradient(760px 480px at 76% 110%, light-dark(hsl(28 100% 64% / 0.09), hsl(24 100% 55% / 0.04)), transparent 70%);
-  --glass: light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.05));
-  --glass-2: light-dark(rgb(0 0 0 / 0.035), rgb(255 255 255 / 0.05));
-  --glass-edge: 0 0 0 1px light-dark(rgb(0 0 0 / 0.06), transparent), inset 0 0 0 1px light-dark(rgb(255 255 255 / 0.7), transparent), inset 0 1px 0 light-dark(rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.09));
+    radial-gradient(1000px 520px at 28% -6%, light-dark(rgb(255 255 255 / 0.55), transparent), transparent 70%),
+    radial-gradient(900px 500px at 80% 70%, light-dark(rgb(255 255 255 / 0.35), transparent), transparent 70%),
+    radial-gradient(820px 600px at 94% -10%, light-dark(hsl(333 100% 70% / 0.2), hsl(333 100% 56% / 0.15)), transparent 70%),
+    radial-gradient(700px 580px at 2% 40%, light-dark(hsl(268 100% 76% / 0.14), hsl(268 100% 60% / 0.09)), transparent 70%),
+    radial-gradient(760px 520px at 18% 112%, light-dark(hsl(200 100% 70% / 0.14), hsl(205 100% 52% / 0.07)), transparent 70%),
+    radial-gradient(760px 480px at 84% 108%, light-dark(hsl(28 100% 68% / 0.1), hsl(24 100% 55% / 0.04)), transparent 70%);
+  --glass: light-dark(rgb(255 255 255 / 0.42), rgb(118 118 128 / 0.16));
+  /* cards: thinner than glass on light, so the canvas's soft lights show through the frost */
+  --glass-card: light-dark(rgb(255 255 255 / 0.3), rgb(118 118 128 / 0.16));
+  --glass-2: light-dark(rgb(255 255 255 / 0.5), rgb(118 118 128 / 0.14));
+  --glass-edge: inset 0 0 0 1px light-dark(rgb(255 255 255 / 0.9), transparent), inset 0 1px 0 light-dark(#fff, rgb(255 255 255 / 0.035)), inset 0 -18px 28px -22px light-dark(rgb(255 255 255 / 0.9), transparent);
   /* glass: light falls from the top */
   --sheen: linear-gradient(180deg, light-dark(rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.07)), light-dark(rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.01)) 60%);
-  --sheen-soft: linear-gradient(180deg, light-dark(rgb(255 255 255 / 0.35), rgb(255 255 255 / 0.035)), transparent 50%);
+  --sheen-soft: linear-gradient(118deg, light-dark(rgb(255 255 255 / 0.75), transparent), transparent 45%), linear-gradient(180deg, light-dark(rgb(255 255 255 / 0.4), rgb(255 255 255 / 0.06)), transparent 55%);
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");
-  --pane: light-dark(rgb(255 255 255 / 0.66), hsl(0 0% 12% / 0.62));
+  --pane: light-dark(rgb(255 255 255 / 0.66), hsl(0 0% 13% / 0.66));
   /* dialogs hold forms: denser */
-  --pane-dense: light-dark(rgb(255 255 255 / 0.88), hsl(0 0% 12% / 0.86));
+  --pane-dense: light-dark(rgb(255 255 255 / 0.88), hsl(0 0% 12% / 0.88));
   --blur-pane: blur(12px) saturate(1.15);
-  --blur-bar: blur(16px) saturate(1.1);
+  --blur-bar: blur(24px) saturate(1.4);
+  /* top and bottom bars: lighter than the canvas on light, black on dark, see-through so scrolled content shows blurred */
+  --bar: light-dark(rgb(255 255 255 / 0.5), rgb(0 0 0 / 0.5));
   --blur-glass: var(--blur-pane); /* + refraction where supported */
-  --side-glass: light-dark(rgb(255 255 255 / 0.4), hsl(0 0% 9% / 0.4));
+  --side-glass: light-dark(rgb(255 255 255 / 0.45), hsl(0 0% 7% / 0.45));
   /* specular edge: 1px ring, bright top-left */
   --rim: linear-gradient(145deg, light-dark(rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.33)), light-dark(rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.04)) 40%, light-dark(rgb(255 255 255 / 0.8), rgb(255 255 255 / 0.12)));
+  /* the same ring, quieter, for cards (dark keeps its outline-free look) */
+  --rim-soft: linear-gradient(145deg, light-dark(rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.055)), light-dark(rgb(255 255 255 / 0.15), rgb(255 255 255 / 0)) 30%, light-dark(rgb(255 255 255 / 0.75), rgb(255 255 255 / 0)));
+  --nav-active: light-dark(rgb(255 255 255 / 0.85), color-mix(in srgb, var(--text) 8%, transparent));
   --overlay: light-dark(rgb(0 0 0 / 0.3), rgb(0 0 0 / 0.6));
 
   color-scheme: dark;
@@ -169,6 +190,7 @@
   /* bars blur what scrolls under them, so they can stay see-through */
   --bar: light-dark(hsl(0 0% 96% / 0.72), hsl(0 0% 6% / 0.62));
   --glass: light-dark(rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.06));
+  --glass-card: light-dark(rgb(255 255 255 / 0.4), rgb(255 255 255 / 0.06));
 }
 
 /* Chromium and WebView2 refract the backdrop along a pane's edge (filter in index.html); `has-refraction` is set
@@ -183,7 +205,9 @@
     --pane: light-dark(#fff, hsl(0 0% 12%));
     --pane-dense: var(--pane);
     --side-glass: light-dark(#fff, hsl(0 0% 9%));
-    --glass: light-dark(#fff, hsl(0 0% 14%));
+    --glass: light-dark(#fff, hsl(0 0% 11%));
+    --glass-card: var(--glass);
+    --glass-2: light-dark(#fff, hsl(0 0% 12%));
     --bar: light-dark(hsl(0 0% 96%), hsl(0 0% 6%));
     --blur-pane: none;
     --blur-bar: none;
@@ -199,6 +223,7 @@
     --border: light-dark(rgb(0 0 0 / 0.4), rgb(255 255 255 / 0.4));
     --border-strong: light-dark(rgb(0 0 0 / 0.6), rgb(255 255 255 / 0.6));
     --edge: var(--border);
+    --control-stroke: var(--control-base);
   }
 }
 
@@ -220,6 +245,10 @@
   .sidenav__link.active::after {
     forced-color-adjust: none;
     background: Highlight;
+  }
+
+  .segmented__option.checked {
+    outline: 2px solid Highlight;
   }
 }
 
