@@ -234,12 +234,14 @@
     padding: 7px var(--s-3);
     border-radius: calc(var(--radius-btn) - 2px);
     background: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
     cursor: pointer;
   }
 
   .select option:hover,
   .select option:focus-visible {
-    background: var(--row);
+    background: light-dark(hsl(335 76% 47% / 0.1), var(--row));
   }
 
   .select option:checked {
@@ -255,6 +257,7 @@
 .select:hover,
 .textarea:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--control-stroke));
+  box-shadow: 0 0 0 3px light-dark(hsl(335 76% 47% / 0.12), hsl(332 100% 72% / 0.1));
 }
 
 .input:focus,
