@@ -172,6 +172,85 @@
   text-overflow: ellipsis;
 }
 
+/* the field's see-through background would leave light text on a white native list */
+.select option {
+  background: light-dark(#fff, hsl(0 0% 14%));
+  color: var(--text);
+  font-size: var(--t-sm);
+}
+
+/* needs Chromium 135+; older WebViews keep the native list */
+@supports (appearance: base-select) {
+  .select,
+  .select::picker(select) {
+    appearance: base-select;
+  }
+
+  .select {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    height: auto;
+    min-height: var(--control-h);
+    padding: 9px var(--s-3);
+    background-image: none;
+    line-height: 1.35;
+  }
+
+  .select selectedcontent {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .select::picker-icon {
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin: -3px 2px 0 0;
+    border: solid var(--muted);
+    border-width: 0 1.5px 1.5px 0;
+    rotate: 45deg;
+  }
+
+  .select::picker(select) {
+    max-width: min(560px, calc(100vw - 32px));
+    max-height: 340px;
+    margin-top: 4px;
+    padding: var(--s-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-btn);
+    background: light-dark(hsl(0 0% 99%), hsl(280 8% 14%));
+    box-shadow: var(--elev-4);
+  }
+
+  .select option {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: 7px var(--s-3);
+    border-radius: calc(var(--radius-btn) - 2px);
+    background: none;
+    cursor: pointer;
+  }
+
+  .select option:hover,
+  .select option:focus-visible {
+    background: var(--row);
+  }
+
+  .select option:checked {
+    background: var(--accent-soft);
+  }
+
+  .select option::checkmark {
+    display: none;
+  }
+}
+
 .input:hover,
 .select:hover,
 .textarea:hover {
@@ -421,7 +500,7 @@ input[type="range"] {
   gap: 10px;
   padding: var(--s-3);
   border-radius: var(--radius-btn);
-  background: var(--surface-2);
+  background: var(--row);
   box-shadow: inset 0 0 0 1px var(--edge);
   cursor: pointer;
 }
@@ -928,11 +1007,54 @@ input[type="range"] {
   white-space: nowrap;
 }
 
-.table th {
+/* on the thead, not per cell: a blur per cell showed seams between the headers */
+.table thead {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--surface-2);
+  /* the blur doesn't reach rows under it, so any more transparency lets them read through */
+  background: light-dark(hsl(270 30% 98% / 0.94), hsl(0 0% 20% / 0.94));
+  backdrop-filter: blur(12px);
+}
+
+/* no backdrop-filter here: per cell, it drew seams between the headers, and the row fade below already hides rows */
+.is-mica-desktop .table thead {
+  position: static;
+  background: none;
+  backdrop-filter: none;
+}
+
+.is-mica-desktop .table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: light-dark(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.12));
+  backdrop-filter: none;
+}
+
+/* the blur doesn't render on the transparent WebView, so rows fade out before they pass under the header */
+@supports (animation-timeline: view()) {
+  .is-mica-desktop .table-wrap:not(.table-wrap--fill) .table tbody tr {
+    animation: table-row-under-header linear both;
+    animation-timeline: view(block 42px 0px); /* 42px = header height */
+    animation-range: exit 0% exit 55%;
+  }
+
+  /* the stacked layouts have no header and no inner scroll, so the timeline would follow the page */
+  @container (max-width: 879px) {
+    .is-mica-desktop .map-table:not(.map-table--compact) .table-wrap tbody tr { animation: none; }
+  }
+
+  @container (max-width: 760px) {
+    .is-mica-desktop .map-table--compact .table-wrap tbody tr { animation: none; }
+  }
+}
+
+@keyframes table-row-under-header {
+  to { opacity: 0; }
+}
+
+.table th {
   color: var(--muted);
   font-size: var(--t-xs);
   font-weight: 650;
@@ -958,7 +1080,7 @@ input[type="range"] {
 }
 
 .table tbody tr:hover td {
-  background: var(--surface-2);
+  background: var(--row);
 }
 
 .table tr.selectable {
@@ -996,7 +1118,7 @@ input[type="range"] {
   padding: var(--s-2) var(--s-3);
   border: 1px solid var(--edge);
   border-radius: var(--radius-btn);
-  background: var(--surface-2);
+  background: var(--row);
   font-size: var(--t-sm);
 }
 
@@ -1783,7 +1905,7 @@ input[type="range"] {
 
 details.disclosure {
   border-radius: var(--radius-btn);
-  background: var(--surface-2);
+  background: var(--row);
 }
 
 details.disclosure > summary {
@@ -1891,7 +2013,7 @@ details.disclosure > .disclosure__body {
   padding: 10px 12px;
   border: 0;
   border-radius: var(--radius-btn);
-  background: var(--surface-2);
+  background: var(--row);
   color: var(--text);
   font: inherit;
   font-weight: 560;
@@ -2028,7 +2150,7 @@ details.disclosure > .disclosure__body {
   align-items: center;
   padding: var(--s-4);
   border-radius: var(--radius-btn);
-  background: var(--surface-2);
+  background: var(--row);
 }
 
 .goal__title {
@@ -2125,7 +2247,7 @@ details.disclosure > .disclosure__body {
   min-width: 0;
   padding: var(--s-4);
   border-radius: var(--radius-btn);
-  background: var(--surface-2);
+  background: var(--row);
 }
 
 .mini__title {
@@ -2289,7 +2411,7 @@ details.disclosure-card[open] > summary .card__title::after {
   padding: var(--s-4);
   border-left: 3px solid var(--warn);
   border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  background: var(--row);
 }
 
 .setup-change__title {

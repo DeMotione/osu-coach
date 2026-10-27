@@ -76,8 +76,8 @@
   --p-900: hsl(338 72% 19%);
 
   /* ---- surfaces: lighter = closer to you; cards are a veil over the canvas, fields lighter than their card */
-  --bg: light-dark(hsl(220 14% 88%), var(--n-950));
-  --sidebar: light-dark(var(--n-50), var(--n-950));
+  --bg: light-dark(hsl(220 14% 88%), hsl(0 0% 6.5%));
+  --sidebar: light-dark(var(--n-50), hsl(0 0% 6.5%));
   --surface: light-dark(#fff, var(--n-800));
   --surface-2: light-dark(var(--n-50), var(--n-750));
   --surface-3: light-dark(var(--n-200), hsl(0 0% 21%));
@@ -85,6 +85,8 @@
   --field: light-dark(rgb(255 255 255 / 0.62), rgb(255 255 255 / 0.08));
   /* wells and tiles inside a card: a lighter veil of the same glass */
   --well: light-dark(rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.04));
+  /* rows inside a card: on dark a veil of the card's own glass, so they take its tint instead of a flat grey */
+  --row: light-dark(var(--n-50), rgb(255 255 255 / 0.05));
   --border: light-dark(rgb(60 30 90 / 0.07), rgb(255 255 255 / 0.08));
   --border-strong: light-dark(rgb(0 0 0 / 0.2), rgb(255 255 255 / 0.17));
   /* controls: a faint all-round stroke, and (Fluent) a firm bottom edge that carries the 3:1 against the card */
@@ -149,9 +151,9 @@
     radial-gradient(700px 580px at 2% 40%, light-dark(hsl(268 100% 76% / 0.14), hsl(268 100% 60% / 0.09)), transparent 70%),
     radial-gradient(760px 520px at 18% 112%, light-dark(hsl(200 100% 70% / 0.14), hsl(205 100% 52% / 0.07)), transparent 70%),
     radial-gradient(760px 480px at 84% 108%, light-dark(hsl(28 100% 68% / 0.1), hsl(24 100% 55% / 0.04)), transparent 70%);
-  --glass: light-dark(rgb(255 255 255 / 0.42), rgb(118 118 128 / 0.16));
+  --glass: light-dark(rgb(255 255 255 / 0.42), rgb(84 84 94 / 0.14));
   /* cards: thinner than glass on light, so the canvas's soft lights show through the frost */
-  --glass-card: light-dark(rgb(255 255 255 / 0.3), rgb(118 118 128 / 0.16));
+  --glass-card: light-dark(rgb(255 255 255 / 0.3), rgb(84 84 94 / 0.14));
   --glass-2: light-dark(rgb(255 255 255 / 0.5), rgb(118 118 128 / 0.14));
   --glass-edge: inset 0 0 0 1px light-dark(rgb(255 255 255 / 0.9), transparent), inset 0 1px 0 light-dark(#fff, rgb(255 255 255 / 0.035)), inset 0 -18px 28px -22px light-dark(rgb(255 255 255 / 0.9), transparent);
   /* glass: light falls from the top */
@@ -165,7 +167,7 @@
   --blur-bar: blur(24px) saturate(1.4);
   /* top and bottom bars: lighter than the canvas on light, black on dark, see-through so scrolled content shows blurred */
   --bar: light-dark(rgb(255 255 255 / 0.5), rgb(0 0 0 / 0.5));
-  --blur-glass: var(--blur-pane); /* + refraction where supported */
+  --blur-glass: var(--blur-pane); /* floating panes: a plain blur; an edge-displacement filter smeared the text behind them */
   --side-glass: light-dark(rgb(255 255 255 / 0.45), hsl(0 0% 7% / 0.45));
   /* specular edge: 1px ring, bright top-left */
   --rim: linear-gradient(145deg, light-dark(rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.33)), light-dark(rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.04)) 40%, light-dark(rgb(255 255 255 / 0.8), rgb(255 255 255 / 0.12)));
@@ -184,19 +186,28 @@
 
 /* Windows Mica is the material behind this transparent WebView; dark gets a thin black veil, as Mica's grey reads too light */
 :root.is-mica-desktop {
-  --bg: light-dark(transparent, rgb(0 0 0 / 0.32));
+  --bg: light-dark(transparent, rgb(0 0 0 / 0.12));
   --sidebar: transparent;
   --backdrop: none;
   /* bars blur what scrolls under them, so they can stay see-through */
-  --bar: light-dark(hsl(0 0% 96% / 0.72), hsl(0 0% 6% / 0.62));
-  --glass: light-dark(rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.06));
-  --glass-card: light-dark(rgb(255 255 255 / 0.4), rgb(255 255 255 / 0.06));
+  --bar: light-dark(hsl(0 0% 96% / 0.72), hsl(0 0% 10% / 0.5));
+  --glass: light-dark(rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.09));
+  --glass-card: light-dark(rgb(255 255 255 / 0.3), rgb(255 255 255 / 0.09));
+  /* lighter than the base values, so Mica's tint shows through the cards */
+  --sheen-soft: linear-gradient(118deg, light-dark(rgb(255 255 255 / 0.3), transparent), transparent 45%), linear-gradient(180deg, light-dark(rgb(255 255 255 / 0.18), rgb(255 255 255 / 0.06)), transparent 55%);
+  --glass-edge: inset 0 0 0 1px light-dark(rgb(255 255 255 / 0.45), transparent), inset 0 1px 0 light-dark(rgb(255 255 255 / 0.6), rgb(255 255 255 / 0.035)), inset 0 -18px 28px -22px light-dark(rgb(255 255 255 / 0.2), transparent);
 }
 
-/* Chromium and WebView2 refract the backdrop along a pane's edge (filter in index.html); `has-refraction` is set
- * by the script there, as other engines may parse the filter without rendering it. Elsewhere panes are just blurred. */
-:root.has-refraction {
-  --blur-glass: blur(5px) saturate(1.15) url(#glass-refract);
+/* backdrop-filter smears against the transparent WebView's edges, so the scrim only dims and the page is blurred directly;
+ * a top-layer dialog is unaffected by that blur */
+.is-mica-desktop .onboarding::before,
+.is-mica-desktop .calendar::backdrop,
+.is-mica-desktop .goal-dialog::backdrop {
+  backdrop-filter: none;
+}
+
+.is-mica-desktop:has(.onboarding, dialog[open]) :is(.sidebar, .workspace__scroll, .statusbar) {
+  filter: blur(6px);
 }
 
 /* no see-through, no outlines to lose: opaque panes and a visible stroke */

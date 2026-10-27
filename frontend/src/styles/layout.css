@@ -756,17 +756,6 @@
   gap: var(--gap);
 }
 
-/* opacity only: a transform here would make the sticky toolbar/headers inside misbehave */
-.route {
-  animation: route-in 0.18s ease-out;
-}
-
-@keyframes route-in {
-  from {
-    opacity: 0;
-  }
-}
-
 /* page title and what the page is for: the content is the star, so the title is modest */
 @media (max-width: 760px) {
   .main {
@@ -1043,7 +1032,6 @@
 @keyframes notice-in {
   from {
     transform: translateY(8px);
-    opacity: 0;
   }
 }
 
