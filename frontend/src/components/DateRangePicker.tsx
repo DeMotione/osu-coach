@@ -16,18 +16,20 @@ import { isoDay } from "../lib/format";
 import { IconCalendar, IconChevronLeft, IconChevronRight, IconX } from "./icons";
 
 /** A button naming the days chosen ("All dates" when none) that opens a calendar to pick the first and the last
- * day. Only the days in ``played`` (the days with plays) can be picked; the calendar starts with the last of them. */
-export function DateRangePicker({ value, onChange, played, label = "Dates" }: {
+ * day. Only the days in ``played`` (the days with plays) can be picked, or every day in ``span`` when those aren't
+ * known; the calendar starts with the last of them. */
+export function DateRangePicker({ value, onChange, played, span, label = "Dates" }: {
   value: DayRange | null;
   onChange: (range: DayRange | null) => void;
-  played: Set<Day>;
+  played?: Set<Day>;
+  span?: [Day, Day];
   label?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="date-range">
       <button type="button" className="btn btn--sm date-range__button" aria-label={`${label}: ${value ? rangeLabel(value) : "all dates"}`}
-        disabled={!played.size} onClick={() => setOpen(true)}>
+        disabled={played ? !played.size : !span} onClick={() => setOpen(true)}>
         <IconCalendar /> <span>{value ? rangeLabel(value) : "All dates"}</span>
       </button>
       {value && (
@@ -37,22 +39,24 @@ export function DateRangePicker({ value, onChange, played, label = "Dates" }: {
         </button>
       )}
       {open && (
-        <CalendarDialog value={value} played={played} onClose={() => setOpen(false)}
+        <CalendarDialog value={value} played={played} span={span} onClose={() => setOpen(false)}
           onApply={(r) => { onChange(r); setOpen(false); }} />
       )}
     </div>
   );
 }
 
-function CalendarDialog({ value, played, onApply, onClose }: {
+function CalendarDialog({ value, played, span, onApply, onClose }: {
   value: DayRange | null;
-  played: Set<Day>;
+  played?: Set<Day>;
+  span?: [Day, Day];
   onApply: (range: DayRange) => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const sorted = [...played].sort();
+  const sorted = played ? [...played].sort() : (span ?? []);
   const [first, last] = [sorted[0] ?? isoDay(), sorted.at(-1) ?? isoDay()];
+  const can = (day: Day) => (played ? played.has(day) : day >= first && day <= last);
   // nothing picked yet: from the last day with plays, so one more click picks how far back to go
   const [range, setRange] = useState<DayRange | null>(value ?? (sorted.length ? { from: last, to: null } : null));
   const [hover, setHover] = useState<Day | null>(null);
@@ -112,11 +116,11 @@ function CalendarDialog({ value, played, onApply, onClose }: {
             lo !== hi && day === lo ? "is-first" : "",
             lo !== hi && day === hi ? "is-last" : "",
             ends ? "is-end" : "",
-            played.has(day) ? "has-plays" : "",
+            played?.has(day) ? "has-plays" : "",
           ].filter(Boolean).join(" ");
           return (
-            <button key={day} type="button" className={cls} disabled={!played.has(day)}
-              aria-label={`${dayLabel(day)}${played.has(day) ? "" : ", no plays"}`} aria-pressed={day === range?.from || day === range?.to}
+            <button key={day} type="button" className={cls} disabled={!can(day)}
+              aria-label={`${dayLabel(day)}${can(day) ? "" : played ? ", no plays" : ", out of range"}`} aria-pressed={day === range?.from || day === range?.to}
               onPointerEnter={() => setHover(day)} onClick={() => setRange(pickDay(range, day))}>
               <span>{Number(day.slice(8))}</span>
             </button>

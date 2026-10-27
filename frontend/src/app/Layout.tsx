@@ -345,6 +345,7 @@ function Shell() {
         <div className="workspace__scroll" ref={scrollRef} inert={guide}>
           <main className="main">
             <Suspense fallback={<div className="page" />}>
+              {/* no opacity/filter/mask animation here: it would make this the backdrop root and the cards' frost would pop in after it */}
               <div className="route" key={pathname}>
                 <Outlet />
               </div>

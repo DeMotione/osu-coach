@@ -7,6 +7,7 @@ import { Chart } from "../charts/Chart";
 import type { ChartTheme } from "../charts/palette";
 import { playedChart, skillsChart, starsChart } from "../charts/progress";
 import { DataTable } from "../components/DataTable";
+import { DateRangePicker } from "../components/DateRangePicker";
 import { IconTrend } from "../components/icons";
 import { EmptyState, ErrorCard, LoadingPage } from "../components/states";
 import { Card, Delta, Field, Page, Row, Segmented, Stat, Tiles } from "../components/ui";
@@ -75,11 +76,13 @@ export default function ProgressPage() {
                 ]}
               />
             </Field>
-            <Field label="From">
-              <input className="input" type="date" value={since ?? q.data.first_day ?? ""} onChange={(e) => setSince(e.target.value || undefined)} />
-            </Field>
-            <Field label="To (included)">
-              <input className="input" type="date" value={until ?? isoDay()} onChange={(e) => setUntil(e.target.value || undefined)} />
+            <Field label="Dates">
+              <DateRangePicker
+                label="Dates"
+                value={since || until ? { from: since ?? q.data.first_day ?? isoDay(), to: until ?? isoDay() } : null}
+                onChange={(r) => { setSince(r?.from); setUntil(r?.to ?? undefined); }}
+                span={[q.data.first_day ?? isoDay(), isoDay()]}
+              />
             </Field>
           </div>
         </Card>

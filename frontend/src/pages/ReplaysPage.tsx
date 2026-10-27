@@ -16,10 +16,11 @@ import {
   useSettings,
 } from "../api/queries";
 import { DataTable, type Column } from "../components/DataTable";
+import { DateRangePicker } from "../components/DateRangePicker";
 import { IconMagnify, IconPlay, IconSearch } from "../components/icons";
 import { EmptyState, JobStatus } from "../components/states";
 import { Alert, Card, Dropzone, Field, FileChips, Meter, Page, Row, Segmented, Switch, type Option } from "../components/ui";
-import { fmt, int, localTime, pct } from "../lib/format";
+import { fmt, int, isoDay, localTime, pct } from "../lib/format";
 
 type Settings = Schemas["AppSettings"];
 type Latest = Schemas["Latest"];
@@ -285,24 +286,18 @@ function AnalyseCard({ settings }: { settings: Settings }) {
             </Field>
           )}
           {!sel?.files_mode && settings.date_range === "custom" && (
-            <div className="split">
-              <Field label="From">
-                <input
-                  className="input"
-                  type="date"
-                  value={settings.date_from ?? sel?.date_from ?? ""}
-                  onChange={(e) => patch.mutate({ date_from: e.target.value || null })}
-                />
-              </Field>
-              <Field label="To (included)">
-                <input
-                  className="input"
-                  type="date"
-                  value={settings.date_to ?? sel?.date_to ?? ""}
-                  onChange={(e) => patch.mutate({ date_to: e.target.value || null })}
-                />
-              </Field>
-            </div>
+            <Field label="Dates">
+              <DateRangePicker
+                label="Dates"
+                value={
+                  (settings.date_from ?? sel?.date_from) && (settings.date_to ?? sel?.date_to)
+                    ? { from: (settings.date_from ?? sel?.date_from)!, to: settings.date_to ?? sel?.date_to ?? null }
+                    : null
+                }
+                onChange={(r) => patch.mutate({ date_from: r?.from ?? null, date_to: r?.to ?? null })}
+                span={["2007-09-16", isoDay()]}
+              />
+            </Field>
           )}
           {!sel?.files_mode && (
             <Field
