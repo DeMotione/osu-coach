@@ -1617,6 +1617,11 @@ export interface components {
             od: number;
             /** Length S */
             length_s: number;
+            /**
+             * Dynamics
+             * @description The map's overall character, e.g. Streamy or Jumpy + Reading-heavy.
+             */
+            dynamics?: string | null;
         };
         /** GoalOut */
         GoalOut: {
@@ -1676,6 +1681,11 @@ export interface components {
             practice_accuracy: number;
             /** Pp */
             pp?: number | null;
+            /**
+             * Pp Ss
+             * @description PP for a 100% FC.
+             */
+            pp_ss?: number | null;
             /** Pp Label */
             pp_label?: string | null;
             /** Pp Accuracy */
@@ -2330,7 +2340,7 @@ export interface components {
             replay_path?: string | null;
             /**
              * Beatmap
-             * @description A difficulty ID or osu.ppy.sh difficulty URL.
+             * @description An osu.ppy.sh difficulty link.
              */
             beatmap?: string | null;
             /**
@@ -2350,7 +2360,7 @@ export interface components {
              * @default HD
              * @enum {string}
              */
-            training_mod: "HD" | "DT";
+            training_mod: "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT";
             /** Farm Mods */
             farm_mods?: ("NM" | "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT")[];
             /**
@@ -2358,6 +2368,11 @@ export interface components {
              * @default true
              */
             online: boolean;
+            /**
+             * Min Pp
+             * @description Hide maps whose FC scenario gives less PP.
+             */
+            min_pp?: number | null;
         };
         /** PlayGoalResult */
         PlayGoalResult: {
@@ -2373,6 +2388,12 @@ export interface components {
             status: "assessed" | "insufficient_evidence" | "partial";
             /** Verdict */
             verdict: string;
+            /**
+             * Tone
+             * @default info
+             * @enum {string}
+             */
+            tone: "good" | "warn" | "bad" | "info";
             /** Reasons */
             reasons: string[];
             /**

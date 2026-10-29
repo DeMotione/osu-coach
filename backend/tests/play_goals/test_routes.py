@@ -31,6 +31,7 @@ def test_options_and_conditional_starter_farming_work_without_profile(client):
         {"goal": "fc", "beatmap": "1", "replay_path": "/fake.osr"},
         {"goal": "farm", "farm_mods": []},
         {"goal": "mod", "training_mod": "RX"},
+        {"goal": "mod", "training_mod": "EZ"},  # EZ maps are not in the shipped pool yet
     ],
 )
 def test_invalid_goal_requests_use_standard_errors(client, body):
@@ -56,7 +57,9 @@ def test_fc_replay_uses_target_mods_and_observed_breaks(analysed):
 
 
 def test_arbitrary_target_offline_reports_missing_bytes(client):
-    response = client.post("/api/play-goals", json={"goal": "fc", "beatmap": "987654321", "online": False})
+    response = client.post(
+        "/api/play-goals", json={"goal": "fc", "beatmap": "https://osu.ppy.sh/b/987654321", "online": False}
+    )
     job = wait(client, response.json())
     assert job["status"] == "failed" and "not cached" in job["error"]
 
@@ -66,6 +69,14 @@ def test_custom_mod_training_starter_is_not_a_personalized_diagnosis(client):
     result = wait(client, response.json())["result"]
     assert result["recommendations"]
     assert all(r["map"]["mods"] == "HD" and r["accuracy"] is None for r in result["recommendations"])
+
+
+def test_training_mod_accepts_hr_and_combinations(client):
+    for mods in ("HR", "HDHR", "HRDT"):
+        response = client.post("/api/play-goals", json={"goal": "mod", "training_mod": mods, "online": False})
+        result = wait(client, response.json())["result"]
+        assert result["recommendations"]
+        assert all(r["map"]["mods"] == mods for r in result["recommendations"])
 
 
 def test_cancelled_evaluation_checks_reporter_before_work(client):

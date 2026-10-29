@@ -47,7 +47,7 @@ def target_bytes(cache_dir: Path, beatmap_id: int, libraries: list, online: bool
         raise ApiError(
             422,
             "goal_map_unavailable",
-            "Could not download a verified beatmap. Check the difficulty ID and connection.",
+            "Could not download a verified beatmap. Check the link and your connection.",
         )
     directory.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")

@@ -4769,6 +4769,18 @@
           "length_s": {
             "type": "number",
             "title": "Length S"
+          },
+          "dynamics": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dynamics",
+            "description": "The map's overall character, e.g. Streamy or Jumpy + Reading-heavy."
           }
         },
         "type": "object",
@@ -4962,6 +4974,19 @@
               }
             ],
             "title": "Pp"
+          },
+          "pp_ss": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pp Ss",
+            "description": "PP for a 100% FC."
           },
           "pp_label": {
             "anyOf": [
@@ -6924,7 +6949,7 @@
               }
             ],
             "title": "Beatmap",
-            "description": "A difficulty ID or osu.ppy.sh difficulty URL."
+            "description": "An osu.ppy.sh difficulty link."
           },
           "mods": {
             "type": "string",
@@ -6954,7 +6979,12 @@
             "type": "string",
             "enum": [
               "HD",
-              "DT"
+              "HR",
+              "HDHR",
+              "DT",
+              "HDDT",
+              "HRDT",
+              "HDHRDT"
             ],
             "title": "Training Mod",
             "default": "HD"
@@ -6982,6 +7012,20 @@
             "type": "boolean",
             "title": "Online",
             "default": true
+          },
+          "min_pp": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 5000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Pp",
+            "description": "Hide maps whose FC scenario gives less PP."
           }
         },
         "additionalProperties": false,
@@ -7020,6 +7064,17 @@
           "verdict": {
             "type": "string",
             "title": "Verdict"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "good",
+              "warn",
+              "bad",
+              "info"
+            ],
+            "title": "Tone",
+            "default": "info"
           },
           "reasons": {
             "items": {

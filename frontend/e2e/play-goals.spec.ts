@@ -16,13 +16,11 @@ test.beforeEach(async ({ request }) => {
 test("farming and HD/DT goals show concrete plays and fit small windows", async ({ page }) => {
   await page.goto("/play-goals?tab=farm");
   await expect(page.getByRole("heading", { level: 1, name: "Play Goals" })).toBeVisible();
-  await page.getByLabel("osu! client").selectOption("stable");
-  await page.getByRole("button", { name: "Find PP plays" }).click();
-  const next = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Your next plays" }) });
-  await expect(next.locator("article").first()).toBeVisible();
-  expect(await next.locator("article").count()).toBeLessThanOrEqual(5);
-  await expect(next).toContainText("Conditional FC scenario");
-  await expect(next).toContainText("Play target:");
+  await page.getByRole("button", { name: "Find maps" }).click();
+  const next = page.locator(".card").filter({ has: page.getByRole("heading", { name: /^Maps to / }) });
+  await expect(next.locator("tbody tr").first()).toBeVisible();
+  await expect(next.getByRole("columnheader", { name: "PP at target" })).toBeVisible();
+  await expect(next.getByRole("columnheader", { name: "Target" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Get these maps into osu!" })).toBeVisible();
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -30,14 +28,19 @@ test("farming and HD/DT goals show concrete plays and fit small windows", async 
     expect(await page.locator(".card").evaluateAll((cards) => cards.some((card) => card.scrollWidth > card.clientWidth + 1))).toBe(false);
   }
   await page.getByRole("tab", { name: "Improve a mod" }).click();
-  await page.getByLabel("Training mod").selectOption("HD");
   await page.getByRole("button", { name: "Find training maps" }).click();
-  await expect(next.locator("article").first()).toContainText("+HD");
-  await expect(next).toContainText("insufficient comparable evidence");
-  await page.getByLabel("Training mod").selectOption("DT");
+  await expect(next.locator("tbody tr").first()).toContainText("+HD");
+  const training = page.getByRole("group", { name: "Training mods" });
+  await training.getByRole("button", { name: "DT", exact: true }).click();
+  await training.getByRole("button", { name: "HD", exact: true }).click();
   await page.getByRole("button", { name: "Find training maps" }).click();
-  await expect(next.locator("article").first()).toContainText("+DT");
-  await expect(next.locator("article").first()).not.toContainText("+HD");
+  await expect(next.locator("tbody tr").first()).toContainText("+DT");
+  await expect(next.locator("tbody tr").first()).not.toContainText("+HD");
+  await expect(training.getByRole("button", { name: "EZ", exact: true })).toBeDisabled();
+  await training.getByRole("button", { name: "HR", exact: true }).click();
+  await training.getByRole("button", { name: "DT", exact: true }).click();
+  await page.getByRole("button", { name: "Find training maps" }).click();
+  await expect(next.locator("tbody tr").first()).toContainText("+HR");
 });
 
 test("a chosen replay gets an FC diagnosis and keeps a deep link to its details", async ({ page, request }) => {
@@ -55,9 +58,8 @@ test("a chosen replay gets an FC diagnosis and keeps a deep link to its details"
     await page.goto(`/play-goals?tab=fc&path=${encodeURIComponent(path.join(folder, fixture.replay))}&client=lazer`);
     await page.getByRole("button", { name: "Assess my FC goal" }).click();
     await expect(page.getByRole("heading", { name: "What to work on for this map" })).toBeVisible();
-    await expect(page.getByText("Observed in attempts").first()).toBeVisible();
+    await expect(page.getByText("Observed").first()).toBeVisible();
     await expect(page.getByText("Practise around:").first()).toBeVisible();
-    await expect(page.getByText("Estimated accuracy: insufficient comparable evidence.").first()).toBeVisible();
     await page.getByRole("link", { name: "Open detailed map analysis" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Detailed Map Analysis" })).toBeVisible();
     await expect(page.getByRole("link", { name: "I want to FC this map" })).toBeVisible();

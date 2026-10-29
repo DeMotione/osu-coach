@@ -13,6 +13,15 @@ from osu_coach.maps.goal_pool import CONFIGS
 
 MIN_PLAYS = 10
 MIN_MAPS = 5
+RECENT_ATTEMPTS = 3
+
+VERDICT_TONES = {
+    "Already FCed": "good",
+    "FC looks within reach": "good",
+    "A stretch": "warn",
+    "Beyond current reach": "bad",
+    "Beyond current reach for now": "bad",
+}
 
 
 def number(value) -> float | None:
@@ -25,13 +34,16 @@ def number(value) -> float | None:
     return result if math.isfinite(result) else None
 
 
+def sim_ok(meta: dict) -> bool:
+    # lazer replays rarely match the header exactly; 90% agreement is enough to locate breaks.
+    return meta.get("sim_match") is True or (number(meta.get("sim_agreement")) or 0) >= 0.9
+
+
 def beatmap_id(value: str) -> int:
     value = value.strip()
-    if re.fullmatch(r"[1-9][0-9]{0,9}", value):
-        return int(value)
     parsed = urlsplit(value)
     if parsed.scheme != "https" or parsed.netloc != "osu.ppy.sh":
-        raise ValueError("Use a difficulty ID or an https://osu.ppy.sh beatmap difficulty URL.")
+        raise ValueError("Use an https://osu.ppy.sh beatmap difficulty link.")
     match = re.fullmatch(r"/(?:b|beatmaps)/([1-9][0-9]{0,9})/?", parsed.path)
     if not match and re.fullmatch(r"/beatmapsets/[1-9][0-9]*/?", parsed.path):
         match = re.fullmatch(r"osu/([1-9][0-9]{0,9})", parsed.fragment)
@@ -44,6 +56,7 @@ def configuration(meta: dict) -> str | None:
     bits = meta.get("mods")
     if not isinstance(bits, int) or meta.get("client") not in ("stable", "lazer"):
         return None
+    bits &= ~1  # NoFail changes no difficulty
     if bits & 512:
         bits = (bits & ~512) | 64
     name = next((name for name, value in CONFIGS.items() if value == bits), None)
@@ -55,11 +68,16 @@ def configuration(meta: dict) -> str | None:
             return None
         actual = 0
         for mod in mods:
-            if not isinstance(mod, dict) or mod.get("acronym") not in ("HD", "HR", "DT", "NC"):
+            if not isinstance(mod, dict) or mod.get("acronym") not in ("EZ", "HD", "HR", "DT", "NC", "NF"):
                 return None
-            actual |= {"HD": 8, "HR": 16, "DT": 64, "NC": 64}[mod["acronym"]]
-            settings = mod.get("settings") or {}
-            if settings and (set(settings) != {"speed_change"} or settings["speed_change"] != 1.5):
+            acronym = mod["acronym"]
+            actual |= {"EZ": 2, "HD": 8, "HR": 16, "DT": 64, "NC": 64, "NF": 0}[acronym]
+            extra = set(mod.get("settings") or {})
+            if acronym == "EZ":
+                extra -= {"retries"}
+            if acronym in ("DT", "NC") and (mod.get("settings") or {}).get("speed_change") == 1.5:
+                extra -= {"speed_change"}
+            if extra:
                 return None
         if actual != bits:
             return None
@@ -85,7 +103,7 @@ def evidence(analyses: list, player: str | None) -> list[dict]:
         m = a.meta
         mods = configuration(m)
         key = (m.get("beatmap_md5"), str(m.get("date")), m.get("score"))
-        if m.get("player") != player or mods is None or key in seen or m.get("sim_match") is not True:
+        if m.get("player") != player or mods is None or key in seen or not sim_ok(m):
             continue
         if not all(number(m.get(k)) is not None for k in ("stars", "ar", "od", "bpm", "length_s", "accuracy")):
             continue
@@ -164,16 +182,29 @@ def reachability(target: dict, rows: list[dict]) -> tuple[str, list[str], str]:
         return "Already FCed", ["A complete, verified no-break play exists for this map and configuration."], "moderate"
     peers = comparable(target, rows)
     if same:
-        best = min(same, key=lambda r: (not r["completed"], r["breaks"]))
+        # Current form: an old, better run of the map must not hide that you play it worse now.
+        recent = sorted(same, key=lambda r: str(r.get("date")), reverse=True)[:RECENT_ATTEMPTS]
+        best = min(recent, key=lambda r: (not r["completed"], r["breaks"]))
         if best["completed"] and best["breaks"] <= 2:
             return (
                 "FC looks within reach",
                 [
-                    f"Your best verified attempt has {best['breaks']} combo-breaking event(s).",
+                    f"Your best of the latest {len(recent)} attempt(s) has {best['breaks']} combo-breaking event(s).",
                     "This is a qualitative assessment, not an FC probability.",
                 ],
                 "limited",
             )
+        verdict = "A stretch" if best["completed"] and best["breaks"] < 10 else "Beyond current reach for now"
+        return (
+            verdict,
+            [
+                f"Your best of the latest {len(recent)} attempt(s): {best['accuracy']:.1%} accuracy, {best['breaks']} combo-breaking event(s)"
+                + ("" if best["completed"] else ", did not finish")
+                + ".",
+                "Based on your attempts of this map only.",
+            ],
+            "limited",
+        )
     complete = [
         r for r in rows if r["completed"] and r["mods_name"] == target["mods"] and r["client"] == target["client"]
     ]
@@ -210,11 +241,34 @@ def reachability(target: dict, rows: list[dict]) -> tuple[str, list[str], str]:
     return (
         "Not enough evidence",
         [
-            "An FC assessment needs verified same-map attempts or enough comparable plays with these mods.",
-            "Analyse recent replays for this player. No FC odds or maximum accuracy are inferred from global ratings.",
+            "Needs a verified attempt of this map or enough similar plays with these mods.",
         ],
         "unassessed",
     )
+
+
+def skipped_attempts(analyses: list, rows: list[dict], player: str | None, target: dict) -> str | None:
+    """Why the player's attempts of the target map are not usable evidence, or None if there are none."""
+    kept = {r["key"] for r in rows}
+    why: Counter = Counter()
+    for a in analyses:
+        m = a.meta
+        if m.get("beatmap_md5") != target["md5"] or m.get("player") != player or a.key in kept:
+            continue
+        mods = f"+{m.get('mod_string') or 'NM'}"
+        if m.get("client") != target["client"]:
+            why[f"{mods} on osu!{m.get('client')}, target is osu!{target['client']}"] += 1
+        elif not sim_ok(m):
+            why["simulation did not match the replay result"] += 1
+        elif configuration(m) is None:
+            why[f"{mods} is not a supported mod setup"] += 1
+        elif configuration(m) != target["mods"]:
+            why[f"{mods}, target is +{target['mods']}"] += 1
+        else:
+            why["incomplete map or score data"] += 1
+    if not why:
+        return None
+    return f"{sum(why.values())} attempt(s) of this map skipped: " + "; ".join(why) + "."
 
 
 def blockers(analyses: list, target: dict) -> list[dict]:
@@ -268,19 +322,72 @@ def blockers(analyses: list, target: dict) -> list[dict]:
     ]
 
 
+DYNAMICS = {
+    "aim": ("Jumpy", "Jump aim"),
+    "flow_aim": ("Flow aim", "Flow aim"),
+    "speed": ("Streamy", "Streaming"),
+    "reading": ("Reading-heavy", "Reading"),
+    "sliders": ("Slider-heavy", "Sliders"),
+    "stamina": ("Stamina-heavy", "Stamina"),
+}
+
+
+def dynamics(row: dict) -> str:
+    """What kind of map this is: every strong demand, strongest first, or Balanced."""
+    demand = sorted(((number(row.get("s_" + k)) or 0, k) for k in DYNAMICS), reverse=True)
+    top = [k for value, k in demand[:3] if value >= 0.3]
+    return " + ".join(DYNAMICS[k][0] for k in top) or "Balanced"
+
+
+def lacking_focus(target: dict, skills: dict[str, float]) -> list[dict]:
+    """The target's demands weighted by how weak the player is at them (skills: 0-1 scores)."""
+    ranked = sorted(((number(target.get("s_" + k)) or 0) * (1 - skills.get(k, 0.5)), k) for k in DYNAMICS)[::-1]
+    picked = [k for weight, k in ranked[:2] if weight >= 0.15] or [ranked[0][1]]
+    return [
+        {
+            "skill": k,
+            "title": DYNAMICS[k][1],
+            "detail": f"This map leans on it; your score is {skills[k] * 100:.0f}/100."
+            if k in skills
+            else "This map leans on it; you have no score for it yet.",
+            "observed": False,
+            "timestamps": [],
+        }
+        for k in picked
+    ]
+
+
 def sampled_pp(row: dict, accuracy: float) -> tuple[float, float] | None:
-    samples = [v for v in row.get("pp_curve", []) if v["accuracy"] <= accuracy + 1e-9]
-    if not samples:
+    """PP of a full combo at ``accuracy``, between the two stored curve points (PP grows ~exponentially with accuracy)."""
+    curve = sorted(row.get("pp_curve", []), key=lambda p: p["accuracy"])
+    below = [p for p in curve if p["accuracy"] <= accuracy + 1e-9]
+    above = [p for p in curve if p["accuracy"] >= accuracy - 1e-9]
+    if not below or not above:
         return None
-    point = max(samples, key=lambda p: p["accuracy"])
-    return point["pp"], point["accuracy"]
+    lo, hi = below[-1], above[0]
+    if hi["accuracy"] - lo["accuracy"] < 1e-9:
+        return lo["pp"], accuracy
+    t = (accuracy - lo["accuracy"]) / (hi["accuracy"] - lo["accuracy"])
+    if lo["pp"] > 0 and hi["pp"] > 0:
+        return math.exp(math.log(lo["pp"]) * (1 - t) + math.log(hi["pp"]) * t), accuracy
+    return lo["pp"] * (1 - t) + hi["pp"] * t, accuracy
 
 
 def recommend(
-    pool: list[dict], rows: list[dict], goal: str, mods: list[str], client: str, target: dict | None, focus: list[dict]
+    pool: list[dict],
+    rows: list[dict],
+    goal: str,
+    mods: list[str],
+    client: str,
+    target: dict | None,
+    focus: list[dict],
+    min_pp: float | None = None,
+    comfort: float | None = None,
 ) -> list[dict]:
     complete = [r for r in rows if r["completed"] and r["client"] == client]
-    base = statistics.median(r["stars"] for r in complete) if complete else 2.0
+    # The profile's comfort stars are what the rest of the app calls the player's level.
+    base = comfort or (statistics.median(r["stars"] for r in complete) if complete else 2.0)
+    nm_stars = {r["md5"]: r["stars"] for r in pool if r["mods"] == "NM" and r["client"] == client}
     result = []
     for row in pool:
         if row["mods"] not in mods or row["client"] != client:
@@ -291,22 +398,24 @@ def recommend(
             continue
         mod_rows = [r for r in complete if r["mods_name"] == row["mods"]]
         measured = len({r["beatmap_md5"] for r in mod_rows}) >= MIN_MAPS
-        level = (
-            statistics.median(r["stars"] for r in mod_rows)
-            if measured
-            else max(1.5, base - (0.8 if row["mods"] != "NM" else 0.3))
-        )
+        # Unmeasured mods start from easy NM maps, and the modded map must be within that level too:
+        # DT can turn a 5.5 star map into an 8.5 star one.
+        level = statistics.median(r["stars"] for r in mod_rows) if measured else max(1.5, base - 0.3)
         delta = row["stars"] - level
-        if not -1.5 <= delta <= (0.5 if measured else 0):
+        if not measured:
+            delta = max(nm_stars.get(row["md5"], row["stars"]) - level, delta)
+        if not -1.5 <= delta <= (0.2 if goal == "farm" else 0.5 if measured else 0):
             continue
+        # With no plays of this mod, compare against everything the player completed.
+        reference = mod_rows or complete
         unrelated_risk = 0.0
-        if mod_rows:
-            baseline_ar = statistics.median(r["ar"] for r in mod_rows)
+        if reference:
+            baseline_ar = statistics.median(r["ar"] for r in reference)
             unrelated_risk += max(0, row["ar"] - baseline_ar - 0.5)
             if (number(row.get("stream_share")) or 0) > 0.15:
-                baseline_bpm = statistics.median(r["bpm"] for r in mod_rows)
+                baseline_bpm = statistics.median(r["bpm"] for r in reference)
                 unrelated_risk += max(0, row["bpm"] / max(1, baseline_bpm) - 1.05) * 4
-        if unrelated_risk > 2:
+        if unrelated_risk > (2 if mod_rows else 1):
             continue
         estimates = accuracy_range(row, rows)
         peers = comparable(row, rows)
@@ -316,19 +425,34 @@ def recommend(
             if r["beatmap_md5"] == row["md5"] and r["mods_name"] == row["mods"] and r["client"] == client
         ]
         best = max((r["accuracy"] for r in same if r["completed"]), default=None)
-        practice = min(0.99, round((estimates["median"] if estimates else 0.95), 2))
+        # Easier than your level: aim high; at the edge of it: lower. Spans 99% down to 90%. Nearly clean plays of
+        # similar difficulty pull the target towards what you actually score.
+        scaled = 0.99 - 0.09 * min(1.0, max(0.0, (delta + 1.5) / 2.0))
+        accuracy_rows = mod_rows if len(mod_rows) >= 3 else complete
+        star_ref = row["stars"] if len(mod_rows) >= 3 else nm_stars.get(row["md5"], row["stars"])
+        near_pool = peers if estimates else [r for r in accuracy_rows if abs(r["stars"] - star_ref) <= 1.0]
+        near = [r["accuracy"] for r in near_pool if r["breaks"] <= 2]
+        if len(near) >= 3:
+            practice = (scaled + statistics.median(near) + 0.01) / 2
+        else:
+            practice = scaled
+        practice = round(min(0.99, max(0.90, practice)), 2)
         achieved = any(r["fc"] and r["accuracy"] >= practice for r in same)
         relevance = sum(number(row.get("s_" + b["skill"])) or 0 for b in focus) / max(1, len(focus))
         if focus and relevance < 0.15:
             continue
         skill_names = ", ".join(b["title"].lower() for b in focus) or (
             "HD reading"
-            if row["mods"] == "HD"
+            if "HD" in row["mods"]
             else "tempo and control"
             if "DT" in row["mods"]
+            else "HR precision"
+            if "HR" in row["mods"]
             else "consistent full-map play"
         )
         scenario = sampled_pp(row, practice)
+        if min_pp and (scenario is None or scenario[0] < min_pp):
+            continue
         clean_peers = len(peers) >= MIN_PLAYS and sum(bool(r["fc"]) for r in peers) / len(peers) >= 0.7
         projected = goal == "farm" and estimates is not None and clean_peers
         label = (
@@ -337,24 +461,18 @@ def recommend(
             else None
         )
         score = (
-            (scenario[0] if projected and scenario else 0)
-            if goal == "farm"
-            else (relevance * 3 - abs(delta + 0.3) - unrelated_risk)
+            (scenario[0] if scenario else 0) if goal == "farm" else (relevance * 3 - abs(delta + 0.3) - unrelated_risk)
         )
         result.append(
             {
-                "map": row,
-                "why": f"Trains {skill_names} at {'a demonstrated' if measured else 'an unassessed starter'} level.",
-                "objective": f"Play +{row['mods']}; aim for {practice:.0%} accuracy and no combo breaks. "
-                + (
-                    "This is a practice objective, not predicted accuracy."
-                    if estimates is None
-                    else "The estimate describes comparable plays, not a guarantee."
-                ),
-                "step_up": "After two complete plays meeting the objective, try the next difficulty or return to your target.",
+                "map": {**row, "dynamics": dynamics(row)},
+                "why": f"Trains {skill_names}.",
+                "objective": f"Play +{row['mods']}, aim for {practice:.0%}, no combo breaks.",
+                "step_up": "Pass twice, then move up.",
                 "accuracy": estimates,
                 "practice_accuracy": practice,
                 "pp": scenario[0] if scenario else None,
+                "pp_ss": (ss := sampled_pp(row, 1.0)) and ss[0],
                 "pp_accuracy": scenario[1] if scenario else None,
                 "pp_label": label,
                 "local_best_accuracy": best,
@@ -366,7 +484,7 @@ def recommend(
         )
     result.sort(
         key=lambda r: (
-            r["achieved"],
+            r["achieved"],  # targets you already met go last
             not r["_projected"] if goal == "farm" else False,
             -r["_score"],
             r["map"]["md5"],

@@ -97,12 +97,6 @@ export const NAV: NavGroup[] = [
     about: "What to do about it: tips, settings to try and maps to practise on.",
     items: [
       {
-        path: "/play-goals",
-        label: "Play Goals",
-        icon: IconTarget,
-        about: "FC a particular map, find achievable PP opportunities, or improve HD and DT with concrete next plays.",
-      },
-      {
         path: "/tips",
         label: "Tips",
         icon: IconBulb,
@@ -129,6 +123,12 @@ export const NAV: NavGroup[] = [
         icon: IconStairs,
         needsAnalysis: true,
         about: "Goals for your skills, and playlists (warm-up, comfort, push) to train one skill at a time.",
+      },
+      {
+        path: "/play-goals",
+        label: "Play Goals",
+        icon: IconTarget,
+        about: "FC a particular map, find achievable PP opportunities, or improve HD and DT with concrete next plays.",
       },
     ],
   },

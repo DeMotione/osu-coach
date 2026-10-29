@@ -102,6 +102,7 @@ def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayG
     evidence_revision = revision(ws)
     analyses = list(ws.analyses)
     target, replay_path = None, None
+    client = request.client
     warnings = [
         f"Offline recommendations cover {len({r['md5'] for r in pool})} selected difficulties, not the entire osu! catalogue.",
         "PP values are conservative hit-result FC scenarios from the pinned calculator, not account PP gains. "
@@ -128,6 +129,7 @@ def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayG
                     f"Could not analyse this replay: {errors[0][1] if errors else 'no result'}", "goal_analysis_failed"
                 )
             selected = done[0]
+            client = selected.meta["client"]
             replay_path = str(path)
             if player is None and not analyses:
                 player = selected.meta["player"]
@@ -155,6 +157,7 @@ def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayG
             raw = Path(map_path).read_bytes()
         else:
             report.note("Resolving the target difficulty")
+            client = "lazer"
             raw = repository.target_bytes(
                 ws.cache_dir,
                 domain.beatmap_id(request.beatmap or ""),
@@ -164,7 +167,7 @@ def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayG
             )
         report.note("Calculating the target configuration")
         try:
-            target = repository.target_configuration(ws.cache_dir, raw, request.mods, request.client)
+            target = repository.target_configuration(ws.cache_dir, raw, request.mods, client)
         except ValueError as exc:
             raise Invalid(str(exc), "goal_configuration_unsupported") from exc
         ranked = next((r for r in pool if r["md5"] == target["md5"]), None)
@@ -188,27 +191,29 @@ def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayG
         warnings.append(
             "Starter maps use an unmeasured 1.5-2 star starting assumption, not a measured skill level. Analyse your replays to personalize them."
         )
-    owned = [a for a in analyses if a.meta.get("player") == player and a.meta.get("sim_match") is True]
+    owned = [a for a in analyses if a.meta.get("player") == player and domain.sim_ok(a.meta)]
     focus = domain.blockers(owned, target) if target else []
+    if target:
+        target["dynamics"] = domain.dynamics(target)
     if target and not focus:
-        skill = max(("aim", "speed", "reading", "sliders"), key=lambda k: domain.number(target.get("s_" + k)) or 0)
-        focus = [
-            {
-                "skill": skill,
-                "title": f"{skill.replace('_', ' ').title()} demand",
-                "detail": "Inferred from target patterns, not an observed miss cause. Add attempts to identify actual blockers.",
-                "observed": False,
-                "timestamps": [],
-            }
-        ]
+        profile = ws.profile()
+        skills = {
+            k: v["score"] / 100
+            for k, v in (profile.skills if profile else {}).items()
+            if isinstance(v.get("score"), int | float)
+        }
+        focus = domain.lacking_focus(target, skills)
     if target:
         verdict, reasons, confidence = domain.reachability(target, rows)
+        skipped = domain.skipped_attempts(analyses, rows, player, target)
+        if skipped:
+            reasons.append(skipped)
+        if not any(a.meta.get("beatmap_md5") == target["md5"] and a.meta.get("player") == player for a in analyses):
+            reasons.append("No attempts of this map found in your replays.")
         accuracy = domain.accuracy_range(target, rows)
     else:
-        verdict = "Find your next PP play" if request.goal == "farm" else f"Build your {request.training_mod} control"
-        reasons = [
-            "Maps are matched to verified local plays with the selected mods. Starter objectives are not predictions."
-        ]
+        verdict = "Find maps" if request.goal == "farm" else f"Build your {request.training_mod} control"
+        reasons = ["Matched to your verified plays with these mods."]
         confidence, accuracy = ("limited" if rows else "unassessed"), None
     report.note("Finding attainable next plays")
     mods = (
@@ -218,7 +223,12 @@ def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayG
         if request.goal == "mod"
         else [request.mods]
     )
-    recommendations = domain.recommend(pool, rows, request.goal, mods, request.client, target, focus)
+    profile = ws.profile()
+    levels = profile.levels if profile else {}
+    comfort = domain.number(levels.get("comfort_stars")) or domain.number(levels.get("level_stars"))
+    recommendations = domain.recommend(
+        pool, rows, request.goal, mods, client, target, focus, request.min_pp, comfort=comfort
+    )
     if request.goal == "farm" and not any(r["_projected"] for r in recommendations):
         warnings.append(
             "Not enough comparable FC evidence for achievable PP forecasts. All PP below is conditional on the stated FC scenario."
@@ -243,6 +253,7 @@ def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayG
             if not recommendations or (target and accuracy is None)
             else "assessed",
             "verdict": verdict,
+            "tone": domain.VERDICT_TONES.get(verdict, "info"),
             "reasons": reasons,
             "confidence": confidence,
             "target": target,

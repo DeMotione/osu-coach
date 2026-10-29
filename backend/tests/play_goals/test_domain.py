@@ -52,7 +52,6 @@ def plays(count=10, maps=5, **changes):
 @pytest.mark.parametrize(
     "value, expected",
     [
-        ("1234", 1234),
         ("https://osu.ppy.sh/b/1234", 1234),
         ("https://osu.ppy.sh/beatmaps/1234", 1234),
         ("https://osu.ppy.sh/beatmapsets/5#osu/1234", 1234),
@@ -69,6 +68,7 @@ def test_target_ids(value, expected):
         "https://osu.ppy.sh/beatmapsets/5",
         "https://osu.ppy.sh/beatmapsets/5#mania/1234",
         "file:///etc/passwd",
+        "1234",
         "0",
     ],
 )
@@ -172,7 +172,7 @@ def pool():
             **target(md5=f"{i:032x}"),
             "status": "ranked",
             "s_aim": 0.8,
-            "pp_curve": [{"accuracy": 0.95, "pp": 100}, {"accuracy": 0.99, "pp": 150}],
+            "pp_curve": [{"accuracy": 0.9, "pp": 60}, {"accuracy": 0.95, "pp": 100}, {"accuracy": 0.99, "pp": 150}],
         }
         for i in range(6)
     ]
@@ -192,6 +192,103 @@ def test_supported_fc_evidence_allows_achievable_scenario_and_keeps_repeats():
     assert any(r["_projected"] for r in recommendations)
     assert any(r["map"]["md5"] == rows[0]["beatmap_md5"] for r in recommendations)
     assert len({r["map"]["md5"] for r in recommendations[:5]}) == 5
+
+
+def test_play_target_scales_with_difficulty_without_estimate():
+    maps = [{**pool()[0], "stars": 1.6}, {**pool()[1], "stars": 1.0}]
+    targets = {
+        r["map"]["stars"]: r["practice_accuracy"] for r in domain.recommend(maps, [], "mod", ["NM"], "stable", None, [])
+    }
+    assert targets == {1.6: 0.93, 1.0: 0.95}
+    far_below = {**pool()[2], "stars": 0.2}
+    assert domain.recommend([far_below], [], "mod", ["NM"], "stable", None, [])[0]["practice_accuracy"] == 0.99
+
+
+def test_skipped_attempts_explain_why_same_map_plays_are_unused():
+    def attempt(key, **meta):
+        return SimpleNamespace(key=key, meta={"beatmap_md5": "target", "player": "me", "mod_string": "NM", **meta})
+
+    analyses = [
+        attempt("a", client="lazer", sim_match=True),
+        attempt("b", client="stable", sim_match=False),
+        attempt("c", client="stable", sim_match=True, mods=0, rate=1, goal_lazer_mods=None),
+    ]
+    text = domain.skipped_attempts(analyses, [{"key": "c"}], "me", target())
+    assert text and "2 attempt(s)" in text and "osu!lazer" in text and "simulation" in text
+    assert domain.skipped_attempts(analyses[2:], [{"key": "c"}], "me", target()) is None
+
+
+def test_single_same_map_attempt_gives_a_verdict():
+    row = {**plays(1)[0], "beatmap_md5": "target", "completed": True, "breaks": 40, "accuracy": 0.9}
+    assert domain.reachability(target(), [row])[0] == "Beyond current reach for now"
+    assert domain.reachability(target(), [{**row, "breaks": 5}])[0] == "A stretch"
+
+
+def test_dynamics_and_lacking_focus_follow_the_weakest_demanded_skill():
+    streamy = {"s_speed": 0.8, "s_aim": 0.2, "s_reading": 0.1}
+    assert domain.dynamics(streamy) == "Streamy"
+    assert domain.dynamics({"s_aim": 0.7, "s_reading": 0.6}) == "Jumpy + Reading-heavy"
+    assert domain.dynamics({"s_aim": 0.1}) == "Balanced"
+    mixed = {"s_speed": 0.8, "s_aim": 0.7}
+    assert [b["skill"] for b in domain.lacking_focus(mixed, {"speed": 0.9, "aim": 0.2})][0] == "aim"
+    assert [b["skill"] for b in domain.lacking_focus(mixed, {"speed": 0.2, "aim": 0.9})][0] == "speed"
+
+
+def test_verdict_uses_recent_attempts_not_a_stale_best():
+    old = {**plays(1)[0], "beatmap_md5": "target", "breaks": 1, "date": "2022-01-01"}
+    new = [{**old, "breaks": 30, "date": f"2026-10-0{i}"} for i in range(1, 4)]
+    assert domain.reachability(target(), [old, *new])[0] == "Beyond current reach for now"
+
+
+def test_nofail_does_not_change_the_configuration():
+    assert domain.configuration({"mods": 1, "client": "stable", "rate": 1}) == "NM"
+    assert domain.configuration({"mods": 65, "client": "stable", "rate": 1.5}) == "DT"
+    lazer = {"mods": 1, "client": "lazer", "rate": 1, "goal_lazer_mods": [{"acronym": "NF"}]}
+    assert domain.configuration(lazer) == "NM"
+
+
+def test_maps_can_have_several_dynamics():
+    assert domain.dynamics({"s_speed": 0.9, "s_aim": 0.5, "s_reading": 0.1}) == "Streamy + Jumpy"
+    assert domain.dynamics({"s_aim": 0.9, "s_speed": 0.1}) == "Jumpy"
+    assert domain.dynamics({"s_stamina": 0.8, "s_speed": 0.4}) == "Stamina-heavy + Streamy"
+    assert domain.lacking_focus({"s_stamina": 0.8}, {"stamina": 0.2})[0]["skill"] == "stamina"
+
+
+def test_minimum_pp_hides_low_pp_maps_and_inflated_mod_maps_stay_out():
+    nm = {**pool()[0], "stars": 1.5}
+    dt = {**nm, "mods": "DT", "stars": 4.0}  # DT turns an easy map into one far above a starter level
+    assert domain.recommend([nm, dt], [], "farm", ["NM", "DT"], "stable", None, []) != []
+    assert [r["map"]["mods"] for r in domain.recommend([nm, dt], [], "farm", ["NM", "DT"], "stable", None, [])] == [
+        "NM"
+    ]
+    assert domain.recommend([nm], [], "farm", ["NM"], "stable", None, [], min_pp=50)
+    assert domain.recommend([nm], [], "farm", ["NM"], "stable", None, [], min_pp=5000) == []
+
+
+def test_pp_at_target_is_interpolated_between_curve_points():
+    row = {"pp_curve": [{"accuracy": 0.95, "pp": 100}, {"accuracy": 0.99, "pp": 144}]}
+    assert domain.sampled_pp(row, 0.95) == (100, 0.95)
+    pp, accuracy = domain.sampled_pp(row, 0.97)
+    assert accuracy == 0.97 and pp == pytest.approx(120, abs=0.01)  # geometric mean of 100 and 144
+    assert domain.sampled_pp(row, 0.90) is None and domain.sampled_pp(row, 1.0) is None
+
+
+def test_level_is_the_profile_comfort_stars():
+    hard = {**pool()[0], "stars": 5.8}
+    easy = {**pool()[1], "stars": 3.5}
+    got = domain.recommend([hard, easy], [], "mod", ["NM"], "stable", None, [], comfort=4.0)
+    assert [r["map"]["stars"] for r in got] == [3.5]
+    assert got[0]["practice_accuracy"] == 0.93  # no plays of this difficulty: the fixed scale
+
+
+def test_target_follows_nearly_clean_plays_of_similar_difficulty():
+    clean = plays(6, maps=6, stars=4.0, accuracy=0.96, breaks=0)
+    sloppy = plays(6, maps=6, stars=4.0, accuracy=0.80, breaks=20)
+    for i, r in enumerate(sloppy):
+        r["beatmap_md5"] = f"sloppy-{i}"
+    easy = {**pool()[1], "stars": 3.8}
+    got = domain.recommend([easy], clean + sloppy, "mod", ["NM"], "stable", None, [], comfort=4.5)
+    assert got[0]["practice_accuracy"] == 0.95  # halfway between the difficulty scale (93%) and clean plays (97%)
 
 
 def test_unrelated_maps_do_not_replace_targeted_practice():

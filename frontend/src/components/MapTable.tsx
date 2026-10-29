@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
 
 import type { Schemas } from "../api/client";
 import { useMeta } from "../api/queries";
@@ -49,15 +48,7 @@ const COLUMNS: Column<MapRow>[] = [
   {
     key: "link",
     header: "Link",
-    cell: (m) =>
-      m.url ? (
-        <div className="stack">
-          <a href={m.url} target="_blank" rel="noreferrer noopener">open ↗</a>
-          {m.beatmap_id > 0 && <Link to={`/play-goals?tab=fc&beatmap=${m.beatmap_id}`}>FC goal</Link>}
-        </div>
-      ) : (
-        "–"
-      ),
+    cell: (m) => (m.url ? <a href={m.url} target="_blank" rel="noreferrer noopener">open ↗</a> : "–"),
     value: () => null,
   },
 ];
