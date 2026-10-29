@@ -20,7 +20,7 @@ test("farming and HD/DT goals show concrete plays and fit small windows", async 
   const next = page.locator(".card").filter({ has: page.getByRole("heading", { name: /^Maps to / }) });
   await expect(next.locator("tbody tr").first()).toBeVisible();
   await expect(next.getByRole("columnheader", { name: "PP at target" })).toBeVisible();
-  await expect(next.getByRole("columnheader", { name: "Target" })).toBeVisible();
+  await expect(next.getByRole("columnheader", { name: "Target", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Get these maps into osu!" })).toBeVisible();
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
