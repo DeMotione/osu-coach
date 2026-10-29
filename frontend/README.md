@@ -60,3 +60,17 @@ cards** (`<Row>`, which takes exactly two children) or a grid of **equal tiles**
 height, and their charts and tables grow to fill them; when one side has no data it shows an empty state of the same
 size instead of leaving a hole. One gap size is used everywhere. The end-to-end tests check these rules on every page
 at desktop and phone widths (equal row heights, filled tile grids, no card overflow, no sideways scrolling).
+
+## Play Goals
+
+`/play-goals?tab=fc|farm|mod` is the goal-focused sidebar destination. Its FC tab also accepts `path` (a known/uploaded
+replay) or `beatmap` (a difficulty URL/ID), plus `client` and supported `mods`. Replay details and map tables link into it.
+Existing analysis and training pages remain available.
+
+Results show five map configurations per page, with a specific objective, evidence strength and optional empirical
+accuracy range. PP is shown on the farming tab only, with explicit FC assumptions; a conditional scenario is not a
+forecast or an account PP gain. New analyses invalidate the evidence and refresh the assessment. Edits to inputs do
+not relabel old results: submit them to generate a new result.
+
+Exports deduplicate map files while retaining mod instructions and objectives in the text map list. A collection
+cannot turn mods on. End-to-end coverage lives in `e2e/play-goals.spec.ts`.

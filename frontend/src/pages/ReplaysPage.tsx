@@ -432,14 +432,20 @@ function AnalysedCard() {
         " plays your numbers come from, newest first. Weight = how much a play counts: 100% within ±0.5★ of your level, less the further its difficulty is from it. Pick a row to open it on its own."
       }
       actions={
-        <button
-          type="button"
-          className="btn btn--primary btn--sm"
-          disabled={!selected}
-          onClick={() => selected && navigate(`/check?path=${encodeURIComponent(selected.path)}`)}
-        >
-          <IconMagnify /> Detailed map analysis
-        </button>
+        <div className="controls">
+          <button
+            type="button"
+            className="btn btn--primary btn--sm"
+            disabled={!selected}
+            onClick={() => selected && navigate(`/check?path=${encodeURIComponent(selected.path)}`)}
+          >
+            <IconMagnify /> Detailed map analysis
+          </button>
+          <button type="button" className="btn btn--sm" disabled={!selected}
+            onClick={() => selected && navigate(`/play-goals?tab=fc&path=${encodeURIComponent(selected.path)}`)}>
+            I want to FC this
+          </button>
+        </div>
       }
     >
       {st.best_empty ? (

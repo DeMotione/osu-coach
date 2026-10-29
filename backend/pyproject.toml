@@ -106,7 +106,7 @@ forbidden_modules = [
     "osu_coach.analysis", "osu_coach.beatmaps", "osu_coach.check", "osu_coach.dashboard", "osu_coach.exports",
     "osu_coach.insights", "osu_coach.jobs", "osu_coach.library", "osu_coach.maps",
     "osu_coach.profile", "osu_coach.progress", "osu_coach.replays", "osu_coach.settings", "osu_coach.system",
-    "osu_coach.tips",
+    "osu_coach.tips", "osu_coach.play_goals",
 ]
 
 [[tool.importlinter.contracts]]
@@ -115,6 +115,7 @@ type = "layers"
 containers = ["osu_coach"]
 layers = [
     "system | dashboard",
+    "play_goals",
     "tips | check",
     "insights | maps | progress | exports",
     "library | profile",

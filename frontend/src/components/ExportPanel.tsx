@@ -30,7 +30,7 @@ export function ExportPanel({ maps, name, preferred, title, sub }: {
   const order: Client[] = preferred === "lazer" ? ["lazer", "stable"] : ["stable", "lazer"];
   const mapList = () => {
     const text = maps
-      .map((m) => `[${m.stage ?? ""}] ${(m.stars ?? 0).toFixed(2)}* ${m.artist} - ${m.title} [${m.version}]  ${m.url}`)
+      .map((m) => `[${m.stage ?? ""}] ${m.stars !== null ? `${m.stars.toFixed(2)}* ` : ""}${m.artist} - ${m.title} [${m.version}]  ${m.url}${m.goal ? `  ${m.goal}` : ""}`)
       .join("\n");
     saveBlob(new Blob([`${name}\n\n${text}\n`], { type: "text/plain" }), "playlist.txt");
   };

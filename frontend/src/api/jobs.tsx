@@ -37,6 +37,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
         void invalidateResults(qc);
         if (job.result?.new_plays?.length) void invalidateLibrary(qc); // the new plays were added to the library
       }
+      if (job.kind === "play_goal") void qc.invalidateQueries({ queryKey: ["play-goals"] });
     },
     [qc],
   );

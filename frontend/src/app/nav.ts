@@ -97,6 +97,12 @@ export const NAV: NavGroup[] = [
     about: "What to do about it: tips, settings to try and maps to practise on.",
     items: [
       {
+        path: "/play-goals",
+        label: "Play Goals",
+        icon: IconTarget,
+        about: "FC a particular map, find achievable PP opportunities, or improve HD and DT with concrete next plays.",
+      },
+      {
         path: "/tips",
         label: "Tips",
         icon: IconBulb,

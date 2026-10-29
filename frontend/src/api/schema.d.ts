@@ -747,10 +747,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/play-goals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Remembered play goal and local evidence coverage */
+        get: operations["options_api_play_goals_get"];
+        put?: never;
+        /** Assess a goal and find your next plays */
+        post: operations["evaluate_api_play_goals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccuracyEstimate */
+        AccuracyEstimate: {
+            /** Low */
+            low: number;
+            /** High */
+            high: number;
+            /** Median */
+            median: number;
+            /** Plays */
+            plays: number;
+            /** Maps */
+            maps: number;
+            /** Explanation */
+            explanation: string;
+        };
         /** AimKpis */
         AimKpis: {
             /** Jump Miss Rate */
@@ -1506,6 +1539,22 @@ export interface components {
             /** N */
             n: number;
         };
+        /** GoalBlocker */
+        GoalBlocker: {
+            /** Skill */
+            skill: string;
+            /** Title */
+            title: string;
+            /** Detail */
+            detail: string;
+            /** Timestamps */
+            timestamps: string[];
+            /**
+             * Observed
+             * @default false
+             */
+            observed: boolean;
+        };
         /** GoalCreate */
         GoalCreate: {
             /** Skill */
@@ -1533,6 +1582,41 @@ export interface components {
              * @description From the start score on the day it was set to the target.
              */
             target: components["schemas"]["HistoryPoint"][];
+        };
+        /** GoalMap */
+        GoalMap: {
+            /** Md5 */
+            md5: string;
+            /** Beatmap Id */
+            beatmap_id: number;
+            /** Beatmapset Id */
+            beatmapset_id: number;
+            /** Artist */
+            artist: string;
+            /** Title */
+            title: string;
+            /** Version */
+            version: string;
+            /**
+             * Mods
+             * @enum {string}
+             */
+            mods: "NM" | "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT";
+            /**
+             * Client
+             * @enum {string}
+             */
+            client: "stable" | "lazer";
+            /** Stars */
+            stars: number;
+            /** Bpm */
+            bpm: number;
+            /** Ar */
+            ar: number;
+            /** Od */
+            od: number;
+            /** Length S */
+            length_s: number;
         };
         /** GoalOut */
         GoalOut: {
@@ -1577,6 +1661,38 @@ export interface components {
              * @enum {string}
              */
             score_source: "experimental" | "legacy";
+        };
+        /** GoalRecommendation */
+        GoalRecommendation: {
+            map: components["schemas"]["GoalMap"];
+            /** Why */
+            why: string;
+            /** Objective */
+            objective: string;
+            /** Step Up */
+            step_up: string;
+            accuracy?: components["schemas"]["AccuracyEstimate"] | null;
+            /** Practice Accuracy */
+            practice_accuracy: number;
+            /** Pp */
+            pp?: number | null;
+            /** Pp Label */
+            pp_label?: string | null;
+            /** Pp Accuracy */
+            pp_accuracy?: number | null;
+            /** Local Best Accuracy */
+            local_best_accuracy?: number | null;
+            /**
+             * Achieved
+             * @default false
+             */
+            achieved: boolean;
+            /**
+             * Stage
+             * @default Core
+             * @enum {string}
+             */
+            stage: "Starter" | "Core" | "Stretch";
         };
         /** GoalsOut */
         GoalsOut: {
@@ -2150,6 +2266,132 @@ export interface components {
             skills: {
                 [key: string]: number | null;
             };
+        };
+        /** PlayGoalJob */
+        PlayGoalJob: {
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "succeeded" | "failed" | "cancelled";
+            /**
+             * Progress
+             * @description 0–1 when known.
+             */
+            progress: number | null;
+            /** Message */
+            message: string;
+            /** Error */
+            error: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Cancellable
+             * @description Whether POST /api/jobs/{id}/cancel can stop it.
+             */
+            cancellable: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "play_goal";
+            result: components["schemas"]["PlayGoalResult"] | null;
+        };
+        /** PlayGoalOptions */
+        PlayGoalOptions: {
+            last_request: components["schemas"]["PlayGoalRequest"] | null;
+            /** Evidence Revision */
+            evidence_revision: string;
+            /** Player */
+            player: string | null;
+            /** Players */
+            players: string[];
+            /** Evidence Plays */
+            evidence_plays: number;
+            /** Coverage Maps */
+            coverage_maps: number;
+        };
+        /** PlayGoalRequest */
+        PlayGoalRequest: {
+            /**
+             * Goal
+             * @default fc
+             * @enum {string}
+             */
+            goal: "fc" | "farm" | "mod";
+            /** Replay Path */
+            replay_path?: string | null;
+            /**
+             * Beatmap
+             * @description A difficulty ID or osu.ppy.sh difficulty URL.
+             */
+            beatmap?: string | null;
+            /**
+             * Mods
+             * @default NM
+             * @enum {string}
+             */
+            mods: "NM" | "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT";
+            /**
+             * Client
+             * @default stable
+             * @enum {string}
+             */
+            client: "stable" | "lazer";
+            /**
+             * Training Mod
+             * @default HD
+             * @enum {string}
+             */
+            training_mod: "HD" | "DT";
+            /** Farm Mods */
+            farm_mods?: ("NM" | "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT")[];
+            /**
+             * Online
+             * @default true
+             */
+            online: boolean;
+        };
+        /** PlayGoalResult */
+        PlayGoalResult: {
+            request: components["schemas"]["PlayGoalRequest"];
+            /** Evidence Revision */
+            evidence_revision: string;
+            /** Player */
+            player: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "assessed" | "insufficient_evidence" | "partial";
+            /** Verdict */
+            verdict: string;
+            /** Reasons */
+            reasons: string[];
+            /**
+             * Confidence
+             * @enum {string}
+             */
+            confidence: "unassessed" | "limited" | "moderate";
+            target?: components["schemas"]["GoalMap"] | null;
+            accuracy?: components["schemas"]["AccuracyEstimate"] | null;
+            /** Blockers */
+            blockers: components["schemas"]["GoalBlocker"][];
+            /** Recommendations */
+            recommendations: components["schemas"]["GoalRecommendation"][];
+            /** Warnings */
+            warnings: string[];
+            /** Coverage Maps */
+            coverage_maps: number;
+            /** Replay Path */
+            replay_path?: string | null;
         };
         /** PlayTiming */
         PlayTiming: {
@@ -3679,7 +3921,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": (components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"])[];
+                    "application/json": (components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"])[];
                 };
             };
             /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
@@ -3710,7 +3952,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"];
+                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"];
                 };
             };
             /** @description Not found; `code` says what is missing. */
@@ -3750,7 +3992,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"];
+                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"];
                 };
             };
             /** @description Not found; `code` says what is missing. */
@@ -4742,6 +4984,95 @@ export interface operations {
             };
             /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    options_api_play_goals_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayGoalOptions"];
+                };
+            };
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Required local data is unavailable or incompatible; `code` identifies it. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    evaluate_api_play_goals_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlayGoalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayGoalJob"];
+                };
+            };
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Required local data is unavailable or incompatible; `code` identifies it. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
