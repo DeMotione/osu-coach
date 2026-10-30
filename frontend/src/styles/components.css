@@ -172,6 +172,123 @@
   text-overflow: ellipsis;
 }
 
+.combo {
+  position: relative;
+}
+
+/* value pickers: toggle chips that build a mod combination */
+.modpicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.modpicker__chip {
+  min-width: 52px;
+  height: var(--control-h);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--control-stroke);
+  border-radius: var(--radius-btn);
+  background: var(--field);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modpicker__chip[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.modpicker__chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.modpicker__result {
+  margin-left: var(--s-2);
+  color: var(--muted);
+  font-size: var(--t-sm);
+}
+
+/* a verdict is the headline of the page: tinted, with a coloured edge and a big coloured title */
+.card.verdict {
+  --tone: var(--info);
+  --tone-soft: var(--info-soft);
+  background: linear-gradient(var(--tone-soft), var(--tone-soft)), var(--grain), var(--sheen-soft), var(--glass-card);
+  box-shadow: inset 4px 0 0 var(--tone), var(--glass-edge), var(--elev-glass);
+}
+
+.card.verdict--good {
+  --tone: var(--good);
+  --tone-soft: var(--good-soft);
+}
+
+.card.verdict--warn {
+  --tone: var(--warn);
+  --tone-soft: var(--warn-soft);
+}
+
+.card.verdict--bad {
+  --tone: var(--bad);
+  --tone-soft: var(--bad-soft);
+}
+
+.verdict .card__title {
+  color: var(--tone);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* a card floats above the cards after it, so the open list is not painted over */
+.card:has(.combo__list) {
+  z-index: 5;
+}
+
+.combo__list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 260px;
+  margin: 2px 0 0;
+  padding: var(--s-1);
+  overflow-y: auto;
+  list-style: none;
+  background: light-dark(#fff, hsl(0 0% 14%));
+  border: 1px solid var(--control-stroke);
+  border-radius: var(--radius-btn);
+  box-shadow: var(--elev-3);
+}
+
+.combo__option,
+.combo__empty {
+  padding: 6px var(--s-3);
+  border-radius: calc(var(--radius-btn) - 2px);
+  font-size: var(--t-sm);
+  overflow-wrap: anywhere;
+}
+
+.combo__option {
+  cursor: pointer;
+}
+
+.combo__option--active {
+  background: var(--surface-3);
+}
+
+.combo__option[aria-selected="true"] {
+  font-weight: 600;
+}
+
+.combo__option[aria-disabled="true"],
+.combo__empty {
+  color: var(--muted);
+  cursor: default;
+}
+
 /* the field's see-through background would leave light text on a white native list */
 .select option {
   background: light-dark(#fff, hsl(0 0% 14%));

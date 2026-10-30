@@ -38,3 +38,32 @@ Environment variables or a `.env` file:
 |---|---|
 | `OSU_COACH_CACHE` | data/cache folder (default: per-user cache dir) |
 | `OSU_COACH_WEB_DIR` | built web app folder (default: bundled, or `../frontend/dist`) |
+
+## Play Goals
+
+`play_goals/` composes lower-level replay checking, map features and player evidence without changing the existing
+profile or playlist behavior. `GET /api/play-goals` returns remembered inputs and coverage; `POST /api/play-goals`
+starts a cancellable `play_goal` job. Poll the existing job API for its typed result.
+
+Evidence is player-, checksum-, mod- and client-specific. Unknown/custom lazer settings and mismatching simulations
+are excluded from forecasts. Failed plays can identify blockers but cannot supply full-map accuracy. Accuracy ranges
+need ten completed comparable plays across five maps, capped at two observations per map. These are empirical ranges,
+not calibrated probabilities. Missing evidence remains null; practice objectives are separate instructions.
+
+`beatmaps/performance.py` calculates explicit PP scenarios with pinned rosu-pp and conservative hit-result generation.
+Broken lazer plays without slider outcomes are rejected. The separate `maps/data/goals_pool.json.gz` contains ranked
+map configurations, FC PP samples and calculator/schema provenance; it leaves the original NoMod pool unchanged.
+
+Regenerate the companion data from the repository root:
+
+```sh
+python backend/tools/build_goal_pool.py /path/to/public-osu-cache --fetch --count 64
+```
+
+The builder selects aim/speed examples across quarter-star bands, verifies downloaded checksums, and produces
+deterministic compressed output. `--fetch` downloads only missing public raw maps; omit it to rebuild offline.
+The current selection has 62 distinct difficulties, each with eight mod combinations for stable and lazer.
+Rebuild after changing calculator versions. Missing/incompatible companion data is an explicit API error.
+
+Goal inputs persist in settings; downloaded targets and versioned target configurations are cached under
+`play-goals/` inside the data directory. Job IDs/results are transient and are not restored as fresh assessments.

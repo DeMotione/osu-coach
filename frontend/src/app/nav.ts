@@ -124,6 +124,12 @@ export const NAV: NavGroup[] = [
         needsAnalysis: true,
         about: "Goals for your skills, and playlists (warm-up, comfort, push) to train one skill at a time.",
       },
+      {
+        path: "/play-goals",
+        label: "Play Goals",
+        icon: IconTarget,
+        about: "FC a particular map, find achievable PP opportunities, or improve HD and DT with concrete next plays.",
+      },
     ],
   },
 ];

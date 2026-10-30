@@ -651,6 +651,9 @@
                       },
                       {
                         "$ref": "#/components/schemas/OszJob"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PlayGoalJob"
                       }
                     ],
                     "discriminator": {
@@ -659,7 +662,8 @@
                         "scan": "#/components/schemas/ScanJob",
                         "analysis": "#/components/schemas/AnalysisJob",
                         "lazer_pack": "#/components/schemas/LazerPackJob",
-                        "osz_download": "#/components/schemas/OszJob"
+                        "osz_download": "#/components/schemas/OszJob",
+                        "play_goal": "#/components/schemas/PlayGoalJob"
                       }
                     }
                   },
@@ -717,6 +721,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/OszJob"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PlayGoalJob"
                     }
                   ],
                   "discriminator": {
@@ -725,7 +732,8 @@
                       "scan": "#/components/schemas/ScanJob",
                       "analysis": "#/components/schemas/AnalysisJob",
                       "lazer_pack": "#/components/schemas/LazerPackJob",
-                      "osz_download": "#/components/schemas/OszJob"
+                      "osz_download": "#/components/schemas/OszJob",
+                      "play_goal": "#/components/schemas/PlayGoalJob"
                     }
                   },
                   "title": "Response Get Job Api Jobs  Job Id  Get"
@@ -793,6 +801,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/OszJob"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PlayGoalJob"
                     }
                   ],
                   "discriminator": {
@@ -801,7 +812,8 @@
                       "scan": "#/components/schemas/ScanJob",
                       "analysis": "#/components/schemas/AnalysisJob",
                       "lazer_pack": "#/components/schemas/LazerPackJob",
-                      "osz_download": "#/components/schemas/OszJob"
+                      "osz_download": "#/components/schemas/OszJob",
+                      "play_goal": "#/components/schemas/PlayGoalJob"
                     }
                   },
                   "title": "Response Cancel Job Api Jobs  Job Id  Cancel Post"
@@ -2269,10 +2281,154 @@
           }
         }
       }
+    },
+    "/api/play-goals": {
+      "get": {
+        "tags": [
+          "Play Goals"
+        ],
+        "summary": "Remembered play goal and local evidence coverage",
+        "operationId": "options_api_play_goals_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayGoalOptions"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required local data is unavailable or incompatible; `code` identifies it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Play Goals"
+        ],
+        "summary": "Assess a goal and find your next plays",
+        "operationId": "evaluate_api_play_goals_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayGoalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayGoalJob"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required local data is unavailable or incompatible; `code` identifies it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AccuracyEstimate": {
+        "properties": {
+          "low": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Low"
+          },
+          "high": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "High"
+          },
+          "median": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Median"
+          },
+          "plays": {
+            "type": "integer",
+            "title": "Plays"
+          },
+          "maps": {
+            "type": "integer",
+            "title": "Maps"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "low",
+          "high",
+          "median",
+          "plays",
+          "maps",
+          "explanation"
+        ],
+        "title": "AccuracyEstimate"
+      },
       "AimKpis": {
         "properties": {
           "jump_miss_rate": {
@@ -4443,6 +4599,42 @@
         ],
         "title": "FallBehindSpeedPoint"
       },
+      "GoalBlocker": {
+        "properties": {
+          "skill": {
+            "type": "string",
+            "title": "Skill"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "timestamps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Timestamps"
+          },
+          "observed": {
+            "type": "boolean",
+            "title": "Observed",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "skill",
+          "title",
+          "detail",
+          "timestamps"
+        ],
+        "title": "GoalBlocker"
+      },
       "GoalCreate": {
         "properties": {
           "skill": {
@@ -4509,6 +4701,105 @@
           "target"
         ],
         "title": "GoalHistory"
+      },
+      "GoalMap": {
+        "properties": {
+          "md5": {
+            "type": "string",
+            "title": "Md5"
+          },
+          "beatmap_id": {
+            "type": "integer",
+            "title": "Beatmap Id"
+          },
+          "beatmapset_id": {
+            "type": "integer",
+            "title": "Beatmapset Id"
+          },
+          "artist": {
+            "type": "string",
+            "title": "Artist"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "mods": {
+            "type": "string",
+            "enum": [
+              "NM",
+              "HD",
+              "HR",
+              "HDHR",
+              "DT",
+              "HDDT",
+              "HRDT",
+              "HDHRDT"
+            ],
+            "title": "Mods"
+          },
+          "client": {
+            "type": "string",
+            "enum": [
+              "stable",
+              "lazer"
+            ],
+            "title": "Client"
+          },
+          "stars": {
+            "type": "number",
+            "title": "Stars"
+          },
+          "bpm": {
+            "type": "number",
+            "title": "Bpm"
+          },
+          "ar": {
+            "type": "number",
+            "title": "Ar"
+          },
+          "od": {
+            "type": "number",
+            "title": "Od"
+          },
+          "length_s": {
+            "type": "number",
+            "title": "Length S"
+          },
+          "dynamics": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dynamics",
+            "description": "The map's overall character, e.g. Streamy or Jumpy + Reading-heavy."
+          }
+        },
+        "type": "object",
+        "required": [
+          "md5",
+          "beatmap_id",
+          "beatmapset_id",
+          "artist",
+          "title",
+          "version",
+          "mods",
+          "client",
+          "stars",
+          "bpm",
+          "ar",
+          "od",
+          "length_s"
+        ],
+        "title": "GoalMap"
       },
       "GoalOut": {
         "properties": {
@@ -4638,6 +4929,125 @@
           "score_source"
         ],
         "title": "GoalOut"
+      },
+      "GoalRecommendation": {
+        "properties": {
+          "map": {
+            "$ref": "#/components/schemas/GoalMap"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          },
+          "objective": {
+            "type": "string",
+            "title": "Objective"
+          },
+          "step_up": {
+            "type": "string",
+            "title": "Step Up"
+          },
+          "accuracy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccuracyEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "practice_accuracy": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Practice Accuracy"
+          },
+          "pp": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pp"
+          },
+          "pp_ss": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pp Ss",
+            "description": "PP for a 100% FC."
+          },
+          "pp_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pp Label"
+          },
+          "pp_accuracy": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pp Accuracy"
+          },
+          "local_best_accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Best Accuracy"
+          },
+          "achieved": {
+            "type": "boolean",
+            "title": "Achieved",
+            "default": false
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "Starter",
+              "Core",
+              "Stretch"
+            ],
+            "title": "Stage",
+            "default": "Core"
+          }
+        },
+        "type": "object",
+        "required": [
+          "map",
+          "why",
+          "objective",
+          "step_up",
+          "practice_accuracy"
+        ],
+        "title": "GoalRecommendation"
       },
       "GoalsOut": {
         "properties": {
@@ -6353,6 +6763,407 @@
           "skills"
         ],
         "title": "PeriodRow"
+      },
+      "PlayGoalJob": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress",
+            "description": "0–1 when known."
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "cancellable": {
+            "type": "boolean",
+            "title": "Cancellable",
+            "description": "Whether POST /api/jobs/{id}/cancel can stop it."
+          },
+          "kind": {
+            "type": "string",
+            "const": "play_goal",
+            "title": "Kind"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlayGoalResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "progress",
+          "message",
+          "error",
+          "created_at",
+          "finished_at",
+          "cancellable",
+          "kind",
+          "result"
+        ],
+        "title": "PlayGoalJob"
+      },
+      "PlayGoalOptions": {
+        "properties": {
+          "last_request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlayGoalRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence_revision": {
+            "type": "string",
+            "title": "Evidence Revision"
+          },
+          "player": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player"
+          },
+          "players": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Players"
+          },
+          "evidence_plays": {
+            "type": "integer",
+            "title": "Evidence Plays"
+          },
+          "coverage_maps": {
+            "type": "integer",
+            "title": "Coverage Maps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "last_request",
+          "evidence_revision",
+          "player",
+          "players",
+          "evidence_plays",
+          "coverage_maps"
+        ],
+        "title": "PlayGoalOptions"
+      },
+      "PlayGoalRequest": {
+        "properties": {
+          "goal": {
+            "type": "string",
+            "enum": [
+              "fc",
+              "farm",
+              "mod"
+            ],
+            "title": "Goal",
+            "default": "fc"
+          },
+          "replay_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay Path"
+          },
+          "beatmap": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beatmap",
+            "description": "An osu.ppy.sh difficulty link."
+          },
+          "mods": {
+            "type": "string",
+            "enum": [
+              "NM",
+              "HD",
+              "HR",
+              "HDHR",
+              "DT",
+              "HDDT",
+              "HRDT",
+              "HDHRDT"
+            ],
+            "title": "Mods",
+            "default": "NM"
+          },
+          "client": {
+            "type": "string",
+            "enum": [
+              "stable",
+              "lazer"
+            ],
+            "title": "Client",
+            "default": "stable"
+          },
+          "training_mod": {
+            "type": "string",
+            "enum": [
+              "HD",
+              "HR",
+              "HDHR",
+              "DT",
+              "HDDT",
+              "HRDT",
+              "HDHRDT"
+            ],
+            "title": "Training Mod",
+            "default": "HD"
+          },
+          "farm_mods": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "NM",
+                "HD",
+                "HR",
+                "HDHR",
+                "DT",
+                "HDDT",
+                "HRDT",
+                "HDHRDT"
+              ]
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Farm Mods"
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online",
+            "default": true
+          },
+          "min_pp": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 5000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Pp",
+            "description": "Hide maps whose FC scenario gives less PP."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PlayGoalRequest"
+      },
+      "PlayGoalResult": {
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/PlayGoalRequest"
+          },
+          "evidence_revision": {
+            "type": "string",
+            "title": "Evidence Revision"
+          },
+          "player": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "assessed",
+              "insufficient_evidence",
+              "partial"
+            ],
+            "title": "Status"
+          },
+          "verdict": {
+            "type": "string",
+            "title": "Verdict"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "good",
+              "warn",
+              "bad",
+              "info"
+            ],
+            "title": "Tone",
+            "default": "info"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "unassessed",
+              "limited",
+              "moderate"
+            ],
+            "title": "Confidence"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalMap"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accuracy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccuracyEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/GoalBlocker"
+            },
+            "type": "array",
+            "title": "Blockers"
+          },
+          "recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/GoalRecommendation"
+            },
+            "type": "array",
+            "title": "Recommendations"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "coverage_maps": {
+            "type": "integer",
+            "title": "Coverage Maps"
+          },
+          "replay_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request",
+          "evidence_revision",
+          "player",
+          "status",
+          "verdict",
+          "reasons",
+          "confidence",
+          "blockers",
+          "recommendations",
+          "warnings",
+          "coverage_maps"
+        ],
+        "title": "PlayGoalResult"
       },
       "PlayTiming": {
         "properties": {
@@ -9567,6 +10378,10 @@
     {
       "name": "Maps",
       "description": "Map suggestions and skill playlists from the bundled map pool."
+    },
+    {
+      "name": "Play Goals",
+      "description": "FC a map, find PP opportunities, or improve HD/DT with local evidence."
     },
     {
       "name": "Get maps into osu!",

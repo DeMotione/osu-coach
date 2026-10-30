@@ -3,7 +3,7 @@ import createClient from "openapi-fetch";
 import type { components, paths } from "./schema";
 
 export type Schemas = components["schemas"];
-export type Job = Schemas["ScanJob"] | Schemas["AnalysisJob"] | Schemas["LazerPackJob"] | Schemas["OszJob"];
+export type Job = Schemas["ScanJob"] | Schemas["AnalysisJob"] | Schemas["LazerPackJob"] | Schemas["OszJob"] | Schemas["PlayGoalJob"];
 
 /** An error answer of the API (`{detail, code}`), or `offline` when the osu! coach server can't be reached. */
 export class ApiError extends Error {

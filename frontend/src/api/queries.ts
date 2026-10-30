@@ -19,12 +19,13 @@ const keys = {
   maps: ["maps"] as const,
   playlists: ["playlists"] as const,
   exports: ["exports"] as const,
+  playGoals: ["play-goals"] as const,
 };
 
 /** Everything that is built from the analysed replays. */
 export function invalidateResults(qc: QueryClient): Promise<void> {
   return Promise.all(
-    [keys.profile, keys.analysis, keys.progress, keys.goals, keys.maps, keys.playlists, keys.exports, keys.check].map(
+    [keys.profile, keys.analysis, keys.progress, keys.goals, keys.maps, keys.playlists, keys.exports, keys.check, keys.playGoals].map(
       (queryKey) => qc.invalidateQueries({ queryKey }),
     ),
   ).then(() => undefined);
@@ -48,6 +49,9 @@ export const useHealth = () =>
     retry: false,
   });
 
+export const usePlayGoalOptions = () =>
+  useQuery({ queryKey: keys.playGoals, queryFn: () => unwrap(api.GET("/api/play-goals")) });
+
 export const useSettings = () =>
   useQuery({ queryKey: keys.settings, queryFn: () => unwrap(api.GET("/api/settings")), staleTime: 60_000 });
 
@@ -69,6 +73,7 @@ export function usePatchSettings() {
     },
     onSuccess: (settings, patch) => {
       qc.setQueryData(keys.settings, settings);
+      if ("player" in patch || "client" in patch) void qc.invalidateQueries({ queryKey: keys.playGoals });
       // the change is done once the pages built from the profile have been recalculated: until then it is pending
       if ("replay_set" in patch || "level_override" in patch) return invalidateResults(qc);
     },

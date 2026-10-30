@@ -10,6 +10,7 @@ const loaders: Record<string, () => Promise<unknown>> = {
   "/setup": () => import("../pages/SetupTipsPage"),
   "/maps": () => import("../pages/MapsPage"),
   "/skills": () => import("../pages/SkillsPage"),
+  "/play-goals": () => import("../pages/PlayGoalsPage"),
 };
 
 /** Starts loading a page's code before it is opened; the module cache makes repeats free. */
