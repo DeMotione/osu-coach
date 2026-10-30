@@ -3,7 +3,7 @@
   "info": {
     "title": "osu! coach API",
     "description": "\nThe HTTP API of **osu! coach**: it analyses your own osu!standard replays and tells you what to work on.\nIt runs on your computer and answers only to it (`localhost`).\n\n### How the pieces fit\n1. **Find replays** — `POST /api/library/scan` (osu! installs, folders, uploaded files) runs as a background\n   job; poll `GET /api/jobs/{id}`.\n2. **Choose and analyse** — `GET /api/library/selection` shows which replays an analysis would read;\n   `POST /api/analysis` analyses them (a job). Every analysis is also saved in the progress history.\n3. **Read the results** — the `/api/profile/*` pages (Overview, Aim, Tapping, Sliders & Reading, Tips & Setup)\n   require analysis. Automatic map suggestions use analysed replays; skill playlists can also use manually supplied\n   comfort stars and skill ratings.\n\nRemembered choices (`/api/settings`, `/api/setup`) are shared with the `osu-coach` command line.\n\n### Conventions\n* Rates and shares are fractions (0–1) unless a field says %; `null` means *not enough data*.\n* Times are ISO 8601 in UTC.\n* Errors are `{\"detail\": \"...\", \"code\": \"...\"}` with a stable `code`.\n",
-    "version": "0.10.1"
+    "version": "0.10.2"
   },
   "paths": {
     "/api/health": {

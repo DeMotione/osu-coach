@@ -1,7 +1,7 @@
 {
   "name": "osu-coach-web",
   "private": true,
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "osu! coach web app (PWA): the frontend of the osu! coach API.",
   "type": "module",
   "engines": {

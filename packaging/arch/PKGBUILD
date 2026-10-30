@@ -7,7 +7,7 @@
 # A .deb already next to this file is used instead of downloading it (the release workflow does that).
 # pkgver is set by packaging/bump-version.sh with every other version number.
 pkgname=osu-coach
-pkgver=0.10.1
+pkgver=0.10.2
 pkgrel=1
 pkgdesc="Analyses your osu! replays and gives coaching advice (desktop app)"
 arch=('x86_64')
