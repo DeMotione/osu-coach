@@ -6,7 +6,7 @@ from osu_coach.beatmaps import difficulty
 from osu_coach.beatmaps.parser import parse_beatmap_bytes
 from osu_coach.maps.configuration import SearchOptions
 from osu_coach.maps.domain import map_stats
-from osu_coach.maps.skillset import _features, recommend_modified
+from osu_coach.maps.skillset import _features, _finalize_modified_goals, recommend_modified
 from osu_coach.maps.variant_repository import variant_rows
 from osu_coach.profile.domain.algorithm import timing_evidence_eligible
 from osu_coach.replays.configuration import Configuration, from_meta
@@ -140,6 +140,58 @@ def test_transformed_star_entry_stable_tie_and_empty_set():
     )
     assert empty["goals"]["Comfort"]["maps"] == []
     assert empty["goals"]["Comfort"]["excluded"]["Outside star window"] == 1
+
+
+def test_modified_search_keeps_best_configuration_per_map_before_limit():
+    import pandas as pd
+
+    base = pd.DataFrame([_row(f"{i:032x}", 4.0) for i in range(20)])
+    repeated = "f" * 32
+    variants = [
+        {**_row(repeated, 4.10), "configuration_id": "dt@1.32", "mods": "DT", "rate": 1.32},
+        {**_row(repeated, 4.00), "configuration_id": "dt@1.33", "mods": "DT", "rate": 1.33},
+        {**_row(repeated, 4.00), "configuration_id": "hd@1.33", "mods": "HDDT", "rate": 1.33},
+        {**_row("e" * 32, 4.05), "configuration_id": "other", "mods": "DT", "rate": 1.30},
+        {**_row("d" * 32, 4.15), "configuration_id": "third", "mods": "DT", "rate": 1.30},
+    ]
+    result = recommend_modified(
+        base, variants, 4.0, {"aim": 50}, "aim", ("aim",), 0.5, 0.3, frozenset(), None, {}, limit=2
+    )
+    comfort = result["goals"]["Comfort"]
+    assert result["candidate_count"] == len(variants)
+    assert comfort["eligible"] == 3
+    assert [row["md5"] for row in comfort["maps"]] == [repeated, "e" * 32]
+    assert comfort["maps"][0]["configuration_id"] == "dt@1.33"  # better score than 1.32, tie beats HD
+
+
+@pytest.mark.parametrize(
+    ("rates", "expected"),
+    [
+        ({"Warm-up": 1.10, "Comfort": 1.20, "Push": 1.35}, {"Push"}),
+        ({"Warm-up": 1.10, "Comfort": 1.20, "Push": 1.33}, {"Comfort"}),
+        ({"Warm-up": 1.10, "Comfort": 1.24}, {"Comfort"}),
+        ({"Warm-up": 1.10, "Comfort": 1.25}, {"Comfort"}),
+        ({"Warm-up": 1.10, "Comfort": 1.26}, {"Warm-up", "Comfort"}),
+        ({"Comfort": 1.20, "Push": 1.34}, {"Comfort"}),
+        ({"Comfort": 1.20, "Push": 1.35}, {"Push"}),
+        ({"Warm-up": 1.10, "Push": 1.25}, {"Push"}),
+        ({"Warm-up": 1.10, "Push": 1.26}, {"Warm-up", "Push"}),
+    ],
+)
+def test_modified_stage_assignment_respects_rate_gaps(rates, expected):
+    md5 = "f" * 32
+    goals = {goal: {"eligible": 0, "maps": [], "excluded": {}} for goal in ("Warm-up", "Comfort", "Push")}
+    best = {
+        goal: {md5: {"md5": md5, "rate": rates[goal], "formula_score": 0.0, "configuration_id": goal}}
+        if goal in rates
+        else {}
+        for goal in goals
+    }
+    _finalize_modified_goals(goals, best, 100)
+    assert {goal for goal, data in goals.items() if data["maps"]} == expected
+    assert all(data["eligible"] == len(data["maps"]) for data in goals.values())
+    for goal in rates.keys() - expected:
+        assert goals[goal]["excluded"]["Shown in another stage"] == 1
 
 
 def test_history_is_configuration_specific():

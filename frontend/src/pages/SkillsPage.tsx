@@ -208,7 +208,7 @@ function PlaylistTab() {
     <>
       {controlData && <RecommendationControls current={controlData.skill} measured={controlData.measured_abilities ?? {}} comfort={controlData.comfort} onApply={apply} />}
       {modified && <><JobStatus job={search.job} error={search.error} onCancel={search.cancel} />
-        {pl ? <p className="small muted">Searched {pl.coverage_maps ?? 0} maps with verified data; {pl.unavailable_maps ?? 0} missing files; {pl.calculator_unavailable_maps ?? 0} without any supported calculation; {pl.unavailable_configurations ?? 0} individual configurations could not be calculated. Showing up to {pl.result_limit ?? 0} configurations per stage.</p>
+        {pl ? <p className="small muted">Searched {pl.coverage_maps ?? 0} maps with verified data; {pl.unavailable_maps ?? 0} missing files; {pl.calculator_unavailable_maps ?? 0} without any supported calculation; {pl.unavailable_configurations ?? 0} individual configurations could not be calculated. Showing up to {pl.result_limit ?? 0} distinct maps per stage.</p>
           : <Alert tone="info">Searching exact map configurations. Available maps and exclusions will be shown when the search finishes.</Alert>}</>}
       {pl && <>
       <Card>

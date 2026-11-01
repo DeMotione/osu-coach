@@ -2558,7 +2558,7 @@ export interface components {
             unavailable_configurations?: number | null;
             /**
              * Result Limit
-             * @description Maximum ranked configurations returned per stage; eligible counts include all.
+             * @description Maximum distinct ranked maps returned per stage; eligible counts include all selected maps.
              */
             result_limit?: number | null;
         };

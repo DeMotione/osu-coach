@@ -7539,7 +7539,7 @@
               }
             ],
             "title": "Result Limit",
-            "description": "Maximum ranked configurations returned per stage; eligible counts include all."
+            "description": "Maximum distinct ranked maps returned per stage; eligible counts include all selected maps."
           }
         },
         "type": "object",

@@ -113,7 +113,7 @@ class Playlist(BaseModel):
         description="Configurations on verified maps whose exact calculation was unavailable, including partial maps.",
     )
     result_limit: int | None = Field(
-        None, description="Maximum ranked configurations returned per stage; eligible counts include all."
+        None, description="Maximum distinct ranked maps returned per stage; eligible counts include all selected maps."
     )
 
 

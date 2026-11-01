@@ -439,6 +439,7 @@ def recommend_modified(
             del data["margin"]
         return {"skill_adjusted_stars": adjusted, "goals": goals, "candidate_count": 0, "result_limit": limit}
     count = 0
+    best: dict[str, dict[str, dict]] = {goal: {} for goal in goals}
     for row in variants:
         count += 1
         md5 = str(row.get("md5") or "")
@@ -485,7 +486,6 @@ def recommend_modified(
             if reason:
                 data["excluded"][reason] = data["excluded"].get(reason, 0) + 1
                 continue
-            data["eligible"] += 1
             wanted = data["target_demand"]
             terms = {
                 "stars": -(((stars - target) / STAR_SCALE) ** 2),
@@ -548,10 +548,48 @@ def recommend_modified(
                     else "Neutral assumption",
                 },
             }
-            data["maps"].append(result)
-            data["maps"].sort(key=lambda item: (-item["formula_score"], item["configuration_id"]))
-            if len(data["maps"]) > limit:
-                data["maps"].pop()
+            previous = best[goal].get(md5)
+            if previous is None or _modified_sort_key(result) < _modified_sort_key(previous):
+                best[goal][md5] = result
+    _finalize_modified_goals(goals, best, limit)
     for data in goals.values():
         del data["margin"]
     return {"skill_adjusted_stars": adjusted, "goals": goals, "candidate_count": count, "result_limit": limit}
+
+
+def _modified_sort_key(row: dict) -> tuple[float, str]:
+    return -row["formula_score"], row["configuration_id"]
+
+
+def _finalize_modified_goals(goals: dict, best: dict[str, dict[str, dict]], limit: int) -> None:
+    """Choose a map's stages after every configuration has competed for its best fit."""
+    original = {goal: set(rows) for goal, rows in best.items()}
+    all_maps = set().union(*(rows.keys() for rows in best.values()))
+
+    def gap(first: str, second: str, md5: str) -> int:
+        # Search rates use hundredths; integer comparison makes the 0.15 boundary exact.
+        return abs(round(best[first][md5]["rate"] * 100) - round(best[second][md5]["rate"] * 100))
+
+    for md5 in all_maps:
+        warm = md5 in best["Warm-up"]
+        comfort = md5 in best["Comfort"]
+        push = md5 in best["Push"]
+        if warm and comfort and push:
+            del best["Warm-up"][md5]
+        elif warm and comfort and gap("Warm-up", "Comfort", md5) <= 15:
+            del best["Warm-up"][md5]
+        elif warm and push and not comfort and gap("Warm-up", "Push", md5) <= 15:
+            del best["Warm-up"][md5]
+
+        if comfort and push:
+            removed = "Comfort" if gap("Comfort", "Push", md5) >= 15 else "Push"
+            del best[removed][md5]
+
+    for goal, rows in best.items():
+        data = goals[goal]
+        data["eligible"] = len(rows)
+        data["maps"] = sorted(rows.values(), key=_modified_sort_key)[:limit]
+        # Qualification exclusions count configurations; this reason counts maps reassigned to another stage.
+        reassigned = len(original[goal] - rows.keys())
+        if reassigned:
+            data["excluded"]["Shown in another stage"] = reassigned
