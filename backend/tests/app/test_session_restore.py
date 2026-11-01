@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import time
+from threading import Event
 
 import pytest
 
 from osu_coach.analysis.domain import ANALYSIS_VERSION
+from osu_coach.library import service as library_service
 from tests.conftest import analyse, make_client, plays_folder, scan, workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
@@ -34,9 +36,23 @@ def test_a_fresh_start_restores_nothing(tmp_path):
         assert c.get("/api/analysis").json()["analysed"] == 0
 
 
-def test_the_library_and_analyses_come_back_after_a_restart(tmp_path):
+def test_the_library_and_analyses_come_back_after_a_restart(tmp_path, monkeypatch):
     first_session(tmp_path)
+    release_scan = Event()
+    original_scan = library_service.run_scan
+
+    def delayed_scan(ws, args, report):
+        release_scan.wait(timeout=5)
+        return original_scan(ws, args, report)
+
+    monkeypatch.setattr(library_service, "run_scan", delayed_scan)
     with make_client(tmp_path / "cache") as c:
+        try:
+            # The profile must be ready while the background scan is still pending.
+            status = c.get("/api/analysis").json()
+            assert status["analysed"] == 3 and status["player_label"] == "Mot1one"
+        finally:
+            release_scan.set()
         settle(c)
         lib = c.get("/api/library").json()
         assert lib["scanned"] is True and lib["replays"] == 3
