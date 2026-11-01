@@ -109,7 +109,9 @@ def best_replays(analyses: list) -> list:
         m = a.meta if hasattr(a, "meta") else a
         if not m.get("completed"):
             continue
-        key = (m.get("beatmap_md5"), speed_of(m))
+        from osu_coach.replays.configuration import from_meta
+
+        key = from_meta(m).key
         rank = (m.get("score") or 0, m.get("accuracy") or 0.0)
         cur = best.get(key)
         if cur is None or rank > cur[0]:

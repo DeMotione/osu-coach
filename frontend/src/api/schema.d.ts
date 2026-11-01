@@ -636,6 +636,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/playlists/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Search exact mod and rate configurations */
+        post: operations["search_api_playlists_search_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/exports/preview": {
         parameters: {
             query?: never;
@@ -2017,9 +2034,24 @@ export interface components {
             creator?: string | null;
             /**
              * Stars
-             * @description Star rating (no mod).
+             * @description Star rating for the exact map configuration.
              */
             stars: number | null;
+            /**
+             * Configuration Id
+             * @description Complete map, mods, rate, client, and settings identity.
+             */
+            configuration_id?: string | null;
+            /**
+             * Mods
+             * @default NM
+             */
+            mods: string;
+            /**
+             * Rate
+             * @default 1
+             */
+            rate: number;
             /** Bpm */
             bpm: number | null;
             /** Ar */
@@ -2504,6 +2536,119 @@ export interface components {
             measured_abilities?: {
                 [key: string]: number;
             };
+            /**
+             * Coverage Maps
+             * @description Maps with verified .osu data searched for modified configurations.
+             */
+            coverage_maps?: number | null;
+            /**
+             * Unavailable Maps
+             * @description Pool maps whose verified .osu data was unavailable.
+             */
+            unavailable_maps?: number | null;
+            /**
+             * Calculator Unavailable Maps
+             * @description Verified maps whose supported difficulty calculation was unavailable.
+             */
+            calculator_unavailable_maps?: number | null;
+            /**
+             * Unavailable Configurations
+             * @description Configurations on verified maps whose exact calculation was unavailable, including partial maps.
+             */
+            unavailable_configurations?: number | null;
+            /**
+             * Result Limit
+             * @description Maximum ranked configurations returned per stage; eligible counts include all.
+             */
+            result_limit?: number | null;
+        };
+        /** PlaylistJob */
+        PlaylistJob: {
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "succeeded" | "failed" | "cancelled";
+            /**
+             * Progress
+             * @description 0–1 when known.
+             */
+            progress: number | null;
+            /** Message */
+            message: string;
+            /** Error */
+            error: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Cancellable
+             * @description Whether POST /api/jobs/{id}/cancel can stop it.
+             */
+            cancellable: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "playlist";
+            result: components["schemas"]["Playlist"] | null;
+        };
+        /** PlaylistSearchRequest */
+        PlaylistSearchRequest: {
+            /** Skill */
+            skill?: string | null;
+            /** Comfort */
+            comfort?: number | null;
+            /** Assessed */
+            assessed?: string | null;
+            /** Ratings */
+            ratings?: string | null;
+            /**
+             * Kappa
+             * @default 0.5
+             */
+            kappa: number;
+            /**
+             * Min Relevance
+             * @default 0.3
+             */
+            min_relevance: number;
+            /**
+             * Exclude Played
+             * @default true
+             */
+            exclude_played: boolean;
+            /**
+             * Allow Hr
+             * @default false
+             */
+            allow_hr: boolean;
+            /**
+             * Allow Hd
+             * @default false
+             */
+            allow_hd: boolean;
+            /**
+             * Adjustable Dt
+             * @default false
+             */
+            adjustable_dt: boolean;
+            /**
+             * Min Rate
+             * @default 1.1
+             */
+            min_rate: number;
+            /**
+             * Max Rate
+             * @default 2
+             */
+            max_rate: number;
         };
         /** PlaylistSkill */
         PlaylistSkill: {
@@ -3942,7 +4087,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": (components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"])[];
+                    "application/json": (components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"] | components["schemas"]["PlaylistJob"])[];
                 };
             };
             /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
@@ -3973,7 +4118,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"];
+                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"] | components["schemas"]["PlaylistJob"];
                 };
             };
             /** @description Not found; `code` says what is missing. */
@@ -4013,7 +4158,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"];
+                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"] | components["schemas"]["PlaylistJob"];
                 };
             };
             /** @description Not found; `code` says what is missing. */
@@ -4767,6 +4912,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Playlist"];
+                };
+            };
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    search_api_playlists_search_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaylistSearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistJob"];
                 };
             };
             /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */

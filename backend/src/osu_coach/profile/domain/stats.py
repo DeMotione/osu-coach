@@ -120,8 +120,10 @@ def _subset_score(P: pd.DataFrame, mask: pd.Series, model, min_n: int = 60) -> d
 def _map_key(P: pd.DataFrame) -> pd.Series:
     """Beatmap (and rate) of each row, so repeated plays of one map count once; the replay when unknown."""
     key = P["replay_key"].astype(str) if "replay_key" in P else pd.Series("all", index=P.index)
+    if "configuration_id" in P:
+        return P["configuration_id"].fillna(key).astype(str)
     if "map_md5" in P:
-        rate = P["rate"].astype(float).fillna(1.0).round(3).astype(str) if "rate" in P else ""
+        rate = P["rate"].astype(float).fillna(1.0).map(lambda value: format(value, ".17g")) if "rate" in P else ""
         return P["map_md5"].fillna(key).astype(str) + "@" + rate
     return key
 

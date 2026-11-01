@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 from osu_coach.app.schemas import Request
+from osu_coach.jobs.schemas import JobBase
 
 
 class MapRow(BaseModel):
@@ -17,7 +18,10 @@ class MapRow(BaseModel):
     title: str
     version: str
     creator: str | None = None
-    stars: float | None = Field(description="Star rating (no mod).")
+    stars: float | None = Field(description="Star rating for the exact map configuration.")
+    configuration_id: str | None = Field(None, description="Complete map, mods, rate, client, and settings identity.")
+    mods: str = "NM"
+    rate: float = 1.0
     bpm: float | None
     ar: float | None
     od: float | None = None
@@ -97,3 +101,37 @@ class Playlist(BaseModel):
     measured_abilities: dict[str, float] = Field(
         default_factory=dict, description="Replay-derived skill ratings before manual overrides."
     )
+    coverage_maps: int | None = Field(
+        None, description="Maps with verified .osu data searched for modified configurations."
+    )
+    unavailable_maps: int | None = Field(None, description="Pool maps whose verified .osu data was unavailable.")
+    calculator_unavailable_maps: int | None = Field(
+        None, description="Verified maps whose supported difficulty calculation was unavailable."
+    )
+    unavailable_configurations: int | None = Field(
+        None,
+        description="Configurations on verified maps whose exact calculation was unavailable, including partial maps.",
+    )
+    result_limit: int | None = Field(
+        None, description="Maximum ranked configurations returned per stage; eligible counts include all."
+    )
+
+
+class PlaylistSearchRequest(Request):
+    skill: str | None = None
+    comfort: float | None = Field(None, gt=0)
+    assessed: str | None = None
+    ratings: str | None = None
+    kappa: float = Field(0.5, ge=0)
+    min_relevance: float = Field(0.3, ge=0, le=1)
+    exclude_played: bool = True
+    allow_hr: bool = False
+    allow_hd: bool = False
+    adjustable_dt: bool = False
+    min_rate: float = Field(1.10, ge=1.10, le=2.00)
+    max_rate: float = Field(2.00, ge=1.10, le=2.00)
+
+
+class PlaylistJob(JobBase):
+    kind: Literal["playlist"]
+    result: Playlist | None

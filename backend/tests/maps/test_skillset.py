@@ -13,18 +13,18 @@ OFFSETS = {"Warm-up": -15, "Comfort": -5, "Push": 5}
 
 @pytest.mark.parametrize("theta", [2.5, 4.39, 6.5])
 @pytest.mark.parametrize("ability", [0.0, 100.0])
-def test_the_best_map_scores_near_zero_for_any_rating(theta, ability):
-    """A rating far from 50 asks for demands no map at the target stars has; the best of them still scores near 0
-    (#33: at 4.4★ with accuracy 0, the best map scored -1.78, every other one lower)."""
+def test_requested_demand_is_not_clamped_and_empty_stages_are_explicit(theta, ability):
+    """The requested target stays literal even when the available map demands cannot reach it."""
     result = recommend(load_pool(), theta, {"accuracy": ability}, "accuracy", ("accuracy",))
     for goal, stage in result["goals"].items():
-        best = stage["maps"][0]
-        b = best["breakdown"]
-        assert best["formula_score"] > -1, (goal, b["terms"])
-        assert b["target_demand"] == stage["target_demand"] == ability + OFFSETS[goal]  # what the rating asks for
-        lowest = min(m["skill_demand"] for m in stage["maps"])
-        highest = max(m["skill_demand"] for m in stage["maps"])
-        assert b["reachable_demand"] == min(max(b["target_demand"], lowest), highest)
+        assert stage["target_demand"] == ability + OFFSETS[goal]
+        assert stage["star_max"] - stage["star_min"] == pytest.approx(0.4)
+        if stage["maps"]:
+            b = stage["maps"][0]["breakdown"]
+            assert b["reachable_demand"] == b["target_demand"] == stage["target_demand"]
+            assert stage["maps"][0]["formula_score"] <= 0
+        else:
+            assert stage["eligible"] == 0 and stage["excluded"]
 
 
 def test_a_reachable_target_is_used_as_it_is():
@@ -32,23 +32,19 @@ def test_a_reachable_target_is_used_as_it_is():
     assert all(m["breakdown"]["reachable_demand"] == m["breakdown"]["target_demand"] == 45 for m in stage["maps"])
 
 
-def test_weak_other_skills_only_count_beyond_what_every_map_asks():
-    """Three weak skills, as Skill Development assesses them: no map at these stars spares the other two, so only the
-    overload beyond the least any of them asks is a risk."""
+def test_weak_other_skills_count_overload_above_player_margin():
     abilities = {"accuracy": 0.0, "aim": 10.0, "speed": 20.0}
     for skill in abilities:
         result = recommend(load_pool(), 4.39, abilities, skill, tuple(abilities))
         for goal, stage in result["goals"].items():
-            best = stage["maps"][0]
-            assert best["formula_score"] > -1, (skill, goal, best["breakdown"]["terms"])
-            for part in best["breakdown"]["bottlenecks"]:
-                floor = max(part["ability"] + part["margin"], part["least_demand"])
-                assert part["overload"] == pytest.approx(max(0.0, part["demand"] - floor))
+            for best in stage["maps"][:1]:
+                for part in best["breakdown"]["bottlenecks"]:
+                    floor = part["ability"] + part["margin"]
+                    assert part["overload"] == pytest.approx(max(0.0, part["demand"] - floor))
 
 
-def test_a_widened_star_window_is_scored_as_wide():
-    """Few timing maps at low stars: the window widens, and so does the star term's scale."""
+def test_sparse_timing_stage_does_not_widen_star_window():
     warmup = recommend(load_pool(), 2.5, {"accuracy": 0.0}, "accuracy", ("accuracy",))["goals"]["Warm-up"]
-    b = warmup["maps"][0]["breakdown"]
-    assert b["star_window"] > 0.2 and b["star_scale"] == pytest.approx(b["star_window"])
-    assert b["terms"]["stars"] > -1
+    assert warmup["maps"] == []
+    assert warmup["star_max"] - warmup["star_min"] == pytest.approx(0.4)
+    assert warmup["excluded"]["Outside star window"] > 0

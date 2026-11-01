@@ -128,15 +128,19 @@ def compute_skills(
     s["stamina"] = stamina_score(P, tapping, level, presses=presses, n_total=N)
     single = P["run_len"] < 3
     Wa = difficulty_weights(P, None, "stars", N)
-    sd = P[single & P["head_hit"].astype(bool)]
+    timing_eligible = P["timing_eligible"].astype(bool) if "timing_eligible" in P else pd.Series(True, index=P.index)
+    sd = P[single & P["head_hit"].astype(bool) & timing_eligible]
     wa = Wa[sd.index]
     r300 = float((wa * (sd["head_result"] == 300)).sum() / wa.sum()) if len(sd) and wa.sum() > 0 else math.nan
-    n_single = int(single.sum())
+    n_single = int((single & timing_eligible).sum())
     s["accuracy"] = {
         "score": accuracy_score(r300) if not math.isnan(r300) and n_single >= 60 else None,
         "n": n_single,
         "three_hundred_rate": r300,
         "ur": tapping.get("ur_single"),
+        "reason": "At least 60 eligible single-note heads required after the DT accuracy evidence gate"
+        if n_single < 60
+        else "Eligible single-note timing accuracy",
     }
     s["sliders"] = slider_score(P, level, n_total=N)
     s["reading"] = reading_score(P, N)

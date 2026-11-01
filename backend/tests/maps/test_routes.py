@@ -66,15 +66,15 @@ def test_lower_level_accuracy_playlist_requires_timing_od(client):
     assert all(row["breakdown"]["star_window"] <= 1.0 for stage in pl["stages"] for row in stage["maps"])
 
 
-def test_sparse_lower_level_accuracy_stage_widens_star_window(client):
+def test_sparse_lower_level_accuracy_stage_stays_empty(client):
     pl = client.get(
         "/api/playlists",
         params={"skill": "accuracy", "comfort": 2.5, "ratings": '{"accuracy":13}', "assessed": "accuracy"},
     ).json()
     warmup = next(stage for stage in pl["stages"] if stage["stage"] == "Warm-up")
-    assert warmup["maps"]
-    assert warmup["maps"][0]["breakdown"]["star_window"] > 0.2
-    assert all(row["od"] >= 5.5 for row in warmup["maps"])
+    assert warmup["maps"] == []
+    assert warmup["eligible"] == 0
+    assert warmup["excluded"]["Outside star window"] > 0
 
 
 def test_lower_level_accuracy_reports_when_no_od_qualified_maps():
@@ -83,7 +83,7 @@ def test_lower_level_accuracy_reports_when_no_od_qualified_maps():
     result = recommend(low_od_only, 4.5, {"accuracy": 13}, "accuracy", ("accuracy",))
     for stage in result["goals"].values():
         assert stage["maps"] == []
-        assert stage["excluded"]["No qualified timing map within 1★ of target"] == 1
+        assert stage["excluded"]["No qualified timing map in the configured star window"] == 1
 
 
 def test_a_playlist_opens_on_a_weakness_with_a_rating():
@@ -95,3 +95,25 @@ def test_a_playlist_opens_on_a_weakness_with_a_rating():
     p = SimpleNamespace(weaknesses=["consistency", "speed", "aim"])
     assert default_skill(p, {"speed": 30.0, "aim": 40.0}) == "speed"
     assert default_skill(p, {}) == "aim" and default_skill(None, {}) == "aim"
+
+
+def test_modified_playlist_starts_cancellable_job_and_validates_rate_range(client, monkeypatch):
+    from osu_coach.maps import service
+
+    monkeypatch.setattr(service, "search", lambda ws, request, report: None)
+    body = {
+        "skill": "aim",
+        "comfort": 4,
+        "ratings": '{"aim":50}',
+        "allow_hr": True,
+        "adjustable_dt": True,
+        "min_rate": 1.2,
+        "max_rate": 1.5,
+    }
+    started = client.post("/api/playlists/search", json=body)
+    assert started.status_code == 202
+    job = started.json()
+    assert job["kind"] == "playlist" and job["cancellable"]
+    invalid = client.post("/api/playlists/search", json={**body, "min_rate": 1.8})
+    assert invalid.status_code == 422
+    assert invalid.json()["code"] == "invalid_recommendation_settings"

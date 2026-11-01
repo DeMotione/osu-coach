@@ -275,11 +275,12 @@ export function useHideMaps() {
   });
 }
 
-export const usePlaylist = (params: { skill?: string; assessed?: string; ratings?: string; comfort?: number; kappa?: number; min_relevance?: number; exclude_played?: boolean }) =>
+export const usePlaylist = (params: { skill?: string; assessed?: string; ratings?: string; comfort?: number; kappa?: number; min_relevance?: number; exclude_played?: boolean }, enabled = true) =>
   useQuery({
     queryKey: [...keys.playlists, params],
     queryFn: () => unwrap(api.GET("/api/playlists", { params: { query: params } })),
     placeholderData: keepPreviousData,
+    enabled,
   });
 
 export const useExportPreview = (body: Schemas["ExportRequest"] | null) =>

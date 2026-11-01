@@ -10,6 +10,11 @@ export interface RecommendationOptions {
   kappa?: number;
   min_relevance?: number;
   exclude_played?: boolean;
+  allow_hr?: boolean;
+  allow_hd?: boolean;
+  adjustable_dt?: boolean;
+  min_rate?: number;
+  max_rate?: number;
 }
 
 const SKILLS = [
@@ -35,10 +40,18 @@ export function RecommendationControls({ current, measured, comfort, onApply }: 
   const [kappa, setKappa] = useState("0.5");
   const [relevance, setRelevance] = useState("0.3");
   const [excludePlayed, setExcludePlayed] = useState(true);
+  const [allowHr, setAllowHr] = useState(false);
+  const [allowHd, setAllowHd] = useState(false);
+  const [adjustableDt, setAdjustableDt] = useState(false);
+  const [minRate, setMinRate] = useState("1.10");
+  const [maxRate, setMaxRate] = useState("2.00");
   const selected = [skill, ...(assessed ?? []).filter((id) => id !== skill)];
   const valid = Number(stars) > 0 && Number(kappa) >= 0 && Number(relevance) >= 0 && Number(relevance) <= 1 &&
     [stars, kappa, relevance].every((n) => n.trim() !== "" && Number.isFinite(Number(n))) &&
-    Object.values(ratings).every((n) => n.trim() === "" || (Number.isFinite(Number(n)) && Number(n) >= 0 && Number(n) <= 100));
+    Object.values(ratings).every((n) => n.trim() === "" || (Number.isFinite(Number(n)) && Number(n) >= 0 && Number(n) <= 100)) &&
+    (!adjustableDt || (Number(minRate) >= 1.10 && Number(maxRate) <= 2.00 && Number(minRate) <= Number(maxRate) &&
+      [minRate, maxRate].every((n) => n.trim() !== "" &&
+        Math.abs(Number(n) * 100 - Math.round(Number(n) * 100)) < 1e-8)));
 
   const showMaps = () => {
     const manual = Object.fromEntries(Object.entries(ratings).filter(([, value]) => value.trim() !== "")
@@ -51,6 +64,11 @@ export function RecommendationControls({ current, measured, comfort, onApply }: 
       kappa: Number(kappa),
       min_relevance: Number(relevance),
       exclude_played: excludePlayed,
+      allow_hr: allowHr,
+      allow_hd: allowHd,
+      adjustable_dt: adjustableDt,
+      min_rate: Number(minRate),
+      max_rate: Number(maxRate),
     });
   };
 
@@ -96,6 +114,15 @@ export function RecommendationControls({ current, measured, comfort, onApply }: 
             <input type="checkbox" checked={excludePlayed} onChange={(event) => setExcludePlayed(event.target.checked)} />
             Hide maps I have already completed
           </label>
+          <div className="recommendation-grid">
+            <label className="recommendation-check"><input type="checkbox" checked={allowHr} onChange={(event) => setAllowHr(event.target.checked)} />Allow Hard Rock</label>
+            <label className="recommendation-check"><input type="checkbox" checked={allowHd} onChange={(event) => setAllowHd(event.target.checked)} />Allow Hidden</label>
+            <label className="recommendation-check"><input type="checkbox" checked={adjustableDt} onChange={(event) => setAdjustableDt(event.target.checked)} />Search adjustable DT</label>
+          </div>
+          {adjustableDt && <div className="recommendation-grid">
+            <Field label="Minimum DT rate"><input className="input" type="number" min="1.10" max="2.00" step="0.01" value={minRate} onChange={(event) => setMinRate(event.target.value)} /></Field>
+            <Field label="Maximum DT rate"><input className="input" type="number" min="1.10" max="2.00" step="0.01" value={maxRate} onChange={(event) => setMaxRate(event.target.value)} /></Field>
+          </div>}
           <div className="recommendation-assessed">
             <h4>Skills to assess</h4>
             <p className="small muted">The target skill is always included. Unchecked demands are unassessed; a checked skill with unknown player ability excludes the map.</p>

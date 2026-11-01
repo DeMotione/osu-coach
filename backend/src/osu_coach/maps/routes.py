@@ -6,8 +6,9 @@ from fastapi import APIRouter, Query
 
 from osu_coach.app.deps import WorkspaceDep
 from osu_coach.app.errors import responses
+from osu_coach.jobs.schemas import job_view
 from osu_coach.maps import service as svc
-from osu_coach.maps.schemas import HideMaps, Playlist, Suggestions
+from osu_coach.maps.schemas import HideMaps, Playlist, PlaylistJob, PlaylistSearchRequest, Suggestions
 
 router = APIRouter(tags=["Maps"])
 
@@ -49,3 +50,24 @@ def playlist(
 ) -> Playlist:
     """``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data."""
     return svc.playlist(ws, skill, comfort, assessed, ratings, kappa, min_relevance, exclude_played)
+
+
+@router.post(
+    "/playlists/search",
+    status_code=202,
+    summary="Search exact mod and rate configurations",
+    responses=responses(409, 422),
+)
+def search(request: PlaylistSearchRequest, ws: WorkspaceDep) -> PlaylistJob:
+    try:
+        svc.validate_search(ws, request)
+    except ValueError as exc:
+        from osu_coach.app.errors import Invalid
+
+        raise Invalid(str(exc), "invalid_recommendation_settings") from exc
+    return job_view(
+        PlaylistJob,
+        ws.jobs.start(
+            "playlist", "Searching map configurations", lambda report: svc.search(ws, request, report), cancellable=True
+        ),
+    )

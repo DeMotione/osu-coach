@@ -10,10 +10,21 @@ import pandas as pd
 
 from osu_coach.app.convert import integer, num, text
 from osu_coach.app.errors import ApiError, Invalid
+from osu_coach.maps.configuration import SearchOptions
 from osu_coach.maps.domain import SKILLS, Targets, collection_name, skill_label, targets_from_profile
-from osu_coach.maps.schemas import MapRow, Playlist, PlaylistSkill, PlaylistStage, Suggestions, SuggestionSection
-from osu_coach.maps.skillset import recommend
+from osu_coach.maps.schemas import (
+    MapRow,
+    Playlist,
+    PlaylistSearchRequest,
+    PlaylistSkill,
+    PlaylistStage,
+    Suggestions,
+    SuggestionSection,
+)
+from osu_coach.maps.skillset import recommend, recommend_modified
+from osu_coach.maps.variant_repository import variant_rows, verified_bytes
 from osu_coach.profile.domain import Profile
+from osu_coach.replays.configuration import from_meta
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
@@ -32,6 +43,9 @@ def map_rows(df: pd.DataFrame | None) -> list[MapRow]:
             version=text(r.get("version")) or "",
             creator=text(r.get("creator")),
             stars=num(r.get("stars")),
+            configuration_id=text(r.get("configuration_id")),
+            mods=text(r.get("mods")) or "NM",
+            rate=num(r.get("rate")) or 1.0,
             bpm=num(r.get("bpm")),
             ar=num(r.get("ar")),
             od=num(r.get("od")),
@@ -254,4 +268,115 @@ def playlist(
             for key, row in (p.skill_ratings.items() if p else [])
             if key in SKILLS and row.get("score") is not None
         },
+    )
+
+
+def validate_search(ws: Workspace, req: PlaylistSearchRequest) -> None:
+    SearchOptions(req.allow_hr, req.allow_hd, req.adjustable_dt, req.min_rate, req.max_rate)
+    _options(ws.profile(), req.skill, req.assessed, req.ratings, req.comfort, req.kappa, req.min_relevance)
+
+
+def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
+    """Exact available-map search, run only inside a cancellable background job."""
+    options = SearchOptions(req.allow_hr, req.allow_hd, req.adjustable_dt, req.min_rate, req.max_rate)
+    pool = _pool(ws)
+    p = ws.profile()
+    target, checked, abilities, theta, source = _options(
+        p, req.skill, req.assessed, req.ratings, req.comfort, req.kappa, req.min_relevance
+    )
+    t = targets_from_profile(p) if p else Targets(comfort=theta)
+    t.comfort = theta
+    t.played = _played(ws, t)
+    client = ws.preferred_client()
+    history = {}
+    for analysis in ws.analyses:
+        meta = analysis.meta
+        acc = num(meta.get("accuracy"))
+        if meta.get("completed") and acc is not None:
+            key = from_meta(meta).key
+            history[key] = max(history.get(key, 0.0), min(1.10, max(0.0, acc / 0.95)))
+    libraries = [lib for lib in (ws.library, ws.check_library) if lib is not None]
+    unavailable = 0
+    coverage = 0
+    calculator_unavailable = 0
+    unavailable_configurations = 0
+    records = pool.to_dict("records")
+
+    def rows():
+        nonlocal unavailable, coverage, calculator_unavailable, unavailable_configurations
+        for index, row in enumerate(records):
+            report(index, len(records), f"Checking map {index + 1} of {len(records)}")
+            raw = verified_bytes(ws.cache_dir, row, libraries)
+            if raw is None:
+                unavailable += 1
+                continue
+            coverage += 1
+            configs = options.configurations(str(row["md5"]), client)
+
+            def count_unavailable(count: int) -> None:
+                nonlocal unavailable_configurations
+                unavailable_configurations += count
+
+            try:
+                calculated = list(variant_rows(ws.cache_dir, raw, configs, on_unavailable=count_unavailable))
+                if not calculated:
+                    calculator_unavailable += 1
+                yield from calculated
+            except (OSError, ValueError):
+                calculator_unavailable += 1
+                unavailable_configurations += len(configs)
+        report(len(records), len(records), "Ranking complete")
+
+    ranked = recommend_modified(
+        pool,
+        rows(),
+        theta,
+        abilities,
+        target,
+        checked,
+        req.kappa,
+        req.min_relevance,
+        t.played if req.exclude_played else frozenset(),
+        t,
+        history,
+    )
+    if ranked["candidate_count"] == 0 and all(key in abilities for key in checked):
+        for data in ranked["goals"].values():
+            data["excluded"]["No available exact configurations"] = 1
+    stages = [
+        PlaylistStage(
+            stage=stage,
+            goal=stage,
+            target_stars=data["target_stars"],
+            target_demand=data["target_demand"],
+            eligible=data["eligible"],
+            excluded=data["excluded"],
+            maps=map_rows(pd.DataFrame(data["maps"]).assign(stage=stage, goal=stage)),
+        )
+        for stage, data in ranked["goals"].items()
+    ]
+    return Playlist(
+        skill=target,
+        skills=[PlaylistSkill(key=k, label=skill_label(k, t), score=abilities.get(k)) for k in SKILLS],
+        default_skill=default_skill(p, abilities),
+        has_profile=p is not None,
+        comfort=theta,
+        comfort_source=source,
+        stream_bpm=num(t.stream_bpm),
+        maps=sum(stage.eligible for stage in stages),
+        collection_name=collection_name(target, t),
+        stages=stages,
+        preferred_client=client,
+        skill_adjusted_stars=ranked["skill_adjusted_stars"],
+        abilities=abilities,
+        measured_abilities={
+            key: float(row["score"])
+            for key, row in (p.skill_ratings.items() if p else [])
+            if key in SKILLS and row.get("score") is not None
+        },
+        coverage_maps=coverage,
+        unavailable_maps=unavailable,
+        calculator_unavailable_maps=calculator_unavailable,
+        unavailable_configurations=unavailable_configurations,
+        result_limit=ranked["result_limit"],
     )

@@ -32,9 +32,9 @@ function Breakdown({ map }: { map: MapRow }) {
 }
 
 const COLUMNS: Column<MapRow>[] = [
-  { key: "map", header: "Map", cell: mapName, strong: true, wrap: true },
+  { key: "map", header: "Map", cell: (m) => `${mapName(m)} · ${m.mods}${m.rate !== 1 ? ` · ${m.rate.toFixed(2)}×` : ""}`, strong: true, wrap: true },
   { key: "stars", header: "Difficulty", cell: (m) => fmt(m.stars, 2, " ★"), value: (m) => m.stars, align: "right",
-    title: "Star rating (no mod)." },
+    title: "Star rating for the displayed mods and playback rate." },
   { key: "bpm", header: "BPM", cell: (m) => fmt(m.bpm, 0), value: (m) => m.bpm, align: "right" },
   { key: "ar", header: "AR", cell: (m) => fmt(m.ar, 1), value: (m) => m.ar, align: "right" },
   { key: "length", header: "Length", cell: (m) => clock(m.length_s), value: (m) => m.length_s, align: "right" },
@@ -151,7 +151,7 @@ export function MapTable({ maps, maxHeight, onHide, compact = false }: {
       label="Maps"
       rows={maps.slice((shownPage - 1) * 5, shownPage * 5)}
       columns={columns}
-      rowKey={(m) => m.md5}
+      rowKey={(m) => m.configuration_id ?? m.md5}
       maxHeight={maxHeight}
       empty={<EmptyState title="No maps found for this." />}
     />

@@ -27,6 +27,40 @@ Analyses your own osu!standard replays and tells you what to work on:
 Everything runs locally. The only network use is downloading beatmaps you don't have, by MD5 from
 osu.direct and osu.ppy.sh (verified), and downloading playlist maps from public mirrors.
 
+### Mod-aware skill playlists
+
+In **Goals & Training → Fine-tune**, allow Hard Rock, Hidden, and adjustable DT independently. DT rate is an **absolute**
+playback rate from 1.10× to 2.00×, inclusive, searched at 0.01× intervals; standard DT is 1.50×. The ordinary NoMod
+playlist stays available immediately. A modified search runs as a cancellable job and reports how many pool maps had
+verified `.osu` data. The first search can take a long time because the bundled pool contains statistics, not the
+`.osu` files. Missing or outdated beatmaps are excluded and counted; the result also counts individual configurations
+whose exact calculation was unavailable, including maps for which other configurations succeeded. Empty stages show
+their exclusion reasons, including missing player ratings and no configurations passing the fixed star and relevance
+filters. The best 100 configurations per stage are returned, ranked from all
+available candidates. A downloaded collection or map pack contains beatmaps only; the text list records exact mods
+and speed to set in osu!.
+
+For each configuration, the game ruleset model applies HR difficulty caps and vertical reflection, recalculates the
+circle radius, scales real-time intervals, durations, BPM, judgement windows and approach time once by the selected
+rate, and asks rosu-pp for modified stars and strain sections. Map demands use these transformed features and a
+comfort-relative 0–100 scale. Reading demand is an experimental sum of density/pattern demand, low-AR cost below 9.5,
+high-AR reaction cost above 10.5, and an extra HD term whose preferred initial AR region is 9.5–10.0. These boundaries
+and coefficients are assumptions in `profile/domain/algorithm.py`, not calibrated player thresholds. Uniform speed
+alone does not increase simultaneous visibility in the reading density calculation. Customized lazer Hidden replays
+retain their exact settings in their configuration identity and are excluded from the ordinary Hidden reading rating
+until a visibility model for those settings is available. Suitability `F` is the negative squared star/demand mismatch
+minus other-skill overload, plus a history term; larger is better. Its history factor is
+the best completed accuracy on the exact map/mod/rate/client/settings configuration divided by 0.95 and capped to
+0–1.10. With no matching play it is the neutral assumption 1. `F` is a heuristic suitability score, not an FC
+probability or a calibrated performance forecast.
+
+DT/NC replay timing accuracy contributes to the accuracy rating only when its overall replay accuracy is strictly
+above 88%; those replays still count for other skills. Too little accepted timing evidence leaves the rating
+unmeasured. The threshold is an evidence rule, not a diagnosis of why a play had low accuracy. Reanalyse replays after
+upgrading to refresh configuration identity and this gate (`ANALYSIS_VERSION = 9`). Variant statistics are cached in
+the osu! coach data folder under `recommendations/variants`; their filenames contain the model, engine, and cache
+versions, so changing those versions invalidates old projections. A changed `.osu` checksum is a different map.
+
 ### Play a goal, not another chart
 
 Open **Improve → Play Goals**:

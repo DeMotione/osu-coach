@@ -15,7 +15,7 @@ import pandas as pd
 from osu_coach.beatmaps.domain import PlayableBeatmap
 
 RUN_SNAP_MAX = 0.34  # 1/3 beat or faster counts as "tight" (streams/bursts)
-RUN_DT_MAX = 200.0  # ms (map time); keeps very slow maps out of streams
+RUN_DT_MAX = 200.0  # ms (real time); keeps very slow maps out of streams
 JUMP_DIST = 2.0  # spacing in circle diameters
 DIR8 = ["right", "down-right", "down", "down-left", "left", "up-left", "up", "up-right"]
 
@@ -210,7 +210,7 @@ def _slider_context(df: pd.DataFrame):
 
 
 def _label_runs(df: pd.DataFrame):
-    tight = ((df["snap"] <= RUN_SNAP_MAX) & (df["dt"] <= RUN_DT_MAX) & (df["kind"] != "spinner")).fillna(False)
+    tight = ((df["snap"] <= RUN_SNAP_MAX) & (df["dt_real"] <= RUN_DT_MAX) & (df["kind"] != "spinner")).fillna(False)
     run_id = np.full(len(df), -1)
     run_len = np.ones(len(df), dtype=int)
     run_pos = np.zeros(len(df), dtype=int)

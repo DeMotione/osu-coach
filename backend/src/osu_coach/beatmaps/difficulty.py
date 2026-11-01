@@ -59,12 +59,9 @@ def _kwargs(mods: int, rate: float | None, lazer_mods: list | None, lazer: bool)
 
 
 def _difficulty(mods: int, rate: float | None, lazer_mods: list | None, lazer: bool):
-    try:
-        return rosu.Difficulty(**_kwargs(mods, rate, lazer_mods, lazer))
-    except Exception:  # noqa: BLE001 - mods rosu-pp doesn't know: fall back to legacy bits + rate
-        if not lazer_mods:
-            raise
-        return rosu.Difficulty(**_kwargs(mods, rate, None, lazer))
+    # An unsupported customized mod must stay unavailable. Falling back to legacy
+    # bits would silently erase its settings while claiming an exact result.
+    return rosu.Difficulty(**_kwargs(mods, rate, lazer_mods, lazer))
 
 
 def attributes(

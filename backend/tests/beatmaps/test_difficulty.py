@@ -133,13 +133,14 @@ def test_kwargs_empty_lazer_mod_list_means_legacy_path():
     assert difficulty._kwargs(HR, None, [], True) == {"mods": HR, "lazer": True}
 
 
-# --- _difficulty fallback -------------------------------------------------------------------------------------
+# --- _difficulty settings -------------------------------------------------------------------------------------
 
 
-def test_difficulty_falls_back_to_legacy_bits_when_lazer_mods_are_unknown(fake):
+def test_difficulty_does_not_erase_unknown_customized_lazer_mods(fake):
     fake.reject_lazer_mods = True
-    difficulty._difficulty(DT, 1.3, [{"acronym": "XX"}], True)
-    assert fake.created == [{"mods": DT, "lazer": True, "clock_rate": 1.3}]
+    with pytest.raises(TypeError, match="unknown mod"):
+        difficulty._difficulty(DT, 1.3, [{"acronym": "XX"}], True)
+    assert fake.created == []
 
 
 def test_difficulty_reraises_when_legacy_arguments_are_rejected(monkeypatch):
