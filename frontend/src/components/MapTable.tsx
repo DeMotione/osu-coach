@@ -33,8 +33,8 @@ function Breakdown({ map }: { map: MapRow }) {
 }
 
 const COLUMNS: Column<MapRow>[] = [
-  { key: "map", header: "Map", cell: (m) => `${mapName(m)}${m.rate !== 1 ? ` · ${m.rate.toFixed(2)}×` : ""}`, strong: true, wrap: true },
-  { key: "mods", header: "Mods", cell: (m) => <ModsIcons mods={m.mods} />, value: (m) => m.mods },
+  { key: "map", header: "Map", cell: (m) => mapName(m), strong: true, wrap: true },
+  { key: "mods", header: "Mods", cell: (m) => <ModsIcons mods={m.mods} rate={m.rate} />, value: (m) => `${m.mods}:${m.rate}` },
   { key: "stars", header: "Difficulty", cell: (m) => fmt(m.stars, 2, " ★"), value: (m) => m.stars, align: "right",
     title: "Star rating for the displayed mods and playback rate." },
   { key: "bpm", header: "BPM", cell: (m) => fmt(m.bpm, 0), value: (m) => m.bpm, align: "right" },

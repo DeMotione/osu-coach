@@ -1230,6 +1230,27 @@ input[type="range"] {
 
 .map-mods { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; vertical-align: middle; }
 .map-mods img { display: block; width: 25px; height: auto; max-height: 18px; flex: none; }
+.map-mods__badge {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 54px;
+  height: 18px;
+  background: url("/mod-double-time-custom.svg") center / contain no-repeat;
+}
+.map-mods__badge-rate {
+  position: absolute;
+  inset: 0 1px 0 47%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff6264;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.map-mods__rate-only { color: #ff6264; font-variant-numeric: tabular-nums; }
 
 .map-pagination {
   display: flex;
@@ -1489,6 +1510,48 @@ input[type="range"] {
   .map-table:not(.map-table--compact) .map-mods img { width: clamp(12px, calc((100cqw / 4 - 20px) / 3), 25px); }
 }
 
+@container (max-width: 879px) {
+  .map-table:not(.map-table--compact) .table tr:has(.map-mods__badge, .map-mods__rate-only) {
+    grid-template-areas:
+      "map map map map"
+      "mods mods mods mods"
+      "stars bpm ar length"
+      "why why why why"
+      "demand score breakdown link";
+  }
+  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(12)):has(.map-mods__badge, .map-mods__rate-only) {
+    grid-template-areas:
+      "map map map hide"
+      "mods mods mods mods"
+      "stars bpm ar length"
+      "why why why why"
+      "demand score breakdown link";
+  }
+}
+
+@container (max-width: 480px) {
+  .map-table:not(.map-table--compact) .table tr:has(.map-mods__badge, .map-mods__rate-only) {
+    grid-template-areas:
+      "map map map map"
+      "mods mods mods mods"
+      "stars stars bpm bpm"
+      "ar ar length length"
+      "why why why why"
+      "demand demand score score"
+      "breakdown breakdown link link";
+  }
+  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(12)):has(.map-mods__badge, .map-mods__rate-only) {
+    grid-template-areas:
+      "map map map hide"
+      "mods mods mods mods"
+      "stars stars bpm bpm"
+      "ar ar length length"
+      "why why why why"
+      "demand demand score score"
+      "breakdown breakdown link link";
+  }
+}
+
 @container (max-width: 760px) {
   .map-table--compact .table-wrap { overflow: visible; max-height: none; box-shadow: none; }
   .map-table--compact .table,
@@ -1503,6 +1566,8 @@ input[type="range"] {
     border-radius: var(--radius-btn);
   }
   .map-table--compact td:first-child { grid-column: 1 / -1; }
+  .map-table--compact tr:has(.map-mods__badge, .map-mods__rate-only) td:nth-child(2) { grid-column: 1 / -1; }
+  .map-table--compact tr:not(:has(> td:nth-child(10))):has(.map-mods__badge, .map-mods__rate-only) td:last-child { grid-column: 1 / -1; }
   .map-table--compact td { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
   .map-table--compact td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--t-xs); margin-bottom: 3px; }
   .map-table--compact td:nth-child(2):empty::before { display: none; }
