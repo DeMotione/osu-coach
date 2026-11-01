@@ -5,6 +5,7 @@ import { useMeta } from "../api/queries";
 import { breakdownLines } from "../lib/breakdown";
 import { clock, fmt, mapName, NONE } from "../lib/format";
 import { DataTable, type Column } from "./DataTable";
+import { ModsIcons } from "./ModsIcons";
 import { EmptyState } from "./states";
 
 type MapRow = Schemas["MapRow"];
@@ -32,7 +33,8 @@ function Breakdown({ map }: { map: MapRow }) {
 }
 
 const COLUMNS: Column<MapRow>[] = [
-  { key: "map", header: "Map", cell: (m) => `${mapName(m)} · ${m.mods}${m.rate !== 1 ? ` · ${m.rate.toFixed(2)}×` : ""}`, strong: true, wrap: true },
+  { key: "map", header: "Map", cell: (m) => `${mapName(m)}${m.rate !== 1 ? ` · ${m.rate.toFixed(2)}×` : ""}`, strong: true, wrap: true },
+  { key: "mods", header: "Mods", cell: (m) => <ModsIcons mods={m.mods} />, value: (m) => m.mods },
   { key: "stars", header: "Difficulty", cell: (m) => fmt(m.stars, 2, " ★"), value: (m) => m.stars, align: "right",
     title: "Star rating for the displayed mods and playback rate." },
   { key: "bpm", header: "BPM", cell: (m) => fmt(m.bpm, 0), value: (m) => m.bpm, align: "right" },
@@ -54,7 +56,7 @@ const COLUMNS: Column<MapRow>[] = [
 ];
 
 /** For narrow cards: preserve the compact map columns and add formula details. */
-const COMPACT = COLUMNS.filter((c) => ["map", "stars", "bpm", "length", "demand", "score", "breakdown", "link"].includes(c.key));
+const COMPACT = COLUMNS.filter((c) => ["map", "mods", "stars", "bpm", "length", "demand", "score", "breakdown", "link"].includes(c.key));
 
 type PageItem = number | "left-gap" | "right-gap";
 
