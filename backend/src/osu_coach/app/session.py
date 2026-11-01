@@ -69,14 +69,13 @@ def start_restore(ws: Workspace) -> None:
     """Pick up the last session: the analysed replays come back from the analysis cache, and the last scan is
     repeated in the background (a scan job, so it shows like any other). Does nothing without a saved session."""
     saved = session_store.load(ws.cache_dir)
+    _restore_analyses(ws, saved.get("analysis"))
     scan = saved.get("scan")
     if not isinstance(scan, dict) or not _scan_usable(scan):
-        _restore_analyses(ws, saved.get("analysis"))
         return
 
     def work(report: Reporter) -> ScanResult:
         report.note("Restoring your last session…")
-        _restore_analyses(ws, saved.get("analysis"))
         installs = ws.installs()
         roots = set(scan.get("installs", []))
         maps = set(scan.get("map_installs", []))
