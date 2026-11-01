@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 import type { Schemas } from "../api/client";
 import { uploadFiles, useCheckReplays, useCheckReport } from "../api/queries";
@@ -172,6 +172,9 @@ function ReportBody({ r, onOpen }: { r: Report; onOpen: (path: string) => void }
   const s = r.summary;
   return (
     <>
+      <Link className="btn btn--primary" to={`/play-goals?tab=fc&path=${encodeURIComponent(r.path)}&client=${s.client ?? "stable"}&mods=${encodeURIComponent(s.mods_label)}`}>
+        I want to FC this map
+      </Link>
       <Tiles n={6}>
         <Stat label="Accuracy" value={pct(s.accuracy, 2)} />
         <Stat label="Combo" value={s.map_combo ? `${int(s.combo)}/${int(s.map_combo)}` : int(s.combo)} />

@@ -52,11 +52,11 @@ def _c(v, lo: float, hi: float) -> float:
 
 
 # ------------------------------------------------------------------ per-map statistics
-def map_stats(bm: Beatmap, osu_bytes: bytes) -> dict | None:
-    """Pattern + difficulty statistics of one parsed .osu file (NoMod); ``osu_bytes`` feeds the difficulty model."""
+def map_stats(bm: Beatmap, osu_bytes: bytes, mods: int = 0) -> dict | None:
+    """Pattern + difficulty statistics of one parsed .osu file; NoMod unless ``mods`` is supplied."""
     if bm.mode != 0 or len(bm.objects) < 30:
         return None
-    pb = PlayableBeatmap(bm, 0)
+    pb = PlayableBeatmap(bm, mods)
     f = object_features(pb)
     ns = f[f["kind"] != "spinner"]
     if ns.empty:
@@ -83,12 +83,12 @@ def map_stats(bm: Beatmap, osu_bytes: bytes) -> dict | None:
         "creator": bm.creator,
         "beatmap_id": bm.beatmap_id,
         "beatmapset_id": bm.beatmapset_id,
-        "cs": bm.cs,
-        "ar": bm.ar,
-        "od": bm.od,
-        "hp": bm.hp,
-        "bpm": bm.main_bpm(),
-        "drain_length": bm.drain_seconds,
+        "cs": pb.cs,
+        "ar": pb.effective_ar if mods else bm.ar,
+        "od": pb.effective_od if mods else bm.od,
+        "hp": pb.hp,
+        "bpm": bm.main_bpm() * pb.rate,
+        "drain_length": bm.drain_seconds / pb.rate,
         "n_objects": int(len(f)),
         "circle_share": float((ns["kind"] == "circle").mean()),
         "slider_share": float((ns["kind"] == "slider").mean()),
@@ -116,7 +116,7 @@ def map_stats(bm: Beatmap, osu_bytes: bytes) -> dict | None:
     }
     for q in QUADRANTS:
         s["q_" + q.replace("-", "_")] = float((jumps["quadrant"] == q).mean()) if len(jumps) else 0.0
-    a = difficulty.attributes(osu_bytes, 0)
+    a = difficulty.attributes(osu_bytes, mods)
     s.update(
         {
             "stars": a.get("stars", math.nan),
@@ -128,14 +128,14 @@ def map_stats(bm: Beatmap, osu_bytes: bytes) -> dict | None:
         }
     )
     s["stars_dt"] = difficulty.attributes(osu_bytes, 64).get("stars", math.nan)
-    s["evenness"] = _evenness(osu_bytes)
+    s["evenness"] = _evenness(osu_bytes, mods)
     s.update(skill_scores(s))
     return s
 
 
-def _evenness(osu_bytes: bytes) -> float:
+def _evenness(osu_bytes: bytes, mods: int = 0) -> float:
     """Median / peak section difficulty in star units (1 = equally hard throughout)."""
-    st = difficulty.strains(osu_bytes, 0)
+    st = difficulty.strains(osu_bytes, mods)
     if not st or not st.get("aim"):
         return math.nan
     aim = np.sqrt(10 * np.asarray(st["aim"], dtype=float))

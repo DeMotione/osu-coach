@@ -55,6 +55,7 @@ DESCRIPTIONS = {
     404: "Not found; `code` says what is missing.",
     409: "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
     422: "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+    503: "Required local data is unavailable or incompatible; `code` identifies it.",
 }
 _ERROR_BODY_REF = "#/components/schemas/ErrorBody"
 _FASTAPI_422_REF = "#/components/schemas/HTTPValidationError"

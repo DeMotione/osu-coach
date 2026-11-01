@@ -4,6 +4,15 @@ Where osu! coach is heading on the way to 1.0. This is a plan, not a promise: re
 content can change as we learn what players need. Each item links to its issue where there is one; ideas and feedback
 are welcome in [issues](https://github.com/DeMotione/osu-coach/issues).
 
+## Goal-focused play
+
+**Play Goals** now brings three immediate workflows together without replacing the existing analysis pages:
+FC a chosen map, find local PP opportunities, and train HD or DT. Recommendations include explicit play objectives
+and allow useful repeats. Map-specific reachability and empirical accuracy ranges are evidence-gated; unsupported
+estimates are not shown. The initial offline goal pool has 62 difficulties with common mod/client configurations.
+Expanding its coverage and evaluating estimates on broader player histories remain follow-up work; this does not
+claim calibrated FC probabilities, account PP prediction, or the complete long-term training loop.
+
 Last updated: 2026-10-20 (current release: [0.10.0](https://github.com/DeMotione/osu-coach/releases/tag/v0.10.0)).
 
 ```mermaid
