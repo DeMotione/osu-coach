@@ -48,14 +48,7 @@ const COLUMNS: Column<MapRow>[] = [
   {
     key: "link",
     header: "Link",
-    cell: (m) =>
-      m.url ? (
-        <a href={m.url} target="_blank" rel="noreferrer noopener">
-          open ↗
-        </a>
-      ) : (
-        "–"
-      ),
+    cell: (m) => (m.url ? <a href={m.url} target="_blank" rel="noreferrer noopener">open ↗</a> : "–"),
     value: () => null,
   },
 ];

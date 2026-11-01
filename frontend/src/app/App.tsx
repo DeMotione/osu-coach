@@ -18,6 +18,7 @@ const TipsPage = lazy(() => import("../pages/TipsPage"));
 const SetupTipsPage = lazy(() => import("../pages/SetupTipsPage"));
 const MapsPage = lazy(() => import("../pages/MapsPage"));
 const SkillsPage = lazy(() => import("../pages/SkillsPage"));
+const PlayGoalsPage = lazy(() => import("../pages/PlayGoalsPage"));
 const NotFoundPage = lazy(() => import("../pages/NotFoundPage"));
 
 const queryClient = makeQueryClient();
@@ -42,6 +43,7 @@ export function App() {
                 <Route path="setup" element={<SetupTipsPage />} />
                 <Route path="maps" element={<MapsPage />} />
                 <Route path="skills" element={<SkillsPage />} />
+                <Route path="play-goals" element={<PlayGoalsPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Routes>

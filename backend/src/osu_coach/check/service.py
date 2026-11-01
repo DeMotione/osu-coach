@@ -113,7 +113,7 @@ def _replay(ref: dict, lib: Library) -> CheckReplay:
     )
 
 
-def _require_replay_file(ws: Workspace, path: str) -> Path:
+def require_replay_file(ws: Workspace, path: str) -> Path:
     """The replay file a request names: only one the library already knows (lazer's are in its file store, named
     without .osr) or an .osr in the uploads folder (the API hands out those paths itself), never an arbitrary
     location. The returned path comes from there, not from the request."""
@@ -143,7 +143,7 @@ def replay_list(ws: Workspace, path: str | None, only_map: bool) -> CheckList:
     ``only_map``: only (all of) the plays of that replay's map."""
     with _hold(ws):
         lib = check_library(ws)
-        p = _require_replay_file(ws, path) if path else None
+        p = require_replay_file(ws, path) if path else None
         if p:
             if lib is None:
                 lib = ws.check_library = Library(ws.cache_dir)
@@ -179,7 +179,7 @@ def replay_list(ws: Workspace, path: str | None, only_map: bool) -> CheckList:
 
 # ------------------------------------------------------------------ the report
 def report(ws: Workspace, path: str, online: bool) -> CheckReport:
-    p = _require_replay_file(ws, path)
+    p = require_replay_file(ws, path)
     with _hold(ws):
         lib = check_library(ws)
         if lib is None:

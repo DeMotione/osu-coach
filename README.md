@@ -2,6 +2,9 @@
 
 Analyses your own osu!standard replays and tells you what to work on:
 
+- **Play Goals**: **FC a map**, **Farm PP**, or **Improve a mod**. Pick a replay or beatmap difficulty,
+  see what is stopping your FC, and get focused practice maps. Find map+mod PP opportunities or train HD / DT
+  with concrete accuracy objectives. Five recommendations at a time; charts stay in the detailed analysis pages.
 - **Statistics** for tapping (unstable rate, timing bias, stream speed, falling behind in streams,
   key alternation and holds), aim (miss causes, over/undershoot, direction, jump distance and angle),
   sliders, reading (AR, dense parts) and consistency.
@@ -23,6 +26,27 @@ Analyses your own osu!standard replays and tells you what to work on:
 
 Everything runs locally. The only network use is downloading beatmaps you don't have, by MD5 from
 osu.direct and osu.ppy.sh (verified), and downloading playlist maps from public mirrors.
+
+### Play a goal, not another chart
+
+Open **Improve → Play Goals**:
+
+- **FC a map** accepts a replay or a specific osu!standard difficulty URL/ID. It separates observed miss/slider-break
+  patterns from inferred map demands, gives practice timestamps, and says when a target is beyond demonstrated reach.
+- **Farm PP** supports NM, HD, HR, DT and their common combinations. Values are local map PP scenarios, **not account
+  PP gains or rank predictions**. Conditional FC PP is clearly distinguished from an evidence-supported achievable
+  FC scenario; the app does not promise that you can FC everything it lists.
+- **Improve a mod** offers HD or standard 1.5× DT maps and accuracy/no-break practice objectives. With no relevant mod
+  evidence it offers explicitly unassessed starter maps, not an invented HD/DT skill estimate.
+
+Accuracy estimates require at least ten comparable completed plays across five distinct maps, with matching mods and
+client. They describe the observed range, not a maximum accuracy or a calibrated FC probability. With insufficient
+evidence, the estimate stays unavailable. Useful repeats are allowed: passing a map is not FCing it.
+
+The offline goal pool currently covers **62 selected difficulties** (992 map/mod/client configurations), separate
+from the larger general practice pool. A target outside it can still be assessed from a local replay or downloaded
+difficulty. Collections import maps, not mods; apply the displayed mods yourself. The text map list retains the
+play objectives.
 
 ## Install
 

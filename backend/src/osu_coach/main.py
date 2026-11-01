@@ -20,6 +20,7 @@ from osu_coach.dashboard import routes as dashboard
 from osu_coach.exports import routes as exports
 from osu_coach.library import routes as library
 from osu_coach.maps import routes as maps
+from osu_coach.play_goals import routes as play_goals
 from osu_coach.progress import routes as progress
 from osu_coach.settings import routes as settings
 from osu_coach.settings.service import settle_onboarding
@@ -59,6 +60,7 @@ TAGS = [
     {"name": "Detailed Map Analysis", "description": "One play on its own."},
     {"name": "Progress & goals", "description": "Your history by month / week / day and skill goals."},
     {"name": "Maps", "description": "Map suggestions and skill playlists from the bundled map pool."},
+    {"name": "Play Goals", "description": "FC a map, find PP opportunities, or improve HD/DT with local evidence."},
     {"name": "Get maps into osu!", "description": "collection.db, lazer import folder, .osz downloads."},
 ]
 
@@ -94,7 +96,7 @@ def create_app(config: Settings | None = None) -> FastAPI:
     errors.install(app)
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(LocalOnlyMiddleware, allowed_hosts=config.allowed_hosts)
-    for module in (system, settings, library, jobs, dashboard, tips, check, progress, maps, exports):
+    for module in (system, settings, library, jobs, dashboard, tips, check, progress, maps, exports, play_goals):
         app.include_router(module.router, prefix=API_PREFIX)
     build_openapi = app.openapi
 
