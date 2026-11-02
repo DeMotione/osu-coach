@@ -303,12 +303,12 @@ def test_variant_cache_counts_failed_configurations_even_when_map_partly_availab
     raw = res("maps/0619c930348063c2a967a3af4d69cd6b.osu").read_bytes()
     md5 = "0619c930348063c2a967a3af4d69cd6b"
     configs = (Configuration(md5), Configuration(md5, 64, 1.20))
-    original = map_stats
+    from osu_coach.maps.domain import _finish_stats
 
-    def sometimes_unavailable(bm, data, mods=0, rate=1.0, *, lazer=False):
-        return None if rate == 1.20 else original(bm, data, mods, rate, lazer=lazer)
+    def sometimes_unavailable(pattern, data, mods=0, rate=1.0, *, lazer=False):
+        return None if rate == 1.20 else _finish_stats(pattern, data, mods, rate, lazer=lazer)
 
-    monkeypatch.setattr("osu_coach.maps.variant_repository.map_stats", sometimes_unavailable)
+    monkeypatch.setattr("osu_coach.maps.variant_repository._finish_stats", sometimes_unavailable)
     counts = []
     assert len(list(variant_rows(tmp_path, raw, configs, on_unavailable=counts.append))) == 1
     assert counts == [1]

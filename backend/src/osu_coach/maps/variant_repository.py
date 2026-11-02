@@ -11,10 +11,12 @@ from pathlib import Path
 
 import numpy as np
 
+from osu_coach.beatmaps.domain import PlayableBeatmap
+from osu_coach.beatmaps.features import features_at_rate, object_features
 from osu_coach.beatmaps.parser import parse_beatmap_bytes
 from osu_coach.beatmaps.performance import CALCULATOR_VERSION
 from osu_coach.beatmaps.sources import download_osu
-from osu_coach.maps.domain import map_stats
+from osu_coach.maps.domain import _finish_stats, _pattern_stats
 from osu_coach.profile.domain.algorithm import MODEL_VERSION
 from osu_coach.replays.configuration import Configuration
 
@@ -72,9 +74,26 @@ def variant_rows(cache_dir: Path, raw: bytes, configs: tuple[Configuration, ...]
         cached = {}
     missing = [config for config in configs if config.key not in cached]
     bm = parse_beatmap_bytes(raw) if missing else None
+    templates = {}
+    patterns = {}
     for config in missing:
         try:
-            stats = map_stats(bm, raw, config.mods, config.rate, lazer=config.client == "lazer")
+            if bm.mode != 0 or len(bm.objects) < 30:
+                stats = None
+            else:
+                geometry = config.hr
+                if geometry not in templates:
+                    templates[geometry] = object_features(PlayableBeatmap(bm, 16 if geometry else 0, rate=1.0))
+                pattern_key = (geometry, config.rate)
+                if pattern_key not in patterns:
+                    features = features_at_rate(templates[geometry], config.rate)
+                    patterns[pattern_key] = _pattern_stats(bm, raw, config.mods, config.rate, features)
+                pattern = patterns[pattern_key]
+                stats = (
+                    _finish_stats(pattern, raw, config.mods, config.rate, lazer=config.client == "lazer")
+                    if pattern is not None
+                    else None
+                )
         except (OSError, ValueError):
             stats = None
         cached[config.key] = _clean(stats) if stats and stats.get("stars") else None
@@ -96,3 +115,10 @@ def variant_rows(cache_dir: Path, raw: bytes, configs: tuple[Configuration, ...]
                 or "NM",
                 "rate": config.rate,
             }
+
+
+def calculate_variants(cache_dir: Path, raw: bytes, configs: tuple[Configuration, ...]) -> tuple[list[dict], int]:
+    """Calculate one map in a worker process; that worker owns its cache file."""
+    unavailable: list[int] = []
+    rows = list(variant_rows(cache_dir, raw, configs, on_unavailable=unavailable.append))
+    return rows, unavailable[0]

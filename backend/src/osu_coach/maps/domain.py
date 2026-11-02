@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from osu_coach.beatmaps import difficulty
-from osu_coach.beatmaps.domain import Beatmap, PlayableBeatmap
+from osu_coach.beatmaps.domain import MOD_DT, MOD_HT, MOD_NC, Beatmap, PlayableBeatmap
 from osu_coach.beatmaps.features import object_features
 
 QUADRANTS = ["top-left", "top-right", "bottom-left", "bottom-right"]
@@ -56,10 +56,18 @@ def map_stats(
     bm: Beatmap, osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer: bool = False
 ) -> dict | None:
     """Pattern + difficulty statistics of one parsed .osu file; NoMod unless ``mods`` is supplied."""
+    pattern = _pattern_stats(bm, osu_bytes, mods, rate)
+    return _finish_stats(pattern, osu_bytes, mods, rate, lazer) if pattern is not None else None
+
+
+def _pattern_stats(
+    bm: Beatmap, osu_bytes: bytes, mods: int = 0, rate: float | None = None, features: pd.DataFrame | None = None
+) -> dict | None:
+    """Map geometry and rate-dependent pattern statistics shared by HD variants."""
     if bm.mode != 0 or len(bm.objects) < 30:
         return None
     pb = PlayableBeatmap(bm, mods, rate=rate)
-    f = object_features(pb)
+    f = object_features(pb) if features is None else features
     ns = f[f["kind"] != "spinner"]
     if ns.empty:
         return None
@@ -137,7 +145,14 @@ def map_stats(
     }
     for q in QUADRANTS:
         s["q_" + q.replace("-", "_")] = float((jumps["quadrant"] == q).mean()) if len(jumps) else 0.0
-    a = difficulty.attributes(osu_bytes, mods, rate=pb.rate, lazer=lazer)
+    return s
+
+
+def _finish_stats(s: dict, osu_bytes: bytes, mods: int, rate: float | None, lazer: bool = False) -> dict:
+    """Calculate exact rosu difficulty and skill values for one configuration."""
+    s = s.copy()
+    pb_rate = rate if rate is not None else (1.5 if mods & (MOD_DT | MOD_NC) else 0.75 if mods & MOD_HT else 1.0)
+    a = difficulty.attributes(osu_bytes, mods, rate=pb_rate, lazer=lazer)
     s.update(
         {
             "stars": a.get("stars", math.nan),
@@ -148,9 +163,9 @@ def map_stats(
             "speed_note_count": a.get("speed_note_count", math.nan),
         }
     )
-    if not mods and pb.rate == 1.0:
+    if not mods and pb_rate == 1.0:
         s["stars_dt"] = difficulty.attributes(osu_bytes, 64).get("stars", math.nan)
-    s["evenness"] = _evenness(osu_bytes, mods, pb.rate, lazer=lazer)
+    s["evenness"] = _evenness(osu_bytes, mods, pb_rate, lazer=lazer)
     s.update(skill_scores(s))
     return s
 

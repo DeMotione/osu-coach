@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import concurrent.futures as cf
 import json
 import math
+import multiprocessing
+import os
+from collections import deque
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -22,7 +26,7 @@ from osu_coach.maps.schemas import (
     SuggestionSection,
 )
 from osu_coach.maps.skillset import recommend, recommend_modified
-from osu_coach.maps.variant_repository import variant_rows, verified_bytes
+from osu_coach.maps.variant_repository import calculate_variants, verified_bytes
 from osu_coach.profile.domain import Profile
 from osu_coach.replays.configuration import from_meta
 
@@ -276,6 +280,115 @@ def validate_search(ws: Workspace, req: PlaylistSearchRequest) -> None:
     _options(ws.profile(), req.skill, req.assessed, req.ratings, req.comfort, req.kappa, req.min_relevance)
 
 
+def _search_map_results(cache_dir, records, libraries, options, client, report, workers=None):
+    """Yield map results in pool order while calculating different maps in parallel.
+
+    Retrieval stays on this thread: the download helper shares an HTTP session. At
+    most one process owns a map's fixed cache temp path at a time. A cancelled job
+    waits for active map calculations to finish before its exclusive gate opens.
+    """
+    total = len(records)
+    workers = workers if workers is not None else max(1, min(4, (os.cpu_count() or 2) - 1))
+
+    def prepare(index):
+        row = records[index]
+        raw = verified_bytes(cache_dir, row, libraries)
+        configs = options.configurations(str(row["md5"]), client) if raw is not None else ()
+        return index, str(row["md5"]), raw, configs
+
+    def calculate(item):
+        index, _, raw, configs = item
+        if raw is None:
+            return index, False, [], 0, 0
+        try:
+            rows, unavailable = calculate_variants(cache_dir, raw, configs)
+        except (OSError, ValueError):
+            rows, unavailable = [], len(configs)
+        return index, True, rows, unavailable, len(configs)
+
+    if workers == 1:
+        for index in range(total):
+            report(index, total, f"Checking map {index + 1} of {total}")
+            yield calculate(prepare(index))
+        report(total, total, "Ranking complete")
+        return
+
+    try:
+        pool = cf.ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context("spawn"))
+    except (OSError, RuntimeError):
+        for index in range(total):
+            report(index, total, f"Checking map {index + 1} of {total}")
+            yield calculate(prepare(index))
+        report(total, total, "Ranking complete")
+        return
+
+    pending = deque()
+    active_md5 = set()
+    next_index = 0
+    completed = 0
+    broken = False
+    try:
+        while next_index < total or pending:
+            report(completed, total, f"Checking map {completed + 1} of {total}")
+            while next_index < total and len(pending) < 2 * workers:
+                md5 = str(records[next_index]["md5"])
+                if md5 in active_md5:
+                    break
+                report(completed, total, f"Checking map {next_index + 1} of {total}")
+                item = prepare(next_index)
+                future = None
+                if item[2] is not None:
+                    try:
+                        future = pool.submit(calculate_variants, cache_dir, item[2], item[3])
+                    except (OSError, RuntimeError, cf.process.BrokenProcessPool):
+                        broken = True
+                pending.append((item, future))
+                if future is not None:
+                    active_md5.add(md5)
+                next_index += 1
+                if broken:
+                    break
+            if broken:
+                break
+            item, future = pending[0]
+            if future is None:
+                result = calculate(item)
+            else:
+                try:
+                    rows, unavailable = future.result(timeout=0.25)
+                except cf.TimeoutError:
+                    continue
+                except cf.process.BrokenProcessPool:
+                    broken = True
+                    break
+                except (OSError, ValueError):
+                    rows, unavailable = [], len(item[3])
+                result = item[0], True, rows, unavailable, len(item[3])
+            pending.popleft()
+            active_md5.discard(item[1])
+            completed += 1
+            report(completed, total, f"Checking map {completed} of {total}")
+            yield result
+    finally:
+        # In particular, do not release a cancelled job's gate while workers
+        # can still write the same versioned cache files as the next search.
+        pool.shutdown(wait=True, cancel_futures=True)
+
+    if broken:
+        # A worker may have finished a cache write before the pool broke. The
+        # serial path reads that cache and only computes configurations missing
+        # from it; no completed pool row is counted twice.
+        for item, _ in pending:
+            report(completed, total, f"Checking map {completed + 1} of {total}")
+            yield calculate(item)
+            completed += 1
+        for index in range(next_index, total):
+            report(completed, total, f"Checking map {completed + 1} of {total}")
+            yield calculate(prepare(index))
+            completed += 1
+    report(total, total, "Ranking complete")
+
+
 def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
     """Exact available-map search, run only inside a cancellable background job."""
     options = SearchOptions(req.allow_hr, req.allow_hd, req.adjustable_dt, req.min_rate, req.max_rate)
@@ -304,28 +417,17 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
 
     def rows():
         nonlocal unavailable, coverage, calculator_unavailable, unavailable_configurations
-        for index, row in enumerate(records):
-            report(index, len(records), f"Checking map {index + 1} of {len(records)}")
-            raw = verified_bytes(ws.cache_dir, row, libraries)
-            if raw is None:
+        for _, found, calculated, failed_configs, _ in _search_map_results(
+            ws.cache_dir, records, libraries, options, client, report
+        ):
+            if not found:
                 unavailable += 1
                 continue
             coverage += 1
-            configs = options.configurations(str(row["md5"]), client)
-
-            def count_unavailable(count: int) -> None:
-                nonlocal unavailable_configurations
-                unavailable_configurations += count
-
-            try:
-                calculated = list(variant_rows(ws.cache_dir, raw, configs, on_unavailable=count_unavailable))
-                if not calculated:
-                    calculator_unavailable += 1
-                yield from calculated
-            except (OSError, ValueError):
+            unavailable_configurations += failed_configs
+            if not calculated:
                 calculator_unavailable += 1
-                unavailable_configurations += len(configs)
-        report(len(records), len(records), "Ranking complete")
+            yield from calculated
 
     ranked = recommend_modified(
         pool,
