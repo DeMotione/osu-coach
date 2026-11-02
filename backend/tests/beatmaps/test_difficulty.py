@@ -69,8 +69,22 @@ def test_available_reflects_whether_rosu_imported(monkeypatch):
 
 def test_everything_fails_soft_without_rosu(monkeypatch, osu_bytes):
     monkeypatch.setattr(difficulty, "rosu", None)
+    assert difficulty.parse_map(osu_bytes) is None
     assert difficulty.attributes(osu_bytes) == {}
     assert difficulty.strains(osu_bytes) is None
+
+
+def test_parsed_map_reuses_native_beatmap_and_preserves_fail_soft(fake, monkeypatch):
+    parsed = difficulty.parse_map(b"data")
+    assert parsed is not None
+    assert difficulty.parse_map(b"broken") is None
+
+    def unexpected_parse(_data):
+        raise AssertionError("beatmap parsed again")
+
+    monkeypatch.setattr(difficulty, "_map", unexpected_parse)
+    assert difficulty.attributes(b"data", parsed_map=parsed)["stars"] == 5.5
+    assert difficulty.strains(b"data", parsed_map=parsed)["aim"] == [1, 2]
 
 
 # --- _legacy_rate / _kwargs -----------------------------------------------------------------------------------

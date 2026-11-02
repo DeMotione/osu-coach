@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
+from osu_coach.beatmaps import difficulty
 from osu_coach.beatmaps.domain import PlayableBeatmap
 from osu_coach.beatmaps.features import features_at_rate, object_features
 from osu_coach.beatmaps.parser import parse_beatmap_bytes
@@ -74,11 +75,12 @@ def variant_rows(cache_dir: Path, raw: bytes, configs: tuple[Configuration, ...]
         cached = {}
     missing = [config for config in configs if config.key not in cached]
     bm = parse_beatmap_bytes(raw) if missing else None
+    parsed_map = difficulty.parse_map(raw) if bm is not None and bm.mode == 0 and len(bm.objects) >= 30 else None
     templates = {}
     patterns = {}
     for config in missing:
         try:
-            if bm.mode != 0 or len(bm.objects) < 30:
+            if bm.mode != 0 or len(bm.objects) < 30 or parsed_map is None:
                 stats = None
             else:
                 geometry = config.hr
@@ -90,7 +92,9 @@ def variant_rows(cache_dir: Path, raw: bytes, configs: tuple[Configuration, ...]
                     patterns[pattern_key] = _pattern_stats(bm, raw, config.mods, config.rate, features)
                 pattern = patterns[pattern_key]
                 stats = (
-                    _finish_stats(pattern, raw, config.mods, config.rate, lazer=config.client == "lazer")
+                    _finish_stats(
+                        pattern, raw, config.mods, config.rate, lazer=config.client == "lazer", parsed_map=parsed_map
+                    )
                     if pattern is not None
                     else None
                 )

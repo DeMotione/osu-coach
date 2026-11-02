@@ -148,11 +148,13 @@ def _pattern_stats(
     return s
 
 
-def _finish_stats(s: dict, osu_bytes: bytes, mods: int, rate: float | None, lazer: bool = False) -> dict:
+def _finish_stats(
+    s: dict, osu_bytes: bytes, mods: int, rate: float | None, lazer: bool = False, parsed_map=None
+) -> dict:
     """Calculate exact rosu difficulty and skill values for one configuration."""
     s = s.copy()
     pb_rate = rate if rate is not None else (1.5 if mods & (MOD_DT | MOD_NC) else 0.75 if mods & MOD_HT else 1.0)
-    a = difficulty.attributes(osu_bytes, mods, rate=pb_rate, lazer=lazer)
+    a = difficulty.attributes(osu_bytes, mods, rate=pb_rate, lazer=lazer, parsed_map=parsed_map)
     s.update(
         {
             "stars": a.get("stars", math.nan),
@@ -164,15 +166,17 @@ def _finish_stats(s: dict, osu_bytes: bytes, mods: int, rate: float | None, laze
         }
     )
     if not mods and pb_rate == 1.0:
-        s["stars_dt"] = difficulty.attributes(osu_bytes, 64).get("stars", math.nan)
-    s["evenness"] = _evenness(osu_bytes, mods, pb_rate, lazer=lazer)
+        s["stars_dt"] = difficulty.attributes(osu_bytes, 64, parsed_map=parsed_map).get("stars", math.nan)
+    s["evenness"] = _evenness(osu_bytes, mods, pb_rate, lazer=lazer, parsed_map=parsed_map)
     s.update(skill_scores(s))
     return s
 
 
-def _evenness(osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer: bool = False) -> float:
+def _evenness(
+    osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer: bool = False, parsed_map=None
+) -> float:
     """Median / peak section difficulty in star units (1 = equally hard throughout)."""
-    st = difficulty.strains(osu_bytes, mods, rate=rate, lazer=lazer)
+    st = difficulty.strains(osu_bytes, mods, rate=rate, lazer=lazer, parsed_map=parsed_map)
     if not st or not st.get("aim"):
         return math.nan
     aim = np.sqrt(10 * np.asarray(st["aim"], dtype=float))

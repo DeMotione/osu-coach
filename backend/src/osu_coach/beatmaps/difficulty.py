@@ -41,6 +41,16 @@ def _map(osu_bytes: bytes):
     return rosu.Beatmap(bytes=osu_bytes)
 
 
+def parse_map(osu_bytes: bytes):
+    """Parse once for a batch of calculations; an invalid map stays unavailable."""
+    if rosu is None:
+        return None
+    try:
+        return _map(osu_bytes)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _kwargs(mods: int, rate: float | None, lazer_mods: list | None, lazer: bool) -> dict:
     if lazer_mods:
         # lazer replays: the exact mod list incl. settings (custom rates, Difficulty Adjust, Classic ...)
@@ -65,12 +75,17 @@ def _difficulty(mods: int, rate: float | None, lazer_mods: list | None, lazer: b
 
 
 def attributes(
-    osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer_mods: list | None = None, lazer: bool = False
+    osu_bytes: bytes,
+    mods: int = 0,
+    rate: float | None = None,
+    lazer_mods: list | None = None,
+    lazer: bool = False,
+    parsed_map=None,
 ) -> dict:
     if rosu is None:
         return {}
     try:
-        m = _map(osu_bytes)
+        m = parsed_map if parsed_map is not None else _map(osu_bytes)
         if m.is_suspicious():
             return {}
         a = _difficulty(mods, rate, lazer_mods, lazer).calculate(m)
@@ -85,12 +100,17 @@ def attributes(
 
 
 def strains(
-    osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer_mods: list | None = None, lazer: bool = False
+    osu_bytes: bytes,
+    mods: int = 0,
+    rate: float | None = None,
+    lazer_mods: list | None = None,
+    lazer: bool = False,
+    parsed_map=None,
 ) -> dict | None:
     if rosu is None:
         return None
     try:
-        m = _map(osu_bytes)
+        m = parsed_map if parsed_map is not None else _map(osu_bytes)
         s = _difficulty(mods, rate, lazer_mods, lazer).strains(m)
     except Exception:  # noqa: BLE001
         return None
