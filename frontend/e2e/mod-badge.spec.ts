@@ -27,7 +27,7 @@ test("custom DT badge fits desktop rows and narrow map cards", async ({ page }) 
   expect(heights[0]).toBeLessThanOrEqual(heights[1] + 1);
   expect(await page.locator(".map-mods__badge").first().evaluate((el) => getComputedStyle(el).height)).toBe("18px");
 
-  for (const width of [1100, 900]) {
+  for (const width of [1100, 900, 880]) {
     await page.setViewportSize({ width, height: 820 });
     expect(await page.locator(".table-wrap").evaluate((el) => el.scrollWidth - el.clientWidth), `${width}px`).toBeLessThanOrEqual(1);
   }
