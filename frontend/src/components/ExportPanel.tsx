@@ -30,7 +30,7 @@ export function ExportPanel({ maps, name, preferred, title, sub }: {
   const order: Client[] = preferred === "lazer" ? ["lazer", "stable"] : ["stable", "lazer"];
   const mapList = () => {
     const text = maps
-      .map((m) => `[${m.stage ?? ""}] ${m.stars !== null ? `${m.stars.toFixed(2)}* ` : ""}${m.artist} - ${m.title} [${m.version}]  ${m.url}${m.goal ? `  ${m.goal}` : ""}`)
+      .map((m) => `[${m.stage ?? ""}] ${m.stars !== null ? `${m.stars.toFixed(2)}* ` : ""}${m.artist} - ${m.title} [${m.version}] · ${m.mods} · ${m.rate.toFixed(2)}×  ${m.url}${m.goal ? `  ${m.goal}` : ""}`)
       .join("\n");
     saveBlob(new Blob([`${name}\n\n${text}\n`], { type: "text/plain" }), "playlist.txt");
   };
@@ -49,6 +49,7 @@ export function ExportPanel({ maps, name, preferred, title, sub }: {
         </button>
       }
     >
+      <p className="small muted">The .txt list includes exact mods and speed. Collection and map downloads contain maps only; set the shown mods and speed in osu! before playing.</p>
       <Tabs
         tabs={order.map((c) => ({ value: c, label: c === "lazer" ? "osu!lazer" : "osu!stable" }))}
         value={tab}

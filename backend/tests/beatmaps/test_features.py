@@ -1,9 +1,10 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 from osu_coach.beatmaps.domain import PlayableBeatmap
-from osu_coach.beatmaps.features import object_features
-from osu_coach.beatmaps.parser import parse_beatmap
+from osu_coach.beatmaps.features import features_at_rate, object_features
+from osu_coach.beatmaps.parser import parse_beatmap, parse_beatmap_bytes
 
 HEADER = """osu file format v14
 
@@ -90,3 +91,15 @@ def test_simultaneous_notes_do_not_produce_infinite_stream_bpm():
     df = object_features(PlayableBeatmap(make_map(objs)))
     assert np.isfinite(df["stream_bpm"].dropna()).all()
     assert df["stream_bpm"].dropna().median() == pytest.approx(120, abs=0.5)
+
+
+@pytest.mark.parametrize("mods", (0, 16))
+@pytest.mark.parametrize("rate", (1.10, 1.33, 1.50, 1.99, 2.00))
+def test_rate_features_match_full_object_pass(res, mods, rate):
+    bm = parse_beatmap_bytes(res("maps/0619c930348063c2a967a3af4d69cd6b.osu").read_bytes())
+    template = object_features(PlayableBeatmap(bm, mods, rate=1.0))
+    original = template.copy(deep=True)
+    actual = features_at_rate(template, rate)
+    expected = object_features(PlayableBeatmap(bm, mods, rate=rate))
+    pd.testing.assert_frame_equal(actual, expected, check_exact=True)
+    pd.testing.assert_frame_equal(template, original, check_exact=True)

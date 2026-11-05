@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from osu_coach.beatmaps import difficulty
-from osu_coach.beatmaps.domain import Beatmap, PlayableBeatmap
+from osu_coach.beatmaps.domain import MOD_DT, MOD_HT, MOD_NC, Beatmap, PlayableBeatmap
 from osu_coach.beatmaps.features import object_features
 
 QUADRANTS = ["top-left", "top-right", "bottom-left", "bottom-right"]
@@ -52,17 +52,28 @@ def _c(v, lo: float, hi: float) -> float:
 
 
 # ------------------------------------------------------------------ per-map statistics
-def map_stats(bm: Beatmap, osu_bytes: bytes, mods: int = 0) -> dict | None:
+def map_stats(
+    bm: Beatmap, osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer: bool = False
+) -> dict | None:
     """Pattern + difficulty statistics of one parsed .osu file; NoMod unless ``mods`` is supplied."""
+    pattern = _pattern_stats(bm, osu_bytes, mods, rate)
+    return _finish_stats(pattern, osu_bytes, mods, rate, lazer) if pattern is not None else None
+
+
+def _pattern_stats(
+    bm: Beatmap, osu_bytes: bytes, mods: int = 0, rate: float | None = None, features: pd.DataFrame | None = None
+) -> dict | None:
+    """Map geometry and rate-dependent pattern statistics shared by HD variants."""
     if bm.mode != 0 or len(bm.objects) < 30:
         return None
-    pb = PlayableBeatmap(bm, mods)
-    f = object_features(pb)
+    pb = PlayableBeatmap(bm, mods, rate=rate)
+    f = object_features(pb) if features is None else features
     ns = f[f["kind"] != "spinner"]
     if ns.empty:
         return None
     pat = ns["pattern"]
     jumps = ns[pat.isin(["jump", "spaced"])]
+    flow = ns[ns["spaced_stream"]]
     streams = ns[ns["run_len"] >= 9]
     bursts = ns[(ns["run_len"] >= 3) & (ns["run_len"] < 9)]
     sliders = ns[ns["kind"] == "slider"]
@@ -72,6 +83,12 @@ def map_stats(bm: Beatmap, osu_bytes: bytes, mods: int = 0) -> dict | None:
         runs.groupby("run_id")["stream_bpm"].median().dropna().sort_values(ascending=False)
         if len(runs)
         else pd.Series(dtype=float)
+    )
+    run_bounds = runs.groupby("run_id")["time"].agg(["min", "max"]) if len(runs) else pd.DataFrame()
+    run_rests = (
+        (run_bounds["min"].iloc[1:].to_numpy() - run_bounds["max"].iloc[:-1].to_numpy()) / pb.rate / 1000
+        if len(run_bounds) > 1
+        else np.array([])
     )
     rhythm = ns["rhythm"].dropna()
     rhythm = rhythm[rhythm != "break"]
@@ -84,9 +101,12 @@ def map_stats(bm: Beatmap, osu_bytes: bytes, mods: int = 0) -> dict | None:
         "beatmap_id": bm.beatmap_id,
         "beatmapset_id": bm.beatmapset_id,
         "cs": pb.cs,
-        "ar": pb.effective_ar if mods else bm.ar,
-        "od": pb.effective_od if mods else bm.od,
+        "ar": pb.effective_ar,
+        "od": pb.effective_od,
         "hp": pb.hp,
+        "hit300_ms": (pb.hit300 - 0.5) / pb.rate,
+        "hit100_ms": (pb.hit100 - 0.5) / pb.rate,
+        "hit50_ms": (pb.hit50 - 0.5) / pb.rate,
         "bpm": bm.main_bpm() * pb.rate,
         "drain_length": bm.drain_seconds / pb.rate,
         "n_objects": int(len(f)),
@@ -102,13 +122,22 @@ def map_stats(bm: Beatmap, osu_bytes: bytes, mods: int = 0) -> dict | None:
         "speed_bpm": _f(run_bpms.iloc[2]) if len(run_bpms) >= 3 else math.nan,
         "speed_runs": int(len(run_bpms)),
         "max_run": int(ns["run_len"].max()),
+        "run_duration_p90": _f(((run_bounds["max"] - run_bounds["min"]) / pb.rate / 1000).quantile(0.9))
+        if len(runs)
+        else math.nan,
+        "run_rest_median": _f(np.median(run_rests)) if len(run_rests) else math.nan,
         "long_runs": int((run_sizes >= 16).sum()),
         "stream_notes": int(len(streams)),
         "n_jumps": int(len(jumps)),
         "jump_dist": _f(jumps["dist_norm"].median()) if len(jumps) else math.nan,
         "jump_velocity": _f(jumps["velocity_real"].median()) if len(jumps) else math.nan,
+        "flow_velocity": _f(flow["velocity_real"].median()) if len(flow) else math.nan,
+        "flow_turn_share": _f(((180 - flow["angle"].clip(0, 180)) / 180).mean()) if len(flow) else math.nan,
         "sharp_share": _f((jumps["angle"] < 60).mean()) if jumps["angle"].notna().any() else math.nan,
         "slider_velocity": _f(sliders["slider_vel_real"].median()) if len(sliders) else math.nan,
+        "slider_length_norm": _f((sliders["slider_len"] / (2 * pb.radius_raw)).median()) if len(sliders) else math.nan,
+        "slider_turn": _f(sliders["slider_turn"].median()) if len(sliders) else math.nan,
+        "slider_transition": _f(sliders["slider_next_gap"].median()) if len(sliders) else math.nan,
         "reverse_share": float((sliders["slider_spans"] > 1).mean()) if len(sliders) else 0.0,
         "density_p90": _f(ns["density"].quantile(0.9)),
         "density_median": _f(ns["density"].median()),
@@ -116,7 +145,16 @@ def map_stats(bm: Beatmap, osu_bytes: bytes, mods: int = 0) -> dict | None:
     }
     for q in QUADRANTS:
         s["q_" + q.replace("-", "_")] = float((jumps["quadrant"] == q).mean()) if len(jumps) else 0.0
-    a = difficulty.attributes(osu_bytes, mods)
+    return s
+
+
+def _finish_stats(
+    s: dict, osu_bytes: bytes, mods: int, rate: float | None, lazer: bool = False, parsed_map=None
+) -> dict:
+    """Calculate exact rosu difficulty and skill values for one configuration."""
+    s = s.copy()
+    pb_rate = rate if rate is not None else (1.5 if mods & (MOD_DT | MOD_NC) else 0.75 if mods & MOD_HT else 1.0)
+    a = difficulty.attributes(osu_bytes, mods, rate=pb_rate, lazer=lazer, parsed_map=parsed_map)
     s.update(
         {
             "stars": a.get("stars", math.nan),
@@ -127,15 +165,18 @@ def map_stats(bm: Beatmap, osu_bytes: bytes, mods: int = 0) -> dict | None:
             "speed_note_count": a.get("speed_note_count", math.nan),
         }
     )
-    s["stars_dt"] = difficulty.attributes(osu_bytes, 64).get("stars", math.nan)
-    s["evenness"] = _evenness(osu_bytes, mods)
+    if not mods and pb_rate == 1.0:
+        s["stars_dt"] = difficulty.attributes(osu_bytes, 64, parsed_map=parsed_map).get("stars", math.nan)
+    s["evenness"] = _evenness(osu_bytes, mods, pb_rate, lazer=lazer, parsed_map=parsed_map)
     s.update(skill_scores(s))
     return s
 
 
-def _evenness(osu_bytes: bytes, mods: int = 0) -> float:
+def _evenness(
+    osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer: bool = False, parsed_map=None
+) -> float:
     """Median / peak section difficulty in star units (1 = equally hard throughout)."""
-    st = difficulty.strains(osu_bytes, mods)
+    st = difficulty.strains(osu_bytes, mods, rate=rate, lazer=lazer, parsed_map=parsed_map)
     if not st or not st.get("aim"):
         return math.nan
     aim = np.sqrt(10 * np.asarray(st["aim"], dtype=float))

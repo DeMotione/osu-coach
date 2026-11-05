@@ -9,11 +9,14 @@ from __future__ import annotations
 import math
 import re
 import statistics
+from bisect import bisect_left
 
 import pandas as pd
 
 from osu_coach.analysis.skill_scale import SPEED_POINTS, expected_speed_bpm, speed_bpm_for_rating, speed_rating
 from osu_coach.maps.domain import SKILLS, map_url, why
+from osu_coach.profile.domain import algorithm as alg
+from osu_coach.replays.configuration import Configuration
 
 FEATURE_POINTS = {
     "aim": 12,
@@ -68,20 +71,46 @@ def _features(row: dict) -> dict[str, float]:
     ar = _get(row, "ar", 9)
     values = {
         "aim": _get(row, "jump_velocity") * 1000 / (2 * radius) * (1 + 0.3 * _get(row, "sharp_share")),
-        "flow_aim": _get(row, "aim") * math.sqrt(max(0, _get(row, "spaced_stream_share"))) * bpm / 180,
+        "flow_aim": (
+            _get(row, "flow_velocity") * 1000 / (2 * radius)
+            if _number(row.get("flow_velocity")) is not None
+            else _get(row, "aim") * bpm / 180
+        )
+        * math.sqrt(max(0, _get(row, "spaced_stream_share")))
+        * (1 + 0.3 * _get(row, "flow_turn_share")),
         "speed": speed_bpm or 0.0,
         "stamina": bpm
         * math.log1p(max(0, _get(row, "stream_notes")))
         / math.log(401)
         * math.sqrt(max(0, _get(row, "max_run")) / 32)
-        * (max(0, _get(row, "drain_length")) / 120) ** 0.25,
-        "accuracy": 20 / max(1, 80 - 6 * _get(row, "od", 8)) * (1 + 2 * odd) * (1 + 0.03 * density),
+        * (max(0, _get(row, "drain_length")) / 120) ** 0.15
+        * (max(0.1, _get(row, "run_duration_p90", 10)) / 10) ** 0.25
+        * (1 + 0.15 / (1 + max(0, _get(row, "run_rest_median", 2)))),
+        "accuracy": 20
+        * (
+            0.7 / max(1, _get(row, "hit300_ms", 80 - 6 * _get(row, "od", 8)))
+            + 0.4 / max(1, _get(row, "hit100_ms", 140 - 8 * _get(row, "od", 8)))
+            + 0.3 / max(1, _get(row, "hit50_ms", 200 - 10 * _get(row, "od", 8)))
+        )
+        * (1 + 2 * odd)
+        * (1 + 0.03 * density),
         "sliders": _get(row, "slider_velocity")
         * 1000
         / (2 * radius)
         * (1 + _get(row, "reverse_share"))
-        * (1 + 10 * max(0, 1 - _get(row, "slider_factor", 1))),
-        "reading": density * (1 + odd) * (1 + max(0, 8 - ar) / 4 + max(0, ar - 10) / 2),
+        * (1 + 10 * max(0, 1 - _get(row, "slider_factor", 1)))
+        * (1 + 0.02 * _get(row, "slider_length_norm") + 0.03 * _get(row, "slider_turn"))
+        * (1 + 0.1 / max(0.1, _get(row, "slider_transition", 1000) / 1000)),
+        "reading": density * (1 + odd)
+        + alg.READ_LOW_WEIGHT * max(0, alg.READ_LOW_AR - ar) ** 2
+        + alg.READ_FAST_WEIGHT * max(0, ar - alg.READ_FAST_AR) ** 2
+        + (1 if "HD" in str(row.get("mods") or "") else 0)
+        * (
+            alg.READ_HD_BASE
+            + alg.READ_HD_LOW_WEIGHT * max(0, alg.READ_LOW_AR - ar) ** 2
+            + alg.READ_HD_HIGH_WEIGHT * max(0, ar - alg.READ_HD_UPPER_AR) ** 2
+        )
+        * (1 + alg.READ_HD_DENSITY_WEIGHT * density),
         "consistency": math.sqrt(max(0, _get(row, "drain_length")) / 120)
         * (0.5 + 0.5 * max(0, min(1, _get(row, "evenness", 1)))),
     }
@@ -208,22 +237,7 @@ def recommend(
         if target is not None and target <= 0:
             raise ValueError("The adjusted target stars must be positive.")
         star_window = STAR_WINDOW
-        if low_accuracy and target is not None:
-            # Widen only when the narrower window has no usable timing map.
-            for width in (STAR_WINDOW, 0.5, 1.0):
-                star_window = width
-                if any(
-                    candidate["row"]["md5"] not in played
-                    and _number(candidate["row"].get("od")) is not None
-                    and candidate["row"]["od"] >= od_min
-                    and abs(candidate["row"]["stars"] - target) <= width + 1e-12
-                    and skill in candidate["demands"]
-                    and candidate["relevance"].get(skill, -1) >= min_relevance
-                    and all(other in abilities and other in candidate["demands"] for other in assessed)
-                    for candidate in candidates
-                ):
-                    break
-        star_scale = STAR_SCALE * star_window / STAR_WINDOW  # a window widened for timing maps is scored as wide
+        star_scale = STAR_SCALE
         excluded: dict[str, int] = dict(rejected)
         eligible = []
         for candidate in candidates:
@@ -255,12 +269,8 @@ def recommend(
         # Demands rise 20 points a star, abilities don't move the target stars that far: a rating far from 50 asks
         # for demands no map at the target stars has. Measured from the nearest demand they do have, the best map
         # available scores near 0 instead of every map scoring far below it (#33).
-        reach = {
-            k: (min(c["demands"][k] for c in eligible), max(c["demands"][k] for c in eligible))
-            for k in (assessed if eligible else ())
-        }
         wanted = abilities[skill] + skill_offset if skill in abilities else None
-        reachable = min(max(wanted, reach[skill][0]), reach[skill][1]) if reach and wanted is not None else None
+        reachable = wanted
         ranked = []
         for candidate in eligible:
             row, demands, relevance = candidate["row"], candidate["demands"], candidate["relevance"]
@@ -272,7 +282,7 @@ def recommend(
                 if other == skill:
                     continue
                 # only the overload beyond what every map here asks of that skill
-                floor = max(abilities[other] + margin, reach[other][0])
+                floor = abilities[other] + margin
                 overload = max(0.0, demands[other] - floor)
                 bottlenecks.append(
                     {
@@ -280,7 +290,7 @@ def recommend(
                         "demand": demands[other],
                         "ability": abilities[other],
                         "margin": margin,
-                        "least_demand": reach[other][0],
+                        "least_demand": None,
                         "overload": overload,
                         "sigma": 20.0,
                         "importance": 1.0,
@@ -297,6 +307,9 @@ def recommend(
             ranked.append(
                 {
                     **row,
+                    "configuration_id": Configuration(md5).key,
+                    "mods": "NM",
+                    "rate": 1.0,
                     "skill": skill,
                     "url": map_url(row),
                     "why": why(row, skill, targets) if targets is not None else "",
@@ -304,7 +317,7 @@ def recommend(
                     "relevance": relevance[skill],
                     "formula_score": sum(terms.values()),
                     "breakdown": {
-                        "id": md5 + "@NM",
+                        "id": Configuration(md5).key,
                         "mods": "NM",
                         "terms": terms,
                         "risk": risk,
@@ -331,7 +344,7 @@ def recommend(
             )
         ranked.sort(key=lambda row: (-row["formula_score"], str(row["md5"]) + "@NM"))
         if low_accuracy and not ranked and target is not None and all(other in abilities for other in assessed):
-            excluded["No qualified timing map within 1★ of target"] = 1
+            excluded["No qualified timing map in the configured star window"] = 1
         result[goal] = {
             "target_stars": target,
             "target_demand": wanted,
@@ -342,3 +355,241 @@ def recommend(
             "maps": ranked,
         }
     return {"skill_adjusted_stars": adjusted, "goals": result, "candidate_count": len(candidates)}
+
+
+def recommend_modified(
+    base_pool: pd.DataFrame,
+    variants,
+    theta: float,
+    abilities: dict[str, float],
+    skill: str,
+    assessed: tuple[str, ...],
+    kappa: float,
+    min_relevance: float,
+    played: frozenset[str],
+    targets,
+    history: dict[str, float],
+    limit: int = 100,
+) -> dict:
+    """Stream exact variants through all goals, retaining their highest F values.
+
+    `limit` bounds the serialized job result; the best candidate still comes from
+    the complete set of available configurations, never from a coarse shortlist.
+    """
+    if not math.isfinite(theta) or theta <= 0 or skill not in SKILLS:
+        raise ValueError("A positive comfort rating and known target skill are required.")
+    if not assessed or len(set(assessed)) != len(assessed) or skill not in assessed or set(assessed) - set(SKILLS):
+        raise ValueError("Assessed skills must be distinct and include the target skill.")
+    if not 0 <= min_relevance <= 1 or not math.isfinite(kappa) or kappa < 0:
+        raise ValueError("Invalid recommendation settings.")
+    # The mechanical-feature term is a residual relative to typical maps at the
+    # *candidate's* modified stars. The 20-point star term supplies the overall
+    # challenge, so a speed/precision effect captured by stars is not counted
+    # again as a raw feature increase against a fixed comfort-star reference.
+    samples = [
+        (float(r["stars"]), _features(r))
+        for r in base_pool.to_dict("records")
+        if _number(r.get("stars")) is not None and float(r["stars"]) > 0
+    ]
+    grid = [1.0 + i * 0.25 for i in range(57)]
+    references: dict[str, list[float | None]] = {}
+    for key in assessed:
+        if key == "speed":
+            continue
+        values = []
+        for point in grid:
+            near = [features[key] for stars, features in samples if abs(stars - point) <= 0.5 and key in features]
+            values.append(statistics.median(near) if len(near) >= 10 else None)
+        references[key] = values
+
+    def reference(key: str, stars: float) -> float | None:
+        values = references.get(key)
+        if not values:
+            return None
+        pos = bisect_left(grid, stars)
+        before = next(
+            ((grid[i], values[i]) for i in range(min(pos, len(grid) - 1), -1, -1) if values[i] is not None), None
+        )
+        after = next(((grid[i], values[i]) for i in range(pos, len(grid)) if values[i] is not None), None)
+        if before and after and before[0] != after[0]:
+            return before[1] + (after[1] - before[1]) * (stars - before[0]) / (after[0] - before[0])
+        return before[1] if before else after[1] if after else None
+
+    missing = tuple(key for key in assessed if key not in abilities)
+    adjusted = theta + kappa * (abilities[skill] - 50) / 50 if skill in abilities else None
+    goals = {}
+    for goal, (star_offset, skill_offset, margin) in GOALS.items():
+        target = adjusted + star_offset if adjusted is not None else None
+        if target is not None and target <= 0:
+            raise ValueError("The adjusted target stars must be positive.")
+        goals[goal] = {
+            "target_stars": target,
+            "target_demand": abilities[skill] + skill_offset if skill in abilities else None,
+            "star_min": target - STAR_WINDOW if target is not None else None,
+            "star_max": target + STAR_WINDOW if target is not None else None,
+            "eligible": 0,
+            "excluded": {},
+            "maps": [],
+            "margin": margin,
+        }
+    if missing:
+        reason = "Target player rating unknown" if skill in missing else "Assessed player rating unknown"
+        for data in goals.values():
+            data["excluded"][reason] = 1
+            del data["margin"]
+        return {"skill_adjusted_stars": adjusted, "goals": goals, "candidate_count": 0, "result_limit": limit}
+    count = 0
+    best: dict[str, dict[str, dict]] = {goal: {} for goal in goals}
+    for row in variants:
+        count += 1
+        md5 = str(row.get("md5") or "")
+        config_id = str(row.get("configuration_id") or "")
+        stars = _number(row.get("stars"))
+        feature = _features(row)
+        demands = {}
+        projections = {}
+        for key in assessed:
+            value = feature.get(key)
+            ref = reference(key, stars) if key != "speed" and stars is not None else None
+            if value is None or (key != "speed" and (ref is None or ref <= 0)) or stars is None:
+                continue
+            demands[key] = (
+                speed_rating(value, theta)
+                if key == "speed"
+                else 50 + 20 * (stars - theta) + FEATURE_POINTS[key] * math.log2(value / ref)
+            )
+            projections[key] = {
+                "raw_feature": value,
+                "reference_median": ref,
+                "star_points": 20,
+                "feature_points": FEATURE_POINTS.get(key),
+            }
+        for goal, data in goals.items():
+            target = data["target_stars"]
+            target_bpm = speed_bpm_for_rating(data["target_demand"], theta) if skill == "speed" else None
+            relevance = _number(row.get("s_" + skill))
+            reason = None
+            if md5 in played:
+                reason = "Already played"
+            elif stars is None or stars <= 0:
+                reason = "Modified stars unavailable"
+            elif abs(stars - target) > STAR_WINDOW + 1e-12:
+                reason = "Outside star window"
+            elif relevance is None or not 0 <= relevance <= 1 or skill not in demands:
+                reason = "Target demand or relevance unknown"
+            elif relevance < min_relevance:
+                reason = "Insufficient target relevance"
+            elif any(k not in demands for k in assessed):
+                reason = "Assessed map demand unknown"
+            elif target_bpm is not None and (_speed_bpm(row) or 0) < SPEED_MIN_TEMPO_RATIO * target_bpm:
+                reason = "Tapping tempo too far below target"
+            if reason:
+                data["excluded"][reason] = data["excluded"].get(reason, 0) + 1
+                continue
+            wanted = data["target_demand"]
+            terms = {
+                "stars": -(((stars - target) / STAR_SCALE) ** 2),
+                "skill": -(((demands[skill] - wanted) / SKILL_SCALE) ** 2),
+            }
+            bottlenecks = []
+            for other in assessed:
+                if other == skill:
+                    continue
+                overload = max(0.0, demands[other] - abilities[other] - data["margin"])
+                bottlenecks.append(
+                    {
+                        "skill": other,
+                        "demand": demands[other],
+                        "ability": abilities[other],
+                        "margin": data["margin"],
+                        "overload": overload,
+                        "sigma": 20.0,
+                        "importance": 1.0,
+                        "risk": (overload / 20.0) ** 2,
+                    }
+                )
+            risk = sum(part["risk"] for part in bottlenecks)
+            h = history.get(config_id, 1.0)
+            terms["bottlenecks"] = -RISK_WEIGHT * risk
+            terms["history"] = HISTORY_WEIGHT * (h - 1)
+            result = {
+                **row,
+                "skill": skill,
+                "url": map_url(row),
+                "why": why(row, skill, targets) if targets is not None else "",
+                "skill_demand": demands[skill],
+                "relevance": relevance,
+                "formula_score": sum(terms.values()),
+                "breakdown": {
+                    "id": config_id,
+                    "mods": row["mods"],
+                    "rate": row["rate"],
+                    "terms": terms,
+                    "risk": risk,
+                    "bottlenecks": bottlenecks,
+                    "demands": demands,
+                    "abilities": {k: abilities[k] for k in assessed},
+                    "demand_projection": projections,
+                    "target_stars": target,
+                    "target_demand": wanted,
+                    "reachable_demand": wanted,
+                    "target_speed_bpm": target_bpm,
+                    "minimum_speed_bpm": SPEED_MIN_TEMPO_RATIO * target_bpm if target_bpm else None,
+                    "kappa_s": kappa,
+                    "star_window": STAR_WINDOW,
+                    "star_scale": STAR_SCALE,
+                    "skill_scale": SKILL_SCALE,
+                    "other_margin": data["margin"],
+                    "risk_weight": RISK_WEIGHT,
+                    "history_weight": HISTORY_WEIGHT,
+                    "history": h,
+                    "history_source": "Matching configuration replay accuracy / 0.95 (capped at 1.10)"
+                    if config_id in history
+                    else "Neutral assumption",
+                },
+            }
+            previous = best[goal].get(md5)
+            if previous is None or _modified_sort_key(result) < _modified_sort_key(previous):
+                best[goal][md5] = result
+    _finalize_modified_goals(goals, best, limit)
+    for data in goals.values():
+        del data["margin"]
+    return {"skill_adjusted_stars": adjusted, "goals": goals, "candidate_count": count, "result_limit": limit}
+
+
+def _modified_sort_key(row: dict) -> tuple[float, str]:
+    return -row["formula_score"], row["configuration_id"]
+
+
+def _finalize_modified_goals(goals: dict, best: dict[str, dict[str, dict]], limit: int) -> None:
+    """Choose a map's stages after every configuration has competed for its best fit."""
+    original = {goal: set(rows) for goal, rows in best.items()}
+    all_maps = set().union(*(rows.keys() for rows in best.values()))
+
+    def gap(first: str, second: str, md5: str) -> int:
+        # Search rates use hundredths; integer comparison makes the 0.15 boundary exact.
+        return abs(round(best[first][md5]["rate"] * 100) - round(best[second][md5]["rate"] * 100))
+
+    for md5 in all_maps:
+        warm = md5 in best["Warm-up"]
+        comfort = md5 in best["Comfort"]
+        push = md5 in best["Push"]
+        if warm and comfort and push:
+            del best["Warm-up"][md5]
+        elif warm and comfort and gap("Warm-up", "Comfort", md5) <= 15:
+            del best["Warm-up"][md5]
+        elif warm and push and not comfort and gap("Warm-up", "Push", md5) <= 15:
+            del best["Warm-up"][md5]
+
+        if comfort and push:
+            removed = "Comfort" if gap("Comfort", "Push", md5) >= 15 else "Push"
+            del best[removed][md5]
+
+    for goal, rows in best.items():
+        data = goals[goal]
+        data["eligible"] = len(rows)
+        data["maps"] = sorted(rows.values(), key=_modified_sort_key)[:limit]
+        # Qualification exclusions count configurations; this reason counts maps reassigned to another stage.
+        reassigned = len(original[goal] - rows.keys())
+        if reassigned:
+            data["excluded"]["Shown in another stage"] = reassigned

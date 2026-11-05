@@ -13,6 +13,7 @@ import pandas as pd
 
 from osu_coach.analysis.skill_scale import SPEED_POINTS, expected_speed_bpm
 from osu_coach.profile.domain.aim import aim_values, flow_values
+from osu_coach.profile.domain.algorithm import DT_ACCURACY_MIN, timing_evidence_eligible
 from osu_coach.profile.domain.consistency import star_consistency
 from osu_coach.profile.domain.demand import log_demand
 from osu_coach.profile.domain.levels import RECENT_DAYS, RECENT_MIN, replay_weight
@@ -21,6 +22,7 @@ from osu_coach.profile.domain.sliders import slider_difficulty
 from osu_coach.profile.domain.stamina import tempo_curve
 from osu_coach.profile.domain.stats import _map_key, played_notes
 from osu_coach.profile.domain.tapping import speed_values
+from osu_coach.replays.configuration import from_meta
 
 MIN_MAPS = 3
 RANK_DECAY = 0.95
@@ -61,7 +63,7 @@ def comfort(metas: pd.DataFrame) -> float | None:
     good = recent[ok].dropna(subset=["stars"])
     if good.empty:
         return None
-    keys = good["beatmap_md5"].astype(str) + ":" + good["mods"].astype(str)
+    keys = good.apply(lambda row: from_meta(row.to_dict()).key, axis=1)
     values = good.groupby(keys)["stars"].median()
     return float(values.quantile(0.75)) if len(values) >= MIN_MAPS else None
 
@@ -168,8 +170,8 @@ def ratings(objects: pd.DataFrame, metas: pd.DataFrame, theta: float | None) -> 
     O = objects.copy()
     # Lab treats each map/mod combination as a separate demonstrated configuration.
     unique_metas = metas.drop_duplicates("key", keep="last").set_index("key")
-    mods = unique_metas["mods"].astype(str)
-    O["map_md5"] = O["map_md5"].astype(str) + ":" + O["replay_key"].map(mods).fillna("unknown")
+    configs = unique_metas.apply(lambda row: from_meta(row.to_dict()).key, axis=1)
+    O["map_md5"] = O["replay_key"].map(configs).fillna("unknown")
     weights = replay_weight(metas["stars"].to_numpy(float), theta)
     O["w"] = O["replay_key"].map(dict(zip(metas["key"], weights))).fillna(1.0)
     P = played_notes(O)
@@ -294,7 +296,10 @@ def ratings(objects: pd.DataFrame, metas: pd.DataFrame, theta: float | None) -> 
         "needs": stamina_needs,
         "reason": "Mean of measured duration scores; easy or untested durations stay unknown",
     }
-    singles = P[(P["run_len"] < 3) & P["head_hit"].astype(bool)]
+    eligible = unique_metas.apply(
+        lambda row: timing_evidence_eligible(int(row.get("mods") or 0), row.get("accuracy")), axis=1
+    )
+    singles = P[(P["run_len"] < 3) & P["head_hit"].astype(bool) & P["replay_key"].map(eligible).fillna(False)]
     if len(singles):
         w = singles["w"].astype(float)
         error = float(np.average(singles["head_result"] != 300, weights=w))
@@ -313,8 +318,14 @@ def ratings(objects: pd.DataFrame, metas: pd.DataFrame, theta: float | None) -> 
             "expected": expected,
             "expected_top": _accuracy_expected(windows, 10.0) if windows else math.nan,
             "od_windows": windows,
-            "reason": "Effective-OD-matched non-300 share on hit single heads",
+            "reason": "Effective-OD-matched non-300 share on eligible hit single heads"
+            if len(singles) >= 60
+            else f"Need 60 timing heads after the DT accuracy >{DT_ACCURACY_MIN:.0%} evidence gate",
         }
+    else:
+        result["accuracy"]["reason"] = (
+            f"Need 60 timing heads after the DT accuracy >{DT_ACCURACY_MIN:.0%} evidence gate"
+        )
     return result
 
 

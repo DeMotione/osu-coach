@@ -68,7 +68,7 @@ export function exportGoalMaps(recommendations: Recommendation[]): Schemas["MapR
       grouped.set(m.md5, {
         md5: m.md5, beatmap_id: m.beatmap_id, beatmapset_id: m.beatmapset_id,
         artist: m.artist, title: m.title, version: m.version,
-        stars: null, bpm: null, ar: null, length_s: m.length_s,
+        stars: null, mods: m.mods, rate: m.mods.includes("DT") ? 1.5 : 1, bpm: null, ar: null, length_s: m.length_s,
         why: recommendation.why, url: `https://osu.ppy.sh/beatmaps/${m.beatmap_id}`,
         stage: `+${m.mods}`, goal: recommendation.objective,
       });

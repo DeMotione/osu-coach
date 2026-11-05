@@ -69,8 +69,22 @@ def test_available_reflects_whether_rosu_imported(monkeypatch):
 
 def test_everything_fails_soft_without_rosu(monkeypatch, osu_bytes):
     monkeypatch.setattr(difficulty, "rosu", None)
+    assert difficulty.parse_map(osu_bytes) is None
     assert difficulty.attributes(osu_bytes) == {}
     assert difficulty.strains(osu_bytes) is None
+
+
+def test_parsed_map_reuses_native_beatmap_and_preserves_fail_soft(fake, monkeypatch):
+    parsed = difficulty.parse_map(b"data")
+    assert parsed is not None
+    assert difficulty.parse_map(b"broken") is None
+
+    def unexpected_parse(_data):
+        raise AssertionError("beatmap parsed again")
+
+    monkeypatch.setattr(difficulty, "_map", unexpected_parse)
+    assert difficulty.attributes(b"data", parsed_map=parsed)["stars"] == 5.5
+    assert difficulty.strains(b"data", parsed_map=parsed)["aim"] == [1, 2]
 
 
 # --- _legacy_rate / _kwargs -----------------------------------------------------------------------------------
@@ -133,13 +147,14 @@ def test_kwargs_empty_lazer_mod_list_means_legacy_path():
     assert difficulty._kwargs(HR, None, [], True) == {"mods": HR, "lazer": True}
 
 
-# --- _difficulty fallback -------------------------------------------------------------------------------------
+# --- _difficulty settings -------------------------------------------------------------------------------------
 
 
-def test_difficulty_falls_back_to_legacy_bits_when_lazer_mods_are_unknown(fake):
+def test_difficulty_does_not_erase_unknown_customized_lazer_mods(fake):
     fake.reject_lazer_mods = True
-    difficulty._difficulty(DT, 1.3, [{"acronym": "XX"}], True)
-    assert fake.created == [{"mods": DT, "lazer": True, "clock_rate": 1.3}]
+    with pytest.raises(TypeError, match="unknown mod"):
+        difficulty._difficulty(DT, 1.3, [{"acronym": "XX"}], True)
+    assert fake.created == []
 
 
 def test_difficulty_reraises_when_legacy_arguments_are_rejected(monkeypatch):

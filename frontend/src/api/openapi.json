@@ -654,6 +654,9 @@
                       },
                       {
                         "$ref": "#/components/schemas/PlayGoalJob"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PlaylistJob"
                       }
                     ],
                     "discriminator": {
@@ -663,7 +666,8 @@
                         "analysis": "#/components/schemas/AnalysisJob",
                         "lazer_pack": "#/components/schemas/LazerPackJob",
                         "osz_download": "#/components/schemas/OszJob",
-                        "play_goal": "#/components/schemas/PlayGoalJob"
+                        "play_goal": "#/components/schemas/PlayGoalJob",
+                        "playlist": "#/components/schemas/PlaylistJob"
                       }
                     }
                   },
@@ -724,6 +728,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/PlayGoalJob"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PlaylistJob"
                     }
                   ],
                   "discriminator": {
@@ -733,7 +740,8 @@
                       "analysis": "#/components/schemas/AnalysisJob",
                       "lazer_pack": "#/components/schemas/LazerPackJob",
                       "osz_download": "#/components/schemas/OszJob",
-                      "play_goal": "#/components/schemas/PlayGoalJob"
+                      "play_goal": "#/components/schemas/PlayGoalJob",
+                      "playlist": "#/components/schemas/PlaylistJob"
                     }
                   },
                   "title": "Response Get Job Api Jobs  Job Id  Get"
@@ -804,6 +812,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/PlayGoalJob"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PlaylistJob"
                     }
                   ],
                   "discriminator": {
@@ -813,7 +824,8 @@
                       "analysis": "#/components/schemas/AnalysisJob",
                       "lazer_pack": "#/components/schemas/LazerPackJob",
                       "osz_download": "#/components/schemas/OszJob",
-                      "play_goal": "#/components/schemas/PlayGoalJob"
+                      "play_goal": "#/components/schemas/PlayGoalJob",
+                      "playlist": "#/components/schemas/PlaylistJob"
                     }
                   },
                   "title": "Response Cancel Job Api Jobs  Job Id  Cancel Post"
@@ -1984,6 +1996,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Playlist"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playlists/search": {
+      "post": {
+        "tags": [
+          "Maps"
+        ],
+        "summary": "Search exact mod and rate configurations",
+        "operationId": "search_api_playlists_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistJob"
                 }
               }
             }
@@ -5982,7 +6045,29 @@
               }
             ],
             "title": "Stars",
-            "description": "Star rating (no mod)."
+            "description": "Star rating for the exact map configuration."
+          },
+          "configuration_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configuration Id",
+            "description": "Complete map, mods, rate, client, and settings identity."
+          },
+          "mods": {
+            "type": "string",
+            "title": "Mods",
+            "default": "NM"
+          },
+          "rate": {
+            "type": "number",
+            "title": "Rate",
+            "default": 1.0
           },
           "bpm": {
             "anyOf": [
@@ -7395,6 +7480,66 @@
             "type": "object",
             "title": "Measured Abilities",
             "description": "Replay-derived skill ratings before manual overrides."
+          },
+          "coverage_maps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Maps",
+            "description": "Maps with verified .osu data searched for modified configurations."
+          },
+          "unavailable_maps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Maps",
+            "description": "Pool maps whose verified .osu data was unavailable."
+          },
+          "calculator_unavailable_maps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculator Unavailable Maps",
+            "description": "Verified maps whose supported difficulty calculation was unavailable."
+          },
+          "unavailable_configurations": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Configurations",
+            "description": "Configurations on verified maps whose exact calculation was unavailable, including partial maps."
+          },
+          "result_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Limit",
+            "description": "Maximum distinct ranked maps returned per stage; eligible counts include all selected maps."
           }
         },
         "type": "object",
@@ -7412,6 +7557,201 @@
           "preferred_client"
         ],
         "title": "Playlist"
+      },
+      "PlaylistJob": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress",
+            "description": "0–1 when known."
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "cancellable": {
+            "type": "boolean",
+            "title": "Cancellable",
+            "description": "Whether POST /api/jobs/{id}/cancel can stop it."
+          },
+          "kind": {
+            "type": "string",
+            "const": "playlist",
+            "title": "Kind"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Playlist"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "progress",
+          "message",
+          "error",
+          "created_at",
+          "finished_at",
+          "cancellable",
+          "kind",
+          "result"
+        ],
+        "title": "PlaylistJob"
+      },
+      "PlaylistSearchRequest": {
+        "properties": {
+          "skill": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill"
+          },
+          "comfort": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comfort"
+          },
+          "assessed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessed"
+          },
+          "ratings": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratings"
+          },
+          "kappa": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Kappa",
+            "default": 0.5
+          },
+          "min_relevance": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Min Relevance",
+            "default": 0.3
+          },
+          "exclude_played": {
+            "type": "boolean",
+            "title": "Exclude Played",
+            "default": true
+          },
+          "allow_hr": {
+            "type": "boolean",
+            "title": "Allow Hr",
+            "default": false
+          },
+          "allow_hd": {
+            "type": "boolean",
+            "title": "Allow Hd",
+            "default": false
+          },
+          "adjustable_dt": {
+            "type": "boolean",
+            "title": "Adjustable Dt",
+            "default": false
+          },
+          "min_rate": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 1.1,
+            "title": "Min Rate",
+            "default": 1.1
+          },
+          "max_rate": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 1.1,
+            "title": "Max Rate",
+            "default": 2.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PlaylistSearchRequest"
       },
       "PlaylistSkill": {
         "properties": {

@@ -98,6 +98,10 @@ def reading_values(P: pd.DataFrame) -> pd.DataFrame:
     if P is None or P.empty or "map_ar" not in P or "accuracy" not in P:
         return pd.DataFrame(columns=cols)
     D = P[P["kind"] != "spinner"] if "kind" in P else P
+    if "hidden_custom" in D:
+        # Customized fade settings have a distinct visibility curve that this
+        # experimental reading estimator does not model.
+        D = D[~D["hidden_custom"].astype(bool)]
     if "completed" in D:
         D = D[D["completed"].astype(bool)]
     rows = []

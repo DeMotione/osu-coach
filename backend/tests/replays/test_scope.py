@@ -283,10 +283,16 @@ def test_best_replays_separates_maps_and_speeds():
     nm = play("m1", 100)
     dt_ = play("m1", 90, rate=1.5)
     other = play("m2", 50)
-    near_dt = play("m1", 95, rate=1.5004)  # same speed once rounded
+    near_dt = play("m1", 95, rate=1.5004)  # recorded rate is not rounded onto the recommendation grid
     out = best_replays([nm, dt_, other, near_dt])
-    assert sorted(map(id, out)) == sorted(map(id, [nm, near_dt, other]))
-    assert len(out) == 3
+    assert sorted(map(id, out)) == sorted(map(id, [nm, dt_, near_dt, other]))
+    assert len(out) == 4
+
+
+def test_best_replays_separates_hr_and_hd_at_one_rate():
+    nm, hd, hr = play("m1", 100), play("m1", 90), play("m1", 80)
+    hd["mods"], hr["mods"] = 8, 16
+    assert best_replays([nm, hd, hr]) == [nm, hd, hr]
 
 
 def test_best_replays_nm_and_missing_rate_are_the_same_speed():

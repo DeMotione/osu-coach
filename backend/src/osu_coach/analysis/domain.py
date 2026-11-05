@@ -23,7 +23,7 @@ from osu_coach.beatmaps.features import object_features
 from osu_coach.replays.domain import MOD_BITS, UNSUPPORTED_LAZER_MODS, Replay, mods_to_string
 
 # 8: modules moved (osu_coach.domain.analysis -> osu_coach.analysis.domain), so older pickled analyses can't be read
-ANALYSIS_VERSION = 8
+ANALYSIS_VERSION = 9
 
 
 class UnsupportedReplay(ValueError):
@@ -200,6 +200,7 @@ def analyze(replay: Replay, bm: Beatmap, osu_bytes: bytes, raw_replay: bytes | N
         "mods": replay.mods,
         "mod_string": mods_to_string(replay.mods),
         "rate": rate,
+        "lazer_mods": (replay.lazer or {}).get("mods") or [],
         "rules": sim.rules,
         "client": "lazer" if replay.is_lazer else "stable",
         "replay_version": replay.version,

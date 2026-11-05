@@ -32,3 +32,6 @@ desktop/src-tauri/target/
 desktop/src-tauri/gen/
 desktop/src-tauri/resources/
 desktop/src-tauri/server.zip
+
+# codex
+.codex

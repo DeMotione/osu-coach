@@ -1228,6 +1228,30 @@ input[type="range"] {
 
 .map-table { container-type: inline-size; min-width: 0; }
 
+.map-mods { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; vertical-align: middle; }
+.map-mods img { display: block; width: 25px; height: auto; max-height: 18px; flex: none; }
+.map-mods__badge {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 54px;
+  height: 18px;
+  background: url("/mod-double-time-custom.svg") center / contain no-repeat;
+}
+.map-mods__badge-rate {
+  position: absolute;
+  inset: 0 1px 0 47%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff6264;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.map-mods__rate-only { color: #ff6264; font-variant-numeric: tabular-nums; }
+
 .map-pagination {
   display: flex;
   flex-wrap: wrap;
@@ -1393,17 +1417,22 @@ input[type="range"] {
   height: var(--chart-h, 320px);
 }
 
-/* The map tables of Skill Development and Goals & Training (10 columns; 11 with Hide), by the width they get:
+/* The map tables of Skill Development and Goals & Training (11 columns; 12 with Hide), by the width they get:
  * - over 1120 px: the table as it is;
  * - 880–1120 px (the desktop app's window as it opens): still a table, a tighter one (less padding, the two text
  *   columns narrower, headers wrapping), so it fits instead of falling apart into cards (#31);
- * - narrower: a card per map on a fixed grid where every row is filled: name (and Hide), difficulty · BPM · AR ·
+ * - narrower: a card per map on a fixed grid where every row is filled: name · Mods (and Hide), difficulty · BPM · AR ·
  *   length, why, demand · F(m) · breakdown · link; two columns on a phone. */
 @container (max-width: 1120px) {
   .map-table:not(.map-table--compact) .table th,
   .map-table:not(.map-table--compact) .table td { padding-inline: var(--s-2); }
   .map-table:not(.map-table--compact) .table th { white-space: normal; }
   .map-table:not(.map-table--compact) .table td.wrap { min-width: 150px; }
+}
+
+@container (min-width: 880px) and (max-width: 1120px) {
+  .map-table:not(.map-table--compact) .table th,
+  .map-table:not(.map-table--compact) .table td { padding-inline: 6px; }
 }
 
 @container (max-width: 879px) {
@@ -1415,7 +1444,7 @@ input[type="range"] {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-template-areas:
-      "map map map map"
+      "map map map mods"
       "stars bpm ar length"
       "why why why why"
       "demand score breakdown link";
@@ -1423,9 +1452,9 @@ input[type="range"] {
     border: 1px solid var(--border);
     border-radius: var(--radius-btn);
   }
-  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(11)) {
+  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(12)) {
     grid-template-areas:
-      "map map map hide"
+      "map map mods hide"
       "stars bpm ar length"
       "why why why why"
       "demand score breakdown link";
@@ -1442,47 +1471,90 @@ input[type="range"] {
   }
   .map-table:not(.map-table--compact) .table td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--t-xs); margin-bottom: 3px; }
   .map-table:not(.map-table--compact) .table td:nth-child(1) { grid-area: map; border-top: 0; }
-  .map-table:not(.map-table--compact) .table td:nth-child(2) { grid-area: stars; }
-  .map-table:not(.map-table--compact) .table td:nth-child(3) { grid-area: bpm; }
-  .map-table:not(.map-table--compact) .table td:nth-child(4) { grid-area: ar; }
-  .map-table:not(.map-table--compact) .table td:nth-child(5) { grid-area: length; }
-  .map-table:not(.map-table--compact) .table td:nth-child(6) { grid-area: why; }
-  .map-table:not(.map-table--compact) .table td:nth-child(7) { grid-area: demand; }
-  .map-table:not(.map-table--compact) .table td:nth-child(8) { grid-area: score; }
-  .map-table:not(.map-table--compact) .table td:nth-child(9) { grid-area: breakdown; }
-  .map-table:not(.map-table--compact) .table td:nth-child(10) { grid-area: link; }
-  .map-table:not(.map-table--compact) .table td:nth-child(11) {
+  .map-table:not(.map-table--compact) .table td:nth-child(2) { grid-area: mods; border-top: 0; }
+  .map-table:not(.map-table--compact) .table td:nth-child(2)::before { display: none; }
+  .map-table:not(.map-table--compact) .table td:nth-child(3) { grid-area: stars; }
+  .map-table:not(.map-table--compact) .table td:nth-child(4) { grid-area: bpm; }
+  .map-table:not(.map-table--compact) .table td:nth-child(5) { grid-area: ar; }
+  .map-table:not(.map-table--compact) .table td:nth-child(6) { grid-area: length; }
+  .map-table:not(.map-table--compact) .table td:nth-child(7) { grid-area: why; }
+  .map-table:not(.map-table--compact) .table td:nth-child(8) { grid-area: demand; }
+  .map-table:not(.map-table--compact) .table td:nth-child(9) { grid-area: score; }
+  .map-table:not(.map-table--compact) .table td:nth-child(10) { grid-area: breakdown; }
+  .map-table:not(.map-table--compact) .table td:nth-child(11) { grid-area: link; }
+  .map-table:not(.map-table--compact) .table td:nth-child(12) {
     grid-area: hide;
     display: flex;
     align-items: flex-start;
     justify-content: flex-end;
     border-top: 0;
   }
-  .map-table:not(.map-table--compact) .table td:nth-child(11)::before { display: none; }
+  .map-table:not(.map-table--compact) .table td:nth-child(12)::before { display: none; }
 }
 
 @container (max-width: 480px) {
   .map-table:not(.map-table--compact) .table tr {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-template-areas:
-      "map map"
-      "stars bpm"
-      "ar length"
-      "why why"
-      "demand score"
-      "breakdown link";
+      "map map map mods"
+      "stars stars bpm bpm"
+      "ar ar length length"
+      "why why why why"
+      "demand demand score score"
+      "breakdown breakdown link link";
   }
-  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(11)) {
+  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(12)) {
     grid-template-areas:
-      "map map"
-      "stars bpm"
-      "ar length"
-      "why why"
-      "demand score"
-      "breakdown link"
-      "hide hide";
+      "map map mods hide"
+      "stars stars bpm bpm"
+      "ar ar length length"
+      "why why why why"
+      "demand demand score score"
+      "breakdown breakdown link link";
   }
-  .map-table:not(.map-table--compact) .table td:nth-child(11) { justify-content: flex-start; border-top: 1px solid var(--border); }
+  .map-table:not(.map-table--compact) .map-mods img { width: clamp(12px, calc((100cqw / 4 - 20px) / 3), 25px); }
+}
+
+@container (max-width: 879px) {
+  .map-table:not(.map-table--compact) .table tr:has(.map-mods__badge, .map-mods__rate-only) {
+    grid-template-areas:
+      "map map map map"
+      "mods mods mods mods"
+      "stars bpm ar length"
+      "why why why why"
+      "demand score breakdown link";
+  }
+  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(12)):has(.map-mods__badge, .map-mods__rate-only) {
+    grid-template-areas:
+      "map map map hide"
+      "mods mods mods mods"
+      "stars bpm ar length"
+      "why why why why"
+      "demand score breakdown link";
+  }
+}
+
+@container (max-width: 480px) {
+  .map-table:not(.map-table--compact) .table tr:has(.map-mods__badge, .map-mods__rate-only) {
+    grid-template-areas:
+      "map map map map"
+      "mods mods mods mods"
+      "stars stars bpm bpm"
+      "ar ar length length"
+      "why why why why"
+      "demand demand score score"
+      "breakdown breakdown link link";
+  }
+  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(12)):has(.map-mods__badge, .map-mods__rate-only) {
+    grid-template-areas:
+      "map map map hide"
+      "mods mods mods mods"
+      "stars stars bpm bpm"
+      "ar ar length length"
+      "why why why why"
+      "demand demand score score"
+      "breakdown breakdown link link";
+  }
 }
 
 @container (max-width: 760px) {
@@ -1499,8 +1571,11 @@ input[type="range"] {
     border-radius: var(--radius-btn);
   }
   .map-table--compact td:first-child { grid-column: 1 / -1; }
+  .map-table--compact tr:has(.map-mods__badge, .map-mods__rate-only) td:nth-child(2) { grid-column: 1 / -1; }
+  .map-table--compact tr:not(:has(> td:nth-child(10))):has(.map-mods__badge, .map-mods__rate-only) td:last-child { grid-column: 1 / -1; }
   .map-table--compact td { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
   .map-table--compact td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--t-xs); margin-bottom: 3px; }
+  .map-table--compact td:nth-child(2):empty::before { display: none; }
   .map-table--compact td.num { text-align: left; }
 }
 

@@ -5,6 +5,7 @@ import { useMeta } from "../api/queries";
 import { breakdownLines } from "../lib/breakdown";
 import { clock, fmt, mapName, NONE } from "../lib/format";
 import { DataTable, type Column } from "./DataTable";
+import { ModsIcons } from "./ModsIcons";
 import { EmptyState } from "./states";
 
 type MapRow = Schemas["MapRow"];
@@ -32,9 +33,10 @@ function Breakdown({ map }: { map: MapRow }) {
 }
 
 const COLUMNS: Column<MapRow>[] = [
-  { key: "map", header: "Map", cell: mapName, strong: true, wrap: true },
+  { key: "map", header: "Map", cell: (m) => mapName(m), strong: true, wrap: true },
+  { key: "mods", header: "Mods", cell: (m) => <ModsIcons mods={m.mods} rate={m.rate} />, value: (m) => `${m.mods}:${m.rate}` },
   { key: "stars", header: "Difficulty", cell: (m) => fmt(m.stars, 2, " ★"), value: (m) => m.stars, align: "right",
-    title: "Star rating (no mod)." },
+    title: "Star rating for the displayed mods and playback rate." },
   { key: "bpm", header: "BPM", cell: (m) => fmt(m.bpm, 0), value: (m) => m.bpm, align: "right" },
   { key: "ar", header: "AR", cell: (m) => fmt(m.ar, 1), value: (m) => m.ar, align: "right" },
   { key: "length", header: "Length", cell: (m) => clock(m.length_s), value: (m) => m.length_s, align: "right" },
@@ -54,7 +56,7 @@ const COLUMNS: Column<MapRow>[] = [
 ];
 
 /** For narrow cards: preserve the compact map columns and add formula details. */
-const COMPACT = COLUMNS.filter((c) => ["map", "stars", "bpm", "length", "demand", "score", "breakdown", "link"].includes(c.key));
+const COMPACT = COLUMNS.filter((c) => ["map", "mods", "stars", "bpm", "length", "demand", "score", "breakdown", "link"].includes(c.key));
 
 type PageItem = number | "left-gap" | "right-gap";
 
@@ -151,7 +153,7 @@ export function MapTable({ maps, maxHeight, onHide, compact = false }: {
       label="Maps"
       rows={maps.slice((shownPage - 1) * 5, shownPage * 5)}
       columns={columns}
-      rowKey={(m) => m.md5}
+      rowKey={(m) => m.configuration_id ?? m.md5}
       maxHeight={maxHeight}
       empty={<EmptyState title="No maps found for this." />}
     />

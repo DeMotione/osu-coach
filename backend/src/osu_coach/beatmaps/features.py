@@ -15,7 +15,7 @@ import pandas as pd
 from osu_coach.beatmaps.domain import PlayableBeatmap
 
 RUN_SNAP_MAX = 0.34  # 1/3 beat or faster counts as "tight" (streams/bursts)
-RUN_DT_MAX = 200.0  # ms (map time); keeps very slow maps out of streams
+RUN_DT_MAX = 200.0  # ms (real time); keeps very slow maps out of streams
 JUMP_DIST = 2.0  # spacing in circle diameters
 DIR8 = ["right", "down-right", "down", "down-left", "left", "up-left", "up", "up-right"]
 
@@ -181,6 +181,28 @@ def object_features(pb: PlayableBeatmap) -> pd.DataFrame:
     return df
 
 
+def features_at_rate(template: pd.DataFrame, rate: float) -> pd.DataFrame:
+    """Reapply real-time features to one map's geometry at a different play rate.
+
+    ``template`` is the output of ``object_features`` at rate 1 with the same
+    geometry-changing mods. Never mutate it: another configuration may reuse it.
+    """
+    df = template.copy(deep=True)
+    if df.empty or rate == 1.0:
+        return df
+    df["bpm_real"] = 60000.0 / df["beat_len"] * rate
+    sliders = df["kind"] == "slider"
+    df["slider_dur_real"] = (df["end_time"] - df["time"]).where(sliders, 0.0) / rate
+    df["slider_vel_real"] = df["slider_vel_real"] * rate
+    df["dt_real"] = df["dt"] / rate
+    df["dt_end_real"] = df["dt_end"] / rate
+    df["velocity_real"] = df["dist"] / np.maximum(df["dt_end_real"], 25.0)
+    _slider_context(df)
+    _label_runs(df)
+    _label_patterns(df)
+    return df
+
+
 SLIDER_CHANGE_WINDOW = 2000.0  # ms (real): a slider this soon after the previous one is compared with it
 
 
@@ -210,7 +232,7 @@ def _slider_context(df: pd.DataFrame):
 
 
 def _label_runs(df: pd.DataFrame):
-    tight = ((df["snap"] <= RUN_SNAP_MAX) & (df["dt"] <= RUN_DT_MAX) & (df["kind"] != "spinner")).fillna(False)
+    tight = ((df["snap"] <= RUN_SNAP_MAX) & (df["dt_real"] <= RUN_DT_MAX) & (df["kind"] != "spinner")).fillna(False)
     run_id = np.full(len(df), -1)
     run_len = np.ones(len(df), dtype=int)
     run_pos = np.zeros(len(df), dtype=int)

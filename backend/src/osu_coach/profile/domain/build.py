@@ -18,6 +18,7 @@ from osu_coach.profile.domain.aim import (
     quadrant_stats,
     worst_quadrant,
 )
+from osu_coach.profile.domain.algorithm import timing_evidence_eligible
 from osu_coach.profile.domain.consistency import _consistency_metrics
 from osu_coach.profile.domain.levels import LEVEL_BAND, LEVEL_SIGMA, _levels, clean_pass, detect_level, replay_weight
 from osu_coach.profile.domain.misses import _local_eq, fit_miss_model, miss_causes
@@ -29,6 +30,7 @@ from osu_coach.profile.domain.skills import _rank_skills, compute_skills
 from osu_coach.profile.domain.stamina import STAMINA_REACH
 from osu_coach.profile.domain.stats import _n, _rate, _ur, _w, _wmean, _wquantile, played_notes
 from osu_coach.profile.domain.tapping import stream_fall_behind, stream_limits, stream_speed_profile, tapping_metrics
+from osu_coach.replays.configuration import from_meta
 
 
 def build_profile(
@@ -55,10 +57,16 @@ def build_profile(
         o["rate"] = a.meta.get("rate", 1.0)
         o["date"] = a.meta.get("date")
         o["hidden"] = bool(a.meta.get("mods", 0) & 8)
+        o["hidden_custom"] = any(
+            str(mod.get("acronym", "")).upper() == "HD" and bool(mod.get("settings"))
+            for mod in a.meta.get("lazer_mods") or []
+        )
         o["flashlight"] = bool(a.meta.get("mods", 0) & 1024)
         o["accuracy"] = a.meta.get("accuracy", np.nan)
+        o["timing_eligible"] = timing_evidence_eligible(a.meta.get("mods", 0), a.meta.get("accuracy"))
         o["completed"] = bool(a.meta.get("completed", True))
         o["map_md5"] = a.meta.get("beatmap_md5")
+        o["configuration_id"] = from_meta(a.meta).key
         mc = a.meta.get("map_max_combo") or 0
         o["combo_ratio"] = min(1.0, (a.meta.get("max_combo") or 0) / mc) if mc else np.nan
         o["w"] = wmap.get(a.key, 1.0)
