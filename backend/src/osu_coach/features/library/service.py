@@ -25,7 +25,7 @@ from osu_coach.infra import clock
 from osu_coach.infra.jobs import Reporter
 from osu_coach.infra.library import Library, ScanArgs
 from osu_coach.infra.replays import detect
-from osu_coach.infra.uploads import MAX_UPLOAD_BYTES, UPLOAD_SUFFIXES, safe_upload_name, uploads_dir
+from osu_coach.infra.uploads import MAX_UPLOAD_BYTES, UPLOAD_SUFFIXES, find_upload, safe_upload_name, upload_target
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
@@ -273,14 +273,14 @@ def save_upload(ws: Workspace, name: str, data: bytes) -> UploadedFile:
         raise Invalid(f"{name}: only .osr replays and .osu beatmaps can be added.", "unsupported_file")
     if len(data) > MAX_UPLOAD_BYTES:
         raise Invalid(f"{name}: file too large.", "file_too_large")
-    dest = uploads_dir(ws.cache_dir) / clean
+    dest = upload_target(ws.cache_dir, clean)
     dest.write_bytes(data)
     return UploadedFile(id=clean, name=name, path=str(dest), kind=kind, size=len(data))
 
 
 def resolve_upload(ws: Workspace, upload_id: str) -> Path:
     """An uploaded file by its id; only files inside the uploads folder."""
-    p = uploads_dir(ws.cache_dir) / safe_upload_name(upload_id)
-    if not p.is_file():
+    p = find_upload(ws.cache_dir, upload_id)
+    if p is None:
         raise NotFound(f"Uploaded file {upload_id} not found — add it again.", "upload_not_found")
     return p
