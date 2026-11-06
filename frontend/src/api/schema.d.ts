@@ -495,7 +495,8 @@ export interface paths {
         /**
          * Progress by month, week or day
          * @description Not weighted by difficulty, so periods stay comparable. ``since`` / ``until``: days on this computer's
-         *     clock, both included.
+         *     clock, both included. ``replays``: analysed = only the replays of the last analysis (what the Overview shows,
+         *     rated at its comfort level; every saved play when none of the player's is analysed), all = the whole history.
          */
         get: operations["by_period_api_progress_get"];
         put?: never;
@@ -2733,6 +2734,18 @@ export interface components {
              */
             period: "month" | "week" | "day";
             /**
+             * Replays
+             * @description analysed = only the replays of the last analysis (the ones the Overview shows, rated at its comfort level); all = every play saved for the player.
+             * @default all
+             * @enum {string}
+             */
+            replays: "analysed" | "all";
+            /**
+             * Analysed Plays
+             * @description How many of the player's replays the last analysis holds; null = none.
+             */
+            analysed_plays?: number | null;
+            /**
              * First Day
              * @description Day of the first saved play.
              */
@@ -4599,6 +4612,7 @@ export interface operations {
                 period?: "month" | "week" | "day";
                 since?: string | null;
                 until?: string | null;
+                replays?: "analysed" | "all";
             };
             header?: never;
             path?: never;
@@ -4641,6 +4655,7 @@ export interface operations {
                 key: string;
                 player?: string | null;
                 period?: "month" | "week" | "day";
+                replays?: "analysed" | "all";
             };
             header?: never;
             path?: never;

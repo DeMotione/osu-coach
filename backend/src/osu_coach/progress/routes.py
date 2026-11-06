@@ -8,7 +8,15 @@ from fastapi import APIRouter, Query
 from osu_coach.app.deps import WorkspaceDep
 from osu_coach.app.errors import responses
 from osu_coach.progress import service as svc
-from osu_coach.progress.schemas import GoalCreate, GoalsOut, Period, ProgressOut, ProgressPlay, ProgressPlayer
+from osu_coach.progress.schemas import (
+    GoalCreate,
+    GoalsOut,
+    Period,
+    ProgressOut,
+    ProgressPlay,
+    ProgressPlayer,
+    ProgressReplays,
+)
 
 router = APIRouter(tags=["Progress & goals"])
 
@@ -25,17 +33,23 @@ def by_period(
     period: Annotated[Period, Query()] = "month",
     since: dt.date | None = None,
     until: dt.date | None = None,
+    replays: Annotated[ProgressReplays, Query()] = "analysed",
 ) -> ProgressOut:
     """Not weighted by difficulty, so periods stay comparable. ``since`` / ``until``: days on this computer's
-    clock, both included."""
-    return svc.by_period(ws, player, period, since, until)
+    clock, both included. ``replays``: analysed = only the replays of the last analysis (what the Overview shows,
+    rated at its comfort level; every saved play when none of the player's is analysed), all = the whole history."""
+    return svc.by_period(ws, player, period, since, until, replays)
 
 
 @router.get("/progress/plays", summary="The plays of one month, week or day", responses=responses(404))
 def plays(
-    ws: WorkspaceDep, key: str, player: str | None = None, period: Annotated[Period, Query()] = "month"
+    ws: WorkspaceDep,
+    key: str,
+    player: str | None = None,
+    period: Annotated[Period, Query()] = "month",
+    replays: Annotated[ProgressReplays, Query()] = "analysed",
 ) -> list[ProgressPlay]:
-    return svc.period_plays(ws, player, period, key)
+    return svc.period_plays(ws, player, period, key, replays)
 
 
 @router.get("/goals", summary="Skill goals and how far along you are")

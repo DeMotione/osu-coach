@@ -79,21 +79,27 @@ def full_combo(df: pd.DataFrame) -> pd.Series:
     return df["completed"].astype(bool) & (df["nmiss"] == 0) & full
 
 
-def period_metrics(analyses, tz=None) -> dict[str, list[tuple[str, float | None, int]] | None]:
+def period_metrics(
+    analyses, tz=None, *, reference: float | None = None, periods=PERIODS, rolling: bool = True
+) -> dict[str, list[tuple[str, float | None, int]] | None]:
     """Skill scores and stream speed per period key (see :func:`metric_key`) as (name, value, n) rows; for a skill
     ``n`` is how many map/mod configurations it was measured on. ``None`` for a period with too few plays (stale
-    numbers should go); periods that can't be analysed are left out."""
+    numbers should go); periods that can't be analysed are left out.
+
+    ``reference``: the comfort level (★) to rate every period at; default: the one of all of ``analyses``.
+    ``periods`` / ``rolling``: which kinds of period to work out (all of them by default)."""
     if not analyses:
         return {}
-    metas = pd.DataFrame([a.meta for a in analyses])
-    reference = rated_comfort(metas)  # the Overview's comfort level: one yardstick for every period
+    if reference is None:
+        metas = pd.DataFrame([a.meta for a in analyses])
+        reference = rated_comfort(metas)  # the Overview's comfort level: one yardstick for every period
     groups = defaultdict(list)
     by_day = defaultdict(list)
     for a in analyses:
-        for period in PERIODS:  # months, ISO weeks and days, each kept under its own key
+        for period in periods:  # months, ISO weeks and days, each kept under its own key
             groups[metric_key(period, period_of(a.meta["date"], period, tz))].append(a)
         by_day[dt.date.fromisoformat(period_of(a.meta["date"], "day", tz))].append(a)
-    for day in by_day:  # each day with plays: the plays of the last ROLLING_DAYS days up to it
+    for day in by_day if rolling else ():  # each day with plays: the plays of the last ROLLING_DAYS days up to it
         first = day - dt.timedelta(days=ROLLING_DAYS - 1)
         groups[metric_key(ROLLING, day.isoformat())] = [
             a for d, items in by_day.items() if first <= d <= day for a in items
@@ -121,6 +127,13 @@ def period_metrics(analyses, tz=None) -> dict[str, list[tuple[str, float | None,
         ]
         out[key] = rows
     return out
+
+
+def metrics_frame(metrics: dict[str, list[tuple[str, float | None, int]] | None]) -> pd.DataFrame:
+    """:func:`period_metrics` as the (month, name, value) rows :func:`summarize_periods` reads (like the saved
+    ``month_metrics`` table)."""
+    rows = [(key, name, value) for key, items in metrics.items() for name, value, _ in items or ()]
+    return pd.DataFrame(rows, columns=["month", "name", "value"])
 
 
 def summarize_periods(

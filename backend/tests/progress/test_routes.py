@@ -43,6 +43,45 @@ def test_progress_range_and_players(analysed):
     assert r.status_code == 422 and r.json()["code"] == "bad_date_range"
     assert analysed.get("/api/progress", params={"player": "nobody"}).status_code == 404
     assert analysed.get("/api/progress", params={"period": "year"}).status_code == 422
+    assert analysed.get("/api/progress", params={"replays": "some"}).status_code == 422
+
+
+def test_progress_follows_the_analysed_replays(analysed):
+    """#92: with only the latest replays analysed, Progress shows those (not the whole saved history)."""
+    ws = workspace(analysed)
+    newest = sorted(ws.analyses, key=lambda a: a.meta["date"])[1:]  # e.g. "latest 2" after "All" saved 3
+    ws.set_analyses(newest, [], ws.player_label)
+    m = analysed.get("/api/progress").json()
+    assert m["replays"] == "analysed" and m["analysed_plays"] == 2
+    assert sum(r["plays"] for r in m["rows"]) == 2
+    everything = analysed.get("/api/progress", params={"replays": "all"}).json()
+    assert everything["replays"] == "all" and sum(r["plays"] for r in everything["rows"]) == 3
+    key = m["rows"][-1]["key"]
+    assert len(analysed.get("/api/progress/plays", params={"key": key}).json()) == 2
+    assert len(analysed.get("/api/progress/plays", params={"key": key, "replays": "all"}).json()) == 3
+
+
+def test_analysed_progress_is_rated_like_the_overview(analysed, monkeypatch):
+    """A period holding every analysed replay shows the Overview's skill scores (same replays, same level)."""
+    monkeypatch.setattr("osu_coach.progress.domain.FEW_PLAYS", 1)
+    ws = workspace(analysed)
+    save_settings({**load_settings(ws.cache_dir), "level_override": 5.0}, ws.cache_dir)  # gives the 3 plays scores
+    prof = ws.profile()
+    m = analysed.get("/api/progress").json()
+    [row] = m["rows"]  # the fixture's plays are all in one month
+    assert m["skill_reference_stars"] == pytest.approx(prof.levels["comfort_stars"]) == 5.0
+    want = {k: (v or {}).get("score") for k, v in prof.skill_ratings.items()}
+    assert any(v is not None for v in want.values())
+    assert {k: row["skills"][k] for k in want} == pytest.approx(want)
+    saved = analysed.get("/api/progress", params={"replays": "all"}).json()  # the history keeps its own yardstick
+    assert saved["skill_reference_stars"] != 5.0
+
+
+def test_progress_without_an_analysis_shows_the_saved_history(analysed):
+    ws = workspace(analysed)
+    ws.set_analyses([], [], "")
+    m = analysed.get("/api/progress").json()
+    assert m["replays"] == "all" and m["analysed_plays"] is None and sum(r["plays"] for r in m["rows"]) == 3
 
 
 # ------------------------------------------------------------------ goals
