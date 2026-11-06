@@ -19,7 +19,6 @@ from osu_coach.domain.player.engines import ENGINE_LABELS, Rated, compare
 from osu_coach.domain.player.engines.comfort.consistency import star_consistency
 from osu_coach.domain.player.engines.comfort.ratings import MIN_MAPS
 from osu_coach.domain.player.engines.comfort.readiness import MAX_GAP, default_target, targets
-from osu_coach.domain.player.engines.irt.engine import adapter
 from osu_coach.domain.player.records import UNRATED, SkillRating
 from osu_coach.features.dashboard import charts
 from osu_coach.features.dashboard import schemas as S
@@ -77,6 +76,10 @@ def analysed_replays(p: Profile) -> list[S.AnalysedReplay]:
 
 
 # ------------------------------------------------------------------ skill facts (Overview hover)
+# what a Comfort-Based 50 is: an assumption about the comfort level's maps, not measured on other players
+COMFORT_50 = "50 = what your comfort level's maps demand (assumed, not measured on players)"
+
+
 def natural_text(row: SkillRating) -> str | None:
     """An IRT ability in units players know (BPM, AR, OD); None for the other skills."""
     natural = num(row.natural)
@@ -85,19 +88,49 @@ def natural_text(row: SkillRating) -> str | None:
     unit = row.natural_unit
     if unit == "BPM":
         return f"≈ {natural:.0f} BPM"
-    if unit in ("AR", "OD"):
-        return f"≈ {unit} {natural:.1f}"
+    if unit == "OD":
+        return f"≈ 90% 300s at OD {natural:.1f}"
+    if unit == "AR":
+        return f"≈ AR {natural:.1f}"
     return None
 
 
+def irt_stars(row: SkillRating) -> tuple[float | None, float | None, float | None]:
+    """An IRT rating's map star rating with its range, as shown. A lower bound (``untested``) is never put above the
+    hardest maps the player played of the skill: nothing harder was seen, so "holds up on 9★ maps" can't be said."""
+    stars, low, high = num(row.stars), num(row.stars_low), num(row.stars_high)
+    played = num((row.reason.values or {}).get("maps")) if row.state == "untested" and row.reason else None
+    if stars is not None and played is not None and stars > played:
+        stars = low = played
+    return stars, low, high
+
+
+def irt_level_text(row: SkillRating) -> str | None:
+    """An IRT rating as the map star rating the skill holds up on (up to there the player fails about 2 in 100 of
+    its notes, accuracy: hits 90% of single notes as 300s, on maps made like theirs), with its likely range and
+    units players know; None without a measured or lower-bound rating."""
+    stars, low, high = irt_stars(row)
+    if stars is None:
+        return None
+    if row.state == "untested":
+        return f"holds up on at least {stars:.1f}★ maps · {message(row.reason)}: harder maps could show more"
+    if row.state not in ("measured", "provisional"):
+        return None
+    text = f"holds up on {stars:.1f}★ maps"
+    if low is not None and high is not None and round(high, 1) > round(low, 1):
+        text += f" (likely {low:.1f}–{high:.1f}★)"
+    shown = natural_text(row)
+    return f"{text} · {shown}" if shown else text
+
+
 def irt_facts(row: SkillRating) -> list[str]:
-    """The numbers behind an IRT rating: its likely range and what it is fitted on."""
+    """The numbers behind an IRT rating: the 0–100 score other pages read (against maps of the player's level, not
+    against other players) and what it is fitted on."""
     facts = []
-    reference, low, high = num(row.expected), num(row.stars_low), num(row.stars_high)
-    if row.score is not None and reference is not None and low is not None and high is not None:
-        lo, hi = adapter(low, reference), adapter(high, reference)
-        if round(hi) > round(lo):
-            facts.append(f"likely between {lo:.0f} and {hi:.0f}")
+    level = num(row.expected)
+    if row.score is not None and level is not None:
+        bound = "at least " if row.state == "untested" else ""
+        facts.append(f"{bound}{row.score:.0f} of 100 against maps of your level ({level:.1f}★), for charts and goals")
     facts.append(f"fitted from every note of {row.maps} plays (Star-Scale IRT)")
     if row.reason and row.state not in ("measured", "untested"):  # untested: its reason is the score text already
         facts.append(message(row.reason))
@@ -176,19 +209,13 @@ def overview(p: Profile) -> S.Overview:
         row = p.skill_ratings.get(k, UNRATED)
         score = num(relative_scores.get(k))
         at_least = num(row.at_least) if (score is None or row.state == "untested") and comfort_level else None
-        shown = natural_text(row)
-        if score is not None and row.state == "untested":  # a lower bound: held everything played
-            if score >= 100:
-                text = f"{score:.0f} of 100 · {message(row.reason)}"
-            else:
-                text = f"at least {score:.0f} of 100 · {message(row.reason)}: harder maps could show it's higher"
-        elif score is not None and shown:
-            text = f"{score:.0f} of 100 · {shown} · 50 = typical at your level"
-        elif score is not None and row.state is not None:
-            text = f"{score:.0f} of 100 · 50 = typical at your level"
+        level_text = irt_level_text(row) if row.state is not None else None
+        shown_stars = irt_stars(row)
+        if level_text is not None:  # Star-Scale IRT: the map star rating the skill holds up on
+            text = level_text
         elif score is not None:
             what = "combo and accuracy held from map to map around your level" if k == "consistency" else None
-            text = f"{score:.0f} of 100 · {what or '50 = typical at your level'}"
+            text = f"{score:.0f} of 100 · {what or COMFORT_50}"
         elif row.state is not None:  # Star-Scale IRT: why there's no score, in words
             text = message(row.reason) or "not enough data"
         elif at_least is not None:
@@ -206,9 +233,9 @@ def overview(p: Profile) -> S.Overview:
             facts=skill_facts(k, row),
             needs=message(row.needs) if score is None or (row.state == "untested" and score < 100) else None,
             at_least=at_least,
-            stars=num(row.stars),
-            stars_low=num(row.stars_low),
-            stars_high=num(row.stars_high),
+            stars=shown_stars[0],
+            stars_low=shown_stars[1],
+            stars_high=shown_stars[2],
             state=row.state,
             natural=num(row.natural),
             natural_unit=row.natural_unit,

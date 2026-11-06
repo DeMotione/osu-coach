@@ -3295,7 +3295,7 @@ export interface components {
             at_least: number | null;
             /**
              * Stars
-             * @description Star-Scale IRT: the ability in stars (untested: at least this).
+             * @description Star-Scale IRT: the map star rating the skill holds up on (about 2 in 100 of its notes failed there; accuracy: 90% 300s); untested: at least this.
              */
             stars?: number | null;
             /**

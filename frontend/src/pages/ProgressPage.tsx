@@ -186,7 +186,7 @@ function ProgressBody({
       </Row>
       <Card
         title={`Skills by ${word}`}
-        hint={`The same skill ratings as the Overview's chart, every ${word} rated at ${replays === "analysed" ? "the Overview's" : "your"} comfort level${reference !== null ? ` (${starsText(reference, 1)})` : ""}: 50 = what that level expects, higher = you played the skill better that ${word}. ${replays === "analysed" ? "Only the replays of your last analysis (the ones the Overview shows); pick All saved for your whole history." : "Every play saved, also from earlier analyses."} Click a skill in the legend to hide or show it. Hollow points: fewer than 5 plays.`}
+        hint={`The same skill ratings as the Overview's chart, every ${word} rated at ${replays === "analysed" ? "the Overview's" : "your"} comfort level${reference !== null ? ` (${starsText(reference, 1)})` : ""}: 50 = what maps of that level demand (not a typical player), higher = you played the skill better that ${word}. ${replays === "analysed" ? "Only the replays of your last analysis (the ones the Overview shows); pick All saved for your whole history." : "Every play saved, also from earlier analyses."} Click a skill in the legend to hide or show it. Hollow points: fewer than 5 plays.`}
       >
         {hasSkills ? (
           <Chart build={skillChart} height={360} label="Skill scores by period" />

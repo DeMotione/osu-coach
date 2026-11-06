@@ -1,7 +1,8 @@
 """What every rating engine is: a :class:`RatingEngine` turns the plays into :class:`Rated` skill ratings.
 
-Every engine fills the same eight skills on the same 0–100 scale (50 = typical at the comfort level), so every page
-reads any engine's ratings alike. Engines: ``comfort`` (:mod:`.comfort`) and ``irt`` (Star-Scale IRT, :mod:`.irt`,
+Every engine fills the same eight skills on the same 0–100 scale, so every page reads any engine's ratings alike.
+Neither 50 is "a typical player": Comfort-Based scores against what the comfort level's maps are assumed to demand,
+Star-Scale IRT against maps of the player's level (and shows each skill as the map star rating it holds up on). Engines: ``comfort`` (:mod:`.comfort`) and ``irt`` (Star-Scale IRT, :mod:`.irt`,
 experimental).
 """
 

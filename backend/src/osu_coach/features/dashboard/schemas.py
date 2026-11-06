@@ -76,7 +76,10 @@ class SkillScore(BaseModel):
         description="Without a score because nothing played was demanding enough (and nearly all of it was held): "
         "the score that much shows, a lower bound (0–100). null otherwise."
     )
-    stars: float | None = Field(None, description="Star-Scale IRT: the ability in stars (untested: at least this).")
+    stars: float | None = Field(
+        None,
+        description="Star-Scale IRT: the map star rating the skill holds up on (about 2 in 100 of its notes failed there; accuracy: 90% 300s); untested: at least this.",
+    )
     stars_low: float | None = Field(None, description="Star-Scale IRT: the low end of its 90% range.")
     stars_high: float | None = Field(None, description="Star-Scale IRT: the high end (null: open, untested).")
     state: str | None = Field(

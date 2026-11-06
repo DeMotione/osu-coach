@@ -45,7 +45,7 @@ SKILL_HELP = {
         "Jump aim: how fast the cursor has to move between jumps and spaced notes (2+ circle widths apart, "
         "not streams), distance ÷ time, and whether you land those jumps.",
         "Score: per passed play the average cursor speed of its 30 fastest jumps × (share of them you hit)^0.8; "
-        f"{BEST_PER_SETUP}; 50 = typical for your comfort level, +25 per doubling. Needs 3 different map/mod setups.",
+        f"{BEST_PER_SETUP}; 50 = what your comfort level's maps demand (assumed, not measured on players), +25 per doubling. Needs 3 different map/mod setups.",
         "Jump maps slightly above your comfort level until you can hold the combo; keep your tablet area / "
         "sensitivity fixed while you do.",
     ),
@@ -54,15 +54,15 @@ SKILL_HELP = {
         "more apart, so the cursor has to keep moving while you tap: spacing × BPM × how much "
         "of the map flows, and whether you hit those notes.",
         "Score: per passed play the cursor speed of its 50 fastest spaced-stream notes × (notes ÷ 100)^0.25 × "
-        f"(share of them you hit)^0.8; {BEST_PER_SETUP}; 50 = typical for your comfort level, +25 per doubling.",
+        f"(share of them you hit)^0.8; {BEST_PER_SETUP}; 50 = what your comfort level's maps demand (assumed, not measured on players), +25 per doubling.",
         "Spaced-stream maps at a BPM you can tap cleanly, then raise the BPM step by step. Move the arm "
         "in one smooth motion instead of stopping on every note.",
     ),
     "speed": (
         "Tapping speed: how fast you tap bursts and streams (3+ notes) cleanly: no finger miss (no tap, "
         "too early or late, notelock; cursor misses don't count) and 80%+ of the notes as 300s.",
-        f"Score: per play the 3rd fastest clean run; {BEST_PER_SETUP}; 50 = the stream speed typical for your "
-        "comfort level, 10% faster ≈ +10.",
+        f"Score: per play the 3rd fastest clean run; {BEST_PER_SETUP}; 50 = the stream speed your comfort level's "
+        "maps demand (assumed), 10% faster ≈ +10.",
         "Stream and burst maps 10–20 BPM above the speed you tap cleanly, in short sets with relaxed "
         "fingers. See the Tapping page for your clean stream speed.",
     ),
@@ -70,8 +70,8 @@ SKILL_HELP = {
         "Stamina: for how long you keep a high tempo before your fingers give in (you start "
         "undertapping), not how accurate you stay.",
         "Score: the fastest tempo you kept up for 10 s, 30 s, 1, 2 and 5 min while pressing 90%+ of the "
-        f"notes (overstreaming is fine); {BEST_PER_SETUP}, against your comfort level's typical tempo for that "
-        "long; 10% faster ≈ +10. Average of the durations measured on 3+ setups.",
+        f"notes (overstreaming is fine); {BEST_PER_SETUP}, against the tempo your comfort level's maps "
+        "demand for that long (assumed); 10% faster ≈ +10. Average of the durations measured on 3+ setups.",
         "Play stream-heavy maps that are a little longer than usual and keep tapping to the end, even "
         "when accuracy drops; make the stretches longer first, then faster.",
     ),
@@ -87,7 +87,7 @@ SKILL_HELP = {
         "Slider control: how hard the sliders are that you follow to the end without a break: "
         "speed, length, shape, speed changes and how soon the next note comes.",
         "Score: per play your 30 hardest sliders (whose head you hit), average difficulty × share held³; "
-        f"{BEST_PER_SETUP}, against your comfort level's typical value, +25 per doubling.",
+        f"{BEST_PER_SETUP}, against what your comfort level's maps demand (assumed), +25 per doubling.",
         "Play maps with long, curved and fast sliders and follow every one to its end; mix slow and fast "
         "sliders. Many short sliders don't raise it.",
     ),

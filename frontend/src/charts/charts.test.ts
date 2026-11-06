@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Schemas } from "../api/client";
 import { circle, merge, niceMax, responsive } from "./base";
 import { mmss, playTimingChart, rangeStats } from "./check";
-import { MISS_SHORT, compareBars, compareHover, missCauses } from "./overview";
+import { MISS_SHORT, compareBars, compareHover, levelTone, missCauses, starLevelHover, starLevels } from "./overview";
 import { alpha, chartTheme, heat, scoreColor, C } from "./palette";
 import { goalsChart, skillsChart, starsChart } from "./progress";
 import { timingChart } from "./tapping";
@@ -191,6 +191,67 @@ describe("comparison bars", () => {
     const measured = compareHover(all[3], target({ score: 55, change: 15, maps: 12 }), 6.59);
     expect(measured).toContain("consistency label at 7.5★: 55 (+15 against your comfort level)");
     expect(measured).toContain("Measured on your 12 different maps from 6.5★ to 7.5★");
+  });
+});
+
+
+describe("IRT star levels", () => {
+  const irt = (key: string, stars: number | null, low: number | null, high: number | null, state: string, extra: Partial<Schemas["SkillScore"]> = {}) => ({
+    ...skill(key, stars === null ? null : 60),
+    stars,
+    stars_low: low,
+    stars_high: high,
+    state,
+    natural: null,
+    natural_unit: null,
+    ...extra,
+  });
+  const skills = [
+    irt("aim", 6.6, 6.3, 6.9, "measured"),
+    irt("speed", 6.6, 6.2, 7.0, "measured", { natural: 221.4, natural_unit: "BPM" }),
+    irt("accuracy", 5.4, 5.0, 5.8, "provisional", { natural: 8.04, natural_unit: "OD" }),
+    irt("sliders", 7.4, 7.4, null, "untested"),
+    irt("reading", null, null, null, "not_enough_data"),
+    skill("consistency", 55),
+  ];
+  const target = (stars: number, comfort = false): Schemas["CompareTarget"] => ({ stars, comfort, locked: false, skills: [], weakest: null, pass_chance: null });
+  const option = (at: number) => (starLevels(skills, target(at, at === 6), t) as { baseOption: AnyOption }).baseOption;
+
+  it("draws each skill at the map star rating it holds up on, without consistency", () => {
+    const o = option(6);
+    const bars = o.series![0].data as { value: number; label: { show: boolean; formatter?: string } }[];
+    expect(bars.map((b) => b.value)).toEqual([6.6, 6.6, 5.4, 7.4, 9]); // the unmeasured one is a full grey bar
+    // with a range the label sits after the range's end, not on the bar
+    expect(bars.map((b) => (b.label.show ? b.label.formatter : null))).toEqual([null, null, null, "≥ 7.4★", "Not enough data"]);
+    const ends = o.series!.slice(1).map((r) => (r.data as [unknown, { value: number[]; label: { formatter: string } }])[1]);
+    expect(ends.map((e) => [e.value[0], e.label.formatter])).toEqual([
+      [6.9, "6.6★"],
+      [7.0, "6.6★ · ≈ 221 BPM"],
+      [5.8, "5.4★ · ≈ OD 8.0"],
+    ]);
+    expect((o.yAxis as { data: string[] }).data).not.toContain("consistency label");
+    expect(o.series!.length).toBe(4); // + a range line for each measured or provisional skill
+    expect((o.xAxis as { min: number; max: number }).min).toBe(4);
+    expect(JSON.stringify(o)).not.toContain("typical");
+  });
+
+  it("colours a skill by whether it holds up at the star rating compared with", () => {
+    expect(levelTone(skills[0], 6)).toBe("good");
+    expect(levelTone(skills[0], 6.6)).toBe("info");
+    expect(levelTone(skills[2], 6)).toBe("bad");
+    expect(levelTone(skills[3], 9)).toBe("info"); // a lower bound is never short
+    expect(levelTone(skills[4], 6)).toBe("none");
+  });
+
+  it("explains what holding up means, against the star rating picked", () => {
+    const html = starLevelHover(skills[0], target(7));
+    expect(html).toContain("aim label: holds up on 6.6★ maps");
+    expect(html).toContain("fail only about 2 in 100 of its notes on typical 6.6★ maps");
+    expect(html).toContain("Likely between 6.3★ and 6.9★");
+    expect(html).toContain("0.4★ short of 7★ maps");
+    expect(starLevelHover(skills[2], target(6, true))).toContain("90 in 100 of its single notes as 300s");
+    expect(starLevelHover(skills[3], target(6, true))).toContain("lower bound");
+    expect(starLevelHover(skills[0], target(6, true))).toContain("It holds up on 6★ maps (your comfort level)");
   });
 });
 

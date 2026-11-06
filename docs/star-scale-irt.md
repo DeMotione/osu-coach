@@ -32,10 +32,18 @@ real player's library (154 lazer plays, comfort level ~6★). "Unfitted" means a
    raise it. It counts among strengths and weaknesses (never failing *is* a strength), but never starts or completes
    a goal and never steers map suggestions (`base.measured_scores`): it isn't a measurement. A skill whose notes
    were all failed has nothing to rest a bound on and gets no number.
-4. **The player never reads a skill's own stars.** Stars are map difficulty to every osu! player; "sliders up to
-   10.3★" is meaningless. Texts use the 0–100 score, a likely range, units players know (BPM for tapping and
-   stamina, AR for reading, OD for accuracy) and map star ratings ("on the maps you played, up to 9.0★"; hints point
-   at maps a star above the player's level).
+4. **Each skill is shown as the map star rating it holds up on, never as "50 = typical".** A skill's level is
+   θ_k − R_k + L: the star rating of maps (made like the ones the player plays) on which they would fail about 2 in
+   100 of that skill's notes (accuracy: hit 90% of single notes as 300s). The Overview shows it with its 90% range,
+   units players know (BPM for tapping and stamina, AR for reading, OD for accuracy) and a line at the star rating
+   compared with: "jumps hold up on 6.6★ maps (likely 6.3–6.9★)". A lower bound (decision 3) is never shown above
+   the hardest maps the player played of the skill: nothing harder was seen. It is a statement about the player
+   and maps; IRT needs no "typical player", and nothing in the fit is measured on other players. A skill's raw θ_k
+   (its own scale: "sliders up to 10.3★") is never shown. The 0–100 score stays only where other pages need one
+   (charts, goals, map suggestions, strengths and weaknesses), read as "against maps of your level (L★)". *Why:* "50 =
+   typical for a player of your level" came with the 0–100 conversion, and nothing backed it. *Caution:* the star
+   values rest on unfitted constants (anchors, slopes, the 2% share), so they can be a few tenths of a star off until
+   IRT is fitted on other players; the ranges carry only part of that.
 
 ### How notes are turned into evidence
 
@@ -88,7 +96,8 @@ real player's library (154 lazer plays, comfort level ~6★). "Unfitted" means a
 
 ### How it fits into the app
 
-21. **Every page reads one 0–100 scale**, so everything that reads scores follows the engine toggle. Where a page
+21. **Every page that needs a score reads one 0–100 scale** (IRT: against maps of the player's level, decision 4),
+    so everything that reads scores follows the engine toggle. Where a page
     reads a score on another scale, it is converted: map suggestions get IRT tapping speed on the recommender's tempo
     scale from the BPM IRT measured (IRT 77 had read as a 269 BPM target where IRT measured ~231 BPM).
 22. **Goals remember their engine.** A goal set with one engine is paused under the other (its scores are on another

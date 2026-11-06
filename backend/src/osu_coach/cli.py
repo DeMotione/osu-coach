@@ -280,7 +280,7 @@ def cmd_analyze(args) -> int:
         f"Judgement check: re-simulated results match the replay exactly on {ov.sim_exact_share:.0%} of "
         f"replays ({ov.sim_agreement:.1%} of judgements)"
     )
-    print("\nSkills (0-100, 50 = typical for your comfort level; higher is better)")
+    print("\nSkills (0-100, 50 = what your comfort level's maps demand, assumed; higher is better)")
     for k, label in SKILL_LABELS.items():
         s = prof.skill_ratings.get(k, UNRATED)
         score = s.score

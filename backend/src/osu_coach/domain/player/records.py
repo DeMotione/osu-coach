@@ -131,7 +131,7 @@ class StaminaPart:
 
 @dataclass(frozen=True, slots=True)
 class SkillRating:
-    """A skill's rating against the comfort level (50 = what is typical there; None: not enough data) and how it was
+    """A skill's rating against the comfort level (50 = what its maps demand; None: not enough data) and how it was
     measured. Only some skills fill the optional numbers: stamina its ``parts``, accuracy the OD windows,
     consistency its range of maps."""
 

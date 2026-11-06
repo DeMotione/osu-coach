@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import type { Schemas } from "../api/client";
 import { useMeta, useOverview, usePatchSettings, useSettings } from "../api/queries";
 import { Chart } from "../charts/Chart";
-import { compareBars, missCauses } from "../charts/overview";
+import { compareBars, missCauses, starLevels } from "../charts/overview";
 import type { ChartTheme } from "../charts/palette";
 import { IconCheck } from "../components/icons";
 import { StarPicker } from "../components/StarPicker";
@@ -226,22 +226,43 @@ function CompareCard({
   const options = useMemo(() => targetOptions(compare), [compare]);
   const target = pickTarget(compare, picked);
   const comfort = compare.comfort ?? 0;
+  const irt = engine.engine === "irt";
   const build = useCallback(
-    (t: ChartTheme) => (target ? compareBars(skills, target, comfort, t, help ?? [], engine.engine) : {}),
-    [skills, target, comfort, help, engine.engine],
+    (t: ChartTheme) =>
+      target ? (irt ? starLevels(skills, target, t, help ?? []) : compareBars(skills, target, comfort, t, help ?? [], engine.engine)) : {},
+    [skills, target, comfort, help, engine.engine, irt],
   );
+  const consistency = skills.find((s) => s.key === "consistency");
+  const consistencyAt = target?.skills.find((k) => k.key === "consistency");
+  const comfortHint = `Scores are points from 0 to 100: 50 = what maps of your ${starLabel(comfort)} comfort level demand of the skill, an assumption from ranked maps, not measured on other players; higher = stronger, lower = weaker. Most skills use your best play per map; timing accuracy uses all hit single notes. Pick another star rating to see the scores on easier or harder maps: on harder ones they drop, each by how much more typical maps of that star rating demand of the skill (measured on ranked maps). Consistency is measured on your own maps from a star below the star rating up to it. You can pick any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level. Grey = not measured yet: point at a bar to see what to play.`;
+  const irtHint = `Each skill as the map star rating it holds up on: up to there you'd fail only about 2 in 100 of that skill's notes (accuracy: hit 90 in 100 single notes as 300s) on typical maps made like the ones you play. It's about you and maps, not a comparison with other players. The thin line is the likely range; faded bars with ≥ are lower bounds (you almost never fail the skill on what you played). The dashed line is the star rating you compare with: green = holds up there, blue = within its range, red = short of it. The star values rest on constants not yet fitted on other players, so they can be a few tenths of a star off. Consistency isn't on this scale: it's shown below the chart.`;
   return (
     <Card
       title="Current skill level"
       actions={<EngineBadge current={engine} />}
-      hint={`Scores are points from 0 to 100, compared with players at your level: 50 = typical for a player of ${starLabel(comfort)} maps (your comfort level), higher = stronger, lower = weaker.${engine.engine === "irt" ? ` With Star-Scale IRT a star of map difficulty is about 20 points around 50: about 70 = like a typical player of ${starLabel(comfort + 1)} maps, about 30 = of ${starLabel(comfort - 1)} maps. Only a player who never fails would reach 100.` : ""} Most skills use your best play per map; timing accuracy uses all hit single notes. Pick another star rating to see the scores on easier or harder maps: on harder ones they drop, each by how much more typical maps of that star rating demand of the skill (measured on ranked maps). Consistency is measured on your own maps from a star below the star rating up to it. You can pick any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level. Grey = not measured yet: point at a bar to see what to play.`}
+      hint={irt ? irtHint : comfortHint}
     >
       {target === null || compare.comfort === null ? (
         <Alert>Your comfort level isn't known yet: analyse at least 3 recent maps you finished cleanly.</Alert>
       ) : (
         <div className="stack" style={{ gap: 14 }}>
           <StarPicker label="Compare with" options={options} value={target.stars} onChange={setPicked} />
-          <Chart build={build} height={height} label={`Skill scores at ${starLabel(target.stars)}`} />
+          <Chart
+            build={build}
+            height={irt ? Math.max(300, height - 44) : height}
+            label={irt ? `Skill levels in map stars, compared with ${starLabel(target.stars)}` : `Skill scores at ${starLabel(target.stars)}`}
+          />
+          {irt && consistency && (
+            <p className="small muted">
+              {consistency.label} (not on the star scale):{" "}
+              {consistencyAt?.maps != null
+                ? consistencyAt.score !== null
+                  ? `${consistencyAt.score.toFixed(0)} of 100 on your ${consistencyAt.maps} maps around ${starLabel(target.stars)}`
+                  : (consistencyAt.needs ?? "not enough data")
+                : consistency.score_text}
+              .
+            </p>
+          )}
         </div>
       )}
     </Card>

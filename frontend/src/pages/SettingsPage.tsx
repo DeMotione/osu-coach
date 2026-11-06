@@ -9,11 +9,11 @@ type Engine = Settings["rating_engine"];
 
 const ABOUT: Record<Engine, { what: string; how: string }> = {
   comfort: {
-    what: "Each skill from 0 to 100 against what is typical at your comfort level (50 = typical).",
+    what: "Each skill from 0 to 100 against what your comfort level's maps demand (50 = that demand, an assumption from ranked maps, not measured on other players).",
     how: "Uses your best play per map and mod setup. A skill your maps haven't challenged shows as \"at least\".",
   },
   irt: {
-    what: "Each skill in stars, on the same scale as map difficulty, with a range for how sure it is.",
+    what: "Each skill as the map star rating it holds up on (you'd fail about 2 in 100 of its notes there), with a range for how sure it is. No comparison with other players.",
     how: "Fitted from every note you hit or missed against how hard it was. Experimental: the numbers may still change.",
   },
 };
