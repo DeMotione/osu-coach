@@ -6,7 +6,7 @@ from pathlib import Path
 
 from osu_coach import __version__
 from osu_coach.common.schemas import Choice
-from osu_coach.common.texts import MISS_LABELS, SKILL_HELP, SKILL_HELP_IRT, SKILL_LABELS
+from osu_coach.common.texts import MISS_LABELS, SKILL_HELP, SKILL_HELP_IRT, SKILL_LABELS, SKILL_SUMMARIES
 from osu_coach.domain.maps.suggestions import PLAYLIST_SKILLS, skill_label
 from osu_coach.domain.player import LEVEL_BAND, LEVEL_SIGMA
 from osu_coach.domain.player.engines import ENGINE_LABELS, ENGINES
@@ -31,6 +31,7 @@ def meta(api_docs: bool) -> Meta:
             SkillMeta(
                 key=k,
                 label=label,
+                summary=SKILL_SUMMARIES[k],
                 what=SKILL_HELP[k][0],
                 how=SKILL_HELP[k][1],
                 practise=SKILL_HELP[k][2],

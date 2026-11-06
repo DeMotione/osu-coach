@@ -6690,7 +6690,7 @@
             "type": "string",
             "title": "Engine Label",
             "description": "Its name to show.",
-            "default": "Comfort-Based"
+            "default": "Comfort Score"
           }
         },
         "type": "object",
@@ -9538,6 +9538,12 @@
             "type": "string",
             "title": "Label"
           },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "One plain line: what the skill is.",
+            "default": ""
+          },
           "what": {
             "type": "string",
             "title": "What",
@@ -9563,7 +9569,7 @@
               }
             ],
             "title": "Irt What",
-            "description": "What the skill measures under Star-Scale IRT (null: as `what`)."
+            "description": "What the skill measures under Star Levels (null: as `what`)."
           }
         },
         "type": "object",

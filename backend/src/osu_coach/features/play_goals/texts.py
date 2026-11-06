@@ -23,18 +23,18 @@ ACCURACY_EXPLANATION = (
     "An empirical estimate, not a maximum or a calibrated prediction interval."
 )
 BLOCKER_TITLES = {
-    "sliders": "Slider control",
-    "speed": "Stream / burst tapping",
-    "reading": "Tracking the next notes",
-    "accuracy": "Hit timing",
-    "flow_aim": "Spaced-stream aim",
-    "aim": "Jump aim",
+    "sliders": "Sliders",
+    "speed": "Tapping speed",
+    "reading": "Reading",
+    "accuracy": "Accuracy",
+    "flow_aim": "Spaced streams",
+    "aim": "Jumps",
 }
 # demand: (what a map leaning on it is, what to train)
 DEMANDS = {
-    "aim": ("Jumpy", "Jump aim"),
-    "flow_aim": ("Flow aim", "Flow aim"),
-    "speed": ("Streamy", "Streaming"),
+    "aim": ("Jumpy", "Jumps"),
+    "flow_aim": ("Spaced streams", "Spaced streams"),
+    "speed": ("Streamy", "Tapping speed"),
     "reading": ("Reading-heavy", "Reading"),
     "sliders": ("Slider-heavy", "Sliders"),
     "stamina": ("Stamina-heavy", "Stamina"),

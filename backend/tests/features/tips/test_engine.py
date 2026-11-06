@@ -108,11 +108,11 @@ def _aim_misses_in(base, pattern: str, spaced: bool = False, n: int = 200):
 def test_aim_misses_in_streams_are_speed_aim(base):
     t = tip(make_tips(_aim_misses_in(base, "stream")), "Overview", "speed-aim misses")
     assert t is not None and "streams, bursts or very fast jumps" in t.evidence
-    assert any("Flow aim (spaced streams)" in a for a in t.actions)
+    assert any("Spaced streams" in a for a in t.actions)
     assert tip(make_tips(_aim_misses_in(base, "stream")), "Overview", "Most misses are aim misses") is None
 
 
 def test_aim_miss_tip_keeps_jump_advice_for_jumps(base):
     t = tip(make_tips(_aim_misses_in(base, "jump")), "Overview", "aim misses")
     assert t is not None and "jumps 100%" in t.actions[0]
-    assert any("Jump aim" in a for a in t.actions)
+    assert any("Jumps" in a for a in t.actions)

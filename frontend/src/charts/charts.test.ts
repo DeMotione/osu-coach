@@ -165,7 +165,7 @@ describe("comparison bars", () => {
   });
 
   it("explains where the number comes from", () => {
-    const help = { key: "aim", label: "Jump aim", what: "W <b>", how: "H", practise: "P" };
+    const help = { key: "aim", label: "Jumps", summary: "", what: "W <b>", how: "H", practise: "P" };
     const html = compareHover(skills[0], harder, 6.59, help);
     expect(html).toContain("aim label at 7.6★: 61 (−6)");
     expect(html).toContain("demand 6% more of this skill than maps of your 6.6★ comfort level, so 67 drops to 61");
@@ -248,7 +248,9 @@ describe("IRT star levels", () => {
     expect(html).toContain("aim label: holds up on 6.6★ maps");
     expect(html).toContain("fail only about 2 in 100 of its notes on typical 6.6★ maps");
     expect(html).toContain("Likely between 6.3★ and 6.9★");
-    expect(html).toContain("0.4★ short of 7★ maps");
+    expect(html).toContain("Not yet on 7★ maps: 0.4★ short");
+    const help = { key: "aim", label: "Jumps", summary: "Hitting notes that are far apart.", what: "W", how: "H", practise: "P" };
+    expect(starLevelHover(skills[0], target(7), help)).toContain("Hitting notes that are far apart.");
     expect(starLevelHover(skills[2], target(6, true))).toContain("90 in 100 of its single notes as 300s");
     expect(starLevelHover(skills[3], target(6, true))).toContain("lower bound");
     expect(starLevelHover(skills[0], target(6, true))).toContain("It holds up on 6★ maps (your comfort level)");

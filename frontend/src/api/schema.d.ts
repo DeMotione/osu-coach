@@ -2286,7 +2286,7 @@ export interface components {
             /**
              * Engine Label
              * @description Its name to show.
-             * @default Comfort-Based
+             * @default Comfort Score
              */
             engine_label: string;
         };
@@ -3236,6 +3236,12 @@ export interface components {
             /** Label */
             label: string;
             /**
+             * Summary
+             * @description One plain line: what the skill is.
+             * @default
+             */
+            summary: string;
+            /**
              * What
              * @description What the skill measures.
              */
@@ -3252,7 +3258,7 @@ export interface components {
             practise: string;
             /**
              * Irt What
-             * @description What the skill measures under Star-Scale IRT (null: as `what`).
+             * @description What the skill measures under Star Levels (null: as `what`).
              */
             irt_what?: string | null;
         };

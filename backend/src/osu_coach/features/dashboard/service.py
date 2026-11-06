@@ -77,7 +77,7 @@ def analysed_replays(p: Profile) -> list[S.AnalysedReplay]:
 
 # ------------------------------------------------------------------ skill facts (Overview hover)
 # what a Comfort-Based 50 is: an assumption about the comfort level's maps, not measured on other players
-COMFORT_50 = "50 = what your comfort level's maps demand (assumed, not measured on players)"
+COMFORT_50 = "50 = what maps at your comfort level ask for (assumed)"
 
 
 def natural_text(row: SkillRating) -> str | None:
@@ -131,7 +131,7 @@ def irt_facts(row: SkillRating) -> list[str]:
     if row.score is not None and level is not None:
         bound = "at least " if row.state == "untested" else ""
         facts.append(f"{bound}{row.score:.0f} of 100 against maps of your level ({level:.1f}★), for charts and goals")
-    facts.append(f"fitted from every note of {row.maps} plays (Star-Scale IRT)")
+    facts.append(f"worked out from every note of {row.maps} plays")
     if row.reason and row.state not in ("measured", "untested"):  # untested: its reason is the score text already
         facts.append(message(row.reason))
     return facts

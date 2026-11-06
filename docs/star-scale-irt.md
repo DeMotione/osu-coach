@@ -1,7 +1,7 @@
 # Star-Scale IRT (spec)
 
-The experimental rating engine in `backend/src/osu_coach/domain/player/engines/irt/`, chosen on the Settings page
-(the default stays Comfort-Based). This page holds, in order: the decisions osu! coach made where it differs from
+The experimental rating engine in `backend/src/osu_coach/domain/player/engines/irt/`, shown in the app as **Star
+Levels (experimental)** and chosen on the Settings page (the default stays Comfort-Based, shown as **Comfort Score**). This page holds, in order: the decisions osu! coach made where it differs from
 the proposal and why, what is still unvalidated, what is left to build, and then the proposal itself, unedited
 (Appendix A of the arena report).
 

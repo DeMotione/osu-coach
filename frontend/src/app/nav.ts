@@ -89,7 +89,7 @@ export const NAV: NavGroup[] = [
         label: "Sliders & Reading",
         icon: IconWave,
         needsAnalysis: true,
-        about: "Slider control, and how approach rate and dense parts change your misses.",
+        about: "Sliders, and how approach rate and busy parts change your misses.",
       },
     ],
   },

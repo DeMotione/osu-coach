@@ -9,12 +9,12 @@ type Engine = Settings["rating_engine"];
 
 const ABOUT: Record<Engine, { what: string; how: string }> = {
   comfort: {
-    what: "Each skill from 0 to 100 against what your comfort level's maps demand (50 = that demand, an assumption from ranked maps, not measured on other players).",
-    how: "Uses your best play per map and mod setup. A skill your maps haven't challenged shows as \"at least\".",
+    what: "Each skill gets a score from 0 to 100. 50 = what maps at your comfort level ask for (assumed from ranked maps, not compared with other players).",
+    how: "Uses your best play on each map and mod setup. A skill your maps haven't pushed yet shows as \"at least\".",
   },
   irt: {
-    what: "Each skill as the map star rating it holds up on (you'd fail about 2 in 100 of its notes there), with a range for how sure it is. No comparison with other players.",
-    how: "Fitted from every note you hit or missed against how hard it was. Experimental: the numbers may still change.",
+    what: "Each skill as the map star rating it holds up on: on maps that hard you'd miss only about 2 in 100 of its notes. Comes with a range for how sure it is. No comparison with other players.",
+    how: "Worked out from every note you hit or missed and how hard it was. Experimental: the numbers may still change.",
   },
 };
 
@@ -34,11 +34,11 @@ function EngineCard({ settings }: { settings: Settings }) {
   const chosen = (patch.isPending ? patch.variables?.rating_engine : undefined) ?? settings.rating_engine;
   const about = ABOUT[chosen];
   return (
-    <Card title="Rating engine" hint="How your skill ratings are worked out. Every page that shows skills follows this choice.">
+    <Card title="Skill measurement" hint="How your skills are measured. Every page that shows skills follows this choice.">
       <div className="stack" style={{ gap: 12 }}>
-        <Field label="Engine">
+        <Field label="Measure skills with">
           <Segmented
-            label="Rating engine"
+            label="Skill measurement"
             block
             value={chosen}
             onChange={(rating_engine) => patch.mutate({ rating_engine })}

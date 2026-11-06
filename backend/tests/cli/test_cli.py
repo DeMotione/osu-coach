@@ -59,7 +59,7 @@ def test_playlist_from_comfort_level_writes_collection(tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 0 and "Warm-up" in out and "https://osu.ppy.sh/beatmapsets/" in out
     _, cols = read_collection_db(db)
-    assert len(cols) == 1 and cols[0][0].startswith("osu-coach: Jump aim") and len(cols[0][1]) == 6
+    assert len(cols) == 1 and cols[0][0].startswith("osu-coach: Jumps") and len(cols[0][1]) == 6
 
 
 def test_locate_runs(capsys):

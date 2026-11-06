@@ -37,7 +37,7 @@ def slider_tips(p: Profile, s: Setup):
                 "Slider breaks cost you combo",
                 2 if br >= 0.08 else 1,
                 f"{pct(br)} of sliders broke after a good head ({', '.join(f'{k} {v:.0f}' for k, v in reasons.items())}).",
-                acts + ["Practice: 'Slider control' playlist (slider-heavy maps)."],
+                acts + ["Practice: 'Sliders' playlist (slider-heavy maps)."],
             )
         )
     em = sl.end_miss_rate

@@ -50,7 +50,7 @@ def test_lazer_zip_download(client, export):
     r = client.post("/api/exports/lazer-zip", json=export)
     assert r.status_code == 200 and r.headers["content-type"] == "application/zip"
     disposition = r.headers["content-disposition"]  # the name has a ★: ASCII fallback + UTF-8 name
-    assert disposition.startswith("attachment; filename=\"osu-coach Jump aim (4,0_).zip\"; filename*=UTF-8''")
+    assert disposition.startswith("attachment; filename=\"osu-coach Jumps (4,0_).zip\"; filename*=UTF-8''")
     assert "%E2%98%85" in disposition
     names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
     folder = lazer_import.safe_name(export["name"])

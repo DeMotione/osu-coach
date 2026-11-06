@@ -18,10 +18,11 @@ class Health(BaseModel):
 class SkillMeta(BaseModel):
     key: str
     label: str
+    summary: str = Field("", description="One plain line: what the skill is.")
     what: str = Field(description="What the skill measures.")
     how: str = Field(description="How the score is worked out.")
     practise: str = Field(description="What raises it.")
-    irt_what: str | None = Field(None, description="What the skill measures under Star-Scale IRT (null: as `what`).")
+    irt_what: str | None = Field(None, description="What the skill measures under Star Levels (null: as `what`).")
 
 
 class MissCauseMeta(BaseModel):

@@ -18,8 +18,8 @@ export interface RecommendationOptions {
 }
 
 const SKILLS = [
-  ["aim", "Jump aim"], ["flow_aim", "Flow aim"], ["speed", "Tapping speed"],
-  ["stamina", "Stamina"], ["accuracy", "Accuracy"], ["sliders", "Slider control"],
+  ["aim", "Jumps"], ["flow_aim", "Spaced streams"], ["speed", "Tapping speed"],
+  ["stamina", "Stamina"], ["accuracy", "Accuracy"], ["sliders", "Sliders"],
   ["reading", "Reading"], ["consistency", "Consistency"],
 ] as const;
 

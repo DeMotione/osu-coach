@@ -162,7 +162,7 @@ class Overview(BaseModel):
     sim_exact_share: float | None
     sim_agreement: float | None
     engine: str = Field("comfort", description="The rating engine that made the skill scores (comfort | irt).")
-    engine_label: str = Field("Comfort-Based", description="Its name to show.")
+    engine_label: str = Field("Comfort Score", description="Its name to show.")
 
 
 # ------------------------------------------------------------------ aim

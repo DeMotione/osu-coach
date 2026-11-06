@@ -20,13 +20,13 @@ SKILLS = ["aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading
 PLAYLIST_SKILLS = SKILLS + ["quadrant", "general"]  # the skills a playlist can be made for
 
 SKILL_INFO = {
-    "aim": {"label": "Jump aim", "offset": 0.0, "focus": "landing on the centre of each circle"},
-    "flow_aim": {"label": "Flow aim (spaced streams)", "offset": 0.0, "focus": "smooth, continuous cursor movement"},
-    "speed": {"label": "Tapping speed (bursts/streams)", "offset": 0.0, "focus": "even, strictly alternating taps"},
+    "aim": {"label": "Jumps", "offset": 0.0, "focus": "landing on the centre of each circle"},
+    "flow_aim": {"label": "Spaced streams", "offset": 0.0, "focus": "smooth, continuous cursor movement"},
+    "speed": {"label": "Tapping speed", "offset": 0.0, "focus": "even, strictly alternating taps"},
     "stamina": {"label": "Stamina", "offset": -0.3, "focus": "keeping the tempo until the stream ends"},
-    "accuracy": {"label": "Accuracy (timing)", "offset": -0.7, "focus": "300s — tap exactly with the music"},
-    "sliders": {"label": "Slider control", "offset": -0.5, "focus": "following the ball until the slider ends"},
-    "reading": {"label": "Reading (dense parts / AR)", "offset": -0.3, "focus": "looking ahead at the next notes"},
+    "accuracy": {"label": "Accuracy", "offset": -0.7, "focus": "300s — tap exactly with the music"},
+    "sliders": {"label": "Sliders", "offset": -0.5, "focus": "following the ball until the slider ends"},
+    "reading": {"label": "Reading", "offset": -0.3, "focus": "looking ahead at the next notes"},
     "consistency": {"label": "Consistency", "offset": -0.5, "focus": "keeping performance steady throughout the map"},
     "quadrant": {"label": "Weak quadrant", "offset": -0.2, "focus": "committing to the full movement into the corner"},
     "general": {"label": "Level up", "offset": 0.3, "focus": "passing slightly harder maps"},

@@ -234,8 +234,8 @@ function CompareCard({
   );
   const consistency = skills.find((s) => s.key === "consistency");
   const consistencyAt = target?.skills.find((k) => k.key === "consistency");
-  const comfortHint = `Scores are points from 0 to 100: 50 = what maps of your ${starLabel(comfort)} comfort level demand of the skill, an assumption from ranked maps, not measured on other players; higher = stronger, lower = weaker. Most skills use your best play per map; timing accuracy uses all hit single notes. Pick another star rating to see the scores on easier or harder maps: on harder ones they drop, each by how much more typical maps of that star rating demand of the skill (measured on ranked maps). Consistency is measured on your own maps from a star below the star rating up to it. You can pick any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level. Grey = not measured yet: point at a bar to see what to play.`;
-  const irtHint = `Each skill as the map star rating it holds up on: up to there you'd fail only about 2 in 100 of that skill's notes (accuracy: hit 90 in 100 single notes as 300s) on typical maps made like the ones you play. It's about you and maps, not a comparison with other players. The thin line is the likely range; faded bars with ≥ are lower bounds (you almost never fail the skill on what you played). The dashed line is the star rating you compare with: green = holds up there, blue = within its range, red = short of it. The star values rest on constants not yet fitted on other players, so they can be a few tenths of a star off. Consistency isn't on this scale: it's shown below the chart.`;
+  const comfortHint = `Comfort Score: each skill gets points from 0 to 100. 50 = what maps at your ${starLabel(comfort)} comfort level ask for (assumed from ranked maps, not compared with other players); higher = stronger, lower = weaker. Most skills use your best play on each map; accuracy uses all your hit single notes. Pick another star rating to see the scores on easier or harder maps: on harder ones they drop, by how much more those maps ask of the skill (measured on ranked maps). Consistency is measured on your own maps from a star below the star rating up to it. You can pick any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level. Grey = not measured yet: point at a bar to see what to play.`;
+  const irtHint = `Star Levels: each skill shown as the map star rating it holds up on. On maps that hard you'd miss only about 2 in 100 of that skill's notes (accuracy: about 90 in 100 single notes are 300s), on maps like the ones you play. It's about you and maps, not a comparison with other players. The thin line is the likely range. A faded bar with ≥ is a lower bound: you almost never fail that skill on what you played. The dashed line is the star rating you compare with: green = holds up there, blue = close (within its range), red = not yet. The star values rest on constants not yet fitted on other players, so they can be a few tenths of a star off. Consistency isn't on this scale: it's shown below the chart.`;
   return (
     <Card
       title="Current skill level"
@@ -311,7 +311,7 @@ function StrengthsCard({ ov }: { ov: Overview }) {
       {(ov.sliders_scored || ov.few_data.length > 0) && (
         <p className="small muted">
           {ov.sliders_scored &&
-            "Slider control counts how hard the sliders are that you follow to the end: speed, length, shape, speed changes and how soon the next note follows. "}
+            "The Sliders score counts how hard the sliders are that you follow to the end: speed, length, shape, speed changes and how soon the next note comes. "}
           {ov.few_data.length > 0 &&
             `Unmeasured (${ov.few_data.join(", ")}): comfort, relevant map coverage, or tested challenge is insufficient.`}
         </p>

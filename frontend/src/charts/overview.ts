@@ -35,6 +35,9 @@ type CompareTarget = Schemas["CompareTarget"];
 
 /** The hover of a bar on the comparison chart: the score at the star rating picked, how it comes from the comfort-level
  * score, the player's numbers and (with the skill's help text) what the skill is and what raises it. */
+/** A skill's one-line summary under its name in a hover ("" without one). */
+const lead = (help?: SkillMeta) => (help?.summary ? `<div style="opacity:0.75">${esc(help.summary)}</div>` : "");
+
 export function compareHover(s: Skill, target: CompareTarget, comfort: number, help?: SkillMeta, engine = "comfort"): string {
   // what the skill measures depends on the engine (Star-Scale IRT: the notes failed against their difficulty)
   if (help && engine === "irt" && help.irt_what) help = { ...help, what: help.irt_what };
@@ -46,7 +49,7 @@ export function compareHover(s: Skill, target: CompareTarget, comfort: number, h
     if (row.score === null)
       return `<b>${esc(s.label)} at ${esc(at)}: Not enough data</b>${row.needs ? p(`To get a score: ${row.needs}`) : ""}${help ? p(help.what) : ""}`;
     const vs = s.score === null || target.comfort ? "" : ` (${changeLabel(row.change ?? 0)} against your comfort level)`;
-    let html = `<b>${esc(s.label)} at ${esc(at)}: ${row.score.toFixed(0)}${esc(vs)}</b>`;
+    let html = `<b>${esc(s.label)} at ${esc(at)}: ${row.score.toFixed(0)}${esc(vs)}</b>${lead(help)}`;
     if (help) html += p(help.what);
     html += p(`Measured on your ${row.maps} different maps from ${starLabel(target.stars - 1)} to ${at} (the closer to ${at}, the more a map counts); the more maps you play there, the more reliable it is.`);
     if (help) html += p(`To raise it: ${help.practise}`);
@@ -58,14 +61,14 @@ export function compareHover(s: Skill, target: CompareTarget, comfort: number, h
     return `<b>${esc(s.label)} at ${esc(at)}: ${esc(s.score_text)}</b>${needs}${help ? p(help.what) : ""}`;
   }
   const change = row.change ?? 0;
-  let html = `<b>${esc(s.label)} at ${esc(at)}: ${row.score.toFixed(0)}${target.comfort ? "" : ` (${esc(changeLabel(change))})`}</b>`;
+  let html = `<b>${esc(s.label)} at ${esc(at)}: ${row.score.toFixed(0)}${target.comfort ? "" : ` (${esc(changeLabel(change))})`}</b>${lead(help)}`;
   if (help) html += p(help.what);
-  html += p(`Points from 0 to 100: 50 = what maps of your ${starLabel(comfort)} comfort level demand (assumed, not measured on players), higher = stronger.`);
+  html += p(`Points from 0 to 100: 50 = what maps at your ${starLabel(comfort)} comfort level ask for (assumed from ranked maps, not compared with other players), higher = stronger.`);
   const bound = row.at_least !== null; // a lower bound: everything played of the skill was held
   if (bound) html += p(`You almost never fail it on any map you played, so it is at least this${row.score < 100 ? ": harder maps could show it's higher" : ""}.`);
   if (target.comfort) html += p(`${at} is your comfort level: the score above.`);
   else if (engine === "irt" && !bound) {
-    html += p(`Harder maps take points off, about 20 a star around 50 (Star-Scale IRT): ${s.score.toFixed(0)} on maps of your ${starLabel(comfort)} level, ${row.score.toFixed(0)} on ${at} maps.`);
+    html += p(`Harder maps take points off, about 20 a star around 50 (Star Levels): ${s.score.toFixed(0)} on maps of your ${starLabel(comfort)} level, ${row.score.toFixed(0)} on ${at} maps.`);
   } else if (engine !== "irt" && row.demand !== null) {
     const more = Math.round(Math.abs(row.demand - 1) * 100);
     const what = `Typical ${at} maps demand ${more}% ${row.demand >= 1 ? "more" : "less"} of this skill than maps of your ${starLabel(comfort)} comfort level`;
@@ -121,7 +124,7 @@ export function compareBars(
         max: 100,
         interval: 25,
         name: target.comfort
-          ? `Score, 0–100 points · 50 = what your ${starLabel(comfort)} comfort level's maps demand (assumed)`
+          ? `Score, 0–100 · 50 = what maps at your ${starLabel(comfort)} comfort level ask for (assumed)`
           : `Score on ${starLabel(target.stars)} maps, 0–100 points · faded = on ${starLabel(comfort)} maps (your level)`,
         nameGap: 26,
       }),
@@ -217,11 +220,11 @@ export function starLevelHover(s: Skill, target: CompareTarget, help?: SkillMeta
     return `<b>${esc(s.label)}: ${esc(s.score_text)}</b>${needs}${help ? p(help.what) : ""}`;
   }
   const bound = s.state === "untested";
-  let html = `<b>${esc(s.label)}: holds up on ${bound ? "at least " : ""}${star1(s.stars)} maps</b>`;
+  let html = `<b>${esc(s.label)}: holds up on ${bound ? "at least " : ""}${star1(s.stars)} maps</b>${lead(help)}`;
   html += p(`"Holds up": ${holdsUpMeaning(s.key, star1(s.stars))}.`);
   const nat = naturalLabel(s);
   if (!bound && finite(s.stars_low) && finite(s.stars_high)) {
-    const provisional = s.state === "provisional" ? " (provisional: not many of its notes near your limit yet)" : "";
+    const provisional = s.state === "provisional" ? " (a rough estimate: not many of its notes near your limit yet)" : "";
     html += p(`Likely between ${star1(s.stars_low)} and ${star1(s.stars_high)}${provisional}${nat ? `; ${nat}` : ""}.`);
   }
   const tone = levelTone(s, target.stars);
@@ -230,8 +233,8 @@ export function starLevelHover(s: Skill, target: CompareTarget, help?: SkillMeta
       `You almost never fail it on the maps you played, so this is a lower bound: harder maps could show it's higher.${tone === "good" ? ` It holds up on ${where}.` : ""}`,
     );
   else if (tone === "good") html += p(`It holds up on ${where}.`);
-  else if (tone === "bad") html += p(`${(target.stars - s.stars).toFixed(1)}★ short of ${where}: there you'd fail it more often.`);
-  else html += p(`${where}: within its likely range.`);
+  else if (tone === "bad") html += p(`Not yet on ${where}: ${(target.stars - s.stars).toFixed(1)}★ short, so there you'd miss more of its notes.`);
+  else html += p(`Close on ${where}: within its likely range.`);
   html += p(`You: ${s.facts.join("; ")}`);
   if (bound && s.needs) html += p(`To see your full level: ${s.needs}`);
   if (help) html += p(help.what);
