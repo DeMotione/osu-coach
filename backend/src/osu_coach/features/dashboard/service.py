@@ -2,23 +2,23 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 from typing import TYPE_CHECKING
-
-import pandas as pd
 
 from osu_coach.common import clicks as shared_clicks
 from osu_coach.common import frames
 from osu_coach.common.clicks import Clicks
-from osu_coach.common.convert import flag, integer, iso, num, nums, text
+from osu_coach.common.convert import integer, iso, num, nums
 from osu_coach.common.maps import map_rows
-from osu_coach.common.texts import SKILL_LABELS, explain, message
+from osu_coach.common.texts import SKILL_LABELS, message
 from osu_coach.domain.maps.skillset import recommend
 from osu_coach.domain.maps.suggestions import targets_from_profile
 from osu_coach.domain.player import Profile, weight_table
 from osu_coach.domain.player.consistency import star_consistency
-from osu_coach.domain.player.ratings import MIN_MAPS, UNRATED, SkillRating
+from osu_coach.domain.player.ratings import MIN_MAPS
 from osu_coach.domain.player.readiness import MAX_GAP, compare_at, default_target, targets
+from osu_coach.domain.player.records import UNRATED, SkillRating
 from osu_coach.features.dashboard import charts
 from osu_coach.features.dashboard import schemas as S
 
@@ -50,24 +50,24 @@ def summary(ws: Workspace, p: Profile) -> S.ProfileSummary:
 
 
 def analysed_replays(p: Profile) -> list[S.AnalysedReplay]:
-    m = frames.replays(p)
     rows = []
-    for r in m.to_dict("records"):
+    for m, w in zip(p.replays, p.weights, strict=True):
+        weight = num(w)
         rows.append(
             S.AnalysedReplay(
-                key=str(r["key"]),
-                played_at=iso(r.get("date")),
-                map=text(r.get("map_name")) or "",
-                mods=text(r.get("mod_string")) or "NM",
-                stars=num(r.get("stars")),
-                weight=num(r.get("weight")) if num(r.get("weight")) is not None else 1.0,
-                accuracy=num(r.get("accuracy")),
-                misses=integer(r.get("nmiss")),
-                combo=integer(r.get("max_combo")),
-                ur=num(r.get("ur")),
-                sim_agreement=num(r.get("sim_agreement")),
-                path=text(r.get("source_path")) or "",
-                beatmap_md5=text(r.get("beatmap_md5")),
+                key=str(m.key),
+                played_at=iso(m.date),
+                map=m.map_name or "",
+                mods=m.mod_string or "NM",
+                stars=num(m.stars),
+                weight=1.0 if weight is None else weight,
+                accuracy=num(m.accuracy),
+                misses=integer(m.nmiss),
+                combo=integer(m.max_combo),
+                ur=num(m.ur),
+                sim_agreement=num(m.sim_agreement),
+                path=m.source_path or "",
+                beatmap_md5=m.beatmap_md5,
             )
         )
     rows.sort(key=lambda r: r.played_at or "", reverse=True)
@@ -106,7 +106,7 @@ def skill_facts(skill: str, row: SkillRating) -> list[str]:
         else:
             facts.append(f"measured {measured:.3g} vs assumed reference {expected:.3g}")
     if row.parts:
-        facts.append("measured durations: " + ", ".join(f"{p['duration']} s" for p in row.parts))
+        facts.append("measured durations: " + ", ".join(f"{p.duration} s" for p in row.parts))
     if row.reason:
         facts.append(message(row.reason))
     return facts
@@ -172,22 +172,21 @@ def overview(p: Profile) -> S.Overview:
     if stam.score is not None:
         # the durations behind the stamina rating: measured on enough map/mod setups and tested at the level
         stamina = [
-            S.StaminaPoint(seconds=float(part["duration"]), bpm=float(part["measured"]), typical=num(part["expected"]))
-            for part in stam.parts or []
-            if part["maps"] >= MIN_MAPS and not part["untested"]
+            S.StaminaPoint(seconds=float(part.duration), bpm=float(part.measured), typical=num(part.expected))
+            for part in stam.parts or ()
+            if part.maps >= MIN_MAPS and not part.untested
         ]
     mb = p.miss_breakdown or {}
     total = sum(mb.values()) or 1.0
-    raw = getattr(p, "miss_breakdown_raw", {}) or {}
+    raw = p.miss_breakdown_raw or {}
     causes = [
         S.MissCause(cause=k, share=float(v) / total, misses=int(raw.get(k, 0)))
         for k, v in sorted(mb.items(), key=lambda kv: -kv[1])
     ]
-    split = p.aim.split or {}
-    a, f = split.get("aim"), split.get("speed_aim")
+    split = p.aim.split
     aim_split = None
-    if a and f and a["expected"] > 0 and f["expected"] > 0:
-        aim_split = S.AimSplit(fast_ratio=f["all_misses"] / f["expected"], normal_ratio=a["all_misses"] / a["expected"])
+    if split and split.aim.ratio is not None and split.speed_aim.ratio is not None:
+        aim_split = S.AimSplit(fast_ratio=split.speed_aim.ratio, normal_ratio=split.aim.ratio)
     return S.Overview(
         level=level_info,
         kpis=kpis,
@@ -211,14 +210,14 @@ def consistency_at(p: Profile, comfort: float, stars: float, at_comfort: bool) -
     of that star rating (7★ and 7.5★: maps of 7.00–7.99★)."""
     row = star_consistency(p.replays, comfort if at_comfort else stars, comfort=at_comfort)
     base = num(p.skill_ratings.get("consistency", UNRATED).score)
-    score = num(row["score"])
+    score = num(row.score)
     return S.CompareSkill(
         key="consistency",
         score=score,
         change=round(score - base, 1) if score is not None and base is not None else None,
         demand=None,
-        maps=int(row["maps"]),
-        needs=message(row["needs"]),
+        maps=row.maps,
+        needs=message(row.needs),
     )
 
 
@@ -237,12 +236,10 @@ def star_compare(p: Profile) -> S.StarCompare:
         at_comfort = stars == round(comfort, 1)  # exactly the comfort level, so it shows its own scores
         c = compare_at(p.skill_ratings, comfort, comfort if at_comfort else stars)
         skills = [
-            S.CompareSkill(
-                key=k, score=num(v["score"]), change=num(v["change"]), demand=num(v["demand"]), maps=None, needs=None
-            )
+            S.CompareSkill(key=k, score=num(v.score), change=num(v.change), demand=num(v.demand), maps=None, needs=None)
             if v
             else S.CompareSkill(key=k, score=None, change=None, demand=None, maps=None, needs=None)
-            for k, v in c["skills"].items()
+            for k, v in c.skills.items()
         ]
         skills.append(consistency_at(p, comfort, stars, at_comfort))
         weakest = min((s for s in skills if s.score is not None), key=lambda s: s.score, default=None)
@@ -253,7 +250,7 @@ def star_compare(p: Profile) -> S.StarCompare:
                 locked=False,
                 skills=skills,
                 weakest=weakest.key if weakest else None,
-                pass_chance=num(c["pass_chance"]),
+                pass_chance=num(c.pass_chance),
             )
         )
     return S.StarCompare(comfort=comfort, max_gap=MAX_GAP, targets=out, default_target=default_target(comfort))
@@ -331,31 +328,30 @@ def _stream_along(part: dict) -> S.StreamAlong:
 
 
 def _stream_speed(p: Profile) -> S.StreamSpeed | None:
-    sp, t = frames.stream_profile(p), p.tapping
-    if sp is None or sp.empty:
+    t = p.tapping
+    if not p.stream_profile:
         return None
-    rows = []
-    for r in sp.to_dict("records"):
-        tap = r.get("tap_miss_rate", r.get("miss_rate"))
-        rows.append(
-            S.StreamSpeedRow(
-                bpm=int(r["bpm_bin"]),
-                objects=float(r["objects"]),
-                tap_miss_rate=num(tap),
-                speed_aim_rate=num(r.get("speed_aim_rate", 0.0)),
-                ur=num(r.get("ur")),
-                ur_best=num(r.get("ur_best")),
-                ur_plays=integer(r.get("ur_plays")) or 0,
-                ur_trend=num(r.get("ur_trend")),
-                weak=bool(flag(r.get("weak"))),
-            )
+    rows = [
+        S.StreamSpeedRow(
+            bpm=int(r.bpm_bin),
+            objects=float(r.objects),
+            tap_miss_rate=num(r.tap_miss_rate),
+            speed_aim_rate=num(r.speed_aim_rate),
+            ur=num(r.ur),
+            ur_best=num(r.ur_best),
+            ur_plays=integer(r.ur_plays) or 0,
+            ur_trend=num(r.ur_trend),
+            weak=bool(r.weak),
         )
+        for r in p.stream_profile
+    ]
     return S.StreamSpeed(rows=rows, comfort_bpm=num(t.comfort_bpm), limit_bpm=num(t.limit_bpm))
 
 
 def _fall_behind(ws: Workspace, p: Profile) -> S.FallBehind:
-    fb = frames.fall_behind(p)
-    curves = fb.get("curves")
+    f = p.fall_behind
+    fb = frames.fall_behind(p)  # its curves as data frames
+    curves = fb["curves"]
     available = curves is not None and len(curves) >= 3 and "abs_err" in curves
     pts = []
     if available:
@@ -370,7 +366,7 @@ def _fall_behind(ws: Workspace, p: Profile) -> S.FallBehind:
             )
             for r in curves.to_dict("records")
         ]
-    cb = fb.get("curves_bpm")
+    cb = fb["curves_bpm"]
     by_speed = []
     if cb is not None and len(cb) >= 3:
         by_speed = [
@@ -385,9 +381,9 @@ def _fall_behind(ws: Workspace, p: Profile) -> S.FallBehind:
             for r in cb.to_dict("records")
         ]
     speed = charts.fall_behind_by_speed(cb)
-    curve = fb.get("curve")
-    lo, hi = fb.get("practice_notes") or (None, None)
-    comfort = integer(fb.get("comfort_notes"))
+    curve = fb["curve"]
+    lo, hi = (f.practice_notes if f else None) or (None, None)
+    comfort = integer(f.comfort_notes) if f else None
     comfortable_maps = practice_maps = None
     if available and comfort and lo:
         pool = ws.pool()
@@ -407,30 +403,28 @@ def _fall_behind(ws: Workspace, p: Profile) -> S.FallBehind:
                     min_relevance=0.0,
                     played=t.played,
                 )
-                data = explain(data, "stamina", t)["goals"][goal]
-                rows = []
-                for row in data["maps"]:
-                    bpm = num(row.get("stream_bpm")) or num(row.get("burst_bpm")) or 0
-                    row["why"] = f"longest stream {int(row['max_run'])} notes at ~{bpm:.0f} BPM (1/4)"
-                    rows.append(row)
-                listing = S.MapList(
-                    min_notes=low, max_notes=high, maps=map_rows(pd.DataFrame(rows)), excluded=data["excluded"]
-                )
+                picked = data.goals[goal]
+                maps = []
+                for m in picked.maps:
+                    bpm = num(m.map.get("stream_bpm")) or num(m.map.get("burst_bpm")) or 0
+                    why = f"longest stream {int(m.map['max_run'])} notes at ~{bpm:.0f} BPM (1/4)"
+                    maps.append(dataclasses.replace(m, why=why))
+                listing = S.MapList(min_notes=low, max_notes=high, maps=map_rows(maps), excluded=picked.excluded)
                 if goal == "Comfort":
                     comfortable_maps = listing
                 else:
                     practice_maps = listing
     return S.FallBehind(
         available=available,
-        start_note=integer(fb.get("start_note")),
-        start_seconds=num(fb.get("start_seconds")),
-        bpm=num(fb.get("bpm")),
-        base_ms=num(fb.get("base_ms")),
-        growth_ms=num(fb.get("growth_ms")),
+        start_note=integer(f.start_note) if f else None,
+        start_seconds=num(f.start_seconds) if f else None,
+        bpm=num(f.bpm) if f else None,
+        base_ms=num(f.base_ms) if f else None,
+        growth_ms=num(f.growth_ms) if f else None,
         last_note=int(curve["pos"].max()) if curve is not None and len(curve) else None,
         comfort_notes=comfort,
         practice_notes=[int(lo), int(hi)] if lo is not None and hi is not None else None,
-        streams=int(fb.get("streams") or 0),
+        streams=int(f.streams or 0) if f else 0,
         curves=pts,
         by_speed=by_speed,
         by_speed_groups=[S.FallBehindSpeedGroup(**g) for g in speed["groups"]],

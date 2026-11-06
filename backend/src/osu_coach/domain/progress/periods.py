@@ -19,7 +19,7 @@ from typing import Any
 
 from osu_coach.domain.player import PlaySummary, build_profile_from, comfort
 from osu_coach.domain.player.constants import SKILLS
-from osu_coach.domain.player.ratings import UNRATED
+from osu_coach.domain.player.records import UNRATED
 
 FEW_PLAYS = 5  # periods with fewer plays are shown, but marked as uncertain
 PERIODS = ("month", "week", "day")

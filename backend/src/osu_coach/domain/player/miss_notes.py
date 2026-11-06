@@ -12,6 +12,7 @@ import numpy as np
 
 from osu_coach.domain.analysis.notes import HitObjects
 from osu_coach.domain.numeric.arrays import ArrayRecord, Bools, Floats, Ints, Texts
+from osu_coach.domain.player.records import AimSplit, MissSplitPart
 
 CHAIN_WINDOW = 10  # notes after a miss that count as "after a miss"
 TYPICAL_CHAIN_RATIO = 2.0
@@ -185,21 +186,22 @@ def reading_metrics(m: MissNotes, model) -> dict:
     return out
 
 
-def aim_split(m: MissNotes, model) -> dict:
+def aim_split(m: MissNotes, model) -> AimSplit | None:
     """Aim misses on normal-speed patterns vs speed-aim misses on fast ones, each against the misses the model
-    expects there."""
+    expects there; None without notes."""
     if not len(m):
-        return {}
-    out = {}
-    for name, mask in (("aim", ~m.fast), ("speed_aim", m.fast)):
+        return None
+
+    def part(name: str, mask: np.ndarray) -> MissSplitPart:
         w = m.w[mask]
-        out[name] = {
-            "notes": float(w.sum()),
-            "misses": float(((m.cause[mask] == name) * w).sum()),
-            "all_misses": float((m.missed[mask] * w).sum()),
-            "expected": float(np.nansum(model(m.eq[mask]) * w)) if mask.any() else 0.0,
-        }
-    return {"split": out}
+        return MissSplitPart(
+            notes=float(w.sum()),
+            misses=float(((m.cause[mask] == name) * w).sum()),
+            all_misses=float((m.missed[mask] * w).sum()),
+            expected=float(np.nansum(model(m.eq[mask]) * w)) if mask.any() else 0.0,
+        )
+
+    return AimSplit(aim=part("aim", ~m.fast), speed_aim=part("speed_aim", m.fast))
 
 
 def skill_levels(m: MissNotes) -> dict:

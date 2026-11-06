@@ -1,9 +1,11 @@
 """Exact configuration search mechanics and deterministic ranking."""
 
+from types import SimpleNamespace
+
 import pytest
 
 from osu_coach.domain.maps.configuration import SearchOptions
-from osu_coach.domain.maps.skillset import _features, _finalize_modified_goals, recommend_modified
+from osu_coach.domain.maps.skillset import _features, _finalize_modified_goals, _Stage, recommend_modified
 from osu_coach.domain.player.algorithm import timing_evidence_eligible
 from osu_coach.domain.replays.configuration import Configuration, from_meta
 from osu_coach.features.maps.variant_repository import variant_rows
@@ -132,14 +134,14 @@ def test_transformed_star_entry_stable_tie_and_empty_set():
         {**_row("e" * 32, 4.0), "configuration_id": "a", "mods": "DT", "rate": 1.2},
     ]
     result = recommend_modified(base, variants, 4.0, {"aim": 50}, "aim", ("aim",), 0.5, 0.3, frozenset(), {})
-    comfort = result["goals"]["Comfort"]
-    assert comfort["eligible"] == 2
-    assert [r["configuration_id"] for r in comfort["maps"]] == ["a", "b"]
+    comfort = result.goals["Comfort"]
+    assert comfort.eligible == 2
+    assert [m.configuration_id for m in comfort.maps] == ["a", "b"]
     empty = recommend_modified(
         base, [{**variants[0], "stars": 8.0}], 4.0, {"aim": 50}, "aim", ("aim",), 0.5, 0.3, frozenset(), {}
     )
-    assert empty["goals"]["Comfort"]["maps"] == []
-    assert empty["goals"]["Comfort"]["excluded"]["Outside star window"] == 1
+    assert empty.goals["Comfort"].maps == ()
+    assert empty.goals["Comfort"].excluded["Outside star window"] == 1
 
 
 def test_modified_search_keeps_best_configuration_per_map_before_limit():
@@ -154,11 +156,11 @@ def test_modified_search_keeps_best_configuration_per_map_before_limit():
         {**_row("d" * 32, 4.15), "configuration_id": "third", "mods": "DT", "rate": 1.30},
     ]
     result = recommend_modified(base, variants, 4.0, {"aim": 50}, "aim", ("aim",), 0.5, 0.3, frozenset(), {}, limit=2)
-    comfort = result["goals"]["Comfort"]
-    assert result["candidate_count"] == len(variants)
-    assert comfort["eligible"] == 3
-    assert [row["md5"] for row in comfort["maps"]] == [repeated, "e" * 32]
-    assert comfort["maps"][0]["configuration_id"] == "dt@1.33"  # better score than 1.32, tie beats HD
+    comfort = result.goals["Comfort"]
+    assert result.candidate_count == len(variants)
+    assert comfort.eligible == 3
+    assert [m.md5 for m in comfort.maps] == [repeated, "e" * 32]
+    assert comfort.maps[0].configuration_id == "dt@1.33"  # better score than 1.32, tie beats HD
 
 
 @pytest.mark.parametrize(
@@ -177,18 +179,18 @@ def test_modified_search_keeps_best_configuration_per_map_before_limit():
 )
 def test_modified_stage_assignment_respects_rate_gaps(rates, expected):
     md5 = "f" * 32
-    goals = {goal: {"eligible": 0, "maps": [], "excluded": {}} for goal in ("Warm-up", "Comfort", "Push")}
+    goals = {goal: _Stage(None, None, 0.0) for goal in ("Warm-up", "Comfort", "Push")}
     best = {
-        goal: {md5: {"md5": md5, "rate": rates[goal], "formula_score": 0.0, "configuration_id": goal}}
+        goal: {md5: SimpleNamespace(rate=rates[goal], formula_score=0.0, configuration_id=goal)}
         if goal in rates
         else {}
         for goal in goals
     }
     _finalize_modified_goals(goals, best, 100)
-    assert {goal for goal, data in goals.items() if data["maps"]} == expected
-    assert all(data["eligible"] == len(data["maps"]) for data in goals.values())
+    assert {goal for goal, data in goals.items() if data.maps} == expected
+    assert all(data.eligible == len(data.maps) for data in goals.values())
     for goal in rates.keys() - expected:
-        assert goals[goal]["excluded"]["Shown in another stage"] == 1
+        assert goals[goal].excluded["Shown in another stage"] == 1
 
 
 def test_history_is_configuration_specific():
@@ -198,9 +200,9 @@ def test_history_is_configuration_specific():
     result = recommend_modified(
         base, variants, 4.0, {"aim": 50}, "aim", ("aim",), 0.5, 0.3, frozenset(), {"hd@1.20": 1.1}
     )
-    breakdown = result["goals"]["Comfort"]["maps"][0]["breakdown"]
-    assert breakdown["history"] == 1.1
-    assert breakdown["terms"]["history"] > 0
+    breakdown = result.goals["Comfort"].maps[0].breakdown
+    assert breakdown.history == 1.1
+    assert breakdown.terms.history > 0
 
 
 @pytest.mark.parametrize(
@@ -215,10 +217,10 @@ def test_missing_ratings_produce_explicit_empty_stages(abilities, assessed, reas
     base = [_row(f"{i:032x}", 4.0) for i in range(20)]
     variants = [{**_row("f" * 32, 4.0), "configuration_id": "one"}]
     result = recommend_modified(base, variants, 4.0, abilities, "aim", assessed, 0.5, 0.3, frozenset(), {})
-    for stage in result["goals"].values():
-        assert stage["eligible"] == 0
-        assert stage["maps"] == []
-        assert stage["excluded"] == {reason: 1}
+    for stage in result.goals.values():
+        assert stage.eligible == 0
+        assert stage.maps == ()
+        assert stage.excluded == {reason: 1}
 
 
 @pytest.mark.parametrize(

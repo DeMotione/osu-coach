@@ -36,10 +36,8 @@ from osu_coach.domain.player.profile import (
     Overview,
     Profile,
     Reading,
-    Regression,
     Sliders,
     Tapping,
-    WorstQuadrant,
 )
 from osu_coach.domain.player.ratings import combine_ratings, strengths_and_weaknesses
 from osu_coach.domain.player.records import PressLengths
@@ -124,7 +122,6 @@ def build_profile_from(
     model = fit_miss_model(M.eq, M.missed, M.w)
     reading = reading_metrics(M, model)
     consistency = consistency_metrics(M, [m.accuracy for m in replays])
-    aim.update(aim_split(M, model))
     levels = skill_levels(M) if replays else {"aim_level": math.nan, "speed_level": math.nan}
     levels["model_coef"] = getattr(model, "coef", None)
     levels.update(
@@ -154,14 +151,14 @@ def build_profile_from(
         slider_breaks=slider_breaks,
         tapping=Tapping(**tapping),
         stream_profile=sprof,
-        aim=Aim(**aim),
+        aim=Aim(**aim, split=aim_split(M, model)),
         quadrants=q,
-        worst_quadrant=WorstQuadrant(**wq) if wq else None,
+        worst_quadrant=wq,
         grid=grid_table(aim_parts),
         directions=direction_table(aim_parts),
         distances=distance_table(jump_parts),
         angles=angle_table(aim_parts),
-        regression=Regression(**reg) if reg else None,
+        regression=reg,
         sliders=Sliders(**slider_metrics),
         reading=Reading(**reading),
         consistency=Consistency(**consistency),

@@ -11,6 +11,7 @@ import numpy as np
 from osu_coach.domain.analysis.models import ReplayMeta
 from osu_coach.domain.numeric.values import finite_or_none
 from osu_coach.domain.player.messages import Message
+from osu_coach.domain.player.records import SkillRating
 
 # ------------------------------------------------------------------ consistency at a star rating
 STAR_MIN_MAPS = 8  # different maps needed before a star rating has a score; more = a more reliable score
@@ -84,16 +85,21 @@ def _plays_up_to(plays: Sequence[ReplayMeta] | None, stars: float) -> list[Score
     return out
 
 
-def star_consistency(plays: Sequence[ReplayMeta] | None, stars: float | None, *, comfort: bool = False) -> dict:
+def star_consistency(plays: Sequence[ReplayMeta] | None, stars: float | None, *, comfort: bool = False) -> SkillRating:
     """How steadily combo and accuracy hold from map to map at the star rating ``stars``: the maps from a star below
     it up to it (6.2★: 5.2–6.2★, with mods; harder maps never count), every play scored by :func:`map_score`, each
     map once (the average of its plays, so retrying one map can't carry the score) and weighted by how close it is
     to ``stars``. Consistency = the usual map score − half its swing between maps. Scored from ``STAR_MIN_MAPS``
     different maps; until then ``needs`` says what to play. ``comfort``: ``stars`` is the comfort level (wording)."""
-    out = {"score": None, "low": None, "high": None, "maps": 0, "plays": 0, "min_maps": STAR_MIN_MAPS, "needs": None}
     if stars is None or not math.isfinite(stars):
-        out["needs"] = Message("comfort_first", {"maps": STAR_MIN_MAPS})
-        return {**out, "reason": Message("not_enough_data")}
+        return SkillRating(
+            score=None,
+            maps=0,
+            plays=0,
+            min_maps=STAR_MIN_MAPS,
+            needs=Message("comfort_first", {"maps": STAR_MIN_MAPS}),
+            reason=Message("not_enough_data"),
+        )
     low, high = max(0.0, stars - STAR_SPAN), stars
     scored = _plays_up_to(plays, stars)
     by_map: dict[str, list[ScoredPlay]] = {}
@@ -104,9 +110,9 @@ def star_consistency(plays: Sequence[ReplayMeta] | None, stars: float | None, *,
     def mean(field: str) -> np.ndarray:
         return np.array([np.mean([getattr(s, field) for s in by_map[k]]) for k in maps], dtype=float)
 
-    out.update(low=low, high=high, maps=len(maps), plays=len(scored))
+    found = {"low": low, "high": high, "maps": len(maps), "plays": len(scored), "min_maps": STAR_MIN_MAPS}
     if len(maps) < STAR_MIN_MAPS:
-        out["needs"] = Message(
+        needs = Message(
             "consistency_maps",
             {
                 "more": STAR_MIN_MAPS - len(maps),
@@ -118,18 +124,18 @@ def star_consistency(plays: Sequence[ReplayMeta] | None, stars: float | None, *,
                 "so_far": len(maps),
             },
         )
-        return {**out, "reason": Message("not_enough_data")}
+        return SkillRating(score=None, needs=needs, reason=Message("not_enough_data"), **found)
     scores, weights, combo = mean("map_score"), mean("weight"), mean("combo")
     usual = float(np.average(scores, weights=weights))
     swing = float(np.sqrt(np.average((scores - usual) ** 2, weights=weights)))
-    return {
-        **out,
-        "score": round(100 * float(np.clip(usual - SWING_WEIGHT * swing, 0, 1)), 1),
-        "map_score": usual,
-        "swing": swing,
-        "weak_maps": int((combo < 0.2).sum()),
-        "mean_combo": float(np.average(combo, weights=weights)),
-        "full_combo_share": float(np.average(mean("full"), weights=weights)),
-        "mean_accuracy": float(np.average(mean("accuracy"), weights=weights)),
-        "reason": Message("consistency_held", {"maps": len(maps), "low": low, "high": high}),
-    }
+    return SkillRating(
+        score=round(100 * float(np.clip(usual - SWING_WEIGHT * swing, 0, 1)), 1),
+        map_score=usual,
+        swing=swing,
+        weak_maps=int((combo < 0.2).sum()),
+        mean_combo=float(np.average(combo, weights=weights)),
+        full_combo_share=float(np.average(mean("full"), weights=weights)),
+        mean_accuracy=float(np.average(mean("accuracy"), weights=weights)),
+        reason=Message("consistency_held", {"maps": len(maps), "low": low, "high": high}),
+        **found,
+    )

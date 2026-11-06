@@ -5,7 +5,7 @@ import pytest
 from osu_coach.common import frames
 from osu_coach.common.texts import SKILL_LABELS
 from osu_coach.domain.player import build_profile
-from osu_coach.domain.player.profile import WorstQuadrant
+from osu_coach.domain.player.records import WorstQuadrant
 from osu_coach.domain.player.setup import Setup
 from osu_coach.domain.player.summary import ChartNotes
 from osu_coach.features.tips.rules import make_tips, practice_plan

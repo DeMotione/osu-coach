@@ -81,9 +81,9 @@ def test_lower_level_accuracy_reports_when_no_od_qualified_maps():
     pool = load_pool()
     low_od_only = pool.nsmallest(1, "od")
     result = recommend(low_od_only.to_dict("records"), 4.5, {"accuracy": 13}, "accuracy", ("accuracy",))
-    for stage in result["goals"].values():
-        assert stage["maps"] == []
-        assert stage["excluded"]["No qualified timing map in the configured star window"] == 1
+    for stage in result.goals.values():
+        assert stage.maps == ()
+        assert stage.excluded["No qualified timing map in the configured star window"] == 1
 
 
 def test_a_playlist_opens_on_a_weakness_with_a_rating():

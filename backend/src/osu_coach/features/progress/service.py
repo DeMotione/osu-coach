@@ -11,7 +11,7 @@ import pandas as pd
 from osu_coach.common.convert import integer, iso, num, text
 from osu_coach.common.errors import ApiError, Invalid, NoProfile, NotFound
 from osu_coach.common.texts import SKILL_LABELS
-from osu_coach.domain.player.ratings import UNRATED
+from osu_coach.domain.player.records import UNRATED
 from osu_coach.domain.progress import goals
 from osu_coach.domain.progress.periods import SKILL_REFERENCE, period_metrics
 from osu_coach.domain.replays import scope
@@ -192,7 +192,7 @@ def _low_comfort(ws: Workspace) -> bool:
 def _paused_accuracy_goal(g: dict, low_comfort: bool) -> bool:
     return (
         low_comfort
-        and g.get("skill") == "accuracy"
+        and g["skill"] == "accuracy"
         and g.get("score_source") == "experimental"
         and g.get("score_version", 1) < 2
         and not g.get("done")
@@ -249,11 +249,11 @@ def _goal_out(g: dict, current, low_comfort: bool = False) -> GoalOut:
         created=dt.date.fromisoformat(g["created"]),
         deadline=dt.date.fromisoformat(g["deadline"]),
         done=dt.date.fromisoformat(g["done"]) if g.get("done") else None,
-        current=num(st["current"]),
-        progress=None if paused else float(st["progress"]),
-        left=num(st["left"]),
-        days_left=int(st["days_left"]),
-        state="paused" if paused else st["state"],
+        current=num(st.current),
+        progress=None if paused else st.progress,
+        left=num(st.left),
+        days_left=st.days_left,
+        state="paused" if paused else st.state,
         score_source="experimental" if g.get("score_source") == "experimental" else "legacy",
     )
 
@@ -386,7 +386,7 @@ def add_plan(ws: Workspace) -> GoalsOut:
 
 def remove_goal(ws: Workspace, goal_id: str) -> GoalsOut:
     gl = ws.settings().goals or []
-    if not any(g.get("id") == goal_id for g in gl):
+    if not any(g["id"] == goal_id for g in gl):
         raise NotFound(f"No goal {goal_id}.", "goal_not_found")
-    _save_goals(ws, [g for g in gl if g.get("id") != goal_id])
+    _save_goals(ws, [g for g in gl if g["id"] != goal_id])
     return goals_out(ws)

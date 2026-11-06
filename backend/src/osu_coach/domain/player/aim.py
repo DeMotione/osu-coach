@@ -13,7 +13,7 @@ import numpy as np
 from osu_coach.domain.analysis.notes import HitObjects
 from osu_coach.domain.numeric.stats import weighted_quantile
 from osu_coach.domain.player.moments import Moments, weighted_mean
-from osu_coach.domain.player.records import AimStats
+from osu_coach.domain.player.records import AimStats, Regression, WorstQuadrant
 
 # ------------------------------------------------------------------ jump aim
 AIM_TOP = 30  # per play: the 30 fastest jumps (cursor speed needed) set its intensity
@@ -196,7 +196,7 @@ def jump_metrics(parts: list[tuple[JumpSummary, float]], notes: float, misses: f
     }
 
 
-def regression(parts: list[tuple[JumpSummary, float]]) -> dict | None:
+def regression(parts: list[tuple[JumpSummary, float]]) -> Regression | None:
     """How the aim on jumps 1.5+ circle widths apart is off: scale, rotation and offset of actual vs asked movement
     (weighted least squares, from per-play moments); None with fewer than 40 jumps."""
     n = sum(w * j.fit_n for j, w in parts)
@@ -220,17 +220,17 @@ def regression(parts: list[tuple[JumpSummary, float]]) -> dict | None:
     for j, _ in parts:
         radii.update(j.radii)
     values = sorted(radii.elements())
-    return {
-        "n": int(round(n)),
-        "scale_x": float(S[0, 0]),
-        "scale_y": float(S[1, 1]),
-        "rotation_deg": math.degrees(math.atan2(R[1, 0], R[0, 0])),
-        "offset_x": float(cx[2]),
-        "offset_y": float(cy[2]),
-        "offset_se": math.sqrt(var / n),
-        "residual_px": math.sqrt(var),
-        "radius": float(np.median(values)) if values else 36.5,
-    }
+    return Regression(
+        n=int(round(n)),
+        scale_x=float(S[0, 0]),
+        scale_y=float(S[1, 1]),
+        rotation_deg=math.degrees(math.atan2(R[1, 0], R[0, 0])),
+        offset_x=float(cx[2]),
+        offset_y=float(cy[2]),
+        offset_se=math.sqrt(var / n),
+        residual_px=math.sqrt(var),
+        radius=float(np.median(values)) if values else 36.5,
+    )
 
 
 # ------------------------------------------------------------------ the tables, added up from per-play summaries
@@ -284,7 +284,7 @@ def distance_table(parts: list[tuple[JumpSummary, float]]) -> tuple[AimStats, ..
     return tuple(rows)
 
 
-def worst_quadrant(quadrants: tuple[AimStats, ...]) -> dict | None:
+def worst_quadrant(quadrants: tuple[AimStats, ...]) -> WorstQuadrant | None:
     """The quadrant missed most, against the others: its miss rate, the relative risk and whether the difference
     is significant (z > 2, 80+ notes, 8+ misses, 1.25× the rest)."""
     q = [r for r in quadrants if r.objects > 0]
@@ -301,17 +301,17 @@ def worst_quadrant(quadrants: tuple[AimStats, ...]) -> dict | None:
     se = math.sqrt(max(pooled * (1 - pooled) * (1 / n1 + 1 / max(n2, 1)), 1e-12))
     z = (p1 - p2) / se
     rr = p1 / p2 if p2 > 0 else math.inf
-    return {
-        "quadrant": row.name,
-        "miss_rate": float(p1),
-        "rest_miss_rate": float(p2),
-        "relative_risk": float(rr),
-        "z": float(z),
-        "objects": int(round(n1)),
-        "misses": int(round(m1)),
-        "mean_dx": float(row.mean_dx),
-        "mean_dy": float(row.mean_dy),
-        "along": float(row.along),
-        "aim_miss_rate": float(row.aim_miss_rate),
-        "significant": bool(z > 2.0 and n1 >= 80 and m1 >= 8 and rr >= 1.25),
-    }
+    return WorstQuadrant(
+        quadrant=str(row.name),
+        miss_rate=float(p1),
+        rest_miss_rate=float(p2),
+        relative_risk=float(rr),
+        z=float(z),
+        objects=int(round(n1)),
+        misses=int(round(m1)),
+        mean_dx=float(row.mean_dx),
+        mean_dy=float(row.mean_dy),
+        along=float(row.along),
+        aim_miss_rate=float(row.aim_miss_rate),
+        significant=bool(z > 2.0 and n1 >= 80 and m1 >= 8 and rr >= 1.25),
+    )

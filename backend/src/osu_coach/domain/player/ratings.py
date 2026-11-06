@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -19,6 +19,7 @@ from osu_coach.domain.player.consistency import star_consistency
 from osu_coach.domain.player.demand import log_demand
 from osu_coach.domain.player.levels import replay_weight
 from osu_coach.domain.player.messages import Message
+from osu_coach.domain.player.records import SkillRating, StaminaPart
 from osu_coach.domain.player.skill_scale import SPEED_POINTS, expected_speed_bpm
 from osu_coach.domain.player.skill_values import (
     PlayContext,
@@ -55,37 +56,6 @@ ACCURACY_TRANSITION_STARS = 5.5
 # more as their sliders get faster (demand.log_demand), about 15% per ★ around 6★ — the old 40 × 2^((★−6)/3) asked for
 # twice as much at 6★, so most players who don't break sliders were never "tested" (#54).
 SLIDERS_AT_6 = 19.0
-
-
-@dataclass(frozen=True, slots=True)
-class SkillRating:
-    """A skill's rating against the comfort level (50 = what is typical there; None: not enough data) and how it was
-    measured. Only some skills fill the optional numbers: stamina its ``parts``, accuracy the OD windows,
-    consistency its range of maps."""
-
-    score: float | None
-    maps: int
-    reason: Message  # how the score was found, or why there is none
-    needs: Message | None = None  # what to play to get a score
-    at_least: float | None = None  # untested: the skill is at least this good
-    measured: float | None = None
-    expected: float | None = None
-    tested_demand: float | None = None
-    success_share: float | None = None
-    parts: list | None = None  # stamina: one row per stretch duration
-    hit_single_notes: int | None = None  # accuracy
-    expected_top: float | None = None
-    od_windows: list | None = None
-    low: float | None = None  # consistency: the star range of the maps
-    high: float | None = None
-    plays: int | None = None
-    min_maps: int | None = None
-    map_score: float | None = None
-    swing: float | None = None
-    weak_maps: int | None = None
-    mean_combo: float | None = None
-    full_combo_share: float | None = None
-    mean_accuracy: float | None = None
 
 
 def _expected(skill: str, theta: float, *, duration: int | None = None) -> float:
@@ -144,18 +114,18 @@ def _needs(skill: str, maps: int, untested: bool, tested: float, expected: float
     return Message("more_maps", {"skill": skill, "more": max(1, MIN_MAPS - maps)})
 
 
-def _aggregate(rows: list[dict]) -> tuple[float | None, list[dict]]:
-    best: dict[str, dict] = {}
+def _aggregate(rows: Sequence[RatedPlay]) -> tuple[float | None, list[RatedPlay]]:
+    """The best play of every map/mod setup, best first, and their average weighted by rank (``RANK_DECAY``)."""
+    best: dict[str, RatedPlay] = {}
     for row in rows:
-        value = row.get("value")
-        if value is None or not math.isfinite(value):
+        if row.value is None or not math.isfinite(row.value):
             continue
-        key = str(row["map"])
-        if key not in best or value > best[key]["value"]:
+        key = str(row.map)
+        if key not in best or row.value > best[key].value:
             best[key] = row
-    chosen = sorted(best.values(), key=lambda row: row["value"], reverse=True)
+    chosen = sorted(best.values(), key=lambda row: row.value, reverse=True)
     weights = np.power(RANK_DECAY, np.arange(len(chosen)))
-    return (float(np.average([r["value"] for r in chosen], weights=weights)) if chosen else None, chosen)
+    return (float(np.average([r.value for r in chosen], weights=weights)) if chosen else None, chosen)
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,54 +209,47 @@ def combine_ratings(
     inputs: Sequence[RatingInputs], replays: Sequence[ReplayMeta], theta: float | None
 ) -> dict[str, SkillRating]:
     """The ratings from every play's :class:`RatingInputs`, against the comfort level ``theta``."""
-    result = {skill: {"score": None, "maps": 0, "reason": Message("comfort_unknown")} for skill in POINTS}
+    result = {skill: SkillRating(score=None, maps=0, reason=Message("comfort_unknown")) for skill in POINTS}
     result["consistency"] = star_consistency(replays, theta, comfort=True)
     if theta is None or not math.isfinite(theta) or not inputs:
-        return _typed(result)
+        return result
     stars = np.array([m.stars if m.stars is not None else math.nan for m in replays], dtype=float)
     weight_of = dict(zip([m.key for m in replays], replay_weight(stars, theta), strict=True))
     for skill in ("aim", "flow_aim", "speed", "sliders", "reading"):
-        rows = [asdict(getattr(i, skill)) for i in inputs if getattr(i, skill) is not None]
-        value, chosen = _aggregate(rows)
+        value, chosen = _aggregate([r for i in inputs if (r := getattr(i, skill)) is not None])
         expected = _expected(skill, theta)
-        exposure = max((row["exposure"] for row in chosen if math.isfinite(row["exposure"])), default=0.0)
-        share = float(np.mean([row["success_share"] for row in chosen])) if chosen else None
+        exposure = max((row.exposure for row in chosen if math.isfinite(row.exposure)), default=0.0)
+        share = float(np.mean([row.success_share for row in chosen])) if chosen else None
         untested = bool(chosen and skill != "reading" and exposure < expected and share >= 0.95)
         score = _score(skill, value, expected) if len(chosen) >= MIN_MAPS and not untested else None
-        result[skill] = {
-            "score": score,
-            "maps": len(chosen),
-            "measured": value,
-            "expected": expected,
-            "tested_demand": exposure,
-            "success_share": share,
+        result[skill] = SkillRating(
+            score=score,
+            maps=len(chosen),
+            measured=value,
+            expected=expected,
+            tested_demand=exposure,
+            success_share=share,
             # held ~everything played, all of it easier than expected: the skill is at least as good as that
-            "at_least": _score(skill, exposure, expected) if untested else None,
-            "needs": None if score is not None else _needs(skill, len(chosen), untested, exposure, expected),
-            "reason": Message("insufficient_challenge")
+            at_least=_score(skill, exposure, expected) if untested else None,
+            needs=None if score is not None else _needs(skill, len(chosen), untested, exposure, expected),
+            reason=Message("insufficient_challenge")
             if untested
             else Message("need_maps", {"maps": MIN_MAPS})
             if len(chosen) < MIN_MAPS
             else Message("best_per_setup"),
-        }
+        )
     result["stamina"] = _stamina(inputs, theta)
     result["accuracy"] = _accuracy(inputs, weight_of, theta)
-    return _typed(result)
+    return result
 
 
-UNRATED = SkillRating(score=None, maps=0, reason=Message("not_enough_data"))  # a skill without a rating
-
-
-def _typed(rows: dict[str, dict]) -> dict[str, SkillRating]:
-    return {skill: SkillRating(**row) for skill, row in rows.items()}
-
-
-def _stamina(inputs: Sequence[RatingInputs], theta: float) -> dict:
-    parts = []
-    duration_parts = []
+def _stamina(inputs: Sequence[RatingInputs], theta: float) -> SkillRating:
+    scores = []
+    parts: list[StaminaPart] = []
     for duration in STAMINA_SHARES:
+        # the fastest tempo kept this long, against the tempo of the notes as if every one was pressed
         rows = [
-            {"map": i.map, "value": i.tempo[duration], "exposure": i.tempo_demand.get(duration, 0.0)}
+            RatedPlay(i.map, i.tempo[duration], i.tempo_demand.get(duration, 0.0), math.nan)
             for i in inputs
             if duration in i.tempo
         ]
@@ -295,56 +258,55 @@ def _stamina(inputs: Sequence[RatingInputs], theta: float) -> dict:
             continue
         expected = _expected("stamina", theta, duration=duration)
         exposure = max((i.tempo_demand[duration] for i in inputs if duration in i.tempo_demand), default=0.0)
-        share = float(np.mean([r["value"] / max(r["exposure"], 1e-6) for r in chosen]))
+        share = float(np.mean([r.value / max(r.exposure, 1e-6) for r in chosen]))
         untested = exposure < expected and share >= 0.95
         usable = len(chosen) >= MIN_MAPS and not untested
-        duration_parts.append(
-            {
-                "duration": duration,
-                "measured": value,
-                "maps": len(chosen),
-                "tested_demand": exposure,
-                "success_share": share,
-                "expected": expected,
-                "untested": untested,
-            }
+        parts.append(
+            StaminaPart(
+                duration=duration,
+                measured=value,
+                maps=len(chosen),
+                tested_demand=exposure,
+                success_share=share,
+                expected=expected,
+                untested=untested,
+            )
         )
         if usable:
-            parts.append(_score("stamina", value, expected))
+            scores.append(_score("stamina", value, expected))
     # no duration scored, but some only because nothing was demanding enough: a lower bound, and what to play
-    open_parts = [d for d in duration_parts if d["untested"]]
+    open_parts = [d for d in parts if d.untested]
     at_least = (
-        round(float(np.mean([_score("stamina", d["tested_demand"], d["expected"]) for d in open_parts])), 1)
-        if open_parts and not parts
+        round(float(np.mean([_score("stamina", d.tested_demand, d.expected) for d in open_parts])), 1)
+        if open_parts and not scores
         else None
     )
     stamina_needs = None
-    if not parts:
+    if not scores:
         first = open_parts[0] if open_parts else None
         stamina_needs = (
             Message(
-                "stamina_harder",
-                {"seconds": first["duration"], "tested": first["tested_demand"], "expected": first["expected"]},
+                "stamina_harder", {"seconds": first.duration, "tested": first.tested_demand, "expected": first.expected}
             )
             if first
             else Message("stamina_maps", {"maps": MIN_MAPS})
         )
-    return {
-        "score": round(float(np.mean(parts)), 1) if parts else None,
-        "maps": len({i.map for i in inputs if i.tempo}),
-        "parts": duration_parts,
-        "at_least": at_least,
-        "needs": stamina_needs,
-        "reason": Message("stamina_mean"),
-    }
+    return SkillRating(
+        score=round(float(np.mean(scores)), 1) if scores else None,
+        maps=len({i.map for i in inputs if i.tempo}),
+        parts=tuple(parts),
+        at_least=at_least,
+        needs=stamina_needs,
+        reason=Message("stamina_mean"),
+    )
 
 
-def _accuracy(inputs: Sequence[RatingInputs], weight_of: Mapping[str, float], theta: float) -> dict:
+def _accuracy(inputs: Sequence[RatingInputs], weight_of: Mapping[str, float], theta: float) -> SkillRating:
     gate = Message("accuracy_gate", {"heads": 60, "dt_accuracy": DT_ACCURACY_MIN})
     timed = [i for i in inputs if i.singles]
     n = sum(i.singles for i in timed)
     if not n:
-        return {"score": None, "maps": 0, "reason": gate}
+        return SkillRating(score=None, maps=0, reason=gate)
     total = sum(weight_of.get(i.key, 1.0) * i.singles for i in timed)
     error = sum(weight_of.get(i.key, 1.0) * i.singles_not_300 for i in timed) / total if total > 0 else math.nan
     window_weights: dict[float, float] = {}
@@ -353,16 +315,16 @@ def _accuracy(inputs: Sequence[RatingInputs], weight_of: Mapping[str, float], th
         window_weights[window] = window_weights.get(window, 0.0) + weight_of.get(i.key, 1.0) * i.singles
     windows = sorted(window_weights.items())
     expected = _accuracy_expected(windows, theta) if windows else math.nan
-    return {
-        "score": _accuracy_score(error, expected, theta) if n >= 60 else None,
-        "maps": len({i.map for i in timed}),
-        "hit_single_notes": n,
-        "measured": error,
-        "expected": expected,
-        "expected_top": _accuracy_expected(windows, 10.0) if windows else math.nan,
-        "od_windows": windows,
-        "reason": Message("accuracy_measured") if n >= 60 else gate,
-    }
+    return SkillRating(
+        score=_accuracy_score(error, expected, theta) if n >= 60 else None,
+        maps=len({i.map for i in timed}),
+        hit_single_notes=n,
+        measured=error,
+        expected=expected,
+        expected_top=_accuracy_expected(windows, 10.0) if windows else math.nan,
+        od_windows=windows,
+        reason=Message("accuracy_measured") if n >= 60 else gate,
+    )
 
 
 STRONG, WEAK = 55.0, 45.0  # a rating this high is a strength, this low a weakness
@@ -388,12 +350,10 @@ def at_level(rows: Mapping[str, SkillRating], theta: float) -> dict[str, float |
     for skill, row in rows.items():
         if skill == "stamina":
             scores = []
-            for part in row.parts or []:
-                expected = _expected(skill, theta, duration=part["duration"])
-                if part["maps"] >= MIN_MAPS and not (
-                    part["tested_demand"] < expected and part["success_share"] >= 0.95
-                ):
-                    scores.append(_score(skill, part["measured"], expected))
+            for part in row.parts or ():
+                expected = _expected(skill, theta, duration=part.duration)
+                if part.maps >= MIN_MAPS and not (part.tested_demand < expected and part.success_share >= 0.95):
+                    scores.append(_score(skill, part.measured, expected))
             out[skill] = round(float(np.mean(scores)), 1) if scores else None
         elif skill == "accuracy":
             windows = row.od_windows

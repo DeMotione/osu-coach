@@ -6,8 +6,15 @@ import datetime as dt
 from dataclasses import dataclass, field
 
 from osu_coach.domain.analysis.models import ReplayMeta
-from osu_coach.domain.player.ratings import SkillRating
-from osu_coach.domain.player.records import AimStats, PressLengths, SpeedRow
+from osu_coach.domain.player.records import (
+    AimSplit,
+    AimStats,
+    PressLengths,
+    Regression,
+    SkillRating,
+    SpeedRow,
+    WorstQuadrant,
+)
 from osu_coach.domain.player.summary import ChartNotes
 
 
@@ -102,40 +109,7 @@ class Aim:
     after_slider_miss_rate: float
     spaced_stream_objects: int
     spaced_stream_miss_rate: float
-    split: dict | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class WorstQuadrant:
-    """The playfield quadrant with the most misses, against the rest."""
-
-    quadrant: str
-    miss_rate: float
-    rest_miss_rate: float
-    relative_risk: float
-    z: float
-    objects: int
-    misses: int
-    mean_dx: float
-    mean_dy: float
-    along: float
-    aim_miss_rate: float
-    significant: bool
-
-
-@dataclass(frozen=True, slots=True)
-class Regression:
-    """Where the cursor lands against the notes, as an affine map (the "tablet area" fit)."""
-
-    n: int
-    scale_x: float
-    scale_y: float
-    rotation_deg: float
-    offset_x: float
-    offset_y: float
-    offset_se: float
-    residual_px: float
-    radius: float
+    split: AimSplit | None = None
 
 
 @dataclass(frozen=True, slots=True)

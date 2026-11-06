@@ -39,15 +39,15 @@ def test_worst_quadrant_is_found_and_significant():
     q = quadrant_stats(synthetic_objects())
     assert {r.name for r in q} == {"top-left", "top-right", "bottom-left", "bottom-right"}
     w = worst_quadrant(q)
-    assert w["quadrant"] == "bottom-right"
-    assert w["relative_risk"] > 2
-    assert w["significant"]
+    assert w.quadrant == "bottom-right"
+    assert w.relative_risk > 2
+    assert w.significant
 
 
 def test_no_worst_quadrant_when_uniform():
     q = quadrant_stats(synthetic_objects(weak_miss=0.04, seed=3))
     w = worst_quadrant(q)
-    assert w is None or not w["significant"]
+    assert w is None or not w.significant
 
 
 def _movements(scale=(1.0, 1.0), rot_deg=0.0, offset=(0.0, 0.0), n=600, seed=2):
@@ -81,20 +81,20 @@ def _movements(scale=(1.0, 1.0), rot_deg=0.0, offset=(0.0, 0.0), n=600, seed=2):
 
 def test_regression_recovers_overshoot_scale():
     r = aim_regression(_movements(scale=(1.10, 1.10)))
-    assert r["scale_x"] == pytest.approx(1.10, abs=0.02)
-    assert r["scale_y"] == pytest.approx(1.10, abs=0.02)
-    assert abs(r["rotation_deg"]) < 1
+    assert r.scale_x == pytest.approx(1.10, abs=0.02)
+    assert r.scale_y == pytest.approx(1.10, abs=0.02)
+    assert abs(r.rotation_deg) < 1
 
 
 def test_regression_recovers_clockwise_rotation():
     r = aim_regression(_movements(rot_deg=6))
-    assert r["rotation_deg"] == pytest.approx(6, abs=1)
+    assert r.rotation_deg == pytest.approx(6, abs=1)
 
 
 def test_regression_recovers_constant_offset():
     r = aim_regression(_movements(offset=(-6, 4)))
-    assert r["offset_x"] == pytest.approx(-6, abs=1)
-    assert r["offset_y"] == pytest.approx(4, abs=1)
+    assert r.offset_x == pytest.approx(-6, abs=1)
+    assert r.offset_y == pytest.approx(4, abs=1)
 
 
 def test_stream_profile_bins_by_bpm():

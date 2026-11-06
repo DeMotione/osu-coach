@@ -4,7 +4,9 @@ suggested."""
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
+from osu_coach.domain.maps.skillset import GoalMaps, Recommendation
 from osu_coach.domain.maps.suggestions import Targets, finite_or
 from osu_coach.domain.player.messages import Message
 
@@ -216,9 +218,11 @@ def why(r, skill: str, t: Targets) -> str:
     return f"{g('stars'):.2f}★, popular"
 
 
-def explain(ranked: dict, skill: str, targets: Targets | None) -> dict:
+def explain(ranked: Recommendation, skill: str, targets: Targets | None) -> Recommendation:
     """The recommenders' result with each map's ``why`` filled in (empty without targets)."""
-    for goal in ranked["goals"].values():
-        for m in goal["maps"]:
-            m["why"] = why(m, skill, targets) if targets is not None else ""
-    return ranked
+
+    def explained(goal: GoalMaps) -> GoalMaps:
+        maps = tuple(replace(m, why=why(m.map, skill, targets) if targets is not None else "") for m in goal.maps)
+        return replace(goal, maps=maps)
+
+    return replace(ranked, goals={name: explained(goal) for name, goal in ranked.goals.items()})

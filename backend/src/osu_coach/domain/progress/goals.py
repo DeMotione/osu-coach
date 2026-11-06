@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import math
+from dataclasses import dataclass
 
 
 def new_goal(
@@ -45,35 +46,42 @@ def _num(v) -> float | None:
     return None if math.isnan(v) else v
 
 
-def status(goal: dict, current: float | None, today: dt.date) -> dict:
-    """Where a goal stands: ``progress`` (0–1 of the way from the start score to the target), ``left`` (points
-    still missing), ``days_left`` (negative = overdue), ``state``: "done", "on track", "behind", "overdue" or
-    "no data". On track = at least as far as the share of the time that has passed."""
+@dataclass(frozen=True, slots=True)
+class GoalStatus:
+    """Where a goal stands (:func:`status`)."""
+
+    current: float | None
+    progress: float  # 0–1 of the way from the start score to the target
+    left: float | None  # points still missing
+    days_left: int  # negative: overdue
+    state: str  # "done", "on track", "behind", "overdue" or "no data"
+
+
+def status(goal: dict, current: float | None, today: dt.date) -> GoalStatus:
+    """Where a goal stands (:class:`GoalStatus`). On track = at least as far as the share of the time that has
+    passed."""
     cur = _num(current)
     start = _num(goal.get("start"))
     target = float(goal["target"])
     created = dt.date.fromisoformat(goal["created"])
     deadline = dt.date.fromisoformat(goal["deadline"])
     days_left = (deadline - today).days
-    out = {"current": cur, "progress": 0.0, "left": None, "days_left": days_left, "state": "no data"}
     if goal.get("done"):
-        out.update(progress=1.0, left=0.0, state="done")
-        return out
+        return GoalStatus(current=cur, progress=1.0, left=0.0, days_left=days_left, state="done")
     if cur is None:
-        return out
+        return GoalStatus(current=None, progress=0.0, left=None, days_left=days_left, state="no data")
     base = start if start is not None else cur
     span = target - base
-    out["left"] = max(0.0, target - cur)
-    out["progress"] = 1.0 if cur >= target else (max(0.0, min(1.0, (cur - base) / span)) if span > 0 else 0.0)
+    progress = 1.0 if cur >= target else (max(0.0, min(1.0, (cur - base) / span)) if span > 0 else 0.0)
     if cur >= target:
-        out["state"] = "done"
+        state = "done"
     elif days_left < 0:
-        out["state"] = "overdue"
+        state = "overdue"
     else:
         total = max((deadline - created).days, 1)
         elapsed = min(max((today - created).days, 0), total) / total
-        out["state"] = "on track" if out["progress"] >= elapsed - 0.1 else "behind"
-    return out
+        state = "on track" if progress >= elapsed - 0.1 else "behind"
+    return GoalStatus(current=cur, progress=progress, left=max(0.0, target - cur), days_left=days_left, state=state)
 
 
 def update(goals: list[dict], scores: dict, today: dt.date) -> tuple[list[dict], bool]:

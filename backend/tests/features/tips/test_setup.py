@@ -10,7 +10,7 @@ import pytest
 
 from osu_coach.domain.analysis.models import along_cross
 from osu_coach.domain.player import build_profile
-from osu_coach.domain.player.profile import Regression, Sliders
+from osu_coach.domain.player.profile import Sliders
 from osu_coach.domain.player.setup import Setup
 from osu_coach.domain.player.summary import ChartNotes
 from osu_coach.features.tips.rules import make_tips, mm_per_osu_px, setup_advice
@@ -80,7 +80,7 @@ def jumps(n=2000, scale=(1.0, 1.0), rotation=0.0, offset=(0.0, 0.0), noise=20.0,
 def playing(base, O, **regression):
     """The base profile playing these jumps, with the aim calibration fitted on them (``regression`` overrides it)."""
     return dataclasses.replace(
-        base, notes=ChartNotes.from_columns(O), regression=Regression(**{**aim_regression(O), **regression})
+        base, notes=ChartNotes.from_columns(O), regression=dataclasses.replace(aim_regression(O), **regression)
     )
 
 

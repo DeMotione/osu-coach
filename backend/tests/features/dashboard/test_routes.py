@@ -9,7 +9,7 @@ import pytest
 from osu_coach.common.texts import SKILL_LABELS
 from osu_coach.domain.player import build_profile, summarize
 from osu_coach.domain.player.messages import Message
-from osu_coach.domain.player.ratings import SkillRating
+from osu_coach.domain.player.records import SkillRating
 from osu_coach.infra.library import analyze_files
 from osu_coach.infra.settings import load_settings, save_settings
 from tests.conftest import INDEX, analyse, plays_folder, sample_paths, scan, with_meta, workspace

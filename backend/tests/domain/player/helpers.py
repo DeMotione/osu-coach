@@ -187,7 +187,7 @@ def quadrant_stats(O: pd.DataFrame):
     return quadrant_table(weighted(O, aim_summary))
 
 
-def aim_regression(O: pd.DataFrame) -> dict | None:
+def aim_regression(O: pd.DataFrame):
     from osu_coach.domain.player.aim import jump_summary, regression
     from osu_coach.domain.player.summary import miss_causes
 

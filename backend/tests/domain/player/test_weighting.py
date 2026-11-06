@@ -401,8 +401,8 @@ def test_stamina_rating_against_the_typical_tempo_for_the_level():
 
     # at 6★ the typical stream speed is 210 BPM: × 0.55 for 10 s (115.5), × 0.47 for 30 s, × 0.41 for 1 min
     base, fast = rate(maps(118))["stamina"], rate(maps(133))["stamina"]
-    assert [p["duration"] for p in base.parts] == [10, 30, 60]  # the plays are shorter than 2 minutes
-    assert [p["expected"] for p in base.parts] == pytest.approx([115.5, 98.7, 86.1])
+    assert [p.duration for p in base.parts] == [10, 30, 60]  # the plays are shorter than 2 minutes
+    assert [p.expected for p in base.parts] == pytest.approx([115.5, 98.7, 86.1])
     assert fast.score - base.score == pytest.approx(75 * math.log2(133 / 118), abs=0.5)  # 13% faster = +13
     # one map played three times counts once: not enough map/mod setups for a rating
     again = [dict(row, map_md5="same") for row in maps(133)]
@@ -414,8 +414,8 @@ def test_low_tempo_marathons_never_beat_controlled_death_streams():
     marathon = sum((_map(f"mar{k}", [(16200, 166.7, None)]) for k in range(3)), [])
     death = sum((_map(f"d{k}", [_stream_for(25, 280), (12, 333.0, None)] * 7) for k in range(3)), [])
     m, d = rate(marathon, theta=8.0)["stamina"], rate(death, theta=8.0)["stamina"]
-    five_minutes = next(p for p in m.parts if p["duration"] == 300)
-    assert five_minutes["measured"] == pytest.approx(90, rel=0.02)  # 1/2 notes at 180 BPM = 90 as stream BPM
+    five_minutes = next(p for p in m.parts if p.duration == 300)
+    assert five_minutes.measured == pytest.approx(90, rel=0.02)  # 1/2 notes at 180 BPM = 90 as stream BPM
     assert d.score > m.score + 30
 
 

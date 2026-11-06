@@ -1,5 +1,5 @@
 from osu_coach.domain.player.messages import Message
-from osu_coach.domain.player.ratings import SkillRating
+from osu_coach.domain.player.records import SkillRating
 from osu_coach.features.dashboard.service import skill_facts
 
 

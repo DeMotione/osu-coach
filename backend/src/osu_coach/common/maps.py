@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-import pandas as pd
+from collections.abc import Iterable
+from dataclasses import asdict
+
 from pydantic import BaseModel, Field
 
 from osu_coach.common.convert import integer, num, text
+from osu_coach.domain.maps.skillset import RankedMap
 
 
 class MapRow(BaseModel):
@@ -34,34 +37,36 @@ class MapRow(BaseModel):
     breakdown: dict | None = Field(None, description="The terms of the ranking formula and its inputs.")
 
 
-def map_rows(df: pd.DataFrame | None) -> list[MapRow]:
-    if df is None or df.empty:
-        return []
-    return [
-        MapRow(
-            md5=str(r["md5"]),
-            beatmap_id=integer(r.get("beatmap_id")) or 0,
-            beatmapset_id=integer(r.get("beatmapset_id")) or 0,
-            artist=text(r.get("artist")) or "",
-            title=text(r.get("title")) or "",
-            version=text(r.get("version")) or "",
-            creator=text(r.get("creator")),
-            stars=num(r.get("stars")),
-            configuration_id=text(r.get("configuration_id")),
-            mods=text(r.get("mods")) or "NM",
-            rate=num(r.get("rate")) or 1.0,
-            bpm=num(r.get("bpm")),
-            ar=num(r.get("ar")),
-            od=num(r.get("od")),
-            length_s=num(r.get("drain_length")),
-            why=text(r.get("why")) or "",
-            url=text(r.get("url")) or "",
-            stage=text(r.get("stage")),
-            goal=text(r.get("goal")),
-            skill_demand=num(r.get("skill_demand")),
-            relevance=num(r.get("relevance")),
-            formula_score=num(r.get("formula_score")),
-            breakdown=r.get("breakdown") if isinstance(r.get("breakdown"), dict) else None,
+def map_rows(maps: Iterable[RankedMap], stage: str | None = None, goal: str | None = None) -> list[MapRow]:
+    """The recommended maps as listed, with their ``stage`` and ``goal``."""
+    rows = []
+    for m in maps:
+        r = m.map
+        rows.append(
+            MapRow(
+                md5=m.md5,
+                beatmap_id=integer(r.get("beatmap_id")) or 0,
+                beatmapset_id=integer(r.get("beatmapset_id")) or 0,
+                artist=text(r.get("artist")) or "",
+                title=text(r.get("title")) or "",
+                version=text(r.get("version")) or "",
+                creator=text(r.get("creator")),
+                stars=num(r.get("stars")),
+                configuration_id=m.configuration_id,
+                mods=m.mods or "NM",
+                rate=num(m.rate) or 1.0,
+                bpm=num(r.get("bpm")),
+                ar=num(r.get("ar")),
+                od=num(r.get("od")),
+                length_s=num(r.get("drain_length")),
+                why=m.why,
+                url=m.url,
+                stage=stage,
+                goal=goal,
+                skill_demand=num(m.skill_demand),
+                relevance=num(m.relevance),
+                formula_score=num(m.formula_score),
+                breakdown=asdict(m.breakdown),
+            )
         )
-        for r in df.to_dict("records")
-    ]
+    return rows

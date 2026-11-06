@@ -8,7 +8,7 @@ import pytest
 from osu_coach.domain.analysis.models import ReplayMeta
 from osu_coach.domain.maps.suggestions import QUADRANTS, SKILLS, Targets, collection_name, targets_from_profile
 from osu_coach.domain.player import build_profile_from
-from osu_coach.domain.player.profile import WorstQuadrant
+from osu_coach.domain.player.records import WorstQuadrant
 from osu_coach.features.maps.playlists import build_playlist, suggest
 from osu_coach.infra.map_pool import POOL_PATH, load_pool
 

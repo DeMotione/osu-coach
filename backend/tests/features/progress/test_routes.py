@@ -6,7 +6,7 @@ import datetime as dt
 import pytest
 
 from osu_coach.domain.player.messages import Message
-from osu_coach.domain.player.ratings import SkillRating
+from osu_coach.domain.player.records import SkillRating
 from osu_coach.infra.settings import load_settings, save_settings
 from tests.conftest import workspace
 

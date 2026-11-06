@@ -6,6 +6,7 @@ import math
 
 from osu_coach.common import frames
 from osu_coach.domain.player import Profile
+from osu_coach.domain.player.records import UNRATED
 from osu_coach.domain.player.setup import Setup
 from osu_coach.features.tips.rules.common import Tip, is_nan, pct
 
@@ -134,10 +135,9 @@ def _aim_miss_actions(p: Profile) -> list[str]:
 def _speed_aim_actions(p: Profile) -> list[str]:
     """What to do about aim misses in streams / very fast jumps, with the split against the difficulty."""
     acts = []
-    sp = p.aim.split or {}
-    a, f = sp.get("aim"), sp.get("speed_aim")
-    if a and f and a["expected"] > 0 and f["expected"] > 0:
-        ra, rf = a["all_misses"] / a["expected"], f["all_misses"] / f["expected"]
+    sp = p.aim.split
+    if sp and sp.aim.ratio is not None and sp.speed_aim.ratio is not None:
+        ra, rf = sp.aim.ratio, sp.speed_aim.ratio
         verdict = (
             " — the fast patterns are the real gap."
             if rf > 1.15 * ra
@@ -149,7 +149,7 @@ def _speed_aim_actions(p: Profile) -> list[str]:
             f"Against what the difficulty of the notes predicts: fast patterns {rf:.1f}× the expected "
             f"misses, normal-speed jumps and notes {ra:.1f}×" + verdict
         )
-    flow = ((getattr(p, "skills", {}) or {}).get("flow_aim") or {}).get("score")
+    flow = p.skill_ratings.get("flow_aim", UNRATED).score
     acts += [
         ("Your flow-aim score is low. " if flow is not None and flow < 45 else "")
         + "Practise spaced streams below the tempo where they break (the 'Flow aim (spaced streams)' playlist "

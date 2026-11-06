@@ -27,7 +27,7 @@ from osu_coach.domain.maps.suggestions import (
     targets_from_profile,
 )
 from osu_coach.domain.player import build_profile_from
-from osu_coach.domain.player.ratings import UNRATED
+from osu_coach.domain.player.records import UNRATED
 from osu_coach.domain.player.setup import Setup
 from osu_coach.domain.replays import scope
 from osu_coach.domain.replays.eligibility import EXCLUDE_MODS, skip_reason

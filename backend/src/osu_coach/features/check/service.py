@@ -3,7 +3,6 @@ of the map)."""
 
 from __future__ import annotations
 
-import math
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -175,7 +174,7 @@ def report(ws: Workspace, path: str, online: bool) -> CheckReport:
 def _report(a, cmp: dict, path: str) -> CheckReport:
     ev = check.events(a)
     s = check.summary(a, ev)
-    m = a.meta.to_dict()
+    m = a.meta
     rate = num(s["rate"]) or 1.0
     verdict = list(s["verdict"])
     if not s["completed"] and not any(v.startswith("Failed") for v in verdict):
@@ -186,8 +185,8 @@ def _report(a, cmp: dict, path: str) -> CheckReport:
         map=text(s["map"]) or check.NO_MAP,
         mods_label=check.mods_label(s["mods"], rate),
         client=text(s["client"]),
-        creator=text(m.get("creator")),
-        beatmap_id=integer(m.get("beatmap_id")) or None,
+        creator=m.creator,
+        beatmap_id=integer(m.beatmap_id) or None,
         accuracy=num(s["accuracy"]),
         combo=integer(s["combo"]),
         map_combo=integer(s["map_combo"]),
@@ -197,10 +196,10 @@ def _report(a, cmp: dict, path: str) -> CheckReport:
         bpm=num(s["bpm"]),
         ur=num(s["ur"]),
         rate=rate,
-        ar=num(m.get("ar")),
-        od=num(m.get("od")),
-        cs=num(m.get("cs")),
-        hp=num(m.get("hp")),
+        ar=num(m.ar),
+        od=num(m.od),
+        cs=num(m.cs),
+        hp=num(m.hp),
         length_s=num(s.get("length_s")),
         completed=bool(s["completed"]),
         sim_exact=bool(s["sim_exact"]),
@@ -280,39 +279,39 @@ def _single_profile(a):
 
 
 def _map_plays(cmp: dict) -> MapPlays:
-    plays: pd.DataFrame = cmp.get("plays")
+    plays: pd.DataFrame = cmp["plays"]  # every column of report.PLAY_COLUMNS
     rows = []
-    if plays is not None:
-        for r in plays.to_dict("records"):
-            path = r["path"] if isinstance(r.get("path"), str) else ""
-            date = r.get("date")
-            rows.append(
-                MapPlay(
-                    this=bool(r["this"]),
-                    same_settings=bool(r["same_settings"]),
-                    played_at=iso(date) if date is not None and not pd.isna(date) else None,
-                    mods_label=check.mods_label(r.get("mods"), r.get("rate")),
-                    settings_label=check.settings_label(r) or "–",
-                    bpm=num(r.get("bpm")),
-                    stars=num(r.get("stars")),
-                    accuracy=num(r.get("accuracy")),
-                    misses=integer(r.get("nmiss")),
-                    combo=integer(r.get("max_combo")),
-                    ur=num(r.get("ur")),
-                    passed=flag(r.get("completed")),
-                    path=path,
-                    path_exists=bool(path) and Path(path).exists(),
-                )
+    for r in plays.to_dict("records"):
+        path = r["path"] if isinstance(r["path"], str) else ""
+        date = r["date"]
+        rows.append(
+            MapPlay(
+                this=bool(r["this"]),
+                same_settings=bool(r["same_settings"]),
+                played_at=iso(date) if date is not None and not pd.isna(date) else None,
+                mods_label=check.mods_label(r["mods"], r["rate"]),
+                settings_label=check.settings_label(r) or "–",
+                bpm=num(r["bpm"]),
+                stars=num(r["stars"]),
+                accuracy=num(r["accuracy"]),
+                misses=integer(r["nmiss"]),
+                combo=integer(r["max_combo"]),
+                ur=num(r["ur"]),
+                passed=flag(r["completed"]),
+                path=path,
+                path_exists=bool(path) and Path(path).exists(),
             )
+        )
+    # the map_best* and ur_median keys are only there when other plays have the same settings
     best = cmp.get("map_best")
     return MapPlays(
-        first=plays is None or len(plays) <= 1,
-        settings=cmp.get("settings") or "normal speed",
-        same_settings_plays=int(cmp.get("map_plays", 0)),
+        first=len(plays) <= 1,
+        settings=cmp["settings"] or "normal speed",
+        same_settings_plays=int(cmp["map_plays"]),
         best_misses=integer(cmp.get("map_best_misses")),
         best_accuracy=num(cmp.get("map_best_accuracy")),
         is_best=None if best is None else bool(best),
-        ur_median=num(cmp.get("ur_median", math.nan)),
-        other_settings=int(cmp.get("other_settings", 0)),
+        ur_median=num(cmp.get("ur_median")),
+        other_settings=int(cmp["other_settings"]),
         rows=rows,
     )

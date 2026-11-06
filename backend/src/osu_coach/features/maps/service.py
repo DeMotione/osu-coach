@@ -8,6 +8,7 @@ import math
 import multiprocessing
 import os
 from collections import deque
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -149,19 +150,19 @@ def suggestions(
             )
         except ValueError as exc:
             raise Invalid(str(exc), "invalid_recommendation_settings") from exc
-        data = ranked["goals"]["Comfort"]
+        data = ranked.goals["Comfort"]
         label = skill_label(target)
         sections.append(
             SuggestionSection(
                 skill=target,
                 title=label,
                 score=abilities[target],
-                skill_adjusted_stars=ranked["skill_adjusted_stars"],
-                target_stars=data["target_stars"],
-                target_demand=data["target_demand"],
-                eligible=data["eligible"],
-                excluded=data["excluded"],
-                maps=map_rows(pd.DataFrame(data["maps"]).assign(stage=label, goal="Comfort")),
+                skill_adjusted_stars=ranked.skill_adjusted_stars,
+                target_stars=data.target_stars,
+                target_demand=data.target_demand,
+                eligible=data.eligible,
+                excluded=data.excluded,
+                maps=map_rows(data.maps, stage=label, goal="Comfort"),
             )
         )
     return Suggestions(
@@ -211,20 +212,20 @@ def playlist(
             min_relevance,
             t.played if exclude_played else frozenset(),
         )
-        explain(ranked, target, t)
+        ranked = explain(ranked, target, t)
     except ValueError as exc:
         raise Invalid(str(exc), "invalid_recommendation_settings") from exc
     stages = [
         PlaylistStage(
             stage=stage,
             goal=stage,
-            target_stars=data["target_stars"],
-            target_demand=data["target_demand"],
-            eligible=data["eligible"],
-            excluded=data["excluded"],
-            maps=map_rows(pd.DataFrame(data["maps"]).assign(stage=stage, goal=stage)),
+            target_stars=data.target_stars,
+            target_demand=data.target_demand,
+            eligible=data.eligible,
+            excluded=data.excluded,
+            maps=map_rows(data.maps, stage=stage, goal=stage),
         )
-        for stage, data in ranked["goals"].items()
+        for stage, data in ranked.goals.items()
     ]
     skills = [PlaylistSkill(key=k, label=skill_label(k, t), score=abilities.get(k)) for k in SKILLS]
     return Playlist(
@@ -239,7 +240,7 @@ def playlist(
         collection_name=collection_name(target, t),
         stages=stages,
         preferred_client=ws.preferred_client(),
-        skill_adjusted_stars=ranked["skill_adjusted_stars"],
+        skill_adjusted_stars=ranked.skill_adjusted_stars,
         abilities=abilities,
         measured_abilities={
             key: float(row.score)
@@ -377,10 +378,10 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
     client = ws.preferred_client()
     history = {}
     for analysis in ws.plays:
-        meta = analysis.meta.to_dict()
-        acc = num(meta.get("accuracy"))
-        if meta.get("completed") and acc is not None:
-            key = from_meta(meta).key
+        meta = analysis.meta
+        acc = num(meta.accuracy)
+        if meta.completed and acc is not None:
+            key = from_meta(meta.to_dict()).key
             history[key] = max(history.get(key, 0.0), min(1.10, max(0.0, acc / 0.95)))
     libraries = [lib for lib in (ws.library, ws.check_library) if lib is not None]
     unavailable = 0
@@ -415,21 +416,22 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
         t.played if req.exclude_played else frozenset(),
         history,
     )
-    explain(ranked, target, t)
-    if ranked["candidate_count"] == 0 and all(key in abilities for key in checked):
-        for data in ranked["goals"].values():
-            data["excluded"]["No available exact configurations"] = 1
+    ranked = explain(ranked, target, t)
+    if ranked.candidate_count == 0 and all(key in abilities for key in checked):
+        none = {"No available exact configurations": 1}
+        goals = {name: replace(data, excluded={**data.excluded, **none}) for name, data in ranked.goals.items()}
+        ranked = replace(ranked, goals=goals)
     stages = [
         PlaylistStage(
             stage=stage,
             goal=stage,
-            target_stars=data["target_stars"],
-            target_demand=data["target_demand"],
-            eligible=data["eligible"],
-            excluded=data["excluded"],
-            maps=map_rows(pd.DataFrame(data["maps"]).assign(stage=stage, goal=stage)),
+            target_stars=data.target_stars,
+            target_demand=data.target_demand,
+            eligible=data.eligible,
+            excluded=data.excluded,
+            maps=map_rows(data.maps, stage=stage, goal=stage),
         )
-        for stage, data in ranked["goals"].items()
+        for stage, data in ranked.goals.items()
     ]
     return Playlist(
         skill=target,
@@ -443,7 +445,7 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
         collection_name=collection_name(target, t),
         stages=stages,
         preferred_client=client,
-        skill_adjusted_stars=ranked["skill_adjusted_stars"],
+        skill_adjusted_stars=ranked.skill_adjusted_stars,
         abilities=abilities,
         measured_abilities={
             key: float(row.score)
@@ -454,5 +456,5 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
         unavailable_maps=unavailable,
         calculator_unavailable_maps=calculator_unavailable,
         unavailable_configurations=unavailable_configurations,
-        result_limit=ranked["result_limit"],
+        result_limit=ranked.result_limit,
     )

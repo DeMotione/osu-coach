@@ -334,18 +334,18 @@ def map_plays(saved: pd.DataFrame | None, a: Play, others=()) -> pd.DataFrame:
     """Every play of this map by this player: the saved history ``saved`` (rows of the replays table) plus ``others`` (analyses of
     the replay files of this map on the computer) and this play itself (``this``). ``same_settings`` = same speed,
     CS / AR / OD / HP and HD / FL as this play (:func:`settings_key`). Newest first."""
-    m = a.meta.to_dict()
+    m = a.meta
     rows = {}
     if saved is not None:
         for r in saved.to_dict("records"):
             rows[r["key"]] = {**r, "date": r.get("played_at")}
     for o in list(others) + [a]:
-        om = o.meta.to_dict()
-        if (om.get("beatmap_md5") != m.get("beatmap_md5")) or ((om.get("player") or "") != (m.get("player") or "")):
+        om = o.meta
+        if om.beatmap_md5 != m.beatmap_md5 or (om.player or "") != (m.player or ""):
             continue
         rows[o.key] = {
             **{
-                k: om.get(k)
+                k: getattr(om, k)
                 for k in (
                     "rate",
                     "cs",
@@ -364,9 +364,9 @@ def map_plays(saved: pd.DataFrame | None, a: Play, others=()) -> pd.DataFrame:
                 )
             },
             "key": o.key,
-            "date": om.get("date"),
-            "mods": om.get("mod_string") or "",
-            "path": str(om.get("source_path") or ""),
+            "date": om.date,
+            "mods": om.mod_string or "",
+            "path": str(om.source_path or ""),
         }
     if not rows:
         return pd.DataFrame(columns=PLAY_COLUMNS)
@@ -374,7 +374,7 @@ def map_plays(saved: pd.DataFrame | None, a: Play, others=()) -> pd.DataFrame:
     for c in PLAY_COLUMNS:
         if c not in out:
             out[c] = None
-    mine = settings_key(m)
+    mine = settings_key(m.to_dict())
     out["this"] = out["key"] == a.key
     out["same_settings"] = [same_settings(settings_key(r), mine) or r["key"] == a.key for r in out.to_dict("records")]
     out["date"] = pd.to_datetime(out["date"], utc=True, errors="coerce", format="mixed")
@@ -385,7 +385,7 @@ def compare(saved: pd.DataFrame | None, a: Play, others=()) -> dict:
     """This play against the player's other plays of the same map (:func:`map_plays`). Best / not best is
     only judged against plays with the same settings: a DT ×1.5 play (285 BPM) and a ×1.26 play (240 BPM)
     of the same map are different challenges."""
-    m = a.meta.to_dict()
+    m = a.meta
     plays = map_plays(saved, a, others)
     rest = plays[~plays["this"]]
     same = rest[rest["same_settings"]]
@@ -394,7 +394,7 @@ def compare(saved: pd.DataFrame | None, a: Play, others=()) -> dict:
         "map_plays": int(len(same)),
         "map_plays_all": int(len(rest)),
         "other_settings": int(len(rest) - len(same)),
-        "settings": settings_label(m),
+        "settings": settings_label(m.to_dict()),
     }
     if len(same):
         sm = same.assign(
@@ -404,7 +404,7 @@ def compare(saved: pd.DataFrame | None, a: Play, others=()) -> dict:
             _a=pd.to_numeric(same["accuracy"], errors="coerce"),
         )
         best = sm.sort_values(["_m", "_a"], ascending=[True, False]).iloc[0]
-        hm, acc = m.get("head_misses") or 0, m.get("accuracy") or 0
+        hm, acc = m.head_misses or 0, m.accuracy or 0
         out.update(
             map_best_misses=int(best["_m"]),
             map_best_accuracy=float(best["_a"]),

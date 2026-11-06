@@ -18,9 +18,11 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 from osu_coach.domain.player.demand import log_demand
-from osu_coach.domain.player.ratings import ACCURACY_TRANSITION_STARS, POINTS, UNRATED, SkillRating
+from osu_coach.domain.player.ratings import ACCURACY_TRANSITION_STARS, POINTS
+from osu_coach.domain.player.records import UNRATED, SkillRating
 
 SKILLS = ("aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading")
 PASS_SPREAD = 0.6  # ★: a star above the comfort level takes the pass chance from 75% to ~36%, two stars to ~10%
@@ -31,6 +33,27 @@ PASS_AT_LEVEL = 0.75  # clean-pass chance on maps of the comfort level (a 75th p
 MAX_GAP = 2.0
 TARGET_STEP = 0.5
 TARGET_RANGE = (1.0, 13.0)
+
+
+@dataclass(frozen=True, slots=True)
+class SkillAt:
+    """A comfort-level score moved to another star rating: ``score`` (0–100), ``change`` (points against the
+    comfort level) and ``demand`` (how many times what comfort-level maps demand)."""
+
+    score: float
+    change: float
+    demand: float
+
+
+@dataclass(frozen=True, slots=True)
+class Readiness:
+    """The skills on typical maps of ``target`` ★ (None: no comfort-level score), the lowest of them and the chance
+    to pass such a map cleanly."""
+
+    target: float
+    skills: dict[str, SkillAt | None]
+    weakest: str | None
+    pass_chance: float
 
 
 def _sigma_for(non300: float, windows: list[tuple[float, float]]) -> float:
@@ -68,10 +91,9 @@ def _accuracy_drop(row: SkillRating, theta: float, ratio: float) -> float | None
     return points * math.log2(max(share, 1e-6) / measured)
 
 
-def scores_at(rows: Mapping[str, SkillRating], theta: float | None, target: float) -> dict[str, dict | None]:
-    """The comfort-level scores at ``target`` ★: ``score`` (0–100), ``change`` (points against the comfort level)
-    and ``demand`` (how many times what comfort-level maps demand). None: no comfort-level score."""
-    out: dict[str, dict | None] = {}
+def scores_at(rows: Mapping[str, SkillRating], theta: float | None, target: float) -> dict[str, SkillAt | None]:
+    """The comfort-level scores at ``target`` ★ (:class:`SkillAt`); None: no comfort-level score."""
+    out: dict[str, SkillAt | None] = {}
     for skill in SKILLS:
         row = rows.get(skill, UNRATED)
         base = row.score
@@ -84,22 +106,21 @@ def scores_at(rows: Mapping[str, SkillRating], theta: float | None, target: floa
             out[skill] = None
             continue
         score = round(max(0.0, min(100.0, base - drop)), 1)
-        out[skill] = {"score": score, "change": round(score - base, 1), "demand": round(ratio, 3)}
+        out[skill] = SkillAt(score=score, change=round(score - base, 1), demand=round(ratio, 3))
     return out
 
 
-def compare_at(rows: Mapping[str, SkillRating], theta: float, target: float) -> dict:
-    """The skills on typical maps of ``target`` ★ (:func:`scores_at`), the lowest of them and the chance to pass such
-    a map cleanly."""
+def compare_at(rows: Mapping[str, SkillRating], theta: float, target: float) -> Readiness:
+    """The :class:`Readiness` for maps of ``target`` ★ (the skills: :func:`scores_at`)."""
     skills = scores_at(rows, theta, target)
-    known = {k: v["score"] for k, v in skills.items() if v is not None}
+    known = {k: v.score for k, v in skills.items() if v is not None}
     z = math.log(PASS_AT_LEVEL / (1 - PASS_AT_LEVEL)) - (target - theta) / PASS_SPREAD
-    return {
-        "target": target,
-        "skills": skills,
-        "weakest": min(known, key=known.get) if known else None,
-        "pass_chance": round(1 / (1 + math.exp(-max(-35.0, min(35.0, z)))), 4),
-    }
+    return Readiness(
+        target=target,
+        skills=skills,
+        weakest=min(known, key=known.__getitem__) if known else None,
+        pass_chance=round(1 / (1 + math.exp(-max(-35.0, min(35.0, z)))), 4),
+    )
 
 
 def _half_star_below(comfort: float) -> tuple[float, float]:

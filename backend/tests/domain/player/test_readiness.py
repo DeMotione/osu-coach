@@ -7,7 +7,7 @@ import pytest
 
 from osu_coach.domain.player.demand import log_demand
 from osu_coach.domain.player.messages import Message
-from osu_coach.domain.player.ratings import POINTS, SkillRating, _accuracy_expected, _expected
+from osu_coach.domain.player.ratings import POINTS, _accuracy_expected, _expected
 from osu_coach.domain.player.readiness import (
     MAX_GAP,
     PASS_AT_LEVEL,
@@ -18,6 +18,7 @@ from osu_coach.domain.player.readiness import (
     scores_at,
     targets,
 )
+from osu_coach.domain.player.records import SkillRating, StaminaPart
 
 WINDOWS = [(79.5 - 6 * 8, 1.0), (79.5 - 6 * 9, 1.0)]  # OD 8 and OD 9
 
@@ -36,7 +37,8 @@ def rows(theta, scores=None):
         for k in SKILLS
     }
     out["accuracy"].update(measured=_accuracy_expected(WINDOWS, theta), od_windows=WINDOWS)
-    out["stamina"]["parts"] = [{"duration": 30, "maps": 10, "measured": _expected("stamina", theta, duration=30)}]
+    stamina = _expected("stamina", theta, duration=30)
+    out["stamina"]["parts"] = (StaminaPart(30, stamina, 10, stamina, 1.0, stamina, untested=False),)
     out["consistency"] = {"score": 70.0, "maps": 0, "reason": Message("not_enough_data")}
     return {k: SkillRating(**v) for k, v in out.items()}
 
@@ -46,15 +48,15 @@ def test_at_the_comfort_level_the_scores_are_the_comfort_scores():
     at = scores_at(r, 6.0, 6.0)
     assert set(at) == set(SKILLS)  # consistency has its own card
     for skill in SKILLS:
-        assert at[skill]["score"] == pytest.approx(r[skill].score, abs=0.05), skill
-        assert at[skill]["change"] == pytest.approx(0, abs=0.05) and at[skill]["demand"] == pytest.approx(1)
+        assert at[skill].score == pytest.approx(r[skill].score, abs=0.05), skill
+        assert at[skill].change == pytest.approx(0, abs=0.05) and at[skill].demand == pytest.approx(1)
 
 
 @pytest.mark.parametrize("theta", [2.5, 4.9, 6.3, 7.3, 10.5])
 def test_every_score_falls_as_the_star_rating_rises(theta):
     r = rows(theta, {"aim": 70.0, "speed": 40.0, "accuracy": 60.0})
     for skill in SKILLS:
-        series = [scores_at(r, theta, theta + d)[skill]["score"] for d in (-2, -1, -0.5, 0, 0.5, 1, 1.5, 2)]
+        series = [scores_at(r, theta, theta + d)[skill].score for d in (-2, -1, -0.5, 0, 0.5, 1, 1.5, 2)]
         assert series == sorted(series, reverse=True), skill
         assert series[-1] < series[3] < series[0] or series[0] == 100, skill
 
@@ -63,21 +65,21 @@ def test_a_score_falls_by_the_skill_points_per_doubling_of_its_demand():
     at = scores_at(rows(5.0, {"aim": 60.0, "speed": 60.0}), 5.0, 6.0)
     for skill in ("aim", "speed"):
         extra = log_demand(skill, 6.0) - log_demand(skill, 5.0)
-        assert at[skill]["demand"] == pytest.approx(2**extra, abs=1e-3)
-        assert at[skill]["change"] == pytest.approx(-POINTS[skill] * extra, abs=0.06)
-    assert at["speed"]["change"] < at["aim"]["change"] < -3  # a star costs tapping more points than aim here
+        assert at[skill].demand == pytest.approx(2**extra, abs=1e-3)
+        assert at[skill].change == pytest.approx(-POINTS[skill] * extra, abs=0.06)
+    assert at["speed"].change < at["aim"].change < -3  # a star costs tapping more points than aim here
 
 
 def test_scores_stay_between_0_and_100():
     r = rows(5.0, {"aim": 100.0, "speed": 2.0})
     harder, easier = scores_at(r, 5.0, 7.0), scores_at(r, 5.0, 3.0)
-    assert harder["aim"]["score"] < 100 and harder["speed"]["score"] == 0
-    assert easier["aim"]["score"] == 100 and easier["aim"]["change"] == 0
+    assert harder["aim"].score < 100 and harder["speed"].score == 0
+    assert easier["aim"].score == 100 and easier["aim"].change == 0
 
 
 def test_narrower_hit_windows_cost_accuracy():
     at = scores_at(rows(6.0, {"accuracy": 70.0}), 6.0, 7.0)["accuracy"]
-    assert at["demand"] > 1 and at["change"] < -2
+    assert at.demand > 1 and at.change < -2
 
 
 def test_the_hit_error_spread_is_found_back_from_the_non_300_share():
@@ -88,11 +90,11 @@ def test_the_hit_error_spread_is_found_back_from_the_non_300_share():
 
 def test_the_pass_chance_is_the_comfort_levels_there_and_falls_with_every_star():
     r = rows(6.0, {"speed": 35.0})
-    chances = [compare_at(r, 6.0, t)["pass_chance"] for t in (4.0, 5.0, 6.0, 6.5, 7.0, 8.0)]
+    chances = [compare_at(r, 6.0, t).pass_chance for t in (4.0, 5.0, 6.0, 6.5, 7.0, 8.0)]
     assert chances == sorted(chances, reverse=True)
     assert chances[2] == PASS_AT_LEVEL
     assert 0.3 < chances[4] < 0.4 and chances[5] < 0.15 and chances[0] > 0.95
-    assert compare_at(r, 6.0, 7.0)["weakest"] == "speed"
+    assert compare_at(r, 6.0, 7.0).weakest == "speed"
 
 
 def test_skills_without_a_comfort_score_have_none():
