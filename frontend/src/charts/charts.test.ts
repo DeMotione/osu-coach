@@ -224,7 +224,8 @@ describe("IRT star levels", () => {
     // the likely range is a faded bar behind, to its top; the label sits after it, so nothing crosses a bar or a label
     expect(range.map((b) => b.value)).toEqual([6.9, 7.0, 5.8, null, null]);
     expect(range.map((b) => (b.label?.show ? b.label.formatter : null))).toEqual(["6.6★", "6.6★ · ≈ 221 BPM", "5.4★ · ≈ OD 8.0", null, null]);
-    expect(bars.map((b) => (b.label?.show ? b.label.formatter : null))).toEqual([null, null, null, "≥ 7.4★", "Not enough data"]);
+    expect(bars.map((b) => (b.label?.show ? b.label.formatter : null))).toEqual([null, null, null, "7.4★+ · limit not found yet", "Not enough data"]);
+    expect((o.series![1].data as { itemStyle: { color: string } }[])[3].itemStyle.color).toBe(C.good); // solid like the others
     expect(o.series!.map((x) => x.type)).toEqual(["bar", "bar"]); // no lines drawn over the bars
     expect(o.series!.some((x) => "markLine" in x)).toBe(false);
     expect((o.series![1].z as number) > (o.series![0].z as number)).toBe(true);
@@ -249,7 +250,7 @@ describe("IRT star levels", () => {
     const help = { key: "aim", label: "Jumps", summary: "Hitting notes that are far apart.", what: "W", how: "H", practise: "P" };
     expect(starLevelHover(skills[0], target(7), help)).toContain("Hitting notes that are far apart.");
     expect(starLevelHover(skills[2], target(6, true))).toContain("90 in 100 of its single notes as 300s");
-    expect(starLevelHover(skills[3], target(6, true))).toContain("lower bound");
+    expect(starLevelHover(skills[3], target(6, true))).toContain("sliders label: 7.4★+ (limit not found yet)");
     expect(starLevelHover(skills[0], target(6, true))).toContain("It holds up on 6★ maps (your comfort level)");
   });
 });

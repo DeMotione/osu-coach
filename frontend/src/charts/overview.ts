@@ -220,7 +220,8 @@ export function starLevelHover(s: Skill, target: CompareTarget, help?: SkillMeta
     return `<b>${esc(s.label)}: ${esc(s.score_text)}</b>${needs}${help ? p(help.what) : ""}`;
   }
   const bound = s.state === "untested";
-  let html = `<b>${esc(s.label)}: holds up on ${bound ? "at least " : ""}${star1(s.stars)} maps</b>${lead(help)}`;
+  const title = bound ? `${star1(s.stars)}+ (limit not found yet)` : `holds up on ${star1(s.stars)} maps`;
+  let html = `<b>${esc(s.label)}: ${title}</b>${lead(help)}`;
   html += p(`"Holds up": ${holdsUpMeaning(s.key, star1(s.stars))}.`);
   const nat = naturalLabel(s);
   if (!bound && finite(s.stars_low) && finite(s.stars_high)) {
@@ -230,13 +231,13 @@ export function starLevelHover(s: Skill, target: CompareTarget, help?: SkillMeta
   const tone = levelTone(s, target.stars);
   if (bound)
     html += p(
-      `You almost never fail it on the maps you played, so this is a lower bound: harder maps could show it's higher.${tone === "good" ? ` It holds up on ${where}.` : ""}`,
+      `You almost never fail it on any map you played, so its limit isn't found yet: it holds up on ${star1(s.stars)} maps and maybe much harder ones.${tone === "good" ? ` It holds up on ${where}.` : ""}`,
     );
   else if (tone === "good") html += p(`It holds up on ${where}.`);
   else if (tone === "bad") html += p(`Not yet on ${where}: ${(target.stars - s.stars).toFixed(1)}★ short, so there you'd miss more of its notes.`);
   else html += p(`Close on ${where}: within its likely range.`);
   html += p(`You: ${s.facts.join("; ")}`);
-  if (bound && s.needs) html += p(`To see your full level: ${s.needs}`);
+  if (bound && s.needs) html += p(`To find its limit: ${s.needs}`);
   if (help) html += p(help.what);
   if (help) html += p(`To raise it: ${help.practise}`);
   return html;
@@ -255,18 +256,12 @@ export function starLevels(skills: Skill[], target: CompareTarget, t: ChartTheme
   const text = (s: Skill) => {
     if (!finite(s.stars)) return "";
     const nat = naturalLabel(s);
-    return s.state === "untested" ? `≥ ${star1(s.stars)}` : `${star1(s.stars)}${nat ? ` · ${nat}` : ""}`;
+    return s.state === "untested" ? `${star1(s.stars)}+ · limit not found yet` : `${star1(s.stars)}${nat ? ` · ${nat}` : ""}`;
   };
   const hasRange = (s: Skill) =>
     s.state !== "untested" && finite(s.stars) && finite(s.stars_high) && s.stars_high > s.stars;
   // the label sits after whichever bar is longer, so nothing crosses it
-  const label = (s: Skill, bound: boolean) => ({
-    show: true,
-    position: "right",
-    color: bound ? t.muted : t.text,
-    fontSize: 12,
-    formatter: text(s),
-  });
+  const label = (s: Skill) => ({ show: true, position: "right", color: t.text, fontSize: 12, formatter: text(s) });
   const radius = [0, 3, 3, 0];
   const at = starLabel(target.stars);
   const against = target.comfort ? `your comfort level (${at})` : `${at} maps`;
@@ -307,7 +302,7 @@ export function starLevels(skills: Skill[], target: CompareTarget, t: ChartTheme
               ? {
                   value: s.stars_high,
                   itemStyle: { color: alpha(colour[levelTone(s, target.stars)], 0.25), borderRadius: radius },
-                  label: label(s, false),
+                  label: label(s),
                 }
               : { value: null },
           ),
@@ -325,11 +320,11 @@ export function starLevels(skills: Skill[], target: CompareTarget, t: ChartTheme
                 itemStyle: { color: alpha(C.muted, 0.18), borderRadius: radius },
                 label: { show: true, position: "insideLeft", color: t.muted, formatter: "Not enough data" },
               };
-            const bound = s.state === "untested";
+            // a skill whose limit wasn't found yet is drawn like the others; its label says "7.2★+ · limit not found yet"
             return {
               value: s.stars,
-              itemStyle: { color: bound ? alpha(colour[tone], 0.45) : colour[tone], borderRadius: radius },
-              label: hasRange(s) ? { show: false } : label(s, bound),
+              itemStyle: { color: colour[tone], borderRadius: radius },
+              label: hasRange(s) ? { show: false } : label(s),
             };
           }),
         },

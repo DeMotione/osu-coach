@@ -27,11 +27,7 @@ def test_accuracy_says_what_its_od_means():
 def test_untested_skill_is_a_lower_bound_in_stars():
     row = irt("untested", stars=7.1, stars_low=7.1, reason=Message("irt_untested", {"skill": "sliders", "maps": 9.0}))
     text = irt_level_text(row)
-    assert (
-        text is not None
-        and text.startswith("holds up on at least 7.1★ maps · ")
-        and text.endswith("harder maps could show more")
-    )
+    assert text is not None and text.startswith("7.1★+ · limit not found yet · You almost never fail sliders")
 
 
 def test_a_lower_bound_never_goes_above_the_maps_played():
@@ -39,7 +35,7 @@ def test_a_lower_bound_never_goes_above_the_maps_played():
     row = irt("untested", stars=9.1, stars_low=9.1, reason=held)
     assert irt_stars(row) == (7.2, 7.2, None)
     text = irt_level_text(row)
-    assert text is not None and text.startswith("holds up on at least 7.2★ maps")
+    assert text is not None and text.startswith("7.2★+ · limit not found yet")
     assert irt_stars(irt("measured", stars=9.1, stars_low=8.8, stars_high=9.4)) == (9.1, 8.8, 9.4)  # as fitted
 
 

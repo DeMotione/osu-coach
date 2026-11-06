@@ -233,9 +233,11 @@ function CompareCard({
     [skills, target, comfort, help, engine.engine, irt],
   );
   const consistency = skills.find((s) => s.key === "consistency");
+  // skills whose limit wasn't found yet: what to play to find it
+  const noLimit = skills.filter((s) => s.state === "untested" && s.stars !== null && s.stars !== undefined);
   const consistencyAt = target?.skills.find((k) => k.key === "consistency");
   const comfortHint = `Comfort Score: each skill gets points from 0 to 100. 50 = what maps at your ${starLabel(comfort)} comfort level ask for (assumed from ranked maps, not compared with other players); higher = stronger, lower = weaker. Most skills use your best play on each map; accuracy uses all your hit single notes. Pick another star rating to see the scores on easier or harder maps: on harder ones they drop, by how much more those maps ask of the skill (measured on ranked maps). Consistency is measured on your own maps from a star below the star rating up to it. You can pick any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level. Grey = not measured yet: point at a bar to see what to play.`;
-  const irtHint = `Star Levels: each skill shown as the map star rating it holds up on. On maps that hard you'd miss only about 2 in 100 of that skill's notes (accuracy: about 90 in 100 single notes are 300s), on maps like the ones you play. It's about you and maps, not a comparison with other players. The faded part behind a bar is how far it likely reaches. A pale bar with ≥ is a lower bound: you almost never fail that skill on what you played. The colours compare each skill with the star rating picked above: green = holds up there, blue = close (within its likely range), red = not yet. The star values rest on constants not yet fitted on other players, so they can be a few tenths of a star off. Consistency isn't on this scale: it's shown below the chart.`;
+  const irtHint = `Star Levels: each skill shown as the map star rating it holds up on. On maps that hard you'd miss only about 2 in 100 of that skill's notes (accuracy: about 90 in 100 single notes are 300s), on maps like the ones you play. It's about you and maps, not a comparison with other players. The faded part behind a bar is how far it likely reaches. A + after the number (like 7.2★+) means you haven't failed that skill on any map you played, so its limit isn't found yet. The colours compare each skill with the star rating picked above: green = holds up there, blue = close (within its likely range), red = not yet. The star values rest on constants not yet fitted on other players, so they can be a few tenths of a star off. Consistency isn't on this scale: it's shown below the chart.`;
   return (
     <Card
       title="Current skill level"
@@ -252,6 +254,13 @@ function CompareCard({
             height={irt ? Math.max(300, height - 44) : height}
             label={irt ? `Skill levels in map stars, compared with ${starLabel(target.stars)}` : `Skill scores at ${starLabel(target.stars)}`}
           />
+          {irt &&
+            noLimit.map((s) => (
+              <p key={s.key} className="small muted">
+                {s.label}: {s.stars!.toFixed(1)}★+, limit not found yet.{" "}
+                {s.needs ?? "Play harder maps with plenty of it to find it."}
+              </p>
+            ))}
           {irt && consistency && (
             <p className="small muted">
               {consistency.label} (not on the star scale):{" "}

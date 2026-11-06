@@ -113,7 +113,7 @@ def irt_level_text(row: SkillRating) -> str | None:
     if stars is None:
         return None
     if row.state == "untested":
-        return f"holds up on at least {stars:.1f}★ maps · {message(row.reason)}: harder maps could show more"
+        return f"{stars:.1f}★+ · limit not found yet · {message(row.reason)}"
     if row.state not in ("measured", "provisional"):
         return None
     text = f"holds up on {stars:.1f}★ maps"
