@@ -227,6 +227,7 @@ type ProgressParams = {
   period: Schemas["ProgressOut"]["period"];
   since?: string;
   until?: string;
+  replays?: Schemas["ProgressOut"]["replays"];
 };
 
 export const useProgress = (params: ProgressParams, enabled = true) =>
@@ -237,13 +238,20 @@ export const useProgress = (params: ProgressParams, enabled = true) =>
     placeholderData: keepPreviousData,
   });
 
-export const useProgressPlays = (params: { player?: string; period: ProgressParams["period"]; key: string | null }) =>
+export const useProgressPlays = (params: {
+  player?: string;
+  period: ProgressParams["period"];
+  key: string | null;
+  replays?: ProgressParams["replays"];
+}) =>
   useQuery({
     queryKey: [...keys.progress, "plays", params],
     queryFn: () =>
       unwrap(
         api.GET("/api/progress/plays", {
-          params: { query: { player: params.player, period: params.period, key: params.key as string } },
+          params: {
+            query: { player: params.player, period: params.period, key: params.key as string, replays: params.replays },
+          },
         }),
       ),
     enabled: !!params.key,

@@ -1418,7 +1418,7 @@
           "Progress & goals"
         ],
         "summary": "Progress by month, week or day",
-        "description": "Not weighted by difficulty, so periods stay comparable. ``since`` / ``until``: days on this computer's\nclock, both included.",
+        "description": "Not weighted by difficulty, so periods stay comparable. ``since`` / ``until``: days on this computer's\nclock, both included. ``replays``: analysed = only the replays of the last analysis (what the Overview shows,\nrated at its comfort level; every saved play when none of the player's is analysed), all = the whole history.",
         "operationId": "by_period_api_progress_get",
         "parameters": [
           {
@@ -1484,6 +1484,20 @@
                 }
               ],
               "title": "Until"
+            }
+          },
+          {
+            "name": "replays",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "analysed",
+                "all"
+              ],
+              "type": "string",
+              "default": "analysed",
+              "title": "Replays"
             }
           }
         ],
@@ -1567,6 +1581,20 @@
               "type": "string",
               "default": "month",
               "title": "Period"
+            }
+          },
+          {
+            "name": "replays",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "analysed",
+                "all"
+              ],
+              "type": "string",
+              "default": "analysed",
+              "title": "Replays"
             }
           }
         ],
@@ -7957,6 +7985,28 @@
               "day"
             ],
             "title": "Period"
+          },
+          "replays": {
+            "type": "string",
+            "enum": [
+              "analysed",
+              "all"
+            ],
+            "title": "Replays",
+            "description": "analysed = only the replays of the last analysis (the ones the Overview shows, rated at its comfort level); all = every play saved for the player.",
+            "default": "all"
+          },
+          "analysed_plays": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysed Plays",
+            "description": "How many of the player's replays the last analysis holds; null = none."
           },
           "first_day": {
             "anyOf": [
