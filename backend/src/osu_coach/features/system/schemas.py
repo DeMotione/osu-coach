@@ -21,6 +21,7 @@ class SkillMeta(BaseModel):
     what: str = Field(description="What the skill measures.")
     how: str = Field(description="How the score is worked out.")
     practise: str = Field(description="What raises it.")
+    irt_what: str | None = Field(None, description="What the skill measures under Star-Scale IRT (null: as `what`).")
 
 
 class MissCauseMeta(BaseModel):

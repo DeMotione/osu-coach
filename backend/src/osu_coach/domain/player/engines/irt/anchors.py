@@ -1,9 +1,4 @@
-"""The star scale of Star-Scale IRT (spec §6.1): anchor curves from a raw demand to stars, and back to natural units.
-
-An anchor ``S_k`` says which star rating the median pool map with a given demand of skill ``k`` has, so a note's
-difficulty, a skill and a map are all in stars. The curves are fitted once on the bundled pool (no-mod rows plus the
-same maps with DT) by :func:`fit_anchors`, run by ``backend/tools/build_irt_tables.py``, which writes :mod:`tables`.
-"""
+"""The star scale: anchor curves from a raw demand to stars (fitted on the map pool), and back to natural units."""
 
 from __future__ import annotations
 

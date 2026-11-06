@@ -227,14 +227,14 @@ function CompareCard({
   const target = pickTarget(compare, picked);
   const comfort = compare.comfort ?? 0;
   const build = useCallback(
-    (t: ChartTheme) => (target ? compareBars(skills, target, comfort, t, help ?? []) : {}),
-    [skills, target, comfort, help],
+    (t: ChartTheme) => (target ? compareBars(skills, target, comfort, t, help ?? [], engine.engine) : {}),
+    [skills, target, comfort, help, engine.engine],
   );
   return (
     <Card
       title="Current skill level"
       actions={<EngineBadge current={engine} />}
-      hint={`Your skill scores from 0 to 100: 50 = what is expected at your ${starLabel(comfort)} comfort level. Most skills use your best play per map; timing accuracy uses all hit single notes. Pick another star rating to see the scores on easier or harder maps: on harder ones they drop, each by how much more typical maps of that star rating demand of the skill (measured on ranked maps). Consistency is measured on your own maps from a star below the star rating up to it. You can pick any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level. Grey = not measured yet: point at a bar to see what to play.`}
+      hint={`Scores are points from 0 to 100, compared with players at your level: 50 = typical for a player of ${starLabel(comfort)} maps (your comfort level), higher = stronger, lower = weaker.${engine.engine === "irt" ? ` With Star-Scale IRT a star of map difficulty is about 20 points around 50: about 70 = like a typical player of ${starLabel(comfort + 1)} maps, about 30 = of ${starLabel(comfort - 1)} maps. Only a player who never fails would reach 100.` : ""} Most skills use your best play per map; timing accuracy uses all hit single notes. Pick another star rating to see the scores on easier or harder maps: on harder ones they drop, each by how much more typical maps of that star rating demand of the skill (measured on ranked maps). Consistency is measured on your own maps from a star below the star rating up to it. You can pick any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level. Grey = not measured yet: point at a bar to see what to play.`}
     >
       {target === null || compare.comfort === null ? (
         <Alert>Your comfort level isn't known yet: analyse at least 3 recent maps you finished cleanly.</Alert>

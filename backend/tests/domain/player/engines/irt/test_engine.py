@@ -27,8 +27,11 @@ def plays(groups_list, stars=6.0):
     ]
 
 
-def test_adapter_is_twenty_points_a_star():
-    assert adapter(6.0, 6.0) == 50 and adapter(7.0, 6.0) == 70 and adapter(9.0, 6.0) == 100
+def test_adapter_is_twenty_points_a_star_and_never_100():
+    assert adapter(6.0, 6.0) == 50
+    assert adapter(6.25, 6.0) - adapter(5.75, 6.0) == pytest.approx(10, abs=0.2)  # 20 points a star around 50
+    assert 90 < adapter(9.0, 6.0) < 93 and adapter(20.0, 6.0) == 99 and adapter(-8.0, 6.0) == 1
+    assert adapter(7.0, 6.0) + adapter(5.0, 6.0) == pytest.approx(100)
 
 
 def test_states():
@@ -65,9 +68,10 @@ def test_farming_easy_maps_shows_at_least_what_was_held():
     aim_rows = np.isfinite(easy.b_aim)
     easy = easy.replace(**{c: np.where(aim_rows, 0.0, getattr(easy, c)) for c in ("f_a", "f_b", "f_t")})
     aim = IrtEngine().rate(plays([easy] * 50), [], comfort=6.0).skills["aim"]
-    assert aim.state in ("untested", "not_enough_data") and aim.score is None
-    if aim.state == "untested":
-        assert aim.stars <= 5.0 + K.ROUND and aim.at_least == adapter(aim.stars, 6.0)
+    # held everything, all of it easy: a low lower bound, never the fitted value above it
+    assert aim.state in ("untested", "not_enough_data")
+    if aim.state == "untested":  # a lower bound from what was held, never a high score from easy notes
+        assert aim.score == aim.at_least <= 60
 
 
 def test_without_a_comfort_level_the_prior_has_a_stand_in():
@@ -83,7 +87,8 @@ def test_comparing_with_harder_maps_lowers_every_score():
     at = IrtEngine().compare_at(rated, 6.0, 7.0)
     for k, v in at.skills.items():
         if v is not None:
-            assert v.score == pytest.approx(max(0, rated.skills[k].score - 20), abs=0.11), k
+            assert v.score == adapter(rated.skills[k].measured, 7.0), k
+            assert v.score < rated.skills[k].score, k
 
 
 def test_a_skill_never_held_gets_no_number():
@@ -99,6 +104,7 @@ def test_a_skill_never_held_gets_no_number():
     for key in ("aim", "speed", "stamina", "flow_aim", "reading"):
         row = rated.skills[key]
         assert row.score is None and row.state in ("not_enough_data", "failed"), (key, row.state, row.stars)
+        assert row.at_least is None  # nothing held: no bound either
 
 
 def test_many_easy_notes_dont_lower_the_tested_difficulty():
@@ -113,3 +119,38 @@ def test_many_easy_notes_dont_lower_the_tested_difficulty():
     )
     row = IrtEngine().rate(plays([bulk]), [], comfort=6.0).skills["aim"]
     assert row.state in ("measured", "provisional"), (row.state, row.stars, row.tested_demand)
+
+
+def test_an_untested_skill_keeps_its_lower_bound_at_every_star_rating():
+    groups = simulate()
+    aim_rows = np.isfinite(groups.b_aim)
+    easy = groups.take(~aim_rows | (groups.b_aim <= 5.0))
+    aim_rows = np.isfinite(easy.b_aim)
+    easy = easy.replace(**{c: np.where(aim_rows, 0.0, getattr(easy, c)) for c in ("f_a", "f_b", "f_t")})
+    engine = IrtEngine()
+    rated = engine.rate(plays([easy] * 50), [], comfort=6.0)
+    if rated.skills["aim"].state != "untested":
+        pytest.skip("aim isn't untested on this simulation")
+    held = rated.skills["aim"].stars
+    for target in (5.0, 6.0, 7.0):
+        at = engine.compare_at(rated, 6.0, target).skills["aim"]
+        assert at.score == at.at_least == adapter(held, target)
+
+
+def test_calibration_puts_each_skills_50_where_it_fails_its_anchor_share():
+    from osu_coach.domain.player.engines.irt.engine import _fail_share, calibration
+    from osu_coach.domain.player.engines.irt.merge import merge
+
+    groups = simulate()
+    merged = merge([(p.meta, p.irt) for p in plays([groups, simulate(seed=2)], stars=6.0)])
+    refs = calibration(merged, 6.0)
+    for i, k in enumerate(K.SKILLS):
+        rows = groups.take(groups.kind != K.TIMING)
+        b = getattr(rows, f"b_{k}")
+        ok = np.isfinite(b)
+        share = _fail_share(refs[k], b[ok], rows.n[ok], float(K.A[i]), K.C)
+        assert share == pytest.approx(1 - K.PI, abs=1e-4), k
+        assert adapter(refs[k], refs[k]) == 50
+    # the maps' content alone sets it: the same maps played better or worse give the same references
+    better = groups.replace(f_a=groups.f_a * 0, f_b=groups.f_b * 0, f_t=groups.f_t * 0)
+    assert calibration(merge([(p.meta, p.irt) for p in plays([better, simulate(seed=2)])]), 6.0) == pytest.approx(refs)

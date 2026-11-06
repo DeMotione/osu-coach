@@ -1,11 +1,6 @@
-"""All plays' item groups added up into one table (spec §6.3), with each play weighted.
+"""All plays' item groups added up, each play weighted by recency and the retry caps, sessions flagged.
 
-* recency: a play counts fully up to 180 days older than the newest one, then half as much every 90 days;
-* retries: one map/mod setup counts at most as much as 3 plays of it, one mapset at most as much as 5 (the map's
-  MD5 when the set is unknown): a play weighs ``min(1, 3 / N_setup, 5 / N_set)`` — against farming one map (fix 3);
-* sessions: a play started 40 min or more into a session (plays less than 20 min apart) is flagged ``late``;
-* plays whose re-simulation disagrees with the replay (stable: under 97% of the judgements; lazer: counts that don't
-  match) are left out.
+Spec and why it differs from it: docs/star-scale-irt.md.
 """
 
 from __future__ import annotations
@@ -31,13 +26,14 @@ MIN_AGREEMENT = 0.97
 
 @dataclass(frozen=True, slots=True)
 class Merged:
-    """The weighted groups of all used plays; ``plays[k]``: the weighted number of plays with items of skill k
-    (``acc`` included); ``used`` / ``left_out``: how many plays were used and excluded."""
+    """The merged groups, each used play's own groups (and stars), and how many plays were used."""
 
     groups: IrtGroups
     plays: dict[str, float] = field(default_factory=dict)
     used: int = 0
     left_out: int = 0
+    parts: tuple[IrtGroups, ...] = ()  # every used play's own groups, weighted and session-flagged
+    part_stars: tuple[float, ...] = ()  # ... and its map's star rating (with mods)
 
 
 def usable(meta: ReplayMeta) -> bool:
@@ -56,7 +52,7 @@ def _setup(meta: ReplayMeta) -> str:
 
 
 def weights(replays: Sequence[ReplayMeta]) -> np.ndarray:
-    """Every play's weight: recency × the setup and mapset caps."""
+    """Each play's weight: recency × min(1, 3/N_setup, 5/N_set)."""
     dates = [m.date for m in replays]
     known = [d for d in dates if d is not None]
     newest = max(known) if known else None
@@ -72,7 +68,7 @@ def weights(replays: Sequence[ReplayMeta]) -> np.ndarray:
 
 
 def started(meta: ReplayMeta) -> dt.datetime | None:
-    """When the play started: a replay's time is when it was saved, at its end."""
+    """When the play started (a replay is saved at its end)."""
     if meta.date is None:
         return None
     length = meta.length_s if isinstance(meta.length_s, (int, float)) and math.isfinite(meta.length_s) else 0.0
@@ -80,7 +76,7 @@ def started(meta: ReplayMeta) -> dt.datetime | None:
 
 
 def late_flags(replays: Sequence[ReplayMeta]) -> np.ndarray:
-    """1 for plays started 40 min or more after the first play of their session (plays less than 20 min apart)."""
+    """1 for plays started 40+ min into their session."""
     starts = [started(m) for m in replays]
     order = sorted(range(len(replays)), key=lambda i: (starts[i] is None, starts[i] or dt.datetime.min))
     out = np.zeros(len(replays))
@@ -97,7 +93,7 @@ def late_flags(replays: Sequence[ReplayMeta]) -> np.ndarray:
 
 
 def merge(parts: Sequence[tuple[ReplayMeta, IrtGroups]]) -> Merged:
-    """The :class:`Merged` table of these plays (each its meta and its own groups)."""
+    """The merged table of these plays."""
     kept = [(m, g) for m, g in parts if usable(m)]
     if not kept:
         return Merged(group({"kind": np.zeros(0, dtype=np.int64)}), used=0, left_out=len(parts))
@@ -110,9 +106,12 @@ def merge(parts: Sequence[tuple[ReplayMeta, IrtGroups]]) -> Merged:
                 plays[k] = plays.get(k, 0.0) + float(weight)
         if (g.kind == K.ACCURACY).any():
             plays["acc"] = plays.get("acc", 0.0) + float(weight)
-    columns = {c: np.concatenate([getattr(g, c) for _, g in kept]) for c in IrtGroups.names()}
-    row_w = np.concatenate([np.full(len(g), x) for (_, g), x in zip(kept, w, strict=True)])
-    row_late = np.concatenate([np.full(len(g), x) for (_, g), x in zip(kept, late, strict=True)])
-    columns.pop("late")
-    merged = group(columns, late=row_late, weight=row_w)
-    return Merged(merged, plays=plays, used=len(kept), left_out=len(parts) - len(kept))
+    own = tuple(
+        g.replace(n=g.n * x, f_a=g.f_a * x, f_b=g.f_b * x, f_t=g.f_t * x, late=np.full(len(g), lt))
+        for (_, g), x, lt in zip(kept, w, late, strict=True)
+    )
+    columns = {c: np.concatenate([getattr(g, c) for g in own]) for c in IrtGroups.names()}
+    row_late = columns.pop("late")
+    merged = group(columns, late=row_late)
+    stars = tuple(float(m.stars) if m.stars is not None else float("nan") for m in metas)
+    return Merged(merged, plays=plays, used=len(kept), left_out=len(parts) - len(kept), parts=own, part_stars=stars)

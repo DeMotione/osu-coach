@@ -1,18 +1,11 @@
-"""The items of one play (spec §3.0, §6.2): every played note against its difficulty in stars, grouped.
+"""One play's notes as items against their difficulty, grouped by class and rounded difficulty.
 
-Heads (circles and slider heads) are put in a class by their pattern: J (jumps and spaced singles: aim, reading),
-S (streams up to 16 notes: tapping, reading), DEEP (deep in a stream: stamina, reading), F (spaced streams: flow aim,
-tapping or stamina, reading). A held slider tests slider control (it breaks or not), a hit single note accuracy
-(300 or not). Notes of one class with the same rounded difficulties form a group: how many there were and how many
-failed, by miss class A (aim) / B (behind) / T (early, no tap, notelock).
-
-Deviations from the spec (``docs/star-scale-irt.md``): a stream note judged 50 fails its tapping like a miss
-(fix 10); stamina also takes stream notes 30 s into a dense tapping section (fix 11); reading counts how many notes
-are visible at once (fix 12); sliders count only when their path leaves the follow circle; accuracy uses ``head_result`` and only plays whose timing counts (fix 9).
+Spec and why it differs from it: docs/star-scale-irt.md.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -25,14 +18,11 @@ from osu_coach.domain.player.engines.irt import tables
 from osu_coach.domain.player.engines.irt.anchors import preempt_ms, star_of
 
 B_COLUMNS = ("b_aim", "b_flow", "b_tap", "b_stam", "b_read", "b_sl")
-SL_TOP = 13.0  # ★: the top knot of the slider anchor
 
 
 @dataclass(frozen=True, slots=True)
 class IrtGroups(ArrayRecord):
-    """Groups of items: their kind (``HEAD`` / ``SLIDER`` / ``ACCURACY``), the difficulty (★) of every skill they
-    test (NaN: not tested), whether they were played late in a session, how many items (``n``, weighted once merged)
-    and how many failed by class (sliders: breaks in ``f_a``; accuracy: non-300s in ``f_a``)."""
+    """Groups of items: kind, each skill's difficulty (NaN: not tested), session flag, counts, failures."""
 
     kind: Ints
     b_aim: Floats
@@ -72,7 +62,7 @@ def _col(values, fill: float = 0.0) -> np.ndarray:
 
 
 def tapping_time(notes: HitObjects) -> np.ndarray:
-    """How long (s, real time) each note is into a dense tapping section: notes at most ``STREAM_GAP_MS`` apart."""
+    """Seconds into a dense tapping section (notes at most ``STREAM_GAP_MS`` apart)."""
     gaps = _col(notes.dt_real, np.inf)
     out = np.zeros(len(notes))
     run = 0.0
@@ -83,7 +73,7 @@ def tapping_time(notes: HitObjects) -> np.ndarray:
 
 
 def miss_class(notes: HitObjects) -> np.ndarray:
-    """A (0), B (1) or T (2) for every note by its miss reason (-1 for hits)."""
+    """A (0), B (1) or T (2) per note by its miss reason; -1 for hits."""
     reason = notes.miss_reason
     out = np.full(len(notes), 1, dtype=np.int64)  # late, lost, unknown: behind
     out[np.isin(reason, ["aim", "speed_aim"])] = 0
@@ -92,12 +82,15 @@ def miss_class(notes: HitObjects) -> np.ndarray:
     return out
 
 
-def slider_stars(notes: HitObjects) -> np.ndarray:
-    """``b_sl`` of every slider (§6.2): its speed in circle widths per second, plus its shape and speed change."""
+def slider_stars(notes: HitObjects, map_stars: float) -> np.ndarray:
+    """A slider's difficulty: its map's stars, adjusted for its speed against the map's usual slider."""
     diam = 2 * np.maximum(_col(notes.radius, 32.0), 1.0)
-    # held at the top knot: the anchor knows maps' typical slider speeds (up to ~16 widths/s at 13★), while single
-    # sliders of ordinary maps go far faster — extrapolated, they'd read 30★ and more
-    speed = np.minimum(_stars("sl", _log2(_col(notes.slider_vel_real, np.nan) * 1000.0 / diam)), SL_TOP)
+    speed = _col(notes.slider_vel_real, np.nan) * 1000.0 / diam  # circle widths per second
+    sliders = (notes.kind == "slider") & np.isfinite(speed) & (speed > 0) & moving(notes)
+    if not sliders.any() or not math.isfinite(map_stars):
+        return np.full(len(notes), np.nan)
+    usual = float(np.median(speed[sliders]))
+    ratio = np.clip(_log2(speed / usual), -K.SL_SPEED_RANGE, K.SL_SPEED_RANGE)
     shape = (
         1
         + 0.5 * np.minimum(_col(notes.slider_turn) / np.pi, 4)
@@ -105,12 +98,39 @@ def slider_stars(notes: HitObjects) -> np.ndarray:
         + 0.2 * np.minimum(_col(notes.slider_bends), 4)
     )
     change = 1 + np.minimum(_col(notes.slider_vel_change), 1.0)
-    return speed + K.K_SL * np.log2(shape * change)
+    return np.where(sliders, map_stars + K.K_SL_SPEED * ratio + K.K_SL * np.log2(shape * change), np.nan)
+
+
+def moving(notes: HitObjects) -> np.ndarray:
+    """Sliders longer than the follow circle covers."""
+    diam = 2 * np.maximum(_col(notes.radius, 32.0), 1.0)
+    return _col(notes.slider_len) / diam > K.SLIDER_FOLLOW_SLACK
+
+
+def tempo_stars(bpm) -> np.ndarray:
+    """Stars of a stream tempo (1/4 BPM, real time), from the speed anchor's BPM table."""
+    return star_of(_log2(bpm), np.log2(np.asarray(tables.NATURAL["spd"], dtype=float)))
+
+
+def given_up(notes: HitObjects) -> np.ndarray:
+    """Notes in a stretch the player stopped playing (``GIVE_UP_RUN`` heads missed with no input)."""
+    n = len(notes)
+    idle = ~notes.head_hit.astype(bool) & np.isin(notes.miss_reason, ["no_tap", "lost"])
+    out = np.zeros(n, dtype=bool)
+    start = None
+    for i in range(n + 1):
+        if i < n and idle[i]:
+            start = i if start is None else start
+            continue
+        if start is not None and i - start >= K.GIVE_UP_RUN:
+            out[start:i] = True
+        start = None
+    return out
 
 
 def item_table(notes: HitObjects, meta: ReplayMeta, timing_counts: bool = True) -> dict[str, np.ndarray]:
-    """Every item of the played notes (``HitObjects.played_notes``) of one play, ungrouped: one row per head, held
-    slider and hit single note (columns as :class:`IrtGroups`, ``fail`` the miss class or -1)."""
+    """Every item of one play's played notes, ungrouped."""
+    notes = notes.take(~given_up(notes))
     n = len(notes)
     kind_text = notes.kind
     head = np.isin(kind_text, ["circle", "slider"])
@@ -118,7 +138,7 @@ def item_table(notes: HitObjects, meta: ReplayMeta, timing_counts: bool = True) 
     dist = _col(notes.dist_norm)
     run_len, run_pos = np.asarray(notes.run_len), np.asarray(notes.run_pos)
     b_aim_all = _stars("aim", _log2(notes.aim_eq))
-    b_tap_all = _stars("spd", _log2(notes.speed_eq))
+    b_tempo = tempo_stars(notes.stream_bpm)
     density = np.maximum(_col(notes.density, 1.0), 1.0)
     hidden, flashlight = bool(meta.mods & 8), bool(meta.mods & 1024)
     b_read = (
@@ -138,33 +158,36 @@ def item_table(notes: HitObjects, meta: ReplayMeta, timing_counts: bool = True) 
     cls[head & in_run & (dist >= 0.9)] = K.F
     needs_aim = np.isin(cls, [K.J, K.F])
     needs_tap = np.isin(cls, [K.S, K.DEEP, K.F])
-    cls[(needs_aim & ~np.isfinite(b_aim_all)) | (needs_tap & ~np.isfinite(b_tap_all))] = -1
-
+    cls[(needs_aim & ~np.isfinite(b_aim_all)) | (needs_tap & ~np.isfinite(b_tempo))] = -1
     fail = miss_class(notes)
-    # a stream note judged 50 fails its tapping too: late (B) or early (T) by the sign of the hit error
-    fifty = np.isin(cls, [K.S, K.DEEP, K.F]) & hit & (np.asarray(notes.head_result) == 50)
-    fail[fifty] = np.where(_col(notes.hit_error) > 0, 1, 2)[fifty]
 
     nan = np.full(n, np.nan)
+    tap_b = np.where((cls == K.S) | ((cls == K.F) & ~deep), b_tempo, np.nan)
+    stam_b = np.where((cls == K.DEEP) | ((cls == K.F) & deep), b_tempo, np.nan)
     heads = cls >= 0
     rows = {
         "kind": np.full(int(heads.sum()), K.HEAD),
         "b_aim": np.where(cls == K.J, b_aim_all, np.nan)[heads],
         "b_flow": np.where(cls == K.F, b_aim_all, np.nan)[heads],
-        "b_tap": np.where((cls == K.S) | ((cls == K.F) & ~deep), b_tap_all, np.nan)[heads],
-        "b_stam": np.where((cls == K.DEEP) | ((cls == K.F) & deep), b_tap_all, np.nan)[heads],
+        "b_tap": tap_b[heads],
+        "b_stam": stam_b[heads],
         "b_read": b_read[heads],
         "b_sl": nan[heads],
         "b_acc": nan[heads],
         "fail": fail[heads],
     }
+    # every hit stream note is also a timing item: a 50 fails it, and only tapping (or stamina) answers for it
+    timed = np.isin(cls, [K.S, K.DEEP, K.F]) & hit
+    timing_rows = {
+        "kind": np.full(int(timed.sum()), K.TIMING),
+        **{c: nan[timed] for c in ("b_aim", "b_flow", "b_read", "b_sl", "b_acc")},
+        "b_tap": tap_b[timed],
+        "b_stam": stam_b[timed],
+        "fail": np.where(np.asarray(notes.head_result) == 50, 0, -1)[timed],
+    }
     held = (kind_text == "slider") & hit
-    b_sl = slider_stars(notes)
-    # only sliders whose path leaves the follow circle test following: a short fast one (a kick slider) is
-    # held without moving, however fast its ball (it would read 30★+ by speed alone)
-    diam = 2 * np.maximum(_col(notes.radius, 32.0), 1.0)
-    moves = _col(notes.slider_len) / diam > K.SLIDER_FOLLOW_SLACK
-    held &= np.isfinite(b_sl) & moves
+    b_sl = slider_stars(notes, float(meta.stars) if meta.stars is not None else math.nan)
+    held &= np.isfinite(b_sl)  # moving sliders only (see moving)
     sl_rows = {
         "kind": np.full(int(held.sum()), K.SLIDER),
         **{c: nan[held] for c in ("b_aim", "b_flow", "b_tap", "b_stam", "b_read", "b_acc")},
@@ -173,7 +196,7 @@ def item_table(notes: HitObjects, meta: ReplayMeta, timing_counts: bool = True) 
     }
     singles = head & (run_len < 3) & hit if timing_counts else np.zeros(n, dtype=bool)
     window = _stars("acc", -np.log2(max(79.5 - 6 * float(meta.od), 1.0)))
-    local = np.fmax(b_aim_all, b_tap_all)
+    local = np.fmax(b_aim_all, _stars("spd", _log2(notes.speed_eq)))
     b_acc = np.where(np.isfinite(local), window + K.LAMBDA * (local - window), window)
     acc_rows = {
         "kind": np.full(int(singles.sum()), K.ACCURACY),
@@ -181,12 +204,12 @@ def item_table(notes: HitObjects, meta: ReplayMeta, timing_counts: bool = True) 
         "b_acc": b_acc[singles],
         "fail": np.where(np.asarray(notes.head_result) != 300, 0, -1)[singles],
     }
-    return {k: np.concatenate([rows[k], sl_rows[k], acc_rows[k]]) for k in rows}
+    parts = (rows, timing_rows, sl_rows, acc_rows)
+    return {k: np.concatenate([part[k] for part in parts]) for k in rows}
 
 
 def group(items: dict[str, np.ndarray], late: np.ndarray | None = None, weight: np.ndarray | None = None) -> IrtGroups:
-    """Items (or groups) with the same kind, rounded difficulties and session flag added up into one group each;
-    ``weight`` scales every row's counts."""
+    """Items (or groups) added up by kind, rounded difficulties and session flag."""
     count = len(items["kind"])
     if not count:
         return IrtGroups.from_columns({c: np.zeros(0) for c in IrtGroups.names()}, n=0)
@@ -222,5 +245,5 @@ def group(items: dict[str, np.ndarray], late: np.ndarray | None = None, weight: 
 
 
 def group_table(notes: HitObjects, meta: ReplayMeta, timing_counts: bool = True) -> IrtGroups:
-    """The :class:`IrtGroups` of one play's played notes."""
+    """The grouped items of one play."""
     return group(item_table(notes, meta, timing_counts))

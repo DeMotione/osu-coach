@@ -11,7 +11,7 @@ import pandas as pd
 from osu_coach.common.convert import integer, iso, num, text
 from osu_coach.common.errors import ApiError, Invalid, NoProfile, NotFound
 from osu_coach.common.texts import SKILL_LABELS
-from osu_coach.domain.player.records import UNRATED
+from osu_coach.domain.player.engines import COMFORT, engine_name, measured_scores
 from osu_coach.domain.progress import goals
 from osu_coach.domain.progress.periods import SKILL_REFERENCE, period_metrics
 from osu_coach.domain.replays import scope
@@ -179,8 +179,17 @@ def period_plays(
 
 # ------------------------------------------------------------------ goals
 def _scores(ws: Workspace) -> dict:
+    """The scores goals follow: measurements only (an IRT "at least" score is left out)."""
     p = ws.profile()
-    return {k: num(p.skill_ratings.get(k, UNRATED).score) for k in SKILL_LABELS} if p is not None else {}
+    if p is None:
+        return {}
+    measured = measured_scores(p.skill_ratings)
+    return {k: num(measured.get(k)) for k in SKILL_LABELS}
+
+
+def _engine_of(g: dict) -> str:
+    """The engine a goal was set with (older goals: Comfort-Based)."""
+    return engine_name(g.get("engine"))
 
 
 def _low_comfort(ws: Workspace) -> bool:
@@ -199,17 +208,18 @@ def _paused_accuracy_goal(g: dict, low_comfort: bool) -> bool:
     )
 
 
-def _paused(g: dict, low_comfort: bool) -> bool:
-    """An open goal that is no longer followed: set on the previous rating scale (before 0.10; its scores can't be
-    compared with the Overview's, #70), or an accuracy goal of the recalibrated low-comfort scale."""
+def _paused(g: dict, low_comfort: bool, engine: str = COMFORT) -> bool:
+    """An open goal that isn't followed now: an older rating scale, a recalibrated accuracy goal, or set
+    with the other engine.
+    """
     if g.get("done"):
         return False
-    return g.get("score_source") != "experimental" or _paused_accuracy_goal(g, low_comfort)
+    return g.get("score_source") != "experimental" or _paused_accuracy_goal(g, low_comfort) or _engine_of(g) != engine
 
 
-def _goal_score(g: dict, current: dict, low_comfort: bool = False) -> float | None:
-    """The goal's skill on the Overview's scale; None for a paused goal and for a reached one of the previous scale."""
-    if g.get("score_source") != "experimental" or _paused_accuracy_goal(g, low_comfort):
+def _goal_score(g: dict, current: dict, low_comfort: bool = False, engine: str = COMFORT) -> float | None:
+    """The goal's skill score; None for a paused goal."""
+    if g.get("score_source") != "experimental" or _paused_accuracy_goal(g, low_comfort) or _engine_of(g) != engine:
         return None
     return current.get(g["skill"])
 
@@ -228,8 +238,10 @@ def _save_goals(ws: Workspace, gl: list[dict]) -> None:
 def _goals(ws: Workspace, scores: dict, low_comfort: bool = False) -> list[dict]:
     """The saved goals, the ones reached by now marked as done (and saved)."""
     gl, changed = [], False
+    engine = ws.rating_engine()
     for g in ws.settings().goals or []:
-        updated, reached = goals.update([g], {g["skill"]: _goal_score(g, scores, low_comfort)}, today=dt.date.today())
+        score = _goal_score(g, scores, low_comfort, engine)
+        updated, reached = goals.update([g], {g["skill"]: score}, today=dt.date.today())
         gl.extend(updated)
         changed |= reached
     if changed:
@@ -237,9 +249,9 @@ def _goals(ws: Workspace, scores: dict, low_comfort: bool = False) -> list[dict]
     return gl
 
 
-def _goal_out(g: dict, current, low_comfort: bool = False) -> GoalOut:
+def _goal_out(g: dict, current, low_comfort: bool = False, engine: str = COMFORT) -> GoalOut:
     st = goals.status(g, current, today=dt.date.today())
-    paused = _paused(g, low_comfort)
+    paused = _paused(g, low_comfort, engine)
     return GoalOut(
         id=g["id"],
         skill=g["skill"],
@@ -260,8 +272,8 @@ def _goal_out(g: dict, current, low_comfort: bool = False) -> GoalOut:
 
 def _history(ws: Workspace, gl: list[dict]) -> list[GoalHistory]:
     """The goal skills day by day since the oldest goal (from the saved progress), with the path to each target.
-    The saved daily scores are on the Overview's rating scale, so only goals set on that scale get a history."""
-    gl = [g for g in gl if g.get("score_source") == "experimental"]
+    The saved daily scores are on the Comfort-Based engine's scale, so only goals set on it get a history."""
+    gl = [g for g in gl if g.get("score_source") == "experimental" and _engine_of(g) == COMFORT]
     if not gl:
         return []
     conn = progress.connect(ws.cache_dir)
@@ -294,21 +306,22 @@ def _history(ws: Workspace, gl: list[dict]) -> list[GoalHistory]:
 def goals_out(ws: Workspace) -> GoalsOut:
     scores = _scores(ws)
     low_comfort = _low_comfort(ws)
+    engine = ws.rating_engine()
     gl = _goals(ws, scores, low_comfort)
     open_ = [g for g in gl if not g.get("done")]
     done = [g for g in gl if g.get("done")]
-    open_out = [_goal_out(g, _goal_score(g, scores, low_comfort), low_comfort) for g in open_]
+    open_out = [_goal_out(g, _goal_score(g, scores, low_comfort, engine), low_comfort, engine) for g in open_]
     have = [
         SkillValue(key=k, label=short_label(k), score=float(scores[k]))
         for k in SKILL_LABELS
         if num(scores.get(k)) is not None
     ]
-    open_skills = {g["skill"] for g in open_ if not _paused(g, low_comfort)}
+    open_skills = {g["skill"] for g in open_ if not _paused(g, low_comfort, engine)}
     weak = [s for s in sorted(have, key=lambda s: s.score) if s.score <= 45 and s.key not in open_skills]
     return GoalsOut(
         has_profile=ws.profile() is not None,
         open=open_out,
-        done=[_goal_out(g, _goal_score(g, scores, low_comfort), low_comfort) for g in done],
+        done=[_goal_out(g, _goal_score(g, scores, low_comfort, engine), low_comfort, engine) for g in done],
         behind=sum(g.state in ("behind", "overdue") for g in open_out),
         skills=have,
         suggested=[
@@ -333,8 +346,9 @@ def add_goal(ws: Workspace, req: GoalCreate) -> GoalsOut:
             f"{short_label(req.skill)} is already at {scores[req.skill]:.0f}: pick a higher target.", "target_reached"
         )
     low_comfort = _low_comfort(ws)
+    engine = ws.rating_engine()
     gl = _goals(ws, scores, low_comfort)
-    if any(g["skill"] == req.skill and not g.get("done") and not _paused(g, low_comfort) for g in gl):
+    if any(g["skill"] == req.skill and not g.get("done") and not _paused(g, low_comfort, engine) for g in gl):
         raise ApiError(409, "goal_exists", f"There is already a goal for {short_label(req.skill)}: remove it first.")
     _save_goals(
         ws,
@@ -349,6 +363,7 @@ def add_goal(ws: Workspace, req: GoalCreate) -> GoalsOut:
                 today=dt.date.today(),
                 score_source="experimental",
                 score_version=2 if req.skill == "accuracy" else None,
+                engine=engine,
             )
         ],
     )
@@ -364,8 +379,9 @@ def add_plan(ws: Workspace) -> GoalsOut:
     if not any(score is not None for score in scores.values()):
         raise NoProfile("No measured skill ratings yet. Analyse more replays before making a plan.")
     low_comfort = _low_comfort(ws)
+    engine = ws.rating_engine()
     gl = _goals(ws, scores, low_comfort)
-    have_open = {g["skill"] for g in gl if not g.get("done") and not _paused(g, low_comfort)}
+    have_open = {g["skill"] for g in gl if not g.get("done") and not _paused(g, low_comfort, engine)}
     deadline = dt.date.today() + dt.timedelta(weeks=PLAN_WEEKS)
     new = [
         goals.new_goal(
@@ -377,6 +393,7 @@ def add_plan(ws: Workspace) -> GoalsOut:
             today=dt.date.today(),
             score_source="experimental",
             score_version=2 if k == "accuracy" else None,
+            engine=engine,
         )
         for k, cur, tg in _plan_targets(scores, have_open)
     ]

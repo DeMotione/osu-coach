@@ -274,3 +274,34 @@ def test_one_open_goal_per_skill_with_a_target_above_the_score(analysed):
     )
     assert low.status_code == 422 and low.json()["code"] == "target_reached"
     assert len(analysed.get("/api/goals").json()["open"]) == 1
+
+
+def test_a_goal_is_followed_only_with_the_engine_it_was_set_with(analysed):
+    _measured_profile(analysed)
+    deadline = (dt.date.today() + dt.timedelta(days=14)).isoformat()
+    g = analysed.post("/api/goals", json={"skill": "speed", "target": 75, "deadline": deadline}).json()
+    goal = g["open"][0]
+    assert load_settings(workspace(analysed).cache_dir)["goals"][0]["engine"] == "comfort"
+    # with Star-Scale IRT a score of 90 is on another scale: it must neither complete nor move the goal
+    analysed.patch("/api/settings", json={"rating_engine": "irt"})
+    p = workspace(analysed).profile()
+    assert p.engine == "irt"
+    p.skill_ratings = {**p.skill_ratings, "speed": SkillRating(90.0, 12, Message("irt_measured"), state="measured")}
+    g = analysed.get("/api/goals").json()
+    followed = {x["id"]: x for x in g["open"]}
+    assert goal["id"] in followed and followed[goal["id"]]["state"] == "paused" and g["done"] == []
+    assert load_settings(workspace(analysed).cache_dir)["goals"][0]["done"] is None
+
+
+def test_an_at_least_score_neither_sets_nor_reaches_a_goal(analysed):
+    analysed.patch("/api/settings", json={"rating_engine": "irt"})
+    p = workspace(analysed).profile()
+    p.skill_ratings = {
+        **p.skill_ratings,
+        "sliders": SkillRating(93.0, 12, Message("irt_untested"), at_least=93.0, state="untested"),
+    }
+    g = analysed.get("/api/goals").json()
+    assert "sliders" not in {s["key"] for s in g["skills"]}
+    deadline = (dt.date.today() + dt.timedelta(days=14)).isoformat()
+    r = analysed.post("/api/goals", json={"skill": "sliders", "target": 95, "deadline": deadline})
+    assert r.status_code == 422 and r.json()["code"] == "skill_without_score"

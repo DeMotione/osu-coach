@@ -22,6 +22,23 @@ SKILL_LABELS = {
 }
 # Shown when the cursor is on a skill bar (Overview): what the skill measures, how the rating is worked out
 # (``ratings.py``) and what raises it. Keep in step with ``ratings.ratings``.
+# what each skill measures under Star-Scale IRT; the Comfort-Based texts below describe another measurement
+SKILL_HELP_IRT = {
+    "aim": "Jump aim: how rarely you miss jumps and spaced notes with the cursor, against how far and fast each jump is.",
+    "flow_aim": "Spaced streams: how rarely you miss the notes of streams that are a circle width or more apart, "
+    "against their spacing and speed.",
+    "speed": "Tapping speed: how rarely you miss stream and burst notes or hit them for a 50, against their tempo "
+    "(BPM). Cursor misses on them count for flow aim instead.",
+    "stamina": "Stamina: the same for the notes deep in long streams (past the 16th note, or 30 s into dense "
+    "tapping), against their tempo: where tapping speed holds and stamina drops, your fingers tire.",
+    "accuracy": "Hit timing on single notes (not in streams): how often a hit is a 300, against how narrow the 300 "
+    "window is (OD, with rate mods) and how hard the pattern is.",
+    "sliders": "Slider control: how rarely you break sliders that move (longer than a circle width), against how fast "
+    "they are for their map, their shape and speed changes.",
+    "reading": "Reading: how rarely you miss notes, against how fast they appear (higher AR is harder) and how many are "
+    "on screen at once (HD and FL count too).",
+}
+
 BEST_PER_SETUP = "each map/mod setup counts once (its best play), best first and each next one 5% less"
 SKILL_HELP = {
     "aim": (
@@ -184,15 +201,19 @@ def message(m: Message | None) -> str | None:
         case "irt_provisional":
             return "Fitted from every note, but still uncertain: more plays near your limit narrow it"
         case "irt_untested":
-            return f"At least {v['tested']:.1f}★: you held what you played, so its limit isn't tested yet"
+            maps = f" (up to {v['maps']:.1f}★)" if v.get("maps") else ""
+            return f"You almost never fail {_IRT_TESTS[v['skill']]} on the maps you played{maps}"
         case "irt_not_enough":
             return "Not enough notes near your limit to measure it yet"
         case "irt_failed":
             return "The fit didn't settle on one answer: no number is shown"
         case "irt_play_harder":
-            return f"Play maps with {_IRT_TESTS[v['skill']]} harder than {v['stars']:.1f}★ to find your limit."
+            return (
+                f"Play maps a bit above your level (around {v['level']:.1f}★) with plenty of "
+                f"{_IRT_TESTS[v['skill']]} to find your limit."
+            )
         case "irt_play_at":
-            return f"Play maps with {_IRT_TESTS[v['skill']]} of about {v['stars']:.1f}★ to measure it."
+            return f"Play more maps around your level ({v['level']:.1f}★) with {_IRT_TESTS[v['skill']]} to measure it."
         case "comfort_first":
             return (
                 "First your comfort level: pass 3 different maps (with at most 2 misses per 100 notes) and analyse "

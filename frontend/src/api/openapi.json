@@ -4047,6 +4047,18 @@
             "title": "Change",
             "description": "This score minus the comfort-level score (points)."
           },
+          "at_least": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At Least",
+            "description": "Without a score: the skill is at least this good on these maps (untested, 0–100)."
+          },
           "demand": {
             "anyOf": [
               {
@@ -9540,6 +9552,18 @@
             "type": "string",
             "title": "Practise",
             "description": "What raises it."
+          },
+          "irt_what": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Irt What",
+            "description": "What the skill measures under Star-Scale IRT (null: as `what`)."
           }
         },
         "type": "object",

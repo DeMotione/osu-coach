@@ -93,6 +93,9 @@ class CompareSkill(BaseModel):
         "how much more they demand of the skill. null without a comfort-level score."
     )
     change: float | None = Field(description="This score minus the comfort-level score (points).")
+    at_least: float | None = Field(
+        None, description="Without a score: the skill is at least this good on these maps (untested, 0–100)."
+    )
     demand: float | None = Field(
         description="How many times what typical maps of the comfort level demand of the skill (1.25 = 25% more)."
     )

@@ -1,19 +1,12 @@
-"""Fitting the abilities (spec §6.4–6.6): the skills θ, the session drop δ and the lapse rate ε, by maximum a
-posteriori from the merged item groups, and accuracy on its own.
+"""Fitting the abilities: MAP of the skills, the session drop and the lapse rate, and accuracy on its own.
 
-A note of head group g with skills K_g is hit with ``p = (1 − ε)·Π_k (1 − q_k)``, ``q_k = σ(−(c + a_k(θ_k − δℓ − b)))``;
-a miss falls in class c with the mix of the skills that could have failed. Priors: θ_k ~ N(L, τ²), δ ~ N(0, 0.5²),
-ε ~ Beta(2, 998).
-
-Safety (the review's fixes 4–6; ``docs/star-scale-irt.md``): probabilities are kept inside (1e-12, 1 − 1e-12);
-the damped quasi-Newton solver only ever steps uphill; a fit that does not converge is reported
-``converged=False`` instead of giving a number; the fit starts from three places and, when two different answers
-fit about as well, the range spans both; the ranges add play-to-play form and how much the prior moves the answer.
+Spec and why it differs from it: docs/star-scale-irt.md.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -26,14 +19,13 @@ N_SKILLS = len(K.SKILLS)
 LOG_TINY = math.log(1e-12)
 STARTS = (0.0, -2.0, 2.0)  # ★ from the prior centre, plus a start at each skill's typical difficulty
 SENSITIVITY = 1.0  # ★: the prior centre is moved this far either way to see how much the answer follows it
+BAND, BAND_ITEMS = 0.5, 30.0  # ★ wide bands, and the items one needs to count as held
 GUARD = 60.0  # ★ from the prior centre: a fit that runs further has failed (a guard, never a score)
 
 
 @dataclass(frozen=True, slots=True)
 class SkillFit:
-    """One skill: its ability (★), its standard error (★, with form and prior sensitivity), the range of other
-    answers that fit about as well (``modes``), how many items (weighted) tested it and the hardest it held
-    (``tested``: 95th percentile of the held items' difficulty)."""
+    """One skill: ability (★), SE, items, hardest difficulty tested, plays, other near-equal answers."""
 
     theta: float
     se: float
@@ -46,8 +38,7 @@ class SkillFit:
 
 @dataclass(frozen=True, slots=True)
 class IrtFit:
-    """The fit: every skill (``SKILLS`` plus ``acc``), the session drop δ (★), the lapse rate ε, the prior centre L
-    used, and whether the solver converged."""
+    """The fit of every skill, the session drop δ, the lapse rate ε and the prior centre."""
 
     skills: dict[str, SkillFit]
     delta: float
@@ -65,20 +56,24 @@ class IrtFit:
 class _Data:
     b: np.ndarray  # G × 6, 0 where not tested
     mask: np.ndarray  # G × 6
+    a: np.ndarray  # G × 6: each group's discrimination per skill
+    c: np.ndarray  # G: logit of the share held at θ = b
     late: np.ndarray
     n: np.ndarray
     f: np.ndarray  # G × 3
-    mix: np.ndarray  # 1 for head groups (miss classes), 0 for sliders
+    mix: np.ndarray  # 1 for head groups (miss classes and random lapses), 0 for sliders and timing
 
 
 def _data(groups: IrtGroups) -> _Data:
-    rows = groups.kind != K.ACCURACY
-    g = groups.take(rows)
+    g = _data_groups(groups)
     b = g.b()
     mask = np.isfinite(b)
     f = np.column_stack([g.f_a, g.f_b, g.f_t])
+    timing = g.kind == K.TIMING
+    a = np.where(timing[:, None], K.A_TIMING, K.A[None, :]) * np.ones_like(b)
+    c = np.where(timing, K.C_TIMING, K.C)
     mix = (g.kind == K.HEAD).astype(float)
-    return _Data(np.where(mask, b, 0.0), mask, g.late.astype(float), g.n.astype(float), f, mix)
+    return _Data(np.where(mask, b, 0.0), mask, a, c, g.late.astype(float), g.n.astype(float), f, mix)
 
 
 def _data_groups(groups: IrtGroups) -> IrtGroups:
@@ -93,20 +88,20 @@ def _sigmoid(z):
     return 0.5 * (1 + np.tanh(0.5 * np.asarray(z, dtype=float)))
 
 
-def _objective(x: np.ndarray, d: _Data, prior: float) -> tuple[float, np.ndarray]:
-    """The log posterior and its gradient at ``x = (θ_1..6, δ, η = logit ε)``."""
+def _objective(x: np.ndarray, d: _Data, prior: float, with_prior: bool = True) -> tuple[float, np.ndarray]:
+    """Log posterior (or likelihood) and its gradient at ``x = (θ_1..6, δ, logit ε)``."""
     theta, delta, eta = x[:N_SKILLS], x[N_SKILLS], x[N_SKILLS + 1]
     eps = float(_sigmoid(eta))
     shift = delta * d.late[:, None] * K.SESSION_SHIFT[None, :]
-    z = K.C + K.A[None, :] * (theta[None, :] - shift - d.b)
+    z = d.c[:, None] + d.a * (theta[None, :] - shift - d.b)
     q = np.where(d.mask, _sigmoid(-z), 0.0)
     log_eps, log_1m_eps = float(_log_sigmoid(np.array(eta))), float(_log_sigmoid(np.array(-eta)))
-    log_p = log_1m_eps + np.where(d.mask, _log_sigmoid(z), 0.0).sum(axis=1)
+    log_p = d.mix * log_1m_eps + np.where(d.mask, _log_sigmoid(z), 0.0).sum(axis=1)
     log_p = np.minimum(log_p, -1e-12)
     log_miss = np.log(-np.expm1(log_p))  # ln(1 − p)
     p = np.exp(log_p)
     F = d.f.sum(axis=1)
-    m = eps * K.E0[None, :] + q @ K.E  # G × 3
+    m = eps * K.E0[None, :] + q @ K.E  # G × 3 (only head groups use it)
     m = np.maximum(m, 1e-300)
     s = np.maximum(eps + q.sum(axis=1), 1e-300)
     mix_terms = (d.f * (np.log(m) - np.log(s)[:, None])).sum(axis=1)
@@ -118,9 +113,11 @@ def _objective(x: np.ndarray, d: _Data, prior: float) -> tuple[float, np.ndarray
     per_class = (d.f / m) @ K.E.T  # G × 6: Σ_c f_c E_kc / m_c
     dz = coef[:, None] * q + d.mix[:, None] * dq * (F / s)[:, None] - d.mix[:, None] * dq * per_class
     dz = np.where(d.mask, dz, 0.0)
-    g_theta = (dz * K.A[None, :]).sum(axis=0)
-    g_delta = float(-(dz * K.A[None, :] * K.SESSION_SHIFT[None, :] * d.late[:, None]).sum())
-    g_eta = float((coef * -eps).sum() + (d.mix * eps * (1 - eps) * ((d.f / m) @ K.E0 - F / s)).sum())
+    g_theta = (dz * d.a).sum(axis=0)
+    g_delta = float(-(dz * d.a * K.SESSION_SHIFT[None, :] * d.late[:, None]).sum())
+    g_eta = float((coef * -eps * d.mix).sum() + (d.mix * eps * (1 - eps) * ((d.f / m) @ K.E0 - F / s)).sum())
+    if not with_prior:
+        return ll, np.concatenate([g_theta, [g_delta, g_eta]])
 
     # priors
     ll += float(-((theta - prior) ** 2).sum() / (2 * K.TAU**2) - delta**2 / (2 * K.DELTA_SD**2))
@@ -132,10 +129,7 @@ def _objective(x: np.ndarray, d: _Data, prior: float) -> tuple[float, np.ndarray
 
 
 def _solve(d: _Data, prior: float, x0: np.ndarray, max_iter: int = 200) -> tuple[np.ndarray, float, bool, str]:
-    """Damped quasi-Newton (Levenberg–Marquardt on a BFGS-updated curvature, started from the exact one): a step is
-    taken only if the log posterior rises; otherwise the damping grows and the step shrinks towards a short gradient
-    step, and once the updated curvature stops helping the exact one is computed again. Converged when the gradient
-    is flat."""
+    """Damped quasi-Newton: only uphill steps; reports failure instead of a number."""
     x = np.asarray(x0, dtype=float).copy()
     ll, g = _objective(x, d, prior)
     h = -_hessian(d, prior, x)  # the curvature of −ℓ: positive definite near a maximum
@@ -178,7 +172,7 @@ def _solve(d: _Data, prior: float, x0: np.ndarray, max_iter: int = 200) -> tuple
 
 
 def _hessian(d: _Data, prior: float, x: np.ndarray, h: float = 1e-4) -> np.ndarray:
-    """The Hessian of the log posterior by central differences of its exact gradient (symmetrised)."""
+    """Hessian by central differences of the exact gradient."""
     k = len(x)
     out = np.zeros((k, k))
     for i in range(k):
@@ -195,8 +189,7 @@ def _acc_score(theta: float, b: np.ndarray, n: np.ndarray, f: np.ndarray, prior:
 
 
 def fit_accuracy(groups: IrtGroups, prior: float) -> tuple[float, float, bool]:
-    """θ_acc by bisection on its score (it falls as θ rises), its SE (design effect included), and whether a root
-    was found inside the guard."""
+    """θ_acc by bisection on its (monotone) score, its SE, and whether a root was found."""
     acc = groups.take(groups.kind == K.ACCURACY)
     b, n, f = acc.b_acc, acc.n, acc.f_a
     lo, hi = prior - 1.0, prior + 1.0
@@ -220,9 +213,8 @@ def fit_accuracy(groups: IrtGroups, prior: float) -> tuple[float, float, bool]:
 
 # ------------------------------------------------------------------ the whole fit
 def _tested(groups: IrtGroups, theta: dict[str, float]) -> dict[str, tuple[float, float]]:
-    """Per skill: the weighted items and the hardest difficulty held — the 95th percentile of the held items'
-    difficulty, each weighted by how much it says about an ability of ``theta`` (its information a²q(1−q)), so a
-    pile of easy notes far below the ability doesn't pull it down. NaN when nothing was held."""
+    """Per skill: items, and the information-weighted 95th percentile of the held notes' difficulty."""
+    groups = groups.take(groups.kind != K.TIMING)
     held = groups.n - groups.failed()
     b = np.column_stack([groups.b(), groups.b_acc]) if len(groups) else np.zeros((0, 7))
     out = {}
@@ -237,8 +229,30 @@ def _tested(groups: IrtGroups, theta: dict[str, float]) -> dict[str, tuple[float
     return out
 
 
+def held_bound(groups: IrtGroups, skill: str) -> float:
+    """The hardest 0.5★ band of the skill's notes held at its anchor share or better; NaN if none."""
+    groups = groups.take(groups.kind != K.TIMING)
+    if skill == "acc":
+        b, share = groups.b_acc, 1 - K.PI_ACC
+    else:
+        b, share = getattr(groups, f"b_{skill}"), 1 - K.PI
+    ok = np.isfinite(b)
+    if not ok.any():
+        return math.nan
+    band = np.floor(b[ok] / BAND) * BAND
+    n, failed = groups.n[ok], groups.failed()[ok]
+    best = math.nan
+    for lo in np.unique(band):
+        m = band == lo
+        total = float(n[m].sum())
+        if total >= BAND_ITEMS and float(failed[m].sum()) <= share * total:
+            best = float(lo + BAND / 2) if math.isnan(best) else max(best, float(lo + BAND / 2))
+    return best
+
+
 def _typical(groups: IrtGroups, prior: float) -> np.ndarray:
-    """A start for every skill on its own: the median difficulty of its items (the prior without items)."""
+    """A start for every skill: the median difficulty of its notes."""
+    groups = groups.take(groups.kind != K.TIMING)
     b = groups.b() if len(groups) else np.zeros((0, N_SKILLS))
     out = np.full(N_SKILLS, prior)
     for i in range(N_SKILLS):
@@ -248,8 +262,37 @@ def _typical(groups: IrtGroups, prior: float) -> np.ndarray:
     return out
 
 
-def fit(groups: IrtGroups, prior: float, plays: dict[str, float] | None = None) -> IrtFit:
-    """The :class:`IrtFit` of these merged groups around the prior centre ``prior`` (★)."""
+def _cluster_var(x: np.ndarray, prior: float, hess: np.ndarray, parts: Sequence[IrtGroups]) -> np.ndarray:
+    """Sandwich variance with every play as one cluster."""
+    inv = np.linalg.inv(-hess)
+    meat = np.zeros_like(hess)
+    for part in parts:
+        if len(part):
+            g = _objective(x, _data(part), prior, with_prior=False)[1]
+            meat += np.outer(g, g)
+    return inv @ meat @ inv
+
+
+def _acc_cluster_var(theta: float, parts: Sequence[IrtGroups]) -> float:
+    """The same for accuracy."""
+    scores, info = [], 1 / K.TAU**2
+    for part in parts:
+        acc = part.take(part.kind == K.ACCURACY)
+        if not len(acc):
+            continue
+        q = _sigmoid(-(K.C_ACC + K.A_ACC * (theta - acc.b_acc)))
+        scores.append(float(K.A_ACC * ((acc.n - acc.f_a) * q - acc.f_a * (1 - q)).sum()))
+        info += float((K.A_ACC**2 * acc.n * q * (1 - q)).sum())
+    return float(np.sum(np.square(scores))) / info**2
+
+
+def fit(
+    groups: IrtGroups,
+    prior: float,
+    plays: dict[str, float] | None = None,
+    parts: Sequence[IrtGroups] | None = None,
+) -> IrtFit:
+    """The fit of these merged groups; with ``parts`` (each play's groups) the ranges are clustered by play."""
     plays = plays or {}
     d = _data(groups)
     x_init = np.concatenate([np.full(N_SKILLS, prior), [0.0, math.log(K.EPS0 / (1 - K.EPS0))]])
@@ -287,27 +330,38 @@ def fit(groups: IrtGroups, prior: float, plays: dict[str, float] | None = None) 
     lo_modes, hi_modes = np.min(near, axis=0), np.max(near, axis=0)
 
     tested = _tested(groups, {**dict(zip(K.SKILLS, x[:N_SKILLS].tolist(), strict=True)), "acc": acc_theta})
+    clustered = np.diag(_cluster_var(x, prior, hess, parts)) if parts else None
     skills: dict[str, SkillFit] = {}
     for i, k in enumerate(K.SKILLS):
         items, top = tested[k]
         n_plays = plays.get(k, 0.0)
-        form = K.FORM_SD**2 / max(n_plays, 1.0) if items else 0.0
-        se = math.sqrt(K.D * cov[i, i] + form + prior_shift[i] ** 2)
+        if clustered is not None:  # never narrower than the model's own curvature
+            var = K.D_CLUSTER * max(float(clustered[i]), float(cov[i, i]))
+        else:
+            var = K.D * cov[i, i] + (K.FORM_SD**2 / max(n_plays, 1.0) if items else 0.0)
+        se = math.sqrt(var + prior_shift[i] ** 2)
         spread = (float(lo_modes[i]), float(hi_modes[i])) if hi_modes[i] - lo_modes[i] > K.MODE_GAP else None
         skills[k] = SkillFit(float(x[i]), se, items, top, n_plays, spread, float(prior_shift[i]))
     items, top = tested["acc"]
     if acc_ok:
         acc_moved = [fit_accuracy(groups, prior + m)[0] for m in (-SENSITIVITY, SENSITIVITY)]
         acc_shift = abs(acc_moved[1] - acc_moved[0]) / 2 if all(map(math.isfinite, acc_moved)) else 0.0
-        form = K.FORM_SD**2 / max(plays.get("acc", 0.0), 1.0) if items else 0.0
+        if parts:
+            var = K.D_CLUSTER * max(_acc_cluster_var(acc_theta, parts), acc_se**2 / K.D)
+        else:
+            var = acc_se**2 + (K.FORM_SD**2 / max(plays.get("acc", 0.0), 1.0) if items else 0.0)
         skills["acc"] = SkillFit(
-            acc_theta, math.sqrt(acc_se**2 + form + acc_shift**2), items, top, plays.get("acc", 0.0), None, acc_shift
+            acc_theta, math.sqrt(var + acc_shift**2), items, top, plays.get("acc", 0.0), None, acc_shift
         )
     eps = float(_sigmoid(x[N_SKILLS + 1]))
     return IrtFit(
         skills=skills,
         delta=float(x[N_SKILLS]),
-        delta_se=math.sqrt(K.D * cov[N_SKILLS, N_SKILLS]),
+        delta_se=math.sqrt(
+            K.D_CLUSTER * max(float(clustered[N_SKILLS]), float(cov[N_SKILLS, N_SKILLS]))
+            if clustered is not None
+            else K.D * cov[N_SKILLS, N_SKILLS]
+        ),
         eps=eps,
         prior=prior,
         converged=True,

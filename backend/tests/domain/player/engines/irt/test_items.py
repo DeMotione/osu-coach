@@ -18,7 +18,7 @@ def stream_play():
 def test_every_kind_of_item_is_found(stream_play):
     notes, meta = stream_play
     items = item_table(notes, meta)
-    assert set(np.unique(items["kind"])) == {K.HEAD, K.SLIDER, K.ACCURACY}
+    assert set(np.unique(items["kind"])) == {K.HEAD, K.SLIDER, K.ACCURACY, K.TIMING}
     for col in ("b_aim", "b_tap", "b_stam", "b_flow", "b_read", "b_sl", "b_acc"):
         assert np.isfinite(items[col]).any(), col
     groups = group_table(notes, meta)
@@ -26,15 +26,40 @@ def test_every_kind_of_item_is_found(stream_play):
     assert groups.failed().sum() == (items["fail"] >= 0).sum()
 
 
-def test_a_stream_note_judged_50_fails_its_tapping(stream_play):
+def test_a_stream_note_judged_50_fails_its_timing_not_the_note(stream_play):
     notes, meta = stream_play
     items = item_table(notes, meta)
     stream = np.flatnonzero((notes.run_len >= 3) & (notes.run_pos >= 1) & notes.head_hit & (notes.head_result != 50))
     result = notes.head_result.copy()
     result[stream[:20]] = 50
     worse = item_table(notes.replace(head_result=result), meta)
-    tap = lambda it: ((it["fail"] >= 0) & (np.isfinite(it["b_tap"]) | np.isfinite(it["b_stam"]))).sum()  # noqa: E731
-    assert tap(worse) > tap(items)
+    failed = lambda it, kind: int(((it["kind"] == kind) & (it["fail"] >= 0)).sum())  # noqa: E731
+    assert failed(worse, K.TIMING) >= failed(items, K.TIMING) + 15  # a 50 fails the note's timing ...
+    assert failed(worse, K.HEAD) == failed(items, K.HEAD)  # ... not the note: it was hit, reading and flow held
+
+
+def test_tapping_and_stamina_rate_a_tempo_alike(stream_play):
+    notes, meta = stream_play
+    items = item_table(notes, meta)
+    tap, stam = items["b_tap"], items["b_stam"]
+    from osu_coach.domain.player.engines.irt.items import tempo_stars
+
+    assert np.nanmax(np.abs(tempo_stars(np.array([200.0, 200.0])) - tempo_stars(np.array([200.0])))) == 0
+    assert np.isfinite(tap).any() and np.isfinite(stam).any()
+
+
+def test_a_stretch_given_up_is_left_out(stream_play):
+    notes, meta = stream_play
+    from osu_coach.domain.player.engines.irt.items import given_up
+
+    reason = notes.miss_reason.copy()
+    hit = notes.head_hit.copy()
+    hit[1000:1040], reason[1000:1040] = False, "no_tap"  # 40 notes without input in a row
+    idle = notes.replace(head_hit=hit, miss_reason=reason)
+    assert given_up(idle)[1000:1040].all() and given_up(idle).sum() >= 40
+    assert len(item_table(idle, meta)["kind"]) < len(item_table(notes, meta)["kind"])
+    short = notes.replace(head_hit=np.where(np.arange(len(notes)) == 5, False, notes.head_hit))
+    assert not given_up(short)[5]  # one miss is no give-up
 
 
 def test_no_timing_evidence_no_accuracy_items(stream_play):

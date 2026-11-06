@@ -1,57 +1,129 @@
 # Star-Scale IRT (spec)
 
-The experimental rating engine in `backend/src/osu_coach/domain/player/engines/irt/`. Below: first how osu! coach
-differs from the proposal (the arena review's required fixes, and what review of the code settled), then the
-proposal itself, unedited (Appendix A of the arena report).
+The experimental rating engine in `backend/src/osu_coach/domain/player/engines/irt/`, chosen on the Settings page
+(the default stays Comfort-Based). This page holds, in order: the decisions osu! coach made where it differs from
+the proposal and why, what is still unvalidated, what is left to build, and then the proposal itself, unedited
+(Appendix A of the arena report).
 
-## How osu! coach differs from the proposal
+## Decisions
 
-Built (the engine's states, fit and items):
+Each one came from the arena review's required fixes, from the two code reviews, or from running the engine on a
+real player's library (154 lazer plays, comfort level ~6★). "Unfitted" means a prior, to be fitted on many players
+(spec §11): see *Validation status*.
 
-1. **Tested-difficulty cap.** Per skill, the hardest difficulty held (`tested`) is the 95th percentile of the held
-   items' difficulty, each weighted by its information at the fitted ability (`a²q(1−q)`), so a pile of easy notes
-   doesn't pull it down. A fit above it shows as "at least `tested`" (state `untested`, no score, `at_least` =
-   adapter(`tested`)). A skill whose items were all failed has no tested difficulty and shows no number.
-2. **States.** `measured` (SE ≤ 0.35★), `provisional` (SE ≤ 0.75★, or two answers fit about as well),
-   `untested`, `not_enough_data` (SE > 0.75★), `failed` (the solver didn't converge: no number, never a clamp).
-3. **Farming.** A play weighs `recency × min(1, 3/N_setup, 5/N_set)`: one map/mod setup counts as at most 3 plays,
-   one mapset (`beatmapset_id`, else the map MD5) as at most 5. Setups include the client, so stable and lazer
-   plays of one map are separate setups.
-4. **Solver.** numpy damped quasi-Newton (Levenberg–Marquardt on a BFGS-updated curvature, started from and
-   reset to the exact finite-difference Hessian of the exact analytic gradient); a step is taken only if the log
-   posterior rises; probabilities stay inside (1e-12, 1 − 1e-12);
-   accuracy by bisection on its monotone score. No scipy needed.
-5. **Several answers.** Four starts (every skill at L, L − 2, L + 2, and each skill at its items' median
-   difficulty); converged answers within 2 log-posterior units but > 0.3★ apart widen the range to span them.
-6. **Ranges.** SE² = D·Σ_kk + 0.25²/N_plays (play-to-play form) + ((θ(L+1) − θ(L−1))/2)² (how much the prior centre
-   moves the answer). Constants are unfitted.
-7. **Prior centre L.** The comfort level; else the provisional one; else the median star rating played; else 4★.
-   The 0–100 scores are `clip(50 + 20·(θ − L), 0, 100)`.
-8. **Accuracy.** Uses `head_result` and only plays that pass the DT accuracy gate (`timing_evidence_eligible`).
-   At θ = b, 88% of single notes are 300s (`π_acc = 0.88`), not the proposal's 95%: real players' single notes are
-   ~12% non-300 at their level (the Comfort-Based engine's reference), and with 95% every typical player's accuracy
-   read 2–3★ below their level (score 0).
-9. **Tap rule.** A stream note (S/D/F) judged 50 fails like a miss: class B (late) or T (early) by the sign of the
-   hit error. The likelihood has one response per note, so a 50 is shared out over the note's skills like a
-   miss of that class (reading and flow take a little of it too).
-10. **Stamina.** D also takes stream notes 30 s or more into a dense tapping section (notes at most 200 ms apart;
-    a 1 s gap would make nearly every note of a map "deep").
-11. **Reading.** `b_read` adds `0.5·log2(max(1, visible notes / 4))`, so low AR on dense maps isn't "easy". The
-    anchors were fitted without it, so a typical T★ map's `b_read` sits a little above T.
-12. **Sliders.** Only sliders whose path leaves the follow circle (longer than one circle width) are items: a kick
-    slider is held without moving, however fast. Slider speed is held at the anchor's top knot (13★) before the
-    shape term: the pool knows maps' typical slider speeds, and single sliders of ordinary maps are far faster, so
-    extrapolated they read 30★ and more. A player who never breaks sliders reads "at least" ~13–14★.
-13. **Sessions.** A play's start is its replay time (saved at the end) minus its length.
-14. **Consistency.** Kept from the Comfort-Based engine (combo and accuracy held from map to map).
+### What a score means
 
-Still to build (OPP and the rest of §4, §6.7, §15): OPP with an expanding bracket and no 13.5 bound (failure →
-no number), OPP from `min(θ, tested)` and only with ≥ 4 measured/provisional skills; the same reading density
-term on the equating rows; Train Next as the OPP gain of +0.5★, only for scored skills below OPP; pass chance and
-expected misses from the fit; Progress and map displays.
+1. **Every skill has its own reference, so 50 means the same for every skill.** A skill's reference R_k is the
+   ability at which a player fails 2% of that skill's notes (accuracy: 10% non-300) on maps of their level: every
+   play's notes are moved by (level − the play's star rating), and R_k is solved for. It uses only the maps' content
+   (how hard each skill's notes are against the map's star rating), never hits and misses
+   (`engine.calibration`). *Why:* scored against the level itself, each skill's 50 meant something else. A player
+   at θ = the map's stars fails 0.4% of jumps but 3.3% of all notes to reading and 7% of deep-stream notes to
+   stamina, so every player read weak at aim and strong at reading. On the test player's 79 clean passes (which
+   should all score ~50), aim, flow, tapping, stamina, accuracy and reading went from 41 / 34 / 69 / 75 / 25 / 86
+   to 58 / 38 / 57 / 66 / 39 / 43. Sliders still read high (89): see *Validation status*.
+2. **Scores are an S-curve, never 0 or 100.** `100·σ((θ − R_k)/1.25)`, kept within 1–99: 50 at the reference, about
+   20 points per star of map difficulty around it, 3★ above ~92. *Why:* a straight line clipped at 100 showed a
+   perfect 100 for skills the player still fails. At another star rating T the score is the same curve against T
+   (the reference moves with the maps).
+3. **A skill the player almost never fails scores high, as a lower bound.** When the fit lands above everything the
+   player was tested on (`untested`), the score is the hardest band of the skill's notes actually held (0.5★ wide,
+   30+ notes, failing no more than the anchor share), shown as "at least" (`fit.held_bound`). Harder maps can only
+   raise it. It counts among strengths and weaknesses (never failing *is* a strength), but never starts or completes
+   a goal and never steers map suggestions (`base.measured_scores`): it isn't a measurement. A skill whose notes
+   were all failed has nothing to rest a bound on and gets no number.
+4. **The player never reads a skill's own stars.** Stars are map difficulty to every osu! player; "sliders up to
+   10.3★" is meaningless. Texts use the 0–100 score, a likely range, units players know (BPM for tapping and
+   stamina, AR for reading, OD for accuracy) and map star ratings ("on the maps you played, up to 9.0★"; hints point
+   at maps a star above the player's level).
 
-Known limits: above about 8.5★ the reading and accuracy anchors are only the monotone steps (the pool has few
-such maps), so DT players' reading and accuracy can read 12–15★.
+### How notes are turned into evidence
+
+5. **Accuracy anchor: 90% 300s at θ = b** (`π_acc = 0.90`; the proposal: 95%), the Comfort-Based engine's own
+   assumption at 4.5★ / OD 8. With 95% the test player's accuracy read 2.9★ against a 6★ level (score 0). Unfitted.
+6. **A stream 50 is a timing item of tapping, not a miss.** Every hit stream note is also a timing item, failed by a
+   50 and answered by tapping (or stamina) alone, with its own unfitted anchor (97% non-50 at θ = b) and a weak
+   slope (a = 1; a player's 50s are nearly flat from 160 to 260 BPM). *Why:* counted as a miss, a 50 was shared out
+   over reading, flow and above all the random lapses. Half of the stream "failures" were 50s, and they inflated the
+   lapse rate instead of measuring tapping.
+7. **Tapping and stamina are rated by the stream's tempo**: the star rating of the median pool map whose bursts and
+   streams are that fast (`items.tempo_stars`), not rosu-pp's speed strain, which builds up through a long stream.
+   Deep notes read ~2★ harder than burst notes of the same BPM, and stamina came out above tapping (254 vs 231 BPM).
+8. **Sliders are rated against their own map.** Only sliders whose path leaves the follow circle (longer than one
+   circle width) are items: a kick slider is held without moving. A slider as fast as its map's usual moving slider
+   is as hard as the map's star rating, +1★ per doubling of speed beyond that (±2 doublings), + the proposal's shape
+   term. *Why:* the pool anchor `S_sl` only knows maps' typical slider speeds, so single sliders read 14–34★.
+9. **Reading counts notes on screen.** `b_read` adds `0.5·log2(max(1, visible notes / 4))`, so low AR on dense maps
+   isn't "easy".
+10. **Stamina also takes stream notes 30 s into dense tapping** (notes at most 200 ms apart), not only past the 16th
+    note of a run: minute-long stamina.
+11. **Stretches the player gave up are left out**: 20+ heads missed in a row with no input. One play left running at
+    22.8% accuracy (872 no-taps) supplied a third of the test player's stream misses.
+12. **Accuracy uses `head_result`, and only plays that pass the DT accuracy gate.**
+
+### How the fit is made and how sure it is
+
+13. **Random lapses (ε) are for note heads only**, not slider breaks or timing items. Applied to sliders, ε (~1 per
+    26 notes) dwarfed the 0.3% of sliders broken, and only the prior held the slider skill in place.
+14. **Ranges are clustered by play.** The variance is a sandwich estimate with every play as one cluster, never
+    narrower than the model's own curvature, times a factor `D_CLUSTER = 2` fitted by split halves (spec §11.2) on
+    the test player: halves split by mapset disagreed 1.44× more than the ranges allowed, 1.14× after. Plus how far
+    a 1★ move of the prior centre moves the answer. *Why:* notes of one play aren't independent; treated so, the
+    ranges were 3–6× too narrow ("likely between 88 and 92" while one half of the plays said 76 and the other 96).
+15. **States.** `measured` (SE ≤ 0.35★), `provisional` (SE ≤ 0.75★, or two answers fit about as well), `untested`
+    (above everything tested: a lower bound, decision 3), `not_enough_data` (SE > 0.75★), `failed` (the solver didn't
+    converge: no number, never a clamp).
+16. **Solver.** numpy quasi-Newton (Levenberg–Marquardt on a BFGS-updated curvature, started from and reset to the
+    exact finite-difference Hessian of the exact analytic gradient); a step is taken only if the posterior rises;
+    four starts (L, L ± 2, each skill at its notes' median difficulty); answers within 2 log-posterior units but
+    more than 0.3★ apart widen the range. Accuracy by bisection on its monotone score. No scipy needed.
+17. **Prior centre L**: the comfort level; else the provisional one; else the median star rating played; else 4★.
+18. **Farming caps.** A play weighs `recency × min(1, 3/N_setup, 5/N_set)`: a map/mod setup counts as at most 3
+    plays, a mapset as at most 5. Recency halves a play's weight every 90 days past 180 days older than the newest.
+19. **The "tested" cap** (above it a skill is `untested`) is the 95th percentile of the held notes' difficulty,
+    each weighted by its information at the fitted ability, so a pile of easy notes doesn't pull it down. It says how
+    far the player was *tested*; the "at least" score rests on what was *held* (decision 3).
+20. **Sessions**: a play starts at its replay time (saved at the end) minus its length; from 40 min into a session,
+    δ lowers every skill but sliders.
+
+### How it fits into the app
+
+21. **Every page reads one 0–100 scale**, so everything that reads scores follows the engine toggle. Where a page
+    reads a score on another scale, it is converted: map suggestions get IRT tapping speed on the recommender's tempo
+    scale from the BPM IRT measured (IRT 77 had read as a 269 BPM target where IRT measured ~231 BPM).
+22. **Goals remember their engine.** A goal set with one engine is paused under the other (its scores are on another
+    scale) instead of being completed by them. Goals from before engines existed are Comfort-Based.
+23. **Consistency** stays the Comfort-Based measure (combo and accuracy held from map to map) in both engines.
+24. **Stored summaries are keyed by a fingerprint of the compiled domain code** (`infra/code_fingerprint.py`): any
+    change to the code that makes them rebuilds them, with no version to bump by hand. `ANALYSIS_VERSION` stays
+    explicit (re-analysis is expensive).
+
+## Validation status
+
+Everything above was checked on one real player and on simulated players; none of it is fitted on a population.
+
+- The maths: the likelihood and its gradient are exact (checked against finite differences), the proposal's §7
+  worked example reproduces exactly, simulated players are recovered with ~0 bias, and every start reaches the same
+  optimum.
+- Not fitted: the anchor shares (2%, accuracy 90%, timing 97%), the slopes a_k (on the test player the observed
+  failure log-odds rise ~0.8 per ★ for jumps against a = 1.6, so hard bands are over-predicted), `D_CLUSTER`, the
+  slider speed term, the density term and the session drop.
+- Sliders read high for everyone who rarely breaks sliders (breaks are rare in osu!, more so on lazer): on the test
+  player's clean passes sliders scored 89, not ~50. A population fit of the slider anchor is the fix.
+- Reading above ~AR 10.5 sits on the thin top of the reading anchor (few pool maps), so DT players' reading can read
+  high. The two engines also measure opposite things under "Reading" (Comfort-Based rewards *lower* AR).
+- Before release (arena report §5): fit the constants on volunteer libraries (§11.2–11.4), validate on a real player
+  with many plays, and switch the default only once IRT does better there.
+
+## Still to build
+
+- OPP (§4): an expanding bracket and no 13.5 bound (failure means no number), computed from `min(θ, tested)` and
+  only with ≥ 4 measured or provisional skills; the reading density term on the equating rows.
+- Train Next as the OPP gain of +0.5★, only for scored skills below OPP.
+- Pass chance and expected misses from the fit. Until then the star-compare pass chance is the Comfort-Based curve,
+  and strengths and weaknesses use its ≥ 55 / ≤ 45 rule.
+- IRT history in Progress (stored months are Comfort-Based).
+- Showing the lapse rate and the session drop.
 
 ---
 

@@ -46,7 +46,7 @@ def test_missing_summaries_are_made_from_the_analysis_cache_and_stored(tmp_path)
 
 def test_summaries_of_another_version_are_made_again(tmp_path, monkeypatch):
     summaries.summarize(tmp_path, [_play("a")])
-    monkeypatch.setattr(summaries, "VERSION", summaries.VERSION + 1)  # e.g. SUMMARY_VERSION was bumped
+    monkeypatch.setattr(summaries, "VERSION", summaries.VERSION + "-changed")  # e.g. the domain code changed
     assert summaries.load(tmp_path, ["a"]) == {}
     assert [s.key for s in summaries.summaries_of(tmp_path, ["a"], lambda keys: [_play(k) for k in keys])] == ["a"]
     assert set(summaries.load(tmp_path, ["a"])) == {"a"}  # stored again with the new version

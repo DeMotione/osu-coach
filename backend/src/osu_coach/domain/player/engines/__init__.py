@@ -6,7 +6,15 @@
 * :mod:`.irt` — Star-Scale IRT, skills in stars (experimental; ``docs/star-scale-irt.md``).
 """
 
-from osu_coach.domain.player.engines.base import COMFORT, ENGINE_LABELS, ENGINES, IRT, Rated, RatingEngine
+from osu_coach.domain.player.engines.base import (
+    COMFORT,
+    ENGINE_LABELS,
+    ENGINES,
+    IRT,
+    Rated,
+    RatingEngine,
+    measured_scores,
+)
 from osu_coach.domain.player.engines.comfort.engine import ComfortEngine
 from osu_coach.domain.player.engines.registry import compare, engine_name, make_engine
 
@@ -21,4 +29,5 @@ __all__ = [
     "compare",
     "engine_name",
     "make_engine",
+    "measured_scores",
 ]

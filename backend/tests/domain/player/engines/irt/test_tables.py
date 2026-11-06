@@ -5,12 +5,11 @@ import pytest
 
 from osu_coach.domain.player.engines.irt import tables
 from osu_coach.domain.player.engines.irt.anchors import ANCHORED, fit_anchors, preempt_ms, star_of
-from osu_coach.infra import summaries
 from osu_coach.infra.map_pool import load_pool
 
 
 def test_the_tables_are_fitted_on_the_bundled_pool():
-    # stale after the pool changes: run backend/tools/build_irt_tables.py (and raise ANCHOR_VERSION)
+    # stale after the pool changes: run backend/tools/build_irt_tables.py
     fit = fit_anchors(load_pool())
     for k in ANCHORED:
         assert fit["anchors"][k] == pytest.approx(tables.ANCHORS[k], abs=1e-4), k
@@ -29,7 +28,3 @@ def test_the_specs_examples():
     assert star_of(np.log2(2.5), tables.ANCHORS["spd"]) == pytest.approx(5.85, abs=0.01)
     for ar, stars in ((9.3, 5.5), (10, 7.75), (10.33, 8.0)):
         assert star_of(-np.log2(preempt_ms(ar)), tables.ANCHORS["read"]) == pytest.approx(stars, abs=0.01)
-
-
-def test_new_anchors_make_the_summaries_again():
-    assert summaries.VERSION % 100 == tables.ANCHOR_VERSION

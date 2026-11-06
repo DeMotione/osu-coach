@@ -1344,6 +1344,11 @@ export interface components {
              */
             change: number | null;
             /**
+             * At Least
+             * @description Without a score: the skill is at least this good on these maps (untested, 0–100).
+             */
+            at_least?: number | null;
+            /**
              * Demand
              * @description How many times what typical maps of the comfort level demand of the skill (1.25 = 25% more).
              */
@@ -3245,6 +3250,11 @@ export interface components {
              * @description What raises it.
              */
             practise: string;
+            /**
+             * Irt What
+             * @description What the skill measures under Star-Scale IRT (null: as `what`).
+             */
+            irt_what?: string | null;
         };
         /** SkillScore */
         SkillScore: {

@@ -7,7 +7,7 @@ experimental).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -34,6 +34,11 @@ class Rated:
     weaknesses: list[str] = field(default_factory=list)
     reference: float | None = None  # ★ the 0–100 scores are relative to (the comfort level, or its stand-in)
     fit: Any = field(default=None, repr=False)  # the engine's own state, for later questions (IRT: its IrtFit)
+
+
+def measured_scores(skills: Mapping[str, SkillRating]) -> dict[str, float | None]:
+    """The scores that are measurements: IRT lower bounds (``untested``) are left out."""
+    return {k: (None if row.state == "untested" else row.score) for k, row in skills.items()}
 
 
 class RatingEngine(Protocol):

@@ -19,6 +19,7 @@ from osu_coach.domain.player.engines import ENGINE_LABELS, Rated, compare
 from osu_coach.domain.player.engines.comfort.consistency import star_consistency
 from osu_coach.domain.player.engines.comfort.ratings import MIN_MAPS
 from osu_coach.domain.player.engines.comfort.readiness import MAX_GAP, default_target, targets
+from osu_coach.domain.player.engines.irt.engine import adapter
 from osu_coach.domain.player.records import UNRATED, SkillRating
 from osu_coach.features.dashboard import charts
 from osu_coach.features.dashboard import schemas as S
@@ -76,41 +77,29 @@ def analysed_replays(p: Profile) -> list[S.AnalysedReplay]:
 
 
 # ------------------------------------------------------------------ skill facts (Overview hover)
-def stars_text(row: SkillRating) -> str | None:
-    """A Star-Scale IRT ability as shown: "6.19★ (5.92–6.46) · ≈ 199 BPM"; None without one."""
-    stars, low, high = num(row.stars), num(row.stars_low), num(row.stars_high)
-    if stars is None or row.state in ("failed", "not_enough_data"):
-        return None
-    text = f"at least {stars:.2f}★" if row.state == "untested" else f"{stars:.2f}★"
-    if row.state != "untested" and low is not None and high is not None:
-        text += f" ({low:.2f}–{high:.2f})"
+def natural_text(row: SkillRating) -> str | None:
+    """An IRT ability in units players know (BPM, AR, OD); None for the other skills."""
     natural = num(row.natural)
-    if natural is not None and row.natural_unit:
-        value = (
-            f"AR {natural:.1f}"
-            if row.natural_unit == "AR"
-            else f"OD {natural:.1f}"
-            if row.natural_unit == "OD"
-            else (
-                f"{natural:.0f} {row.natural_unit}"
-                if row.natural_unit == "BPM"
-                else f"{natural:.1f} {row.natural_unit}"
-            )
-        )
-        text += f" · ≈ {value}"
-    return text
+    if natural is None or row.state not in ("measured", "provisional"):
+        return None
+    unit = row.natural_unit
+    if unit == "BPM":
+        return f"≈ {natural:.0f} BPM"
+    if unit in ("AR", "OD"):
+        return f"≈ {unit} {natural:.1f}"
+    return None
 
 
 def irt_facts(row: SkillRating) -> list[str]:
-    """The numbers behind a Star-Scale IRT rating."""
+    """The numbers behind an IRT rating: its likely range and what it is fitted on."""
     facts = []
-    shown = stars_text(row)
-    if shown:
-        facts.append(f"ability {shown}")
-    if row.tested_demand is not None:
-        facts.append(f"hardest held so far: {row.tested_demand:.2f}★ (95th percentile of the notes you hit)")
-    facts.append(f"measured on {row.maps} plays' notes ({row.state.replace('_', ' ')})")
-    if row.reason:
+    reference, low, high = num(row.expected), num(row.stars_low), num(row.stars_high)
+    if row.score is not None and reference is not None and low is not None and high is not None:
+        lo, hi = adapter(low, reference), adapter(high, reference)
+        if round(hi) > round(lo):
+            facts.append(f"likely between {lo:.0f} and {hi:.0f}")
+    facts.append(f"fitted from every note of {row.maps} plays (Star-Scale IRT)")
+    if row.reason and row.state not in ("measured", "untested"):  # untested: its reason is the score text already
         facts.append(message(row.reason))
     return facts
 
@@ -186,15 +175,22 @@ def overview(p: Profile) -> S.Overview:
     def skill_row(k: str) -> S.SkillScore:
         row = p.skill_ratings.get(k, UNRATED)
         score = num(relative_scores.get(k))
-        at_least = num(row.at_least) if score is None and comfort_level else None
-        shown = stars_text(row)
-        if score is not None and shown:
-            text = f"{score:.0f} · {shown}"
+        at_least = num(row.at_least) if (score is None or row.state == "untested") and comfort_level else None
+        shown = natural_text(row)
+        if score is not None and row.state == "untested":  # a lower bound: held everything played
+            if score >= 100:
+                text = f"{score:.0f} of 100 · {message(row.reason)}"
+            else:
+                text = f"at least {score:.0f} of 100 · {message(row.reason)}: harder maps could show it's higher"
+        elif score is not None and shown:
+            text = f"{score:.0f} of 100 · {shown} · 50 = typical at your level"
+        elif score is not None and row.state is not None:
+            text = f"{score:.0f} of 100 · 50 = typical at your level"
         elif score is not None:
             what = "combo and accuracy held from map to map around your level" if k == "consistency" else None
-            text = f"{score:.0f} · {what or '50 = typical for your comfort level'}"
-        elif at_least is not None and shown:
-            text = f"at least {at_least:.0f} · {shown}: your maps haven't tested it to its limit yet"
+            text = f"{score:.0f} of 100 · {what or '50 = typical at your level'}"
+        elif row.state is not None:  # Star-Scale IRT: why there's no score, in words
+            text = message(row.reason) or "not enough data"
         elif at_least is not None:
             text = f"at least {at_least:.0f} · your maps haven't tested it to its limit yet"
         else:
@@ -208,7 +204,7 @@ def overview(p: Profile) -> S.Overview:
             too_few_misses=False,
             n=int(row.hit_single_notes or row.maps or 0),
             facts=skill_facts(k, row),
-            needs=message(row.needs) if score is None else None,
+            needs=message(row.needs) if score is None or (row.state == "untested" and score < 100) else None,
             at_least=at_least,
             stars=num(row.stars),
             stars_low=num(row.stars_low),
@@ -292,7 +288,15 @@ def star_compare(p: Profile) -> S.StarCompare:
         at_comfort = stars == round(comfort, 1)  # exactly the comfort level, so it shows its own scores
         c = compare(rated, comfort, comfort if at_comfort else stars)
         skills = [
-            S.CompareSkill(key=k, score=num(v.score), change=num(v.change), demand=num(v.demand), maps=None, needs=None)
+            S.CompareSkill(
+                key=k,
+                score=num(v.score),
+                change=num(v.change),
+                demand=num(v.demand),
+                maps=None,
+                needs=None,
+                at_least=num(v.at_least),
+            )
             if v
             else S.CompareSkill(key=k, score=None, change=None, demand=None, maps=None, needs=None)
             for k, v in c.skills.items()
