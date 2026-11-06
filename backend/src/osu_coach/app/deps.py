@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 
 from osu_coach.app.workspace import Workspace
-from osu_coach.profile.domain import Profile
+from osu_coach.domain.player import Profile
 
 
 def get_workspace(request: Request) -> Workspace:

@@ -13,19 +13,20 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
 
-from osu_coach.analysis.domain import ReplayAnalysis
-from osu_coach.app.errors import NoProfile
+from osu_coach.common.errors import NoProfile
 from osu_coach.config import Settings, default_cache_dir
-from osu_coach.jobs.manager import BusyGate, JobManager
-from osu_coach.library.repository import Library
-from osu_coach.library.service import ScanArgs
-from osu_coach.maps.repository import load_pool
-from osu_coach.profile.domain import Profile, build_profile
-from osu_coach.replays import detect, scope
-from osu_coach.settings.domain import Setup
-from osu_coach.settings.repository import load_settings, save_settings
+from osu_coach.domain.player import PlaySummary, Profile, build_profile_from
+from osu_coach.domain.player.setup import Setup
+from osu_coach.domain.replays import scope
+from osu_coach.infra.jobs import BusyGate, JobManager
+from osu_coach.infra.library import Library, ScanArgs
+from osu_coach.infra.map_pool import load_pool
+from osu_coach.infra.replays import detect
+from osu_coach.infra.settings import UserSettings, load_settings, read_settings, save_settings
 
 T = TypeVar("T")
+CHECK_LATEST = 100  # replays read for a single-replay page when nothing was scanned yet
+RESTORING = "Restoring your last session… This page fills in by itself in a moment."
 
 
 class Workspace:
@@ -41,17 +42,18 @@ class Workspace:
         # the session
         self.library: Library | None = None
         self.scan_args: ScanArgs | None = None
-        self.analyses: list[ReplayAnalysis] = []
+        self.plays: list[PlaySummary] = []  # the analysed plays, summarised
         self.errors: list[tuple[dict, str]] = []
         self.player_label = ""
+        self.restoring = False  # the analysed plays of the last session are being brought back (at start-up)
         self.check_library: Library | None = None
         self._profile: Profile | None = None
         self._profile_sig: tuple | None = None
         self._memo: dict[str, Any] = {}
 
     # -------------------------------------------------------------- settings
-    def settings(self) -> dict:
-        return load_settings(self.cache_dir)
+    def settings(self) -> UserSettings:
+        return read_settings(self.cache_dir)
 
     def update_settings(self, **changes) -> dict:
         """Change some settings (read-modify-write under a lock, keeping every other key)."""
@@ -64,19 +66,19 @@ class Workspace:
     def setup(self) -> Setup:
         """The player's setup; the osu! client falls back to :meth:`preferred_client`."""
         s = self.settings()
-        setup = Setup(**{k: v for k, v in s.items() if k in Setup.__dataclass_fields__})
-        if s.get("client") not in ("stable", "lazer"):
+        setup = Setup(**{k: v for k, v in s.values.items() if k in Setup.__dataclass_fields__})
+        if s.client not in ("stable", "lazer"):
             setup.client = self.preferred_client()
         return setup
 
     def preferred_client(self) -> str:
         """The client the player uses: saved setting, else what their replays / installs say."""
         s = self.settings()
-        if s.get("client") in ("stable", "lazer"):
-            return s["client"]
-        reps = getattr(self.profile(), "replays", None)
-        if reps is not None and len(reps) and "client" in reps:
-            return "lazer" if (reps["client"] == "lazer").mean() >= 0.5 else "stable"
+        if s.client in ("stable", "lazer"):
+            return s.client
+        reps = getattr(self.profile(), "replays", None) or ()
+        if reps:
+            return "lazer" if sum(m.client == "lazer" for m in reps) >= 0.5 * len(reps) else "stable"
         kinds = {i.kind for i in self.installs()}
         return "lazer" if kinds == {"lazer"} else "stable"
 
@@ -84,46 +86,62 @@ class Workspace:
     def installs(self, refresh: bool = False) -> list[detect.Install]:
         """The osu! installs found on this computer and the folders the player entered (``install_paths``)."""
         if self._installs is None or refresh:
-            extra = self.settings().get("install_paths")
-            extra = [p for p in extra if isinstance(p, str)] if isinstance(extra, list) else []
+            extra = self.settings().install_paths or []
             self._installs = detect.find_installs(extra=[Path(p) for p in extra])
         return self._installs
 
     @staticmethod
     def pool():
-        return load_pool()  # cached by maps.repository (per file and modification time)
+        return load_pool()  # cached by infra.map_pool (per file and modification time)
+
+    # -------------------------------------------------------------- single replays (Detailed map analysis, Play goals)
+    def replay_library(self) -> Library | None:
+        """The scanned library, else a quick scan of the newest replays on this computer (kept for later)."""
+        if self.library is not None:
+            return self.library
+        if self.check_library is None:
+            installs = self.installs()
+            if not installs:
+                return None
+            lib = Library(self.cache_dir)
+            for inst in installs:
+                lib.add_install(inst, latest=CHECK_LATEST)
+            self.check_library = lib
+        return self.check_library
 
     # -------------------------------------------------------------- analyses and the profile
-    def set_analyses(self, analyses: list[ReplayAnalysis], errors: list[tuple[dict, str]], player_label: str):
+    def set_plays(self, plays: list[PlaySummary], errors: list[tuple[dict, str]], player_label: str):
         with self._profile_lock:
-            self.analyses, self.errors, self.player_label = list(analyses), list(errors), player_label
+            self.plays, self.errors, self.player_label = list(plays), list(errors), player_label
             self._profile, self._profile_sig, self._memo = None, None, {}
 
     def _signature(self) -> tuple:
         s = self.settings()
-        return (s.get("replay_set", "all"), s.get("level_override"), tuple(a.key for a in self.analyses))
+        return (s.replay_set or "all", s.level_override, tuple(a.key for a in self.plays))
 
     def profile(self) -> Profile | None:
         """The profile of the analysed replays with the current choices (All / Best replays, level set by
         hand), rebuilt when they change; None before anything was analysed or when *Best replays* is empty."""
-        if not self.analyses:
+        if not self.plays:
             return None
         sig = self._signature()
         with self._profile_lock:
             if self._profile_sig != sig:
                 s = self.settings()
-                chosen = scope.select(self.analyses, s.get("replay_set", "all"))
-                self._profile = build_profile(chosen, level=s.get("level_override")) if chosen else None
+                chosen = scope.select(self.plays, s.replay_set or "all")
+                self._profile = build_profile_from(chosen, level=s.level_override) if chosen else None
                 self._profile_sig, self._memo = sig, {}
             return self._profile
 
     def require_profile(self) -> Profile:
         p = self.profile()
         if p is None:
-            if self.analyses:
+            if self.plays:
                 raise NoProfile(
                     "None of the analysed replays is a passed play, so Best replays is empty — switch to All replays."
                 )
+            if self.restoring:
+                raise NoProfile(RESTORING)
             raise NoProfile()
         return p
 
@@ -141,5 +159,5 @@ class Workspace:
         return value
 
     def replay_set(self) -> str:
-        rs = self.settings().get("replay_set", "all")
+        rs = self.settings().replay_set or "all"
         return rs if rs in scope.REPLAY_SETS else "all"

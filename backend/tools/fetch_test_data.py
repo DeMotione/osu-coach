@@ -1,5 +1,6 @@
 """Dev helper: download public sample replays (osrparse + circlecore test suites)
 and fetch the exact beatmaps they were played on (matched by MD5)."""
+
 import hashlib
 import json
 import pathlib
@@ -31,7 +32,11 @@ for p in tree("kszlim/osu-replay-parser"):
     if any(k in p for k in ("replay.osr", "replay2.osr", "lazer_standard_format.osr")):
         sources.append(("osrparse", f"https://raw.githubusercontent.com/kszlim/osu-replay-parser/master/{p}", p))
 for p in tree("circleguard/circlecore"):
-    if p.startswith("tests/resources/legit/") or p.startswith("tests/resources/auto/auto-") or p.endswith("example_replay.osr"):
+    if (
+        p.startswith("tests/resources/legit/")
+        or p.startswith("tests/resources/auto/auto-")
+        or p.endswith("example_replay.osr")
+    ):
         if "nmrx" in p or "dtrx" in p:
             continue  # relax replays: not useful for skill analysis tests
         sources.append(("circlecore", f"https://raw.githubusercontent.com/circleguard/circlecore/master/{p}", p))
@@ -67,10 +72,23 @@ for src, url, path in sources:
         except Exception as e:  # noqa: BLE001
             status = f"lookup fail: {e}"
         time.sleep(0.6)
-    index.append({"replay": name, "md5": md5, "player": r.username, "mods": int(r.mods),
-                  "n300": r.count_300, "n100": r.count_100, "n50": r.count_50, "nmiss": r.count_miss,
-                  "map_ok": mp.exists(), "status": status})
-    print(f"{name[:70]:70s} {r.username[:14]:14s} mods={int(r.mods):6d} 300={r.count_300} 100={r.count_100} 50={r.count_50} miss={r.count_miss} {status}")
+    index.append(
+        {
+            "replay": name,
+            "md5": md5,
+            "player": r.username,
+            "mods": int(r.mods),
+            "n300": r.count_300,
+            "n100": r.count_100,
+            "n50": r.count_50,
+            "nmiss": r.count_miss,
+            "map_ok": mp.exists(),
+            "status": status,
+        }
+    )
+    print(
+        f"{name[:70]:70s} {r.username[:14]:14s} mods={int(r.mods):6d} 300={r.count_300} 100={r.count_100} 50={r.count_50} miss={r.count_miss} {status}"
+    )
 
 (OUT / "index.json").write_text(json.dumps(index, indent=1))
 print("maps ok:", sum(i["map_ok"] for i in index), "/", len(index))

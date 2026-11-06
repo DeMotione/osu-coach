@@ -4,8 +4,14 @@ osu-coach analyzes osu! replays and gives coaching advice. Monorepo: Python 3.11
 
 ## Layout
 
-- `backend/src/osu_coach/` — one package per feature (e.g. `library`, `maps`, `profile`), plus `jobs/` (background jobs) and `app/` (web plumbing and composition: `Workspace`, errors, deps, `server.py`, `openapi.py`, `session.py` for the analysis run that ties library, progress and profile together), and `main.py`, `cli.py`, `config.py`. The job routes live in `app/jobs.py`, not in `jobs/`: they must know every job kind, and `jobs` is the lowest layer. A feature holds its pure `domain.py` (a `domain/` package of topic modules when it grows, e.g. `profile`), disk/network/SQLite code (`repository.py`, parsers), `service.py`, `schemas.py` and `routes.py` — only those it needs.
-- `backend/tests/` — `tests/<feature>/` mirrors the source (`test_domain.py`, `test_repository.py`, `test_routes.py`, plus topic files); fixtures in `tests/resources/` (indexed by `index.json`).
+- `backend/src/osu_coach/` — vertical feature slices on a pure domain, in five layers (each imports only the ones below it):
+  - `app/` — composition root: the app factory (`factory.py`), `Workspace` (session state), FastAPI dependencies (`deps.py`), the job routes (`jobs.py`: they must know every job kind), `server.py`, `openapi.py`, `web.py`.
+  - `features/<slice>/` — one package per feature slice (`check`, `dashboard`, `exports`, `library`, `maps`, `play_goals`, `progress`, `settings`, `system`, `tips`): `routes.py`, `service.py` (the use-case flow), `schemas.py` (pydantic API models), plus data access only that slice needs (e.g. `maps/variant_repository.py`, `play_goals/repository.py`; `library/session.py` runs the scan and the analysis). Slices never import each other.
+  - `infra/` — I/O several slices share: replay and beatmap files (`replays/`, `beatmaps/`), rosu-pp (`beatmaps/difficulty.py`, `performance.py`), the analysis pipeline and cache (`analysis.py`, `library.py`), the per-play summaries (`summaries.py`, SQLite), the map pool (`map_pool.py`, `data/`), `progress.py` (SQLite), `settings.py` (`settings.json`), `session_store.py` (`session.json`), the job runner (`jobs.py`), the clock (`clock.py`).
+  - `common/` — what the slices' HTTP code shares: errors (`errors.py`), conversions (`convert.py`), shared response models (`schemas.py`, `jobs.py`, `clicks.py`, `maps.py`, `setup.py`), and the pandas side of the pages: the profile's records as data frames (`frames.py`, built once per profile) and weighted statistics on them (`weighted.py`).
+  - `domain/` — pure business calculations by subject (`analysis`, `beatmaps`, `replays`, `player`, `maps`, `progress`, `exports`, `play_goals`, plus `numeric` helpers): no I/O, web, settings, clock or pandas; numbers and typed records in (frozen dataclasses; per-note data as array records on `numeric/arrays.py`), numbers and records out. A play is reduced once to a `PlaySummary` (`domain/player/summary.py`); the profile adds summaries up (`build_profile_from`).
+  - `main.py` (the ASGI app), `cli.py`, `config.py`.
+- `backend/tests/` — mirrors the source: `tests/domain/<subject>/`, `tests/infra/`, `tests/features/<slice>/`, `tests/app/`; fixtures in `tests/resources/` (indexed by `index.json`).
 - `backend/tools/` — maintenance scripts (pool building, test-data fetching, sim debugging/validation).
 - `frontend/src/` — `api/` (typed client, hooks, generated schema), `pages/`, `components/`, `charts/`, `lib/`, `styles/`, `app/`.
 - `packaging/` — PyInstaller spec, server zipper, app entry point. `desktop/` — Tauri shell.
@@ -33,7 +39,8 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs Python 3.11 and 3
 
 ## Architecture rules
 
-- Layering is enforced by import-linter (`[tool.importlinter]` in `backend/pyproject.toml`): `*/domain` (module or package; also the judges, curves, features) stays pure — no I/O, network, web or pydantic; services and data code never import routes or `app.workspace`; features depend only downwards (e.g. `profile` may use `analysis`, never `tips`). Feature code names `Workspace` only under `TYPE_CHECKING`. A new feature goes into the `layers` contract. The contract only sees imports: calls made through the `Workspace` (`ws.profile()`, `ws.library`, ...) are not checked, so keep those pointing downwards in review.
+- Layering is enforced by import-linter (`[tool.importlinter]` in `backend/pyproject.toml`): `app` → `features` → `infra` → `common` → `domain`; feature slices never import each other; inside `domain`, subjects depend only downwards (`maps | progress | exports | play_goals` → `player` → `analysis` → `beatmaps | replays` → `numeric`). `tests/domain/test_purity.py` allow-lists the domain's imports (numpy, scipy and pure standard modules; no pandas) and forbids reading the clock: pass the time, ids and the time zone in (`infra/clock.py`). Something two slices need goes to `domain` (a calculation), `infra` (I/O) or `common` (HTTP models). Slice code names `Workspace` only under `TYPE_CHECKING`; calls through it (`ws.profile()`, `ws.library`, ...) are not checked by the contracts, so keep them pointing downwards in review.
+- Changing what `PlaySummary` holds (or how `summarize` fills it): bump `SUMMARY_VERSION` in `infra/summaries.py`, so stored summaries are made again from the analysis cache. Changing the analysis itself: bump `ANALYSIS_VERSION` as before.
 - API errors always use `{"detail": "...", "code": "..."}` with stable codes.
 - Rates and shares are 0–1 fractions; `null` means insufficient data. Times are ISO 8601 UTC.
 - Long work (scan, analysis, imports, downloads) runs as background jobs polled via `GET /api/jobs/{id}`.
@@ -51,7 +58,7 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs Python 3.11 and 3
 ## Testing notes
 
 - `backend/tests/conftest.py` sets `OSU_COACH_NO_AUTODETECT=1` so tests never touch a real osu! install; keep it that way.
-- Add backend tests in the feature's folder, `tests/<feature>/`; route tests set `pytestmark = pytest.mark.usefixtures("_isolated")` (temporary data folder, no network) and use the `client` / `analysed` fixtures. Frontend unit tests sit next to the source (`*.test.ts`).
+- Add backend tests next to their layer: `tests/domain/<subject>/`, `tests/infra/` or `tests/features/<slice>/`; route tests set `pytestmark = pytest.mark.usefixtures("_isolated")` (temporary data folder, no network) and use the `client` / `analysed` fixtures. Frontend unit tests sit next to the source (`*.test.ts`).
 
 ## Environment variables
 

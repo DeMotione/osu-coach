@@ -991,6 +991,12 @@ export interface components {
             skipped: components["schemas"]["SkippedReplay"][];
             /** Skipped Total */
             skipped_total: number;
+            /**
+             * Restoring
+             * @description The analysed replays of the last session are still being brought back (at start-up); the profile pages answer 409 no_profile until then.
+             * @default false
+             */
+            restoring: boolean;
         };
         /** AngleRow */
         AngleRow: {
@@ -3234,7 +3240,10 @@ export interface components {
             low_data: boolean;
             /** Too Few Misses */
             too_few_misses: boolean;
-            /** N */
+            /**
+             * N
+             * @description How much the score is measured on: hit single notes for accuracy, map and mod setups for the other skills; 0 without data.
+             */
             n: number;
             /**
              * Facts

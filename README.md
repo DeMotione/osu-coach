@@ -8,8 +8,9 @@ Analyses your own osu!standard replays and tells you what to work on:
 - **Statistics** for tapping (unstable rate, timing bias, stream speed, falling behind in streams,
   key alternation and holds), aim (miss causes, over/undershoot, direction, jump distance and angle),
   sliders, reading (AR, dense parts) and consistency.
-- **Strong and weak sides.** Each skill gets a score from 0 to 100. 50 means you miss as often as
-  expected for how hard those notes are; higher is better.
+- **Strong and weak sides.** Each skill gets a rating from 0 to 100 against what is typical at your comfort
+  level (50 = typical); higher is better. The Overview, the tips and the playlists all name the same strengths
+  and weaknesses.
 - **Quadrant analysis.** Shows which screen quadrant you miss in most, checks the difference is
   statistically real, and suggests how to fix it (area placement, arm/wrist reach, practice).
 - **Setup tips.** Concrete tablet area or mouse sensitivity changes measured from your jumps (scale,
@@ -45,7 +46,7 @@ circle radius, scales real-time intervals, durations, BPM, judgement windows and
 rate, and asks rosu-pp for modified stars and strain sections. Map demands use these transformed features and a
 comfort-relative 0–100 scale. Reading demand is an experimental sum of density/pattern demand, low-AR cost below 9.5,
 high-AR reaction cost above 10.5, and an extra HD term whose preferred initial AR region is 9.5–10.0. These boundaries
-and coefficients are assumptions in `profile/domain/algorithm.py`, not calibrated player thresholds. Uniform speed
+and coefficients are assumptions in `domain/player/algorithm.py`, not calibrated player thresholds. Uniform speed
 alone does not increase simultaneous visibility in the reading density calculation. Customized lazer Hidden replays
 retain their exact settings in their configuration identity and are excluded from the ordinary Hidden reading rating
 until a visibility model for those settings is available. Suitability `F` is the negative squared star/demand mismatch
@@ -258,9 +259,12 @@ this rating scale are not shown: analysing again rates every period anew.
 
 ### Difficulty weighting and your level
 
-The **Overview** shows *Your level*: the comfort star rating (75% of your finished plays with at most 2 misses
-per 100 notes are at or below it) of your replays from the last 30 days before your newest one (at least the
-newest 15). Star ratings include the mods of the play (DT, HR, ...). Every replay then gets a weight: **1 within
+The **Overview** shows *Your level*: your comfort level, from your replays of the last 30 days before your newest
+one (at least the newest 15). Only finished plays with at most 2 misses per 100 notes count: with 3 or more different
+map/mod setups among them it is the 75th percentile of each setup's median star rating (*measured*); with fewer it is
+a provisional estimate (the 75th percentile of those plays, or without any such play the 25th percentile of all
+your star ratings minus 0.4). Star ratings include the mods of the play (DT, HR, ...). The skill ratings need a
+measured comfort level. Every replay then gets a weight: **1 within
 ±0.5★** of your level, then a Gaussian fall-off (σ = 0.5★): 1★ off 61%, 1.5★ 14%, 2★ 1%, 3★ ≈ 0. All statistics
 use these weights — miss causes, skill scores, stamina, UR, stream speed, the setup tips (tablet area /
 sensitivity, rapid trigger) and the map suggestions. *Set my level by hand* overrides the detected level
@@ -270,10 +274,8 @@ sensitivity, rapid trigger) and the map suggestions. *Set my level by hand* over
 
 `backend/tools/reference_analysis.py` scores 38 near-perfect plays of top players (WhiteCat, mrekk, chocomint,
 MALISZEWSKI, -GN, …; list in `backend/tools/reference_replays.md`, the .osr files go in `backend/tools/reference_replays/`, not in
-git) skill by skill. What it changed: **Accuracy** = (300s on single notes − 50%) ÷ 49%, so 100 = 99% 300s (was
-95%, which every top player passed: they now spread from ~87 to 99). Aim, flow aim, speed, reading and
-consistency compare your misses with what the difficulty predicts; a player who barely misses has nothing to
-compare, so those now say **too few misses to tell** instead of *not enough data*. Sliders: top players
+git) skill by skill with the same skill ratings the Overview shows, plus the measured values and references
+behind them, so a yardstick that reads top players too low or too high shows up before and after a change.
 
 ### Setup Tips page
 
@@ -334,9 +336,10 @@ Skills: `aim flow_aim speed stamina accuracy sliders reading consistency quadran
    bursts with their BPM, slider velocity, how many notes are on screen. Local difficulty comes from
    osu!'s own strain model (rosu-pp).
 4. **Profile**:
-   - Skill scores compare your misses with a model of *your own* miss chance against local difficulty,
-     so a weakness means "worse than your level predicts". Hard parts don't count as weaknesses just
-     for being hard.
+   - Skill ratings compare what you did on each map/mod setup (cursor speed of the jumps you landed, the stream
+     speed you tap cleanly, the tempo you keep up, ...) with what is typical at your comfort level, so a weakness
+     means "below what your level usually shows". A skill your maps never tested at your level gets "at least"
+     and what to play instead of a rating.
    - Aim calibration fits your actual movement against the needed movement on jumps (affine fit:
      scale x/y, rotation, offset). That fit drives the tablet area and sensitivity advice.
    - *Where your clicks land* (Aim page) draws a random sample of all clicks — the click that hit each

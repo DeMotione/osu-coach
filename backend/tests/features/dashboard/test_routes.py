@@ -1,0 +1,309 @@
+"""The /api/profile pages (the dashboard slice; the Tips & Setup page of the tips slice is checked here too)."""
+
+import dataclasses
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from osu_coach.common.texts import SKILL_LABELS
+from osu_coach.domain.player import build_profile, summarize
+from osu_coach.domain.player.messages import Message
+from osu_coach.domain.player.records import SkillRating
+from osu_coach.infra.library import analyze_files
+from osu_coach.infra.settings import load_settings, save_settings
+from tests.conftest import INDEX, analyse, plays_folder, sample_paths, scan, with_meta, workspace
+from tests.domain.player.helpers import stream_fall_behind, stream_speed_profile
+
+pytestmark = pytest.mark.usefixtures("_isolated")
+
+PAGES = ["summary", "replays", "overview", "aim", "clicks", "tapping", "sliders-reading", "tips"]
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_pages_before_anything_was_analysed_say_what_to_do(client, page):
+    r = client.get(f"/api/profile/{page}")
+    assert r.status_code == 409
+    assert r.json()["code"] == "no_profile" and "Analyse replays" in r.json()["detail"]
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_every_page_renders_with_real_replays(analysed, page):
+    r = analysed.get(f"/api/profile/{page}")
+    assert r.status_code == 200, r.text
+    assert r.json()
+
+
+def test_skills_against_other_star_ratings(tmp_path, client):
+    """With a comfort level, its scores move to every star rating up to 2★ above it: lower on harder maps, as are the
+    chances to pass one cleanly; the star ratings further above are locked, easier ones never."""
+    scan(client, plays_folder(tmp_path, names=list(INDEX)))
+    analyse(client, player="*")
+    ov = client.get("/api/profile/overview").json()
+    cmp, comfort_scores = ov["compare"], {s["key"]: s["score"] for s in ov["skills"]}
+    assert cmp["comfort"] == pytest.approx(ov["kpis"]["comfort_stars"]) and cmp["comfort"] > 5
+    stars = [t["stars"] for t in cmp["targets"]]
+    assert stars[0] == 1 and stars[-1] == 13 and stars == sorted(stars)
+    open_ = [t for t in cmp["targets"] if not t["locked"]]
+    assert [t["stars"] for t in open_] == [s for s in stars if s <= round(cmp["comfort"], 1) + 2 + 1e-9]
+    assert all(t["skills"] == [] and t["pass_chance"] is None for t in cmp["targets"] if t["locked"])
+    assert cmp["default_target"] in [t["stars"] for t in open_]
+    (at_comfort,) = [t for t in open_ if t["comfort"]]
+    for sk in at_comfort["skills"]:  # the comfort option shows the comfort-level scores themselves
+        assert sk["score"] == comfort_scores[sk["key"]] and sk["change"] in (0, None)
+    assert at_comfort["pass_chance"] == 0.75
+    chances = [t["pass_chance"] for t in open_]
+    assert chances == sorted(chances, reverse=True) and chances[-1] < 0.15
+    for key in ("aim", "speed", "sliders"):
+        series = [next(s["score"] for s in t["skills"] if s["key"] == key) for t in open_]
+        assert None not in series and series == sorted(series, reverse=True), key
+    for t in open_:
+        scores = {s["key"]: s["score"] for s in t["skills"] if s["score"] is not None}
+        assert t["weakest"] == min(scores, key=scores.get)
+        # consistency is measured on the player's maps from a star below that star rating up to it
+        cs = next(s for s in t["skills"] if s["key"] == "consistency")
+        assert cs["demand"] is None and isinstance(cs["maps"], int)
+        assert (cs["score"] is None) == (cs["needs"] is not None)
+        if cs["needs"] and not t["comfort"]:
+            assert f"between {t['stars'] - 1:.1f}★ and {t['stars']:.1f}★" in cs["needs"]
+
+
+def test_replays_table_newest_first_with_weights(analysed):
+    rows = analysed.get("/api/profile/replays").json()
+    assert len(rows) == 3
+    assert [r["played_at"] for r in rows] == sorted((r["played_at"] for r in rows), reverse=True)
+    assert all(r["played_at"].endswith("Z") for r in rows)
+    assert all(0 < r["weight"] <= 1 and r["path"].endswith(".osr") for r in rows)
+
+
+def test_overview_explains_every_skill(analysed):
+    """Each skill comes with its score (or why there is none) and the player's own numbers behind it."""
+    ov = analysed.get("/api/profile/overview").json()
+    assert [s["key"] for s in ov["skills"]] == list(SKILL_LABELS)
+    for s in ov["skills"]:
+        assert s["label"] == SKILL_LABELS[s["key"]] and s["facts"]
+        if s["score"] is None:
+            assert s["score_text"]  # the reason for an unmeasured experimental rating
+        else:
+            assert s["score_text"].startswith(f"{s['score']:.0f}")
+    cmp = ov["compare"]  # 3 plays make no comfort level yet (3 recent maps finished cleanly), so nothing to compare
+    assert cmp["comfort"] is None and ov["kpis"]["comfort_stars"] is None
+    assert cmp["targets"] == [] and cmp["default_target"] is None and cmp["max_gap"] == 2
+    cs = next(s for s in ov["skills"] if s["key"] == "consistency")  # no comfort level yet: says what to play
+    assert cs["score"] is None and cs["score_text"] == "Not enough data"
+    assert cs["needs"].startswith("First your comfort level")
+    assert all(s["needs"] is None for s in ov["skills"] if s["score"] is not None)
+    first = ov["level"]["weights"][0]  # README: "1★ off 61%"
+    assert (
+        ov["level"]["stars"] is not None
+        and first["stars_off"] == 1
+        and first["weight"] == pytest.approx(0.61, abs=0.01)
+    )
+    assert ov["level"]["replays"] == 3 and 0 < ov["kpis"]["accuracy"] <= 1
+    shares = sum(c["share"] for c in ov["miss_causes"])
+    assert shares == pytest.approx(1.0) if ov["miss_causes"] else shares == 0
+
+
+def test_aim_page_shapes(analysed):
+    aim = analysed.get("/api/profile/aim").json()
+    assert [q["quadrant"] for q in aim["quadrants"]] == ["top-left", "top-right", "bottom-left", "bottom-right"]
+    assert len(aim["grid"]["rate"]) == 6 and all(len(row) == 8 for row in aim["grid"]["rate"])
+    assert len(aim["directions"]) == 8 and {d["angle"] for d in aim["directions"]} == set(range(0, 360, 45))
+    assert aim["distances"] and aim["angles"]
+
+
+@pytest.mark.parametrize("view", ["screen", "movement"])
+def test_clicks(analysed, view):
+    c = analysed.get("/api/profile/clicks", params={"view": view}).json()
+    assert c["view"] == view and c["enough"]
+    assert len(c["x"]) == len(c["y"]) == len(c["hit"]) == c["drawn"] <= c["n"]
+    assert max(abs(v) for v in c["x"] + c["y"]) < 2.4
+    assert [b["label"] for b in c["summary"]["bands"]][-1] == "outside"
+    assert analysed.get("/api/profile/clicks", params={"view": "sideways"}).status_code == 422
+
+
+def test_clicks_of_some_plays(analysed):
+    """Only the plays in the star range and dates count; the bounds come from the analysed replays."""
+    plays = analysed.get("/api/profile/replays").json()
+    all_clicks = analysed.get("/api/profile/clicks").json()
+    every = all_clicks["n"]
+    assert all_clicks["plays"] == len(plays)
+    stars = sorted(r["stars"] for r in plays)
+    top = analysed.get("/api/profile/clicks", params={"stars_min": stars[-1]}).json()
+    assert 0 < top["n"] < every and top["plays"] == stars.count(stars[-1])
+    assert (
+        analysed.get("/api/profile/clicks", params={"stars_min": stars[0], "stars_max": stars[-1]}).json()["n"] == every
+    )
+    none = analysed.get("/api/profile/clicks", params={"stars_max": stars[0] - 0.5}).json()
+    assert none["n"] == none["plays"] == 0 and not none["enough"]
+    last = max(r["played_at"] for r in plays)
+    assert analysed.get("/api/profile/clicks", params={"since": last}).json()["n"] < every
+    assert analysed.get("/api/profile/clicks", params={"until": "2100-01-01T00:00:00Z"}).json()["n"] == every
+    bad = analysed.get("/api/profile/clicks", params={"stars_min": 6, "stars_max": 5})
+    assert bad.status_code == 422 and bad.json()["code"] == "invalid_star_range"
+    bad = analysed.get("/api/profile/clicks", params={"since": "2024-02-01T00:00:00Z", "until": "2024-01-01"})
+    assert bad.status_code == 422 and bad.json()["code"] == "invalid_date_range"
+
+
+def test_tapping_and_sliders_pages(analysed):
+    t = analysed.get("/api/profile/tapping").json()
+    assert len(t["timing"]["centers"]) == len(t["timing"]["n300"]) == 100
+    assert t["keys"]["shares"] and t["kpis"]["ur"] > 0
+    s = analysed.get("/api/profile/sliders-reading").json()
+    assert s["kpis"]["sliders"] > 0
+    for row in s["hits_by_ar"]:
+        assert row["r300"] + row["r100"] + row["r50"] + row["miss"] == pytest.approx(100)
+
+
+# ------------------------------------------------------------------ choices that rebuild the profile
+def _two_plays_of_one_map():
+    rp, mp = sample_paths("circlecore__legit__legit-12.osr")
+    a = analyze_files(rp, mp)
+    b = with_meta(a, key="retry", score=a.meta.score + 1000)  # the better play of the same map and speed ...
+    c = with_meta(a, key="failed", score=a.meta.score * 10, completed=False)  # ... a failed one never counts as best
+    return [a, b, c]
+
+
+def test_best_replays_switch_rebuilds_the_profile(client):
+    workspace(client).set_plays([summarize(a) for a in _two_plays_of_one_map()], [], "tester")
+    assert client.get("/api/profile/summary").json()["replays"] == 3
+    client.patch("/api/settings", json={"replay_set": "best"})
+    summary = client.get("/api/profile/summary").json()
+    assert summary["replays"] == 1 and summary["replay_set"] == "best"
+    assert [r["key"] for r in client.get("/api/profile/replays").json()] == ["retry"]
+
+
+def test_level_override_is_used_and_remembered(client):
+    workspace(client).set_plays([summarize(a) for a in _two_plays_of_one_map()], [], "tester")
+    client.patch("/api/settings", json={"level_override": 3.0})
+    assert load_settings(workspace(client).cache_dir)["level_override"] == 3.0
+    lv = client.get("/api/profile/overview").json()["level"]
+    assert lv["stars"] == 3.0 and lv["override"]
+    client.patch("/api/settings", json={"level_override": None})
+    assert client.get("/api/profile/overview").json()["level"]["override"] is False
+
+
+# ------------------------------------------------------------------ tips and setup tips
+@pytest.fixture(scope="module")
+def small_profile():
+    names = ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr"]
+    return build_profile([analyze_files(*sample_paths(n)) for n in names])
+
+
+def _with_profile(client, monkeypatch, prof):
+    ws = workspace(client)
+    monkeypatch.setattr(ws, "profile", lambda: prof)
+    return ws
+
+
+def test_setup_tips_page(client, monkeypatch, small_profile):
+    """Setup Tips: one piece of advice per check of the player's devices, with what to change or why to keep it."""
+    ws = _with_profile(client, monkeypatch, small_profile)
+    save_settings(
+        {"setup_saved": True, "device": "tablet", "area_w_mm": 100.0, "area_h_mm": 56.25, "keyboard": "sayo"},
+        ws.cache_dir,
+    )
+    page = client.get("/api/profile/setup-tips").json()
+    assert page["setup"]["keyboard"] == "sayo" and page["setup_saved"]
+    keys = [a["key"] for a in page["advice"]]
+    assert {"offset", "keys"} <= set(keys) and ("area_size" in keys) and "sensitivity" not in keys
+    order = ["change", "unknown", "keep"]
+    assert [a["verdict"] for a in page["advice"]] == sorted((a["verdict"] for a in page["advice"]), key=order.index)
+    assert all(a["why"] for a in page["advice"])
+    tips = client.get("/api/profile/tips").json()
+    assert "calibration" not in tips and tips["practice_plan"]
+    assert not any(t["category"].startswith(("Setup", "Keys", "Tablet")) for t in tips["tips"])
+
+
+def test_setup_tips_need_an_analysis(client):
+    assert client.get("/api/profile/setup-tips").json()["code"] == "no_profile"
+
+
+def _long_streams(n_runs, length, err_fn, seed=3, bpm=200.0):
+    """Long streams whose timing error grows by ``err_fn(pos)`` (as in the core tests)."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for run in range(n_runs):
+        for pos in range(length):
+            size = err_fn(pos) + abs(rng.normal(0, 1))
+            rows.append(
+                {
+                    "run_len": length,
+                    "run_pos": pos,
+                    "run_id": run,
+                    "replay_key": "r",
+                    "head_hit": True,
+                    "err_real": size * (1 if rng.random() < 0.5 else -1),
+                    "stream_bpm": bpm,
+                    "played": True,
+                    "kind": "circle",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _plays_at(bpm, ur, offsets, n=60, seed=0):
+    """``len(offsets)`` plays at one stream speed, each with UR ``ur`` around its own average (as in the core tests)."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for k, off in enumerate(offsets):
+        e = rng.normal(0, 1, n)
+        e = (e - e.mean()) / e.std() * ur / 10 + off
+        rows += [
+            {
+                "run_len": 20,
+                "run_pos": 1 + i % 19,
+                "stream_bpm": bpm + 2,
+                "head_hit": True,
+                "miss_reason": None,
+                "err_real": float(x),
+                "played": True,
+                "kind": "circle",
+                "head_result": 300,
+                "pattern": "stream",
+                "replay_key": f"{bpm}-{k}",
+            }
+            for i, x in enumerate(e)
+        ]
+    return rows
+
+
+def test_tapping_page_shows_stream_stamina_and_weak_speeds(client, monkeypatch, small_profile):
+    """Precision through long streams, the comfortable stream length with maps to practise, and the stream-speed
+    UR with its trend and weak speeds."""
+    fb = stream_fall_behind(_long_streams(80, 48, lambda pos: 10.0 if pos < 20 else 10.0 + 1.5 * (pos - 20)), raw=True)
+    rows = []
+    for i, bpm in enumerate(range(180, 270, 10)):
+        rows += _plays_at(bpm, 100 + 2 * (bpm - 180) + (150 if bpm == 200 else 0), [0, 5, -5], seed=i)
+    sp = stream_speed_profile(pd.DataFrame(rows), raw=True)
+    measured = {**small_profile.skill_ratings, "stamina": SkillRating(70, 0, Message("stamina_mean"))}
+    _with_profile(
+        client,
+        monkeypatch,
+        dataclasses.replace(small_profile, fall_behind=fb, stream_profile=sp, skill_ratings=measured),
+    )
+    t = client.get("/api/profile/tapping").json()
+    f = t["fall_behind"]
+    assert f["available"] and f["start_note"] == fb.start_note and f["comfort_notes"] == fb.comfort_notes
+    assert f["practice_notes"] == list(fb.practice_notes)
+    assert f["comfortable_maps"]["maps"] and f["practice_maps"]["maps"]  # the two map lists
+    assert f["practice_maps"]["min_notes"] == fb.practice_notes[0]
+    weak = [r["bpm"] for r in t["stream_speed"]["rows"] if r["weak"]]
+    assert weak == [200]
+
+
+def test_skills_not_tested_to_their_limit_show_a_lower_bound(tmp_path, client):
+    """At a 12★ level the sample maps are far easier than expected, and nearly all of them are held: a skill they
+    don't test gets no score, but at least the score they show, and what to play to find the limit (e.g. stamina with
+    no dense enough stretch). Too few maps: how many more."""
+    scan(client, plays_folder(tmp_path, names=list(INDEX)))
+    analyse(client, player="*")
+    client.patch("/api/settings", json={"level_override": 12.0})
+    skills = {s["key"]: s for s in client.get("/api/profile/overview").json()["skills"]}
+    for s in (s for s in skills.values() if s["at_least"] is not None):  # see test_ratings for one that is
+        assert s["score"] is None and 0 <= s["at_least"] < 50
+        assert s["score_text"].startswith(f"at least {s['at_least']:.0f}")
+        assert "below what your comfort level expects" in s["needs"]
+    flow = skills["flow_aim"]
+    assert flow["score"] is None and flow["at_least"] is None and flow["needs"].startswith("Play 1 more different map")
+    assert all(s["at_least"] is None and s["needs"] is None for s in skills.values() if s["score"] is not None)

@@ -7,12 +7,12 @@ from fastapi import APIRouter
 from pydantic import Field
 
 from osu_coach.app.deps import WorkspaceDep
-from osu_coach.app.errors import responses
-from osu_coach.exports.schemas import LazerPackJob, OszJob
-from osu_coach.jobs.schemas import job_view
-from osu_coach.library.schemas import AnalysisJob, ScanJob
-from osu_coach.maps.schemas import PlaylistJob
-from osu_coach.play_goals.schemas import PlayGoalJob
+from osu_coach.common.errors import responses
+from osu_coach.common.jobs import job_view
+from osu_coach.features.exports.schemas import LazerPackJob, OszJob
+from osu_coach.features.library.schemas import AnalysisJob, ScanJob
+from osu_coach.features.maps.schemas import PlaylistJob
+from osu_coach.features.play_goals.schemas import PlayGoalJob
 
 router = APIRouter(tags=["Jobs"])
 
