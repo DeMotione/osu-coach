@@ -90,6 +90,7 @@ const PAGES = [
   ["/skills", "Goals & Training"],
   ["/skills?tab=playlist", "Goals & Training"],
   ["/replays", "Your replays"],
+  ["/settings", "Settings"],
 ] as const;
 
 test.describe.configure({ mode: "serial" });
@@ -207,6 +208,23 @@ test.describe("after the setup", () => {
     await page.goto("/replays");
     await page.getByText("All replays", { exact: true }).click();
     await expect.poll(async () => (await (await request.get("/api/settings")).json()).replay_set).toBe("all");
+  });
+
+  test("the rating engine is switched on Settings and the Overview follows", async ({ page, request }) => {
+    await page.goto("/settings");
+    const engine = async () => (await (await request.get("/api/settings")).json()).rating_engine;
+    expect(await engine()).toBe("comfort");
+    await page.getByText("Star-Scale IRT (experimental)", { exact: true }).click();
+    await expect(page.getByText("Applied: every page now uses this engine.")).toBeVisible({ timeout: 120_000 });
+    expect(await engine()).toBe("irt");
+    await page.goto("/overview");
+    await expect(page.locator(".engine-badge")).toHaveText("Star-Scale IRT (experimental)");
+    await expect(page.locator(".skeleton")).toHaveCount(0, { timeout: 60_000 });
+    expect(await layoutProblems(page)).toEqual([]);
+    await page.locator(".engine-badge").click();
+    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+    await page.getByText("Comfort-Based", { exact: true }).click();
+    await expect.poll(engine).toBe("comfort");
   });
 
   test("the sidebar navigates, folds with Ctrl+B and remembers it", async ({ page }) => {

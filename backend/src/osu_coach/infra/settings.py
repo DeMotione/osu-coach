@@ -148,7 +148,7 @@ class UserSettings:
 
     @property
     def rating_engine(self) -> str | None:
-        """Classic | irt: the engine that makes the skill ratings."""
+        """Comfort | irt: the engine that makes the skill ratings."""
         return _str(self.values.get("rating_engine"))
 
     @property

@@ -322,18 +322,6 @@ function AnalyseCard({ settings }: { settings: Settings }) {
               options={(meta.data?.replay_sets ?? []).map((c) => ({ value: c.key as Settings["replay_set"], label: c.label }))}
             />
           </Field>
-          <Field
-            label="Rating engine"
-            help="How the skill ratings are worked out. Classic rates each skill against what is typical at your comfort level. Star-Scale IRT (experimental) measures every skill in stars from each note you hit or missed."
-          >
-            <Segmented
-              label="Rating engine"
-              block
-              value={settings.rating_engine}
-              onChange={(rating_engine) => patch.mutate({ rating_engine })}
-              options={(meta.data?.rating_engines ?? []).map((c) => ({ value: c.key as Settings["rating_engine"], label: c.label }))}
-            />
-          </Field>
           <Switch
             checked={online}
             onChange={setOnline}

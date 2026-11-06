@@ -11,7 +11,7 @@ Printed per skill group: every play (player, map, mods, accuracy, misses) and, f
 ratings the current formulas give (``build_profile`` of the plays: ``Profile.skill_ratings``, 50 = typical at the
 group's comfort level) plus the raw numbers behind the rating — measured vs expected value, tested demand, share
 held, stamina parts. A near-perfect play of a skill should rate high on that skill; where it doesn't, the raw
-numbers show which yardstick in ``domain/player/ratings.py`` (``_expected``, ``POINTS``, ``STAMINA_SHARES``)
+numbers show which yardstick in ``domain/player/engines/comfort/ratings.py`` (``_expected``, ``POINTS``, ``STAMINA_SHARES``)
 needs moving. Use ``--out`` to keep the numbers for before/after checks.
 """
 

@@ -12,7 +12,7 @@ def test_defaults(client):
     s = client.get("/api/settings").json()
     assert s["latest"] == 500 and s["date_range"] == "all" and s["replay_set"] == "all"
     assert s["level_override"] is None and s["source_mode"] == "library" and s["manual_comfort"] == 2.5
-    assert s["rating_engine"] == "classic"
+    assert s["rating_engine"] == "comfort"
 
 
 def test_rating_engine_is_remembered_and_checked(client):
@@ -20,7 +20,7 @@ def test_rating_engine_is_remembered_and_checked(client):
     assert load_settings(workspace(client).cache_dir)["rating_engine"] == "irt"
     assert client.patch("/api/settings", json={"rating_engine": "magic"}).status_code == 422
     save_settings({"rating_engine": "magic"}, workspace(client).cache_dir)  # hand-edited
-    assert client.get("/api/settings").json()["rating_engine"] == "classic"
+    assert client.get("/api/settings").json()["rating_engine"] == "comfort"
 
 
 def test_patch_changes_only_the_given_fields(client):

@@ -13,7 +13,7 @@ import numpy as np
 
 from osu_coach.domain.analysis.notes import HitObjects
 from osu_coach.domain.numeric.stats import weighted_quantile
-from osu_coach.domain.player.moments import Moments, weighted_mean, weighted_std
+from osu_coach.domain.player.measures.moments import Moments, weighted_mean, weighted_std
 from osu_coach.domain.player.records import SpeedRow
 
 UR_MIN_HITS = 10

@@ -122,6 +122,17 @@ _TESTS = {
 }
 
 
+_IRT_TESTS = {
+    "aim": "jumps",
+    "flow_aim": "spaced streams",
+    "speed": "streams",
+    "stamina": "long streams",
+    "accuracy": "hit windows (OD)",
+    "sliders": "sliders",
+    "reading": "approach rates (AR)",
+}
+
+
 def _maps(n: int) -> str:
     return f"{n} more different map{'s' if n > 1 else ''}"
 
@@ -168,6 +179,20 @@ def message(m: Message | None) -> str | None:
             )
         case "stamina_maps":
             return f"Play {v['maps']} different maps with streams or dense 1/4 sections of at least 10 seconds."
+        case "irt_measured":
+            return "Fitted from every note against its difficulty (Star-Scale IRT)"
+        case "irt_provisional":
+            return "Fitted from every note, but still uncertain: more plays near your limit narrow it"
+        case "irt_untested":
+            return f"At least {v['tested']:.1f}★: you held what you played, so its limit isn't tested yet"
+        case "irt_not_enough":
+            return "Not enough notes near your limit to measure it yet"
+        case "irt_failed":
+            return "The fit didn't settle on one answer: no number is shown"
+        case "irt_play_harder":
+            return f"Play maps with {_IRT_TESTS[v['skill']]} harder than {v['stars']:.1f}★ to find your limit."
+        case "irt_play_at":
+            return f"Play maps with {_IRT_TESTS[v['skill']]} of about {v['stars']:.1f}★ to measure it."
         case "comfort_first":
             return (
                 "First your comfort level: pass 3 different maps (with at most 2 misses per 100 notes) and analyse "

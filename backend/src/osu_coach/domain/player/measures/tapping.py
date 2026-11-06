@@ -11,7 +11,7 @@ import numpy as np
 
 from osu_coach.domain.analysis.notes import HitObjects, KeyPresses
 from osu_coach.domain.numeric.stats import weighted_quantile
-from osu_coach.domain.player.moments import Moments, weighted_mean, weighted_std
+from osu_coach.domain.player.measures.moments import Moments, weighted_mean, weighted_std
 
 UR_MIN_HITS = 10  # hits of one play in a BPM bin needed for that play's UR there
 

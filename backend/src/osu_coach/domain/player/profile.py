@@ -216,5 +216,5 @@ class Profile:
     miss_breakdown_raw: dict = field(default_factory=dict)  # the same, unweighted counts
     fall_behind: FallBehind | None = None  # streams.fall_behind()
     skill_ratings: dict[str, SkillRating] = field(default_factory=dict)  # by skill (ratings.py)
-    engine: str = "classic"  # the rating engine that made skill_ratings (engines.py)
+    engine: str = "comfort"  # the rating engine that made skill_ratings (engines.py)
     rated: Rated | None = field(default=None, repr=False)  # what that engine gave (None without ratings)

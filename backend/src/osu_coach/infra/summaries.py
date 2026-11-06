@@ -24,10 +24,12 @@ from typing import TypeVar
 from osu_coach.domain.analysis.models import ANALYSIS_VERSION, Play
 from osu_coach.domain.player import PlaySummary
 from osu_coach.domain.player import summarize as summarize_play
+from osu_coach.domain.player.engines.irt.tables import ANCHOR_VERSION
 
 DB_FILE = "summaries.sqlite"
-SUMMARY_VERSION = 2  # bump when PlaySummary (or what goes into it) changes
-VERSION = ANALYSIS_VERSION * 1000 + SUMMARY_VERSION
+SUMMARY_VERSION = 4  # bump when PlaySummary (or what goes into it) changes
+# the IRT anchors set the stars of every item in a summary: new anchors make the summaries again too
+VERSION = ANALYSIS_VERSION * 100_000 + SUMMARY_VERSION * 100 + ANCHOR_VERSION
 CHUNK = 50  # plays summarised and stored at a time when summaries are made from the analysis cache
 
 

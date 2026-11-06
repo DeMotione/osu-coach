@@ -20,8 +20,8 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from osu_coach.domain.player.demand import log_demand
-from osu_coach.domain.player.ratings import ACCURACY_TRANSITION_STARS, POINTS
+from osu_coach.domain.player.engines.comfort.demand import log_demand
+from osu_coach.domain.player.engines.comfort.ratings import ACCURACY_TRANSITION_STARS, POINTS
 from osu_coach.domain.player.records import UNRATED, SkillRating
 
 SKILLS = ("aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading")

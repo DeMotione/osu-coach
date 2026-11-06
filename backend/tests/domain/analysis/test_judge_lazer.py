@@ -205,7 +205,7 @@ def test_aim_misses_are_not_counted_as_extra_presses():
 
 
 def test_sigmoid_does_not_overflow():
-    from osu_coach.domain.player.miss_notes import _sigmoid
+    from osu_coach.domain.player.measures.miss_notes import _sigmoid
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")

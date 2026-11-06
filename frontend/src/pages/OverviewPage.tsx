@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { Link } from "react-router";
 
 import type { Schemas } from "../api/client";
 import { useMeta, useOverview, usePatchSettings, useSettings } from "../api/queries";
@@ -232,7 +233,7 @@ function CompareCard({
   return (
     <Card
       title="Current skill level"
-      actions={<Badge tone={engine.engine === "classic" ? "muted" : "info"}>{engine.engine_label}</Badge>}
+      actions={<EngineBadge current={engine} />}
       hint={`Your skill scores from 0 to 100: 50 = what is expected at your ${starLabel(comfort)} comfort level. Most skills use your best play per map; timing accuracy uses all hit single notes. Pick another star rating to see the scores on easier or harder maps: on harder ones they drop, each by how much more typical maps of that star rating demand of the skill (measured on ranked maps). Consistency is measured on your own maps from a star below the star rating up to it. You can pick any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level. Grey = not measured yet: point at a bar to see what to play.`}
     >
       {target === null || compare.comfort === null ? (
@@ -244,6 +245,15 @@ function CompareCard({
         </div>
       )}
     </Card>
+  );
+}
+
+/** Which rating engine made the skill scores; it is chosen on the Settings page. */
+function EngineBadge({ current }: { current: Pick<Overview, "engine" | "engine_label"> }) {
+  return (
+    <Link to="/settings" className="engine-badge" title="Change the rating engine in Settings">
+      <Badge tone={current.engine === "comfort" ? "muted" : "info"}>{current.engine_label}</Badge>
+    </Link>
   );
 }
 

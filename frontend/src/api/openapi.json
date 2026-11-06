@@ -3155,12 +3155,12 @@
           "rating_engine": {
             "type": "string",
             "enum": [
-              "classic",
+              "comfort",
               "irt"
             ],
             "title": "Rating Engine",
             "description": "The engine that makes the skill ratings; irt (Star-Scale IRT) is experimental.",
-            "default": "classic"
+            "default": "comfort"
           },
           "level_override": {
             "anyOf": [
@@ -6671,14 +6671,14 @@
           "engine": {
             "type": "string",
             "title": "Engine",
-            "description": "The rating engine that made the skill scores (classic | irt).",
-            "default": "classic"
+            "description": "The rating engine that made the skill scores (comfort | irt).",
+            "default": "comfort"
           },
           "engine_label": {
             "type": "string",
             "title": "Engine Label",
             "description": "Its name to show.",
-            "default": "Classic"
+            "default": "Comfort-Based"
           }
         },
         "type": "object",
@@ -8738,7 +8738,7 @@
               {
                 "type": "string",
                 "enum": [
-                  "classic",
+                  "comfort",
                   "irt"
                 ]
               },
@@ -9622,6 +9622,77 @@
             ],
             "title": "At Least",
             "description": "Without a score because nothing played was demanding enough (and nearly all of it was held): the score that much shows, a lower bound (0–100). null otherwise."
+          },
+          "stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars",
+            "description": "Star-Scale IRT: the ability in stars (untested: at least this)."
+          },
+          "stars_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars Low",
+            "description": "Star-Scale IRT: the low end of its 90% range."
+          },
+          "stars_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars High",
+            "description": "Star-Scale IRT: the high end (null: open, untested)."
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State",
+            "description": "Star-Scale IRT: measured | provisional | untested | not_enough_data | failed."
+          },
+          "natural": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Natural",
+            "description": "Star-Scale IRT: the ability in natural units (natural_unit)."
+          },
+          "natural_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Natural Unit"
           }
         },
         "type": "object",

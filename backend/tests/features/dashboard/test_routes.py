@@ -177,12 +177,14 @@ def test_rating_engine_switch_rebuilds_the_profile(client):
     ws = workspace(client)
     ws.set_plays([summarize(a) for a in _two_plays_of_one_map()], [], "tester")
     before = ws.profile()
-    assert before.engine == "classic"
+    assert before.engine == "comfort"
     client.patch("/api/settings", json={"rating_engine": "irt"})
-    assert ws.profile() is not before  # rebuilt for the other engine
-    assert client.get("/api/profile/overview").status_code == 200
-    client.patch("/api/settings", json={"rating_engine": "classic"})
-    assert ws.profile().engine == "classic"
+    assert ws.profile() is not before and ws.profile().engine == "irt"  # rebuilt for the other engine
+    ov = client.get("/api/profile/overview").json()
+    assert ov["engine"] == "irt"
+    assert all(s["state"] for s in ov["skills"] if s["key"] != "consistency")
+    client.patch("/api/settings", json={"rating_engine": "comfort"})
+    assert ws.profile().engine == "comfort"
 
 
 def test_level_override_is_used_and_remembered(client):

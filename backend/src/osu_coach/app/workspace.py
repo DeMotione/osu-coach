@@ -161,7 +161,7 @@ class Workspace:
         return value
 
     def rating_engine(self) -> str:
-        """The rating engine chosen in the settings (``classic`` unless a known other one is set)."""
+        """The rating engine chosen in the settings (``comfort`` unless a known other one is set)."""
         return engine_name(self.settings().rating_engine)
 
     def replay_set(self) -> str:

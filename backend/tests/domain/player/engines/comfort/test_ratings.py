@@ -1,14 +1,14 @@
 import pytest
 
 from osu_coach.common.texts import message
-from osu_coach.domain.player.messages import Message
-from osu_coach.domain.player.ratings import (
+from osu_coach.domain.player.engines.comfort.ratings import (
     SkillRating,
     _accuracy_expected,
     _accuracy_score,
     _score,
     at_level,
 )
+from osu_coach.domain.player.messages import Message
 
 
 def test_accuracy_score_decreases_as_non_300_rate_increases():
@@ -57,7 +57,7 @@ def test_reference_and_score_transition_smoothly_into_5_5_stars():
 def test_slider_expectation_is_what_typical_maps_ask():
     """#54: the reference was 40 × 2^((★−6)/3), twice what a typical 6★ map's hardest sliders score, so players who
     don't break sliders were "not tested" whatever they played. Now 19 at 6★, growing like real slider speed."""
-    from osu_coach.domain.player.ratings import SLIDERS_AT_6, _expected
+    from osu_coach.domain.player.engines.comfort.ratings import SLIDERS_AT_6, _expected
 
     assert _expected("sliders", 6.0) == pytest.approx(SLIDERS_AT_6) == pytest.approx(19.0)
     assert 1.05 < _expected("sliders", 7.0) / _expected("sliders", 6.0) < 1.3  # ~15% per ★, not 26%
@@ -69,7 +69,7 @@ def test_slider_control_scores_a_tenth_lower():
     """Slider control read about 10% too high for everyone: every slider score is 0.9× what its curve gives."""
     import math
 
-    from osu_coach.domain.player.ratings import _expected
+    from osu_coach.domain.player.engines.comfort.ratings import _expected
 
     expected = _expected("sliders", 6.0)
     for value in (expected / 2, expected, expected * 1.6, expected * 20):

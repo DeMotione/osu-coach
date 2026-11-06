@@ -17,7 +17,12 @@ from typing import Any
 from osu_coach.domain.maps.suggestions import SKILLS, map_url
 from osu_coach.domain.numeric.values import finite_or_none
 from osu_coach.domain.player import algorithm as alg
-from osu_coach.domain.player.skill_scale import SPEED_POINTS, expected_speed_bpm, speed_bpm_for_rating, speed_rating
+from osu_coach.domain.player.engines.comfort.skill_scale import (
+    SPEED_POINTS,
+    expected_speed_bpm,
+    speed_bpm_for_rating,
+    speed_rating,
+)
 from osu_coach.domain.replays.configuration import Configuration
 
 FEATURE_POINTS = {

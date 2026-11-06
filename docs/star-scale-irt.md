@@ -1,6 +1,59 @@
 # Star-Scale IRT (spec)
 
-Appendix A of the osu!coach arena report (the winning proposal, unedited). The deviations the app makes from it (the review's required fixes) are listed in [plans/rating-engines.md](plans/rating-engines.md), section "Deviations from the proposal".
+The experimental rating engine in `backend/src/osu_coach/domain/player/engines/irt/`. Below: first how osu! coach
+differs from the proposal (the arena review's required fixes, and what review of the code settled), then the
+proposal itself, unedited (Appendix A of the arena report).
+
+## How osu! coach differs from the proposal
+
+Built (the engine's states, fit and items):
+
+1. **Tested-difficulty cap.** Per skill, the hardest difficulty held (`tested`) is the 95th percentile of the held
+   items' difficulty, each weighted by its information at the fitted ability (`a²q(1−q)`), so a pile of easy notes
+   doesn't pull it down. A fit above it shows as "at least `tested`" (state `untested`, no score, `at_least` =
+   adapter(`tested`)). A skill whose items were all failed has no tested difficulty and shows no number.
+2. **States.** `measured` (SE ≤ 0.35★), `provisional` (SE ≤ 0.75★, or two answers fit about as well),
+   `untested`, `not_enough_data` (SE > 0.75★), `failed` (the solver didn't converge: no number, never a clamp).
+3. **Farming.** A play weighs `recency × min(1, 3/N_setup, 5/N_set)`: one map/mod setup counts as at most 3 plays,
+   one mapset (`beatmapset_id`, else the map MD5) as at most 5. Setups include the client, so stable and lazer
+   plays of one map are separate setups.
+4. **Solver.** numpy damped quasi-Newton (Levenberg–Marquardt on a BFGS-updated curvature, started from and
+   reset to the exact finite-difference Hessian of the exact analytic gradient); a step is taken only if the log
+   posterior rises; probabilities stay inside (1e-12, 1 − 1e-12);
+   accuracy by bisection on its monotone score. No scipy needed.
+5. **Several answers.** Four starts (every skill at L, L − 2, L + 2, and each skill at its items' median
+   difficulty); converged answers within 2 log-posterior units but > 0.3★ apart widen the range to span them.
+6. **Ranges.** SE² = D·Σ_kk + 0.25²/N_plays (play-to-play form) + ((θ(L+1) − θ(L−1))/2)² (how much the prior centre
+   moves the answer). Constants are unfitted.
+7. **Prior centre L.** The comfort level; else the provisional one; else the median star rating played; else 4★.
+   The 0–100 scores are `clip(50 + 20·(θ − L), 0, 100)`.
+8. **Accuracy.** Uses `head_result` and only plays that pass the DT accuracy gate (`timing_evidence_eligible`).
+   At θ = b, 88% of single notes are 300s (`π_acc = 0.88`), not the proposal's 95%: real players' single notes are
+   ~12% non-300 at their level (the Comfort-Based engine's reference), and with 95% every typical player's accuracy
+   read 2–3★ below their level (score 0).
+9. **Tap rule.** A stream note (S/D/F) judged 50 fails like a miss: class B (late) or T (early) by the sign of the
+   hit error. The likelihood has one response per note, so a 50 is shared out over the note's skills like a
+   miss of that class (reading and flow take a little of it too).
+10. **Stamina.** D also takes stream notes 30 s or more into a dense tapping section (notes at most 200 ms apart;
+    a 1 s gap would make nearly every note of a map "deep").
+11. **Reading.** `b_read` adds `0.5·log2(max(1, visible notes / 4))`, so low AR on dense maps isn't "easy". The
+    anchors were fitted without it, so a typical T★ map's `b_read` sits a little above T.
+12. **Sliders.** Only sliders whose path leaves the follow circle (longer than one circle width) are items: a kick
+    slider is held without moving, however fast. Slider speed is held at the anchor's top knot (13★) before the
+    shape term: the pool knows maps' typical slider speeds, and single sliders of ordinary maps are far faster, so
+    extrapolated they read 30★ and more. A player who never breaks sliders reads "at least" ~13–14★.
+13. **Sessions.** A play's start is its replay time (saved at the end) minus its length.
+14. **Consistency.** Kept from the Comfort-Based engine (combo and accuracy held from map to map).
+
+Still to build (OPP and the rest of §4, §6.7, §15): OPP with an expanding bracket and no 13.5 bound (failure →
+no number), OPP from `min(θ, tested)` and only with ≥ 4 measured/provisional skills; the same reading density
+term on the equating rows; Train Next as the OPP gain of +0.5★, only for scored skills below OPP; pass chance and
+expected misses from the fit; Progress and map displays.
+
+Known limits: above about 8.5★ the reading and accuracy anchors are only the monotone steps (the pool has few
+such maps), so DT players' reading and accuracy can read 12–15★.
+
+---
 
 # Star-Scale IRT
 

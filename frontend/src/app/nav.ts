@@ -5,6 +5,7 @@ import {
   IconSliders,
   IconFolder,
   IconGauge,
+  IconGear,
   IconKeys,
   IconMagnify,
   IconMap,
@@ -134,13 +135,22 @@ export const NAV: NavGroup[] = [
   },
 ];
 
+/** Settings: not one of the pages above but at the foot of the sidebar, split from them (and not in the tour). */
+export const SETTINGS: NavItem = {
+  path: "/settings",
+  label: "Settings",
+  icon: IconGear,
+  about: "How osu! coach works for you, e.g. which engine rates your skills.",
+};
+const SETTINGS_GROUP: NavGroup = { group: "Settings", about: SETTINGS.about, items: [SETTINGS] };
+
 /** The pages in sidebar order, for the Alt+number shortcuts. */
 export const PAGES: NavItem[] = NAV.flatMap((g) => g.items);
 
 const isActive = (item: NavItem, pathname: string) => pathname === item.path || pathname.startsWith(`${item.path}/`);
 
 export function currentPage(pathname: string): { group: NavGroup; item: NavItem } | null {
-  for (const group of NAV) {
+  for (const group of [...NAV, SETTINGS_GROUP]) {
     const item = group.items.find((i) => isActive(i, pathname));
     if (item) return { group, item };
   }

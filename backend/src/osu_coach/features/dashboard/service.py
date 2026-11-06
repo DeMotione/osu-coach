@@ -15,10 +15,10 @@ from osu_coach.common.texts import SKILL_LABELS, message
 from osu_coach.domain.maps.skillset import recommend
 from osu_coach.domain.maps.suggestions import targets_from_profile
 from osu_coach.domain.player import Profile, weight_table
-from osu_coach.domain.player.consistency import star_consistency
 from osu_coach.domain.player.engines import ENGINE_LABELS, Rated, compare
-from osu_coach.domain.player.ratings import MIN_MAPS
-from osu_coach.domain.player.readiness import MAX_GAP, default_target, targets
+from osu_coach.domain.player.engines.comfort.consistency import star_consistency
+from osu_coach.domain.player.engines.comfort.ratings import MIN_MAPS
+from osu_coach.domain.player.engines.comfort.readiness import MAX_GAP, default_target, targets
 from osu_coach.domain.player.records import UNRATED, SkillRating
 from osu_coach.features.dashboard import charts
 from osu_coach.features.dashboard import schemas as S
@@ -76,6 +76,45 @@ def analysed_replays(p: Profile) -> list[S.AnalysedReplay]:
 
 
 # ------------------------------------------------------------------ skill facts (Overview hover)
+def stars_text(row: SkillRating) -> str | None:
+    """A Star-Scale IRT ability as shown: "6.19★ (5.92–6.46) · ≈ 199 BPM"; None without one."""
+    stars, low, high = num(row.stars), num(row.stars_low), num(row.stars_high)
+    if stars is None or row.state in ("failed", "not_enough_data"):
+        return None
+    text = f"at least {stars:.2f}★" if row.state == "untested" else f"{stars:.2f}★"
+    if row.state != "untested" and low is not None and high is not None:
+        text += f" ({low:.2f}–{high:.2f})"
+    natural = num(row.natural)
+    if natural is not None and row.natural_unit:
+        value = (
+            f"AR {natural:.1f}"
+            if row.natural_unit == "AR"
+            else f"OD {natural:.1f}"
+            if row.natural_unit == "OD"
+            else (
+                f"{natural:.0f} {row.natural_unit}"
+                if row.natural_unit == "BPM"
+                else f"{natural:.1f} {row.natural_unit}"
+            )
+        )
+        text += f" · ≈ {value}"
+    return text
+
+
+def irt_facts(row: SkillRating) -> list[str]:
+    """The numbers behind a Star-Scale IRT rating."""
+    facts = []
+    shown = stars_text(row)
+    if shown:
+        facts.append(f"ability {shown}")
+    if row.tested_demand is not None:
+        facts.append(f"hardest held so far: {row.tested_demand:.2f}★ (95th percentile of the notes you hit)")
+    facts.append(f"measured on {row.maps} plays' notes ({row.state.replace('_', ' ')})")
+    if row.reason:
+        facts.append(message(row.reason))
+    return facts
+
+
 def skill_facts(skill: str, row: SkillRating) -> list[str]:
     """The player's own numbers behind a skill rating."""
     if skill == "consistency":
@@ -93,6 +132,8 @@ def skill_facts(skill: str, row: SkillRating) -> list[str]:
                 + (f"; {row.weak_maps} maps under 20% of the combo" if row.weak_maps else "")
             )
         return facts
+    if row.state is not None:
+        return irt_facts(row)
     facts = [f"{row.maps} relevant map/mod configurations"]
     measured, expected = num(row.measured), num(row.expected)
     if measured is not None and expected is not None:
@@ -146,9 +187,14 @@ def overview(p: Profile) -> S.Overview:
         row = p.skill_ratings.get(k, UNRATED)
         score = num(relative_scores.get(k))
         at_least = num(row.at_least) if score is None and comfort_level else None
-        if score is not None:
+        shown = stars_text(row)
+        if score is not None and shown:
+            text = f"{score:.0f} · {shown}"
+        elif score is not None:
             what = "combo and accuracy held from map to map around your level" if k == "consistency" else None
             text = f"{score:.0f} · {what or '50 = typical for your comfort level'}"
+        elif at_least is not None and shown:
+            text = f"at least {at_least:.0f} · {shown}: your maps haven't tested it to its limit yet"
         elif at_least is not None:
             text = f"at least {at_least:.0f} · your maps haven't tested it to its limit yet"
         else:
@@ -164,6 +210,12 @@ def overview(p: Profile) -> S.Overview:
             facts=skill_facts(k, row),
             needs=message(row.needs) if score is None else None,
             at_least=at_least,
+            stars=num(row.stars),
+            stars_low=num(row.stars_low),
+            stars_high=num(row.stars_high),
+            state=row.state,
+            natural=num(row.natural),
+            natural_unit=row.natural_unit,
         )
 
     skills = [skill_row(k) for k in SKILL_LABELS]

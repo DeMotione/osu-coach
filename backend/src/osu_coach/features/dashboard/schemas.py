@@ -76,6 +76,14 @@ class SkillScore(BaseModel):
         description="Without a score because nothing played was demanding enough (and nearly all of it was held): "
         "the score that much shows, a lower bound (0–100). null otherwise."
     )
+    stars: float | None = Field(None, description="Star-Scale IRT: the ability in stars (untested: at least this).")
+    stars_low: float | None = Field(None, description="Star-Scale IRT: the low end of its 90% range.")
+    stars_high: float | None = Field(None, description="Star-Scale IRT: the high end (null: open, untested).")
+    state: str | None = Field(
+        None, description="Star-Scale IRT: measured | provisional | untested | not_enough_data | failed."
+    )
+    natural: float | None = Field(None, description="Star-Scale IRT: the ability in natural units (natural_unit).")
+    natural_unit: str | None = None
 
 
 class CompareSkill(BaseModel):
@@ -147,8 +155,8 @@ class Overview(BaseModel):
     aim_split: AimSplit | None
     sim_exact_share: float | None
     sim_agreement: float | None
-    engine: str = Field("classic", description="The rating engine that made the skill scores (classic | irt).")
-    engine_label: str = Field("Classic", description="Its name to show.")
+    engine: str = Field("comfort", description="The rating engine that made the skill scores (comfort | irt).")
+    engine_label: str = Field("Comfort-Based", description="Its name to show.")
 
 
 # ------------------------------------------------------------------ aim
