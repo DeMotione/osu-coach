@@ -12,7 +12,7 @@ from osu_coach.app.errors import ApiError, Invalid, NoProfile, NotFound
 from osu_coach.profile.domain import SKILL_LABELS
 from osu_coach.progress import goals
 from osu_coach.progress import repository as progress
-from osu_coach.progress.domain import SKILL_REFERENCE
+from osu_coach.progress.domain import SKILL_REFERENCE, metrics_frame, period_metrics
 from osu_coach.progress.schemas import (
     GoalCreate,
     GoalHistory,
@@ -26,6 +26,7 @@ from osu_coach.progress.schemas import (
     SkillValue,
     SuggestedGoal,
 )
+from osu_coach.replays import scope
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
@@ -84,30 +85,71 @@ def _row(r: dict) -> PeriodRow:
     )
 
 
+def _analysed(ws: Workspace, name: str) -> list | None:
+    """The replays the Overview is built from (the last analysis, All / Best replays) of player ``name``;
+    None when nothing of that player is analysed."""
+    chosen = [a for a in scope.select(ws.analyses, ws.replay_set()) if (a.meta.get("player") or "") == name]
+    return chosen or None
+
+
+def _analysed_metrics(ws: Workspace, name: str, chosen: list, period: str) -> pd.DataFrame:
+    """Skill numbers per ``period`` of the analysed replays, rated at the Overview's comfort level (so a period
+    holding all of them shows the Overview's numbers). Kept until the analysis or the choices change."""
+
+    def compute() -> pd.DataFrame:
+        prof = ws.profile()
+        reference = num((prof.levels if prof is not None else {}).get("comfort_stars"))
+        return metrics_frame(period_metrics(chosen, reference=reference, periods=(period,), rolling=False))
+
+    return ws.memo(f"progress:{name}:{period}", compute)
+
+
 def by_period(
-    ws: Workspace, player: str | None, period: str, since: dt.date | None, until: dt.date | None
+    ws: Workspace,
+    player: str | None,
+    period: str,
+    since: dt.date | None,
+    until: dt.date | None,
+    replays: str = "analysed",
 ) -> ProgressOut:
     if since and until and since > until:
         raise Invalid("The start of the date range is after its end.", "bad_date_range")
     conn = progress.connect(ws.cache_dir)
     try:
         name = _player(ws, conn, player)
-        days = progress.by_period(conn, name, "day")
+        chosen = _analysed(ws, name)
+        keys = metrics = None
+        if replays == "analysed" and chosen is not None:
+            keys = [a.key for a in chosen]
+            metrics = _analysed_metrics(ws, name, chosen, period)
+        days = progress.by_period(conn, name, "day", keys=keys, metrics=metrics)
         first = dt.date.fromisoformat(str(days["month"].iloc[0])) if len(days) else None
-        m = progress.by_period(conn, name, period, since=since, until=until)
+        m = progress.by_period(conn, name, period, since=since, until=until, keys=keys, metrics=metrics)
     finally:
         conn.close()
     rows = [_row(r) for r in m.to_dict("records")] if "maps" in m else []
     refs = m[SKILL_REFERENCE].dropna() if SKILL_REFERENCE in m else []
     reference = num(refs.iloc[-1]) if len(refs) else None  # the newest: saved by the last analysis
-    return ProgressOut(player=name, period=period, first_day=first, skill_reference_stars=reference, rows=rows)
+    return ProgressOut(
+        player=name,
+        period=period,
+        replays="analysed" if keys is not None else "all",
+        analysed_plays=len(chosen) if chosen is not None else None,
+        first_day=first,
+        skill_reference_stars=reference,
+        rows=rows,
+    )
 
 
-def period_plays(ws: Workspace, player: str | None, period: str, key: str) -> list[ProgressPlay]:
+def period_plays(
+    ws: Workspace, player: str | None, period: str, key: str, replays: str = "analysed"
+) -> list[ProgressPlay]:
     conn = progress.connect(ws.cache_dir)
     try:
         name = _player(ws, conn, player)
-        plays = progress.month_plays(conn, name, key, period)
+        chosen = _analysed(ws, name) if replays == "analysed" else None
+        keys = [a.key for a in chosen] if chosen is not None else None
+        plays = progress.month_plays(conn, name, key, period, keys=keys)
     finally:
         conn.close()
     out = []

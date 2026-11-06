@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from osu_coach.app.schemas import Request
 
 Period = Literal["month", "week", "day"]
+ProgressReplays = Literal["analysed", "all"]
 
 
 class ProgressPlayer(BaseModel):
@@ -38,6 +39,14 @@ class PeriodRow(BaseModel):
 class ProgressOut(BaseModel):
     player: str
     period: Period
+    replays: ProgressReplays = Field(
+        default="all",
+        description="analysed = only the replays of the last analysis (the ones the Overview shows, rated at its "
+        "comfort level); all = every play saved for the player.",
+    )
+    analysed_plays: int | None = Field(
+        default=None, description="How many of the player's replays the last analysis holds; null = none."
+    )
     first_day: dt.date | None = Field(description="Day of the first saved play.")
     skill_reference_stars: float | None = Field(
         description="The comfort level (★) every period's skill ratings are measured against; null = none saved."

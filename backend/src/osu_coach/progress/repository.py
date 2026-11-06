@@ -185,17 +185,28 @@ def by_period(
     until: dt.date | None = None,
     tz=None,
     rolling: bool = False,
+    keys=None,
+    metrics: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Like :func:`monthly`, per ``period`` ("month", "week" or "day"; the ``month`` column holds the period's
     key), only plays from ``since`` to ``until`` (dates in ``tz``, both included); ``rolling``: see
-    :func:`summarize_periods`."""
+    :func:`summarize_periods`. ``keys``: only these replays; ``metrics``: skill numbers worked out for them
+    (:func:`~osu_coach.progress.domain.metrics_frame`) instead of the saved ones."""
     df = pd.read_sql_query("SELECT * FROM replays WHERE player = ?", conn, params=(player,))
-    mm = pd.read_sql_query("SELECT month, name, value FROM month_metrics WHERE player = ?", conn, params=(player,))
+    if keys is not None:
+        df = df[df["key"].isin(set(keys))]
+    mm = (
+        metrics
+        if metrics is not None
+        else pd.read_sql_query("SELECT month, name, value FROM month_metrics WHERE player = ?", conn, params=(player,))
+    )
     return summarize_periods(df, mm, period, since, until, tz, rolling=rolling)
 
 
-def month_plays(conn: sqlite3.Connection, player: str, month: str, period: str = "month", tz=None) -> pd.DataFrame:
-    """The plays of one month (or of one week / day: ``period`` and its key), newest first."""
+def month_plays(
+    conn: sqlite3.Connection, player: str, month: str, period: str = "month", tz=None, keys=None
+) -> pd.DataFrame:
+    """The plays of one month (or of one week / day: ``period`` and its key), newest first; ``keys``: only these."""
     if period == "month":
         df = pd.read_sql_query(
             "SELECT * FROM replays WHERE player = ? AND month = ? ORDER BY played_at DESC", conn, params=(player, month)
@@ -203,4 +214,6 @@ def month_plays(conn: sqlite3.Connection, player: str, month: str, period: str =
     else:
         df = pd.read_sql_query("SELECT * FROM replays WHERE player = ? ORDER BY played_at DESC", conn, params=(player,))
         df = df[[period_of(t, period, tz) == month for t in df["played_at"]]]
+    if keys is not None:
+        df = df[df["key"].isin(set(keys))]
     return mark_full_combos(df)
