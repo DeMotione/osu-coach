@@ -1,7 +1,7 @@
 import type { Schemas } from "../api/client";
 import { esc } from "../lib/format";
 import { changeLabel, starLabel } from "../lib/starCompare";
-import { base, categoryAxis, grid, niceMax, refLine, responsive, tooltip, valueAxis } from "./base";
+import { base, categoryAxis, grid, niceMax, responsive, tooltip, valueAxis } from "./base";
 import type { Option } from "./echarts";
 import { C, alpha, scoreColor, type ChartTheme } from "./palette";
 import { params } from "./types";
@@ -242,8 +242,9 @@ export function starLevelHover(s: Skill, target: CompareTarget, help?: SkillMeta
   return html;
 }
 
-/** Star-Scale IRT: each skill as the map star rating it holds up on (its likely range as a thin line), with a dashed
- * line at the star rating compared with. Consistency isn't on this scale and is left out. */
+/** Star Levels: each skill as a bar to the map star rating it holds up on, coloured by how it stands against the star
+ * rating compared with. Its likely range is a faded bar behind it, reaching to the range's top; nothing is drawn over
+ * the bars. Consistency isn't on this scale and is left out. */
 export function starLevels(skills: Skill[], target: CompareTarget, t: ChartTheme, help: SkillMeta[] = []): Option {
   const helpOf = Object.fromEntries(help.map((h) => [h.key, h]));
   const rows = skills.filter((s) => s.key !== "consistency");
@@ -257,8 +258,8 @@ export function starLevels(skills: Skill[], target: CompareTarget, t: ChartTheme
     return s.state === "untested" ? `≥ ${star1(s.stars)}` : `${star1(s.stars)}${nat ? ` · ${nat}` : ""}`;
   };
   const hasRange = (s: Skill) =>
-    s.state !== "untested" && finite(s.stars_low) && finite(s.stars_high) && s.stars_high > s.stars_low;
-  // the label goes after the range's end (or the bar's, without a range), so the line never runs through it
+    s.state !== "untested" && finite(s.stars) && finite(s.stars_high) && s.stars_high > s.stars;
+  // the label sits after whichever bar is longer, so nothing crosses it
   const label = (s: Skill, bound: boolean) => ({
     show: true,
     position: "right",
@@ -266,35 +267,17 @@ export function starLevels(skills: Skill[], target: CompareTarget, t: ChartTheme
     fontSize: 12,
     formatter: text(s),
   });
-  const ranges = rows.flatMap((s, i) =>
-    hasRange(s)
-      ? [
-          {
-            type: "line",
-            silent: true,
-            z: 4,
-            symbol: "rect",
-            symbolSize: [2, 12],
-            lineStyle: { color: t.text, width: 2, opacity: 0.7 },
-            itemStyle: { color: t.text, opacity: 0.7 },
-            tooltip: { show: false },
-            data: [
-              [s.stars_low, i],
-              { value: [s.stars_high, i], label: label(s, false) },
-            ],
-          },
-        ]
-      : [],
-  );
+  const radius = [0, 3, 3, 0];
   const at = starLabel(target.stars);
+  const against = target.comfort ? `your comfort level (${at})` : `${at} maps`;
   return responsive(
     base(t, {
-      grid: grid({ right: 120, bottom: 8 }),
+      grid: grid({ right: 150, bottom: 8 }),
       xAxis: valueAxis(t, {
         min,
         max,
         interval: 1,
-        name: `Map star rating each skill holds up on · dashed = ${target.comfort ? `your comfort level (${at})` : `${at} maps`}`,
+        name: `Map star rating each skill holds up on · faded = likely range · colour = against ${against}`,
         nameGap: 26,
         axisLabel: { formatter: (v: number) => `${v}★` },
       }),
@@ -313,29 +296,46 @@ export function starLevels(skills: Skill[], target: CompareTarget, t: ChartTheme
       }),
       series: [
         {
+          // the likely range: a faded bar to its top, behind the skill's bar
           type: "bar",
           barMaxWidth: 22,
+          barGap: "-100%",
+          silent: true,
+          z: 1,
+          data: rows.map((s) =>
+            hasRange(s)
+              ? {
+                  value: s.stars_high,
+                  itemStyle: { color: alpha(colour[levelTone(s, target.stars)], 0.25), borderRadius: radius },
+                  label: label(s, false),
+                }
+              : { value: null },
+          ),
+        },
+        {
+          type: "bar",
+          barMaxWidth: 22,
+          barGap: "-100%",
+          z: 2,
           data: rows.map((s) => {
             const tone = levelTone(s, target.stars);
             if (tone === "none")
               return {
                 value: max,
-                itemStyle: { color: alpha(C.muted, 0.18), borderRadius: [0, 3, 3, 0] },
+                itemStyle: { color: alpha(C.muted, 0.18), borderRadius: radius },
                 label: { show: true, position: "insideLeft", color: t.muted, formatter: "Not enough data" },
               };
             const bound = s.state === "untested";
             return {
               value: s.stars,
-              itemStyle: { color: bound ? alpha(colour[tone], 0.45) : colour[tone], borderRadius: [0, 3, 3, 0] },
+              itemStyle: { color: bound ? alpha(colour[tone], 0.45) : colour[tone], borderRadius: radius },
               label: hasRange(s) ? { show: false } : label(s, bound),
             };
           }),
-          markLine: refLine(t, { xAxis: target.stars }, t.text),
         },
-        ...ranges,
       ],
     }),
-    { ...NARROW_SKILLS(96), series: [{ label: { fontSize: 11 } }] },
+    { ...NARROW_SKILLS(110), series: [{ label: { fontSize: 11 } }, { label: { fontSize: 11 } }] },
   );
 }
 

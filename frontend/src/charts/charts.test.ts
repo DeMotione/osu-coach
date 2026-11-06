@@ -219,18 +219,15 @@ describe("IRT star levels", () => {
 
   it("draws each skill at the map star rating it holds up on, without consistency", () => {
     const o = option(6);
-    const bars = o.series![0].data as { value: number; label: { show: boolean; formatter?: string } }[];
+    const [range, bars] = [0, 1].map((k) => o.series![k].data as { value: number | null; label?: { show: boolean; formatter?: string } }[]);
     expect(bars.map((b) => b.value)).toEqual([6.6, 6.6, 5.4, 7.4, 9]); // the unmeasured one is a full grey bar
-    // with a range the label sits after the range's end, not on the bar
-    expect(bars.map((b) => (b.label.show ? b.label.formatter : null))).toEqual([null, null, null, "≥ 7.4★", "Not enough data"]);
-    const ends = o.series!.slice(1).map((r) => (r.data as [unknown, { value: number[]; label: { formatter: string } }])[1]);
-    expect(ends.map((e) => [e.value[0], e.label.formatter])).toEqual([
-      [6.9, "6.6★"],
-      [7.0, "6.6★ · ≈ 221 BPM"],
-      [5.8, "5.4★ · ≈ OD 8.0"],
-    ]);
-    expect((o.yAxis as { data: string[] }).data).not.toContain("consistency label");
-    expect(o.series!.length).toBe(4); // + a range line for each measured or provisional skill
+    // the likely range is a faded bar behind, to its top; the label sits after it, so nothing crosses a bar or a label
+    expect(range.map((b) => b.value)).toEqual([6.9, 7.0, 5.8, null, null]);
+    expect(range.map((b) => (b.label?.show ? b.label.formatter : null))).toEqual(["6.6★", "6.6★ · ≈ 221 BPM", "5.4★ · ≈ OD 8.0", null, null]);
+    expect(bars.map((b) => (b.label?.show ? b.label.formatter : null))).toEqual([null, null, null, "≥ 7.4★", "Not enough data"]);
+    expect(o.series!.map((x) => x.type)).toEqual(["bar", "bar"]); // no lines drawn over the bars
+    expect(o.series!.some((x) => "markLine" in x)).toBe(false);
+    expect((o.series![1].z as number) > (o.series![0].z as number)).toBe(true);
     expect((o.xAxis as { min: number; max: number }).min).toBe(4);
     expect(JSON.stringify(o)).not.toContain("typical");
   });
