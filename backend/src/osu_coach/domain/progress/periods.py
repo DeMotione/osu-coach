@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import datetime as dt
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
-from typing import Any
+from collections.abc import Sequence
+from typing import NamedTuple
 
 from osu_coach.domain.player import PlaySummary, build_profile_from, comfort
 from osu_coach.domain.player.constants import SKILLS
@@ -58,14 +58,19 @@ def metric_key(period: str, key: str) -> str:
     return key if period == "month" else f"{period}:{key}"
 
 
-def play_label(r: Mapping[str, Any]) -> str | None:
-    """'Artist - Title [Difficulty] +MODS' of a saved play (no '+…' without mods); None without a title."""
+class Metric(NamedTuple):
+    """One number of a period: ``n`` is how many map/mod configurations a skill score was measured on (else 0)."""
 
-    def part(key: str) -> str:
-        v = r.get(key)
-        return "" if v is None or (isinstance(v, float) and v != v) else str(v).strip()
+    name: str
+    value: float | None
+    n: int
 
-    artist, title, version, mods = part("artist"), part("title"), part("version"), part("mods")
+
+def play_label(
+    title: str | None, artist: str | None = None, version: str | None = None, mods: str | None = None
+) -> str | None:
+    """'Artist - Title [Difficulty] +MODS' of a play (no '+…' without mods); None without a title."""
+    title, artist, version, mods = ((v or "").strip() for v in (title, artist, version, mods))
     if not title:
         return None
     label = f"{artist} - {title}" if artist else title
@@ -83,8 +88,8 @@ def period_metrics(
     reference: float | None = None,
     periods: Sequence[str] = PERIODS,
     rolling: bool = True,
-) -> dict[str, list[tuple[str, float | None, int]] | None]:
-    """Skill scores and stream speed per period key (see :func:`metric_key`) as (name, value, n) rows; for a skill
+) -> dict[str, list[Metric] | None]:
+    """Skill scores and stream speed per period key (see :func:`metric_key`) as :class:`Metric` rows; for a skill
     ``n`` is how many map/mod configurations it was measured on. ``None`` for a period with too few plays (stale
     numbers should go); periods that can't be analysed are left out. ``plays``: the per-play summaries.
 
@@ -106,7 +111,7 @@ def period_metrics(
         groups[metric_key(ROLLING, day.isoformat())] = [
             a for d, items in by_day.items() if first <= d <= day for a in items
         ]
-    out: dict[str, list[tuple[str, float | None, int]] | None] = {}
+    out: dict[str, list[Metric] | None] = {}
     for key, group in groups.items():
         if len(group) < FEW_PLAYS:  # a play or two say little about a period's skill
             out[key] = None
@@ -117,12 +122,12 @@ def period_metrics(
         except Exception:  # noqa: BLE001 - one period that can't be computed must not stop the others
             continue
         ratings = mp.skill_ratings
-        rows = [(f"skill_{k}", ratings.get(k, UNRATED).score, ratings.get(k, UNRATED).maps) for k in SKILLS]
+        rows = [Metric(f"skill_{k}", ratings.get(k, UNRATED).score, ratings.get(k, UNRATED).maps) for k in SKILLS]
         rows += [
-            (SKILL_REFERENCE, reference, 0),
-            ("stream_bpm", mp.tapping.comfort_bpm, int(mp.tapping.n or 0)),
-            ("ur_single", mp.tapping.ur_single, 0),
-            ("aim_err", mp.aim.aim_err_median, 0),
+            Metric(SKILL_REFERENCE, reference, 0),
+            Metric("stream_bpm", mp.tapping.comfort_bpm, int(mp.tapping.n or 0)),
+            Metric("ur_single", mp.tapping.ur_single, 0),
+            Metric("aim_err", mp.aim.aim_err_median, 0),
         ]
         out[key] = rows
     return out

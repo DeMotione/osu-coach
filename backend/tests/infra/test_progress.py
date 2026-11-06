@@ -116,8 +116,8 @@ def test_hardest_pass_names_its_map_and_mods(tmp_path):
     progress.record(conn, [hdhr], UTC)
     m = progress.monthly(conn, "P").set_index("month")
     assert m.loc["2026-09", "max_stars_passed_map"] == "Artist - Map ffff [Insane] +HDHR"
-    assert domain_progress.play_label({"title": "T", "mods": "NM"}) == "T"
-    assert domain_progress.play_label({"title": None}) is None
+    assert domain_progress.play_label("T", mods="NM") == "T"
+    assert domain_progress.play_label(None) is None
 
 
 def test_month_plays_lists_the_maps_of_a_month(tmp_path):

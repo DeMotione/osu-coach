@@ -29,6 +29,7 @@ from osu_coach.domain.progress.periods import (
     FEW_PLAYS,
     ROLLING,
     SKILL_REFERENCE,
+    Metric,
     month_of,
     period_metrics,
     period_of,
@@ -106,6 +107,11 @@ def connect(cache_dir=None) -> sqlite3.Connection:
                 conn.execute(f"ALTER TABLE replays ADD COLUMN {c} {'TEXT' if c in TEXT_COLUMNS else 'REAL'}")
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     return conn
+
+
+def _text(v) -> str | None:
+    """A text column of a saved play; None for a missing value (None / NaN)."""
+    return None if v is None or (isinstance(v, float) and math.isnan(v)) else str(v)
 
 
 def _value(v):
@@ -239,10 +245,10 @@ def month_plays(
     return mark_full_combos(df)
 
 
-def metrics_frame(metrics: dict[str, list[tuple[str, float | None, int]] | None]) -> pd.DataFrame:
+def metrics_frame(metrics: dict[str, list[Metric] | None]) -> pd.DataFrame:
     """:func:`~osu_coach.domain.progress.periods.period_metrics` as the (month, name, value) rows
     :func:`summarize_periods` reads (like the saved ``month_metrics`` table)."""
-    rows = [(key, name, value) for key, items in metrics.items() for name, value, _ in items or ()]
+    rows = [(key, m.name, m.value) for key, items in metrics.items() for m in items or ()]
     return pd.DataFrame(rows, columns=["month", "name", "value"])
 
 
@@ -290,7 +296,12 @@ def summarize_periods(
     out["max_stars_passed"] = passed.groupby("month")["stars"].max()
     hardest = passed.sort_values(["stars", "played_at"], ascending=[False, False]).drop_duplicates("month")
     out["max_stars_passed_map"] = pd.Series(
-        [play_label(r) for r in hardest.to_dict("records")], index=hardest["month"], dtype=object
+        [
+            play_label(_text(r["title"]), _text(r["artist"]), _text(r["version"]), _text(r["mods"]))
+            for r in hardest.to_dict("records")
+        ],
+        index=hardest["month"],
+        dtype=object,
     ).reindex(out.index)
     out["max_stars_fc"] = df[full_combo(df)].groupby("month")["stars"].max()
     out["accuracy"] = g["accuracy"].mean()
