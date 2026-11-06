@@ -25,6 +25,7 @@ def test_progress_by_period(analysed):
     row = m["rows"][-1]
     assert row["key"] == "2026-09" and row["plays"] == 3 and row["few_plays"]
     assert set(row["skills"]) >= {"aim", "speed", "accuracy"}
+    assert row["max_stars_passed"] is None or " [" in row["max_stars_passed_map"]  # #99: names the map
     days = analysed.get("/api/progress", params={"period": "day"}).json()["rows"]
     assert sum(r["plays"] for r in days) == 3 and all(len(r["key"]) == 10 for r in days)
     weeks = analysed.get("/api/progress", params={"period": "week"}).json()["rows"]

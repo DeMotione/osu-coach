@@ -56,6 +56,24 @@ def metric_key(period: str, key: str) -> str:
     return key if period == "month" else f"{period}:{key}"
 
 
+def play_label(r) -> str | None:
+    """'Artist - Title [Difficulty] +MODS' of a saved play (no '+…' without mods); None without a title."""
+
+    def part(key):
+        v = r.get(key)
+        return "" if v is None or (isinstance(v, float) and v != v) else str(v).strip()
+
+    artist, title, version, mods = part("artist"), part("title"), part("version"), part("mods")
+    if not title:
+        return None
+    label = f"{artist} - {title}" if artist else title
+    if version:
+        label += f" [{version}]"
+    if mods and mods.upper() != "NM":
+        label += f" +{mods}"
+    return label
+
+
 def full_combo(df: pd.DataFrame) -> pd.Series:
     full = df["map_max_combo"].isna() | (df["max_combo"] >= 0.99 * df["map_max_combo"])
     return df["completed"].astype(bool) & (df["nmiss"] == 0) & full
@@ -142,7 +160,12 @@ def summarize_periods(
         lambda d: (d["stars"] * d["n_objects"]).sum() / max(d["n_objects"].sum(), 1), include_groups=False
     )
     out["comfort_stars"] = g.apply(comfort_stars, include_groups=False)
-    out["max_stars_passed"] = df[clean_pass(df)].groupby("month")["stars"].max()
+    passed = df[clean_pass(df)].dropna(subset=["stars"])
+    out["max_stars_passed"] = passed.groupby("month")["stars"].max()
+    hardest = passed.sort_values(["stars", "played_at"], ascending=[False, False]).drop_duplicates("month")
+    out["max_stars_passed_map"] = pd.Series(
+        [play_label(r) for r in hardest.to_dict("records")], index=hardest["month"], dtype=object
+    ).reindex(out.index)
     out["max_stars_fc"] = df[full_combo(df)].groupby("month")["stars"].max()
     out["accuracy"] = g["accuracy"].mean()
     out["misses_per_100"] = g["head_misses"].sum() / g["n_played"].sum().clip(lower=1) * 100

@@ -6754,6 +6754,18 @@
             ],
             "title": "Max Stars Passed"
           },
+          "max_stars_passed_map": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Stars Passed Map",
+            "description": "The hardest clean pass: 'Artist - Title [Difficulty] +MODS' (no '+…' without mods)."
+          },
           "max_stars_fc": {
             "anyOf": [
               {

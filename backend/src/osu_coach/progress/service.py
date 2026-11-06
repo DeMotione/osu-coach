@@ -74,6 +74,7 @@ def _row(r: dict) -> PeriodRow:
         comfort_stars=num(r.get("comfort_stars")),
         avg_stars=num(r.get("avg_stars")),
         max_stars_passed=num(r.get("max_stars_passed")),
+        max_stars_passed_map=text(r.get("max_stars_passed_map")),
         max_stars_fc=num(r.get("max_stars_fc")),
         accuracy=num(r.get("accuracy")),
         misses_per_100=num(r.get("misses_per_100")),

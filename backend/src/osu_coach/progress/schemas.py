@@ -24,6 +24,9 @@ class PeriodRow(BaseModel):
     comfort_stars: float | None
     avg_stars: float | None
     max_stars_passed: float | None
+    max_stars_passed_map: str | None = Field(
+        default=None, description="The hardest clean pass: 'Artist - Title [Difficulty] +MODS' (no '+…' without mods)."
+    )
     max_stars_fc: float | None
     accuracy: float | None
     misses_per_100: float | None

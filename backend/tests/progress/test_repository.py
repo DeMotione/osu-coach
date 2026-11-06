@@ -105,6 +105,21 @@ def test_hardest_pass_ignores_plays_finished_with_many_misses(tmp_path):
     assert m.loc["2026-09", "max_stars_passed"] == 6.2  # 12 misses per 100 notes is no real pass
 
 
+def test_hardest_pass_names_its_map_and_mods(tmp_path):
+    """#99: the Hardest clean pass tile names the map: 'Artist - Title [Difficulty] +MODS'."""
+    conn = _two_months(tmp_path)
+    m = progress.monthly(conn, "P").set_index("month")
+    assert m.loc["2026-09", "max_stars_passed_map"] == "Artist - Map cccc [Insane]"  # no mods: no "+…"
+    assert m.loc["2026-08", "max_stars_passed_map"] == "Artist - Map bbbb [Insane]"
+    hdhr = _fake("s5", dt.datetime(2026, 9, 9), md5="f" * 32, stars=6.8)
+    hdhr.meta.update(mods=24, mod_string="HDHR")
+    progress.record(conn, [hdhr], UTC)
+    m = progress.monthly(conn, "P").set_index("month")
+    assert m.loc["2026-09", "max_stars_passed_map"] == "Artist - Map ffff [Insane] +HDHR"
+    assert domain_progress.play_label({"title": "T", "mods": "NM"}) == "T"
+    assert domain_progress.play_label({"title": None}) is None
+
+
 def test_month_plays_lists_the_maps_of_a_month(tmp_path):
     plays = progress.month_plays(_two_months(tmp_path), "P", "2026-09")
     assert len(plays) == 3 and set(plays["title"]) == {"Map aaaa", "Map cccc", "Map dddd"}

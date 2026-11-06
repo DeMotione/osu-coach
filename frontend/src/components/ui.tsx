@@ -71,8 +71,9 @@ export function Section({ title, children }: { title?: ReactNode; children: Reac
 }
 
 // ------------------------------------------------------------------ values
-/** A "?" with its explanation in a popover: the top layer, so no scroll area or dialog clips it. It opens above the icon, or below when there is no room. */
-export function Hint({ text }: { text: ReactNode }) {
+/** A "?" with its explanation in a popover: the top layer, so no scroll area or dialog clips it. It opens above the icon, or below when there is no room.
+ * With ``children`` those are the hover target instead of the "?" (e.g. a value that explains itself on hover). */
+export function Hint({ text, children }: { text: ReactNode; children?: ReactNode }) {
   const icon = useRef<HTMLSpanElement>(null);
   const bubble = useRef<HTMLSpanElement>(null);
   const show = () => {
@@ -93,16 +94,16 @@ export function Hint({ text }: { text: ReactNode }) {
   return (
     <span
       ref={icon}
-      className="hint"
+      className={children ? "hint hint--inline" : "hint"}
       tabIndex={0}
       role="note"
-      aria-label={typeof text === "string" ? text : undefined}
+      aria-label={!children && typeof text === "string" ? text : undefined}
       onMouseEnter={show}
       onMouseLeave={hide}
       onFocus={show}
       onBlur={hide}
     >
-      <IconHelp />
+      {children ?? <IconHelp />}
       <span ref={bubble} className="hint__bubble" popover="manual">{text}</span>
     </span>
   );
@@ -120,16 +121,18 @@ interface StatProps {
   value: ReactNode;
   hint?: ReactNode;
   note?: ReactNode;
+  /** Shown when the value itself is hovered or focused (e.g. which map a star rating comes from). */
+  valueHint?: ReactNode;
 }
 
-export function Stat({ label, value, hint, note }: StatProps) {
+export function Stat({ label, value, hint, note, valueHint }: StatProps) {
   return (
     <div className="stat">
       <div className="stat__label">
         <span>{label}</span>
         {hint && <Hint text={hint} />}
       </div>
-      <div className="stat__value">{value}</div>
+      <div className="stat__value">{valueHint ? <Hint text={valueHint}>{value}</Hint> : value}</div>
       {note && <div className="stat__note">{note}</div>}
     </div>
   );
