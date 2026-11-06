@@ -81,7 +81,7 @@ def test_tips_are_sorted_and_have_evidence(base):
 
 def test_practice_plan_names_weakest_skill(base):
     plan = practice_plan(base)
-    label = SKILL_LABELS[base.weaknesses[0]] if base.weaknesses else "your weakest skill"
+    label = SKILL_LABELS[base.weaknesses[0]] if base.weaknesses else "Goals & Training"
     assert any(label in step for step in plan)
 
 

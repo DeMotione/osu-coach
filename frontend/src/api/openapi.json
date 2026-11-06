@@ -3035,6 +3035,12 @@
           "skipped_total": {
             "type": "integer",
             "title": "Skipped Total"
+          },
+          "restoring": {
+            "type": "boolean",
+            "title": "Restoring",
+            "description": "The analysed replays of the last session are still being brought back (at start-up); the profile pages answer 409 no_profile until then.",
+            "default": false
           }
         },
         "type": "object",
@@ -9537,7 +9543,8 @@
           },
           "n": {
             "type": "integer",
-            "title": "N"
+            "title": "N",
+            "description": "How much the score is measured on: hit single notes for accuracy, map and mod setups for the other skills; 0 without data."
           },
           "facts": {
             "items": {

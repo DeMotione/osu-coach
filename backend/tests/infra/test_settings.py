@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from osu_coach.infra.settings import load_settings, save_settings
+from osu_coach.infra.settings import UserSettings, load_settings, save_settings
 
 
 def test_missing_file_loads_as_empty(tmp_path):
@@ -135,3 +135,83 @@ def test_a_failed_save_keeps_the_previous_settings_file(tmp_path, monkeypatch):
     with pytest.raises(OSError):
         save_settings({"a": 2}, tmp_path)
     assert load_settings(tmp_path) == {"a": 1}
+
+
+# ------------------------------------------------------------------ typed reads (a hand-edited settings.json)
+def test_typed_reads_give_the_values_of_the_right_type():
+    s = UserSettings(
+        {
+            "level_override": 5,
+            "manual_comfort": 3.5,
+            "latest": 100,
+            "auto_analyse": False,
+            "player": "Mot1one",
+            "install_paths": ["C:/osu!", 7],
+            "hidden_maps": ["a" * 32],
+            "play_goal_request": {"x": 1},
+        }
+    )
+    assert s.level_override == 5.0 and isinstance(s.level_override, float)
+    assert (s.manual_comfort, s.latest, s.auto_analyse, s.player) == (3.5, 100, False, "Mot1one")
+    assert s.install_paths == ["C:/osu!"] and s.hidden_maps == ["a" * 32] and s.play_goal_request == {"x": 1}
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "read"),
+    [  # what the settings page always accepted (pydantic's lax mode)
+        ("level_override", "5.5", 5.5),
+        ("latest", 100.0, 100),
+        ("latest", "500", 500),
+        ("auto_analyse", "true", True),
+        ("onboarded", 1, True),
+        ("setup_saved", 0, False),
+    ],
+)
+def test_values_written_loosely_by_hand_still_read(key, value, read):
+    assert getattr(UserSettings({key: value}), key) == read
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("level_override", "fast"),
+        ("level_override", True),
+        ("level_override", float("nan")),
+        ("level_override", "inf"),
+        ("manual_comfort", [3]),
+        ("latest", "all"),
+        ("latest", 100.5),
+        ("latest", True),
+        ("auto_analyse", "maybe"),
+        ("onboarded", 2),
+        ("player", 42),
+        ("replay_set", ["best"]),
+        ("install_paths", "C:/osu!"),
+        ("hidden_maps", {"a": 1}),
+        ("goals", {"a": 1}),
+        ("play_goal_request", "x"),
+    ],
+)
+def test_a_value_of_the_wrong_type_reads_as_missing(key, value):
+    assert getattr(UserSettings({key: value}), key) is None
+    assert UserSettings({key: value}).values[key] is value  # the file itself is kept as it is
+
+
+GOAL = {"id": "g1", "skill": "aim", "target": 60, "created": "2026-01-01", "deadline": "2026-02-01"}
+
+
+@pytest.mark.parametrize(
+    "broken",
+    [
+        "aim",
+        {**GOAL, "target": "sixty"},
+        {**GOAL, "skill": None},
+        {k: v for k, v in GOAL.items() if k != "id"},
+        {**GOAL, "deadline": "soon"},
+        {**GOAL, "done": "yesterday"},
+    ],
+)
+def test_goals_the_pages_cant_read_are_left_out(broken):
+    done = {**GOAL, "id": "g2", "done": "2026-01-15"}
+    s = UserSettings({"goals": [GOAL, broken, done]})
+    assert s.goals == [GOAL, done] and s.unreadable_goals == [broken]

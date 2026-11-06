@@ -45,13 +45,21 @@ def make_tips(p: Profile, setup: Setup | None = None) -> list[Tip]:
 
 def practice_plan(p: Profile) -> list[str]:
     """A simple daily routine built around the weakest skills."""
-    weak = [SKILL_LABELS[k] for k in p.weaknesses] or ["your weakest skill"]
     comfort = p.levels.comfort_stars
     lvl = f"{comfort:.1f}★" if comfort and not math.isnan(comfort) else "your comfort level"
+    if p.weaknesses:
+        focus = (
+            f"Focus block (20-30 min): the '{SKILL_LABELS[p.weaknesses[0]]}' playlist from Goals & Training — "
+            "repeat each map until the target in the playlist note is met."
+        )
+    else:  # no skill is rated yet: nothing to name
+        focus = (
+            f"Focus block (20-30 min): maps around {lvl} from Goals & Training — repeat each map until you pass it "
+            "cleanly; your skill scores (and a playlist for the weakest) come with a few more passes."
+        )
     return [
         f"Warm-up (10 min): 2-3 maps about 1★ below {lvl}, aiming for full combos.",
-        f"Focus block (20-30 min): the '{weak[0]}' playlist from Goals & Training — repeat each map until the "
-        "target in the playlist note is met.",
+        focus,
         f"Push (10 min): one or two maps slightly above {lvl}.",
         "Cool-down: replay a favourite map for fun.",
         "Re-run the analysis after ~20 new replays and compare the scores.",

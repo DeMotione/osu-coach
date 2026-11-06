@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { ApiError, api, unwrap, type Job } from "./client";
-import { invalidateLibrary, invalidateResults } from "./queries";
+import { invalidateLibrary, invalidateResults, useAnalysisStatus } from "./queries";
 
 /** One slot per kind of background work: starting a new job replaces the slot's last one. */
 type JobKind = Job["kind"];
@@ -29,13 +29,26 @@ export function JobsProvider({ children }: { children: ReactNode }) {
 
   const seen = useRef(new Set<string>());
 
+  // the start-up restore brings the analysed plays back before its scan job ends: the pages that were told
+  // "restoring" (409 no_profile) are fetched again as soon as the status says it is over
+  const restoring = useAnalysisStatus().data?.restoring;
+  const wasRestoring = useRef(false);
+  useEffect(() => {
+    if (restoring) wasRestoring.current = true;
+    else if (restoring === false && wasRestoring.current) {
+      wasRestoring.current = false;
+      void invalidateResults(qc);
+    }
+  }, [restoring, qc]);
+
   const finished = useCallback(
     (job: Job) => {
-      if (job.status !== "succeeded") return;
       if (job.kind === "scan") {
+        // also when the scan failed or was stopped: the library may have changed, the restore may have worked
         void invalidateLibrary(qc);
-        void invalidateResults(qc); // the start-up restore brings the analysed plays back in a scan job
+        void invalidateResults(qc);
       }
+      if (job.status !== "succeeded") return;
       if (job.kind === "analysis") {
         void invalidateResults(qc);
         if (job.result?.new_plays?.length) void invalidateLibrary(qc); // the new plays were added to the library

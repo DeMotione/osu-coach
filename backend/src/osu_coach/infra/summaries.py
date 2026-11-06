@@ -4,15 +4,22 @@ A play is summarised once, when it is analysed (:func:`~osu_coach.domain.player.
 progress months and the pages add the summaries up, so the session never holds every play's notes. Summaries of
 plays analysed before this store existed are made once from their analysis cache files (:func:`summaries_of`).
 A summary is saved with ``SUMMARY_VERSION`` and the analysis version: when either changes, it is made again.
+
+The store only saves work: when it can't be used (locked by another osu-coach, disk full, read-only), the
+summaries are made in memory and not kept; a file that isn't a readable database is moved aside to
+``summaries.sqlite.corrupt`` (not deleted, it may hold the only copy of some plays) and a new one is started.
 """
 
 from __future__ import annotations
 
+import logging
+import os
 import pickle
 import sqlite3
 import zlib
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
+from typing import TypeVar
 
 from osu_coach.domain.analysis.models import ANALYSIS_VERSION, Play
 from osu_coach.domain.player import PlaySummary
@@ -24,12 +31,58 @@ VERSION = ANALYSIS_VERSION * 1000 + SUMMARY_VERSION
 CHUNK = 50  # plays summarised and stored at a time when summaries are made from the analysis cache
 
 
+log = logging.getLogger(__name__)
+T = TypeVar("T")
+
+
 def _connect(cache_dir: Path | str) -> sqlite3.Connection:
     path = Path(cache_dir) / DB_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
-    conn.execute("CREATE TABLE IF NOT EXISTS summaries (key TEXT PRIMARY KEY, version INTEGER NOT NULL, data BLOB)")
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS summaries (key TEXT PRIMARY KEY, version INTEGER NOT NULL, data BLOB)")
+    except BaseException:
+        conn.close()
+        raise
     return conn
+
+
+def _set_aside(cache_dir: Path | str) -> bool:
+    """Move an unreadable store (and its journal) out of the way, to a name no earlier one has; False if it can't
+    be moved."""
+    path = Path(cache_dir) / DB_FILE
+    n = 1
+    while (aside := path.with_name(f"{DB_FILE}.corrupt" + (f"-{n}" if n > 1 else ""))).exists():
+        n += 1
+    try:
+        for suffix in ("-journal", "-wal", "-shm", ""):
+            part = path.with_name(path.name + suffix)
+            if part.exists():
+                os.replace(part, aside.with_name(aside.name + suffix))
+    except OSError:
+        log.warning("could not move the unreadable %s aside", path, exc_info=True)
+        return False
+    log.warning("%s was not a readable database; moved it to %s and started a new one", path, aside.name)
+    return True
+
+
+def _use(cache_dir: Path | str, work: Callable[[sqlite3.Connection], T], fallback: T) -> T:
+    """``work(connection)``, or ``fallback`` when the store can't be used (see the module docstring)."""
+    for attempt in range(2):
+        try:
+            conn = _connect(cache_dir)
+            try:
+                return work(conn)
+            finally:
+                conn.close()
+        except sqlite3.OperationalError:  # locked, read-only, disk full: try again next time
+            log.warning("the play summaries store can't be used right now", exc_info=True)
+            return fallback
+        except sqlite3.DatabaseError:  # not a database / malformed
+            if attempt or not _set_aside(cache_dir):
+                log.warning("the play summaries store is unreadable", exc_info=True)
+                return fallback
+    return fallback
 
 
 def _pack(summary: PlaySummary) -> bytes:
@@ -38,19 +91,20 @@ def _pack(summary: PlaySummary) -> bytes:
 
 def _unpack(data: bytes) -> PlaySummary | None:
     try:
-        return pickle.loads(zlib.decompress(data))
+        summary = pickle.loads(zlib.decompress(data))
     except Exception:  # noqa: BLE001 - an unreadable row is made again
         return None
+    return summary if isinstance(summary, PlaySummary) else None
 
 
 def load(cache_dir: Path | str, keys: Iterable[str]) -> dict[str, PlaySummary]:
     """The stored summaries of these plays that are of the current version."""
     keys = list(dict.fromkeys(keys))
-    out: dict[str, PlaySummary] = {}
     if not keys:
-        return out
-    conn = _connect(cache_dir)
-    try:
+        return {}
+
+    def read(conn: sqlite3.Connection) -> dict[str, PlaySummary]:
+        out: dict[str, PlaySummary] = {}
         for start in range(0, len(keys), 500):
             chunk = keys[start : start + 500]
             rows = conn.execute(
@@ -61,21 +115,21 @@ def load(cache_dir: Path | str, keys: Iterable[str]) -> dict[str, PlaySummary]:
                 summary = _unpack(data)
                 if summary is not None:
                     out[key] = summary
-    finally:
-        conn.close()
-    return out
+        return out
+
+    return _use(cache_dir, read, {})
 
 
 def save(cache_dir: Path | str, summaries: Iterable[PlaySummary]) -> None:
     rows = [(s.key, VERSION, _pack(s)) for s in summaries]
     if not rows:
         return
-    conn = _connect(cache_dir)
-    try:
+
+    def write(conn: sqlite3.Connection) -> None:
         with conn:
             conn.executemany("INSERT OR REPLACE INTO summaries (key, version, data) VALUES (?, ?, ?)", rows)
-    finally:
-        conn.close()
+
+    _use(cache_dir, write, None)
 
 
 def summarize(cache_dir: Path | str, plays: Sequence[Play]) -> list[PlaySummary]:

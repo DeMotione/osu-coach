@@ -106,3 +106,23 @@ def test_earlier_users_skip_the_setup_guide(tmp_path):
         c.put("/api/setup", json=c.get("/api/setup").json())  # saved during the guide, which isn't finished
     with make_client(tmp_path / "new") as c:
         assert c.get("/api/settings").json()["onboarded"] is False
+
+
+def test_a_hand_edited_settings_file_does_not_break_the_pages(analysed):
+    ws = workspace(analysed)
+    s = load_settings(ws.cache_dir)
+    save_settings({**s, "level_override": "fast", "goals": {"a": 1}, "hidden_maps": "x", "latest": "all"}, ws.cache_dir)
+    for path in ("/api/setup", "/api/profile/overview", "/api/profile/tips", "/api/goals", "/api/maps/suggestions"):
+        assert analysed.get(path).status_code == 200, path
+    assert analysed.get("/api/settings").json()["level_override"] is None
+
+
+def test_goals_the_pages_cant_read_are_kept_when_goals_are_saved(analysed):
+    ws = workspace(analysed)
+    broken = {"id": "hand", "skill": "aim", "target": "sixty"}
+    good = {"id": "g1", "skill": "aim", "target": 60, "created": "2026-01-01", "deadline": "2099-01-01"}
+    save_settings({**load_settings(ws.cache_dir), "goals": [good, broken]}, ws.cache_dir)
+    shown = analysed.get("/api/goals").json()
+    assert [g["id"] for g in shown["open"] + shown["done"]] == ["g1"]
+    assert analysed.delete("/api/goals/g1").status_code == 200
+    assert load_settings(ws.cache_dir)["goals"] == [broken]  # still there to be fixed by hand

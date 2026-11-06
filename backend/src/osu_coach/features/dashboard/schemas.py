@@ -66,7 +66,10 @@ class SkillScore(BaseModel):
     score_text: str = Field(description="The score as shown, or why there is none.")
     low_data: bool
     too_few_misses: bool
-    n: int
+    n: int = Field(
+        description="How much the score is measured on: hit single notes for accuracy, map and mod setups for the "
+        "other skills; 0 without data."
+    )
     facts: list[str] = Field(description="The player's own numbers behind the score.")
     needs: str | None = Field(description="Without a score: what to play to get one. null when it can't be said.")
     at_least: float | None = Field(

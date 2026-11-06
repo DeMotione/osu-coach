@@ -22,6 +22,8 @@ const keys = {
   playGoals: ["play-goals"] as const,
 };
 
+const RESTORE_POLL_MS = 700;
+
 /** Everything that is built from the analysed replays. */
 export function invalidateResults(qc: QueryClient): Promise<void> {
   return Promise.all(
@@ -154,8 +156,13 @@ export const useSelection = (params: SelectionParams, enabled: boolean) =>
     placeholderData: keepPreviousData,
   });
 
+/** Polled while the last session is being restored at start-up, so its end is seen quickly (see ``JobsProvider``). */
 export const useAnalysisStatus = () =>
-  useQuery({ queryKey: keys.analysis, queryFn: () => unwrap(api.GET("/api/analysis")) });
+  useQuery({
+    queryKey: keys.analysis,
+    queryFn: () => unwrap(api.GET("/api/analysis")),
+    refetchInterval: (q) => (q.state.data?.restoring ? RESTORE_POLL_MS : false),
+  });
 
 export async function uploadFiles(files: File[]): Promise<Schemas["UploadedFile"][]> {
   const form = new FormData();

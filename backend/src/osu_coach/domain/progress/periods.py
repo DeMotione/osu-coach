@@ -114,7 +114,7 @@ def period_metrics(
         try:
             # level=reference: the ratings are measured against it, not against the period's own comfort
             mp = build_profile_from(group, level=reference, weighted=False, with_ratings=reference is not None)
-        except (ValueError, ZeroDivisionError):  # numbers that too little data can't give; bugs still raise
+        except Exception:  # noqa: BLE001 - one period that can't be computed must not stop the others
             continue
         ratings = mp.skill_ratings
         rows = [(f"skill_{k}", ratings.get(k, UNRATED).score, ratings.get(k, UNRATED).maps) for k in SKILLS]

@@ -57,8 +57,7 @@ def add_install_path(ws: Workspace, path: str) -> detect.Install:
             "for osu!lazer its data folder (the one with files and client.realm in it).",
             "not_osu_folder",
         )
-    saved = ws.settings().install_paths
-    saved = [p for p in saved if isinstance(p, str)] if isinstance(saved, list) else []
+    saved = ws.settings().install_paths or []
     if str(inst.root) not in saved:
         ws.update_settings(install_paths=[*saved, str(inst.root)])
     ws.installs(refresh=True)

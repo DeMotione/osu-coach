@@ -132,6 +132,11 @@ class AnalysisStatus(BaseModel):
     best_empty: bool
     skipped: list[SkippedReplay] = Field(description="First 200 skipped replays.")
     skipped_total: int
+    restoring: bool = Field(
+        False,
+        description="The analysed replays of the last session are still being brought back (at start-up); the "
+        "profile pages answer 409 no_profile until then.",
+    )
 
 
 class AnalysisJob(JobBase):

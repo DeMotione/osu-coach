@@ -13,11 +13,12 @@ from osu_coach.features.settings.schemas import AppSettings
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
+    from osu_coach.infra.settings import UserSettings
 
 log = logging.getLogger("osu_coach.features.settings.service")
 
 
-def default_folders(settings: dict) -> str:
+def default_folders(settings: UserSettings) -> str:
     return settings.folders or os.environ.get("OSU_COACH_DEMO", "")
 
 

@@ -71,12 +71,16 @@ def start_restore(ws: Workspace) -> None:
     saved = session_store.load(ws.cache_dir)
     scan = saved.get("scan")
     rescan = isinstance(scan, dict) and _scan_usable(scan)
-    if not rescan and not _has_analyses(saved.get("analysis")):
+    restore = _has_analyses(saved.get("analysis"))
+    if not rescan and not restore:
         return
 
     def work(report: Reporter) -> ScanResult | None:
         report.note("Restoring your last session…")
-        _restore_analyses(ws, saved.get("analysis"))
+        try:
+            _restore_analyses(ws, saved.get("analysis"))
+        finally:
+            ws.restoring = False  # the pages say "restoring" until here, not "nothing analysed"
         if not rescan:
             return None
         installs = ws.installs()
@@ -92,7 +96,12 @@ def start_restore(ws: Workspace) -> None:
         )
         return run_scan(ws, args, report)  # every replay, also when an older version saved a limit ("latest")
 
-    ws.jobs.start("scan", "Restoring your last session", work)
+    ws.restoring = restore
+    try:
+        ws.jobs.start("scan", "Restoring your last session", work)
+    except Exception:
+        ws.restoring = False
+        raise
 
 
 def _scan_usable(scan: dict) -> bool:
@@ -170,4 +179,5 @@ def analysis_status(ws: Workspace) -> AnalysisStatus:
         best_empty=bool(ws.plays) and prof is None,
         skipped=[SkippedReplay(file=Path(ref["path"]).name, reason=err) for ref, err in ws.errors[:SKIPPED_SHOWN]],
         skipped_total=len(ws.errors),
+        restoring=ws.restoring,
     )

@@ -9,6 +9,7 @@ import pytest
 
 from osu_coach.domain.analysis.models import ANALYSIS_VERSION
 from osu_coach.features.library import service as library_service
+from osu_coach.infra import summaries
 from tests.conftest import analyse, make_client, plays_folder, scan, workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
@@ -36,6 +37,15 @@ def test_a_fresh_start_restores_nothing(tmp_path):
         assert c.get("/api/analysis").json()["analysed"] == 0
 
 
+def wait_restored(client, timeout: float = 30) -> None:
+    """Wait until the analysed plays of the last session are back (the background scan may still run)."""
+    ws = workspace(client)
+    end = time.monotonic() + timeout
+    while ws.restoring:
+        assert time.monotonic() < end, "the analysed plays are still being restored"
+        time.sleep(0.02)
+
+
 def test_the_library_and_analyses_come_back_after_a_restart(tmp_path, monkeypatch):
     first_session(tmp_path)
     release_scan = Event()
@@ -49,6 +59,7 @@ def test_the_library_and_analyses_come_back_after_a_restart(tmp_path, monkeypatc
     with make_client(tmp_path / "cache") as c:
         try:
             # The profile must be ready while the background scan is still pending.
+            wait_restored(c)
             status = c.get("/api/analysis").json()
             assert status["analysed"] == 3 and status["player_label"] == "Mot1one"
         finally:
@@ -60,6 +71,56 @@ def test_the_library_and_analyses_come_back_after_a_restart(tmp_path, monkeypatc
         assert status["analysed"] == 3 and status["player_label"] == "Mot1one"
         assert c.get("/api/library/selection", params={"player": "Mot1one"}).json()["replays"] == 3
         analyse(c, player="Mot1one")  # the restored library can be analysed again
+
+
+def test_pages_say_the_session_is_being_restored_until_it_is(tmp_path, monkeypatch):
+    first_session(tmp_path)
+    release = Event()
+    original = summaries.summaries_of
+
+    def delayed(*args, **kwargs):
+        release.wait(timeout=10)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(summaries, "summaries_of", delayed)
+    with make_client(tmp_path / "cache") as c:
+        try:
+            assert workspace(c).restoring
+            assert c.get("/api/analysis").json()["restoring"] is True
+            r = c.get("/api/profile/overview")
+            assert r.status_code == 409 and r.json()["code"] == "no_profile"
+            assert r.json()["detail"].startswith("Restoring your last session")
+        finally:
+            release.set()
+        wait_restored(c)
+        assert c.get("/api/analysis").json()["restoring"] is False
+        assert c.get("/api/profile/overview").status_code == 200
+        settle(c)
+
+
+def test_a_failed_restore_says_nothing_was_analysed(tmp_path, monkeypatch):
+    first_session(tmp_path)
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(summaries, "summaries_of", broken)
+    with make_client(tmp_path / "cache") as c:
+        wait_restored(c)
+        settle(c)
+        r = c.get("/api/profile/overview")
+        assert r.status_code == 409 and not r.json()["detail"].startswith("Restoring")
+
+
+def test_a_corrupt_summaries_store_is_set_aside_and_made_again(tmp_path):
+    first_session(tmp_path)
+    store = tmp_path / "cache" / "summaries.sqlite"
+    store.write_bytes(b"this is not a database" * 100)
+    with make_client(tmp_path / "cache") as c:
+        settle(c)
+        assert c.get("/api/analysis").json()["analysed"] == 3  # made again from the analysis cache
+        assert (tmp_path / "cache" / "summaries.sqlite.corrupt").is_file()
+        analyse(c, player="Mot1one")
 
 
 def test_plays_come_back_from_their_summaries_without_the_analysis_cache(tmp_path):

@@ -26,6 +26,7 @@ from osu_coach.infra.settings import UserSettings, load_settings, read_settings,
 
 T = TypeVar("T")
 CHECK_LATEST = 100  # replays read for a single-replay page when nothing was scanned yet
+RESTORING = "Restoring your last session… This page fills in by itself in a moment."
 
 
 class Workspace:
@@ -44,6 +45,7 @@ class Workspace:
         self.plays: list[PlaySummary] = []  # the analysed plays, summarised
         self.errors: list[tuple[dict, str]] = []
         self.player_label = ""
+        self.restoring = False  # the analysed plays of the last session are being brought back (at start-up)
         self.check_library: Library | None = None
         self._profile: Profile | None = None
         self._profile_sig: tuple | None = None
@@ -84,8 +86,7 @@ class Workspace:
     def installs(self, refresh: bool = False) -> list[detect.Install]:
         """The osu! installs found on this computer and the folders the player entered (``install_paths``)."""
         if self._installs is None or refresh:
-            extra = self.settings().install_paths
-            extra = [p for p in extra if isinstance(p, str)] if isinstance(extra, list) else []
+            extra = self.settings().install_paths or []
             self._installs = detect.find_installs(extra=[Path(p) for p in extra])
         return self._installs
 
@@ -139,6 +140,8 @@ class Workspace:
                 raise NoProfile(
                     "None of the analysed replays is a passed play, so Best replays is empty — switch to All replays."
                 )
+            if self.restoring:
+                raise NoProfile(RESTORING)
             raise NoProfile()
         return p
 

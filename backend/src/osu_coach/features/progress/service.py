@@ -220,6 +220,11 @@ def _plan_targets(scores: dict, open_skills: set[str]) -> list[tuple[str, float,
     return goals.suggested_targets(weak, PLAN_SKILLS)
 
 
+def _save_goals(ws: Workspace, gl: list[dict]) -> None:
+    """Save these goals, and the saved ones the pages can't read as they are (a hand edit to fix, not to lose)."""
+    ws.update_settings(goals=gl + ws.settings().unreadable_goals)
+
+
 def _goals(ws: Workspace, scores: dict, low_comfort: bool = False) -> list[dict]:
     """The saved goals, the ones reached by now marked as done (and saved)."""
     gl, changed = [], False
@@ -228,7 +233,7 @@ def _goals(ws: Workspace, scores: dict, low_comfort: bool = False) -> list[dict]
         gl.extend(updated)
         changed |= reached
     if changed:
-        ws.update_settings(goals=gl)
+        _save_goals(ws, gl)
     return gl
 
 
@@ -331,8 +336,9 @@ def add_goal(ws: Workspace, req: GoalCreate) -> GoalsOut:
     gl = _goals(ws, scores, low_comfort)
     if any(g["skill"] == req.skill and not g.get("done") and not _paused(g, low_comfort) for g in gl):
         raise ApiError(409, "goal_exists", f"There is already a goal for {short_label(req.skill)}: remove it first.")
-    ws.update_settings(
-        goals=gl
+    _save_goals(
+        ws,
+        gl
         + [
             goals.new_goal(
                 req.skill,
@@ -344,7 +350,7 @@ def add_goal(ws: Workspace, req: GoalCreate) -> GoalsOut:
                 score_source="experimental",
                 score_version=2 if req.skill == "accuracy" else None,
             )
-        ]
+        ],
     )
     return goals_out(ws)
 
@@ -374,7 +380,7 @@ def add_plan(ws: Workspace) -> GoalsOut:
         )
         for k, cur, tg in _plan_targets(scores, have_open)
     ]
-    ws.update_settings(goals=gl + new)
+    _save_goals(ws, gl + new)
     return goals_out(ws)
 
 
@@ -382,5 +388,5 @@ def remove_goal(ws: Workspace, goal_id: str) -> GoalsOut:
     gl = ws.settings().goals or []
     if not any(g.get("id") == goal_id for g in gl):
         raise NotFound(f"No goal {goal_id}.", "goal_not_found")
-    ws.update_settings(goals=[g for g in gl if g.get("id") != goal_id])
+    _save_goals(ws, [g for g in gl if g.get("id") != goal_id])
     return goals_out(ws)
