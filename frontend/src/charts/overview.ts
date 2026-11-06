@@ -3,7 +3,7 @@ import { esc } from "../lib/format";
 import { changeLabel, starLabel } from "../lib/starCompare";
 import { base, categoryAxis, grid, niceMax, responsive, tooltip, valueAxis } from "./base";
 import type { Option } from "./echarts";
-import { C, alpha, scoreColor, type ChartTheme } from "./palette";
+import { C, alpha, faded, scoreColor, type ChartTheme } from "./palette";
 import { params } from "./types";
 
 type Skill = Schemas["SkillScore"];
@@ -188,12 +188,13 @@ export function holdsUpMeaning(key: string, at: string): string {
     : `you'd fail only about 2 in 100 of its notes on typical ${at} maps made like the ones you play`;
 }
 
-/** An IRT ability in units players know: "≈ 221 BPM", "≈ OD 8.0", "≈ AR 9.6"; "" without one. */
+/** An IRT ability in units players know: "≈ 221 BPM", "≈ 90% 300s at OD 8.0", "≈ AR 9.6"; "" without one. */
 export function naturalLabel(s: Skill): string {
   const n = s.natural;
   if (n === null || n === undefined || !(s.state === "measured" || s.state === "provisional")) return "";
   if (s.natural_unit === "BPM") return `≈ ${n.toFixed(0)} BPM`;
-  if (s.natural_unit === "OD" || s.natural_unit === "AR") return `≈ ${s.natural_unit} ${n.toFixed(1)}`;
+  if (s.natural_unit === "OD") return `≈ 90% 300s at OD ${n.toFixed(1)}`;
+  if (s.natural_unit === "AR") return `≈ AR ${n.toFixed(1)}`;
   return "";
 }
 
@@ -253,11 +254,9 @@ export function starLevels(skills: Skill[], target: CompareTarget, t: ChartTheme
   const min = Math.max(0, Math.floor(Math.min(...seen) - 1));
   const max = Math.ceil(Math.max(...seen) + 0.75);
   const colour = { good: C.good, info: C.info, bad: C.bad, none: C.muted };
-  const text = (s: Skill) => {
-    if (!finite(s.stars)) return "";
-    const nat = naturalLabel(s);
-    return s.state === "untested" ? `${star1(s.stars)}+ · limit not found yet` : `${star1(s.stars)}${nat ? ` · ${nat}` : ""}`;
-  };
+  // just the stars on the bar; BPM, OD and AR are in the hover
+  const text = (s: Skill) =>
+    !finite(s.stars) ? "" : s.state === "untested" ? `${star1(s.stars)}+ · limit not found yet` : star1(s.stars);
   const hasRange = (s: Skill) =>
     s.state !== "untested" && finite(s.stars) && finite(s.stars_high) && s.stars_high > s.stars;
   // the label sits after whichever bar is longer, so nothing crosses it
@@ -301,7 +300,8 @@ export function starLevels(skills: Skill[], target: CompareTarget, t: ChartTheme
             hasRange(s)
               ? {
                   value: s.stars_high,
-                  itemStyle: { color: alpha(colour[levelTone(s, target.stars)], 0.25), borderRadius: radius },
+                  // opaque, so no grid line shows through it
+                  itemStyle: { color: faded(colour[levelTone(s, target.stars)], 0.25, t.surface), borderRadius: radius },
                   label: label(s),
                 }
               : { value: null },
@@ -317,7 +317,7 @@ export function starLevels(skills: Skill[], target: CompareTarget, t: ChartTheme
             if (tone === "none")
               return {
                 value: max,
-                itemStyle: { color: alpha(C.muted, 0.18), borderRadius: radius },
+                itemStyle: { color: faded(C.muted, 0.18, t.surface), borderRadius: radius },
                 label: { show: true, position: "insideLeft", color: t.muted, formatter: "Not enough data" },
               };
             // a skill whose limit wasn't found yet is drawn like the others; its label says "7.2★+ · limit not found yet"

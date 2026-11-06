@@ -4,7 +4,7 @@ import type { Schemas } from "../api/client";
 import { circle, merge, niceMax, responsive } from "./base";
 import { mmss, playTimingChart, rangeStats } from "./check";
 import { MISS_SHORT, compareBars, compareHover, levelTone, missCauses, starLevelHover, starLevels } from "./overview";
-import { alpha, chartTheme, heat, scoreColor, C } from "./palette";
+import { alpha, chartTheme, faded, heat, scoreColor, C } from "./palette";
 import { goalsChart, skillsChart, starsChart } from "./progress";
 import { timingChart } from "./tapping";
 
@@ -223,7 +223,11 @@ describe("IRT star levels", () => {
     expect(bars.map((b) => b.value)).toEqual([6.6, 6.6, 5.4, 7.4, 9]); // the unmeasured one is a full grey bar
     // the likely range is a faded bar behind, to its top; the label sits after it, so nothing crosses a bar or a label
     expect(range.map((b) => b.value)).toEqual([6.9, 7.0, 5.8, null, null]);
-    expect(range.map((b) => (b.label?.show ? b.label.formatter : null))).toEqual(["6.6★", "6.6★ · ≈ 221 BPM", "5.4★ · ≈ OD 8.0", null, null]);
+    expect(range.map((b) => (b.label?.show ? b.label.formatter : null))).toEqual(["6.6★", "6.6★", "5.4★", null, null]); // BPM/OD/AR: hover only
+    // the faded range is an opaque colour: no grid line shows through it
+    const rangeColours = (o.series![0].data as { itemStyle?: { color: string } }[]).filter((d) => d.itemStyle).map((d) => d.itemStyle!.color);
+    expect(rangeColours.every((c) => c.startsWith("rgb("))).toBe(true);
+    expect(faded("#ffffff", 0.25, "#000000")).toBe("rgb(64,64,64)");
     expect(bars.map((b) => (b.label?.show ? b.label.formatter : null))).toEqual([null, null, null, "7.4★+ · limit not found yet", "Not enough data"]);
     expect((o.series![1].data as { itemStyle: { color: string } }[])[3].itemStyle.color).toBe(C.good); // solid like the others
     expect(o.series!.map((x) => x.type)).toEqual(["bar", "bar"]); // no lines drawn over the bars
