@@ -16,7 +16,7 @@ from typing import Any, TypeVar
 from osu_coach.common.errors import NoProfile
 from osu_coach.config import Settings, default_cache_dir
 from osu_coach.domain.player import PlaySummary, Profile, build_profile_from
-from osu_coach.domain.player.engines import engine_name, make_engine
+from osu_coach.domain.player.engines import COMFORT, engine_name, make_engine
 from osu_coach.domain.player.setup import Setup
 from osu_coach.domain.replays import scope
 from osu_coach.infra.jobs import BusyGate, JobManager
@@ -118,7 +118,7 @@ class Workspace:
 
     def _signature(self) -> tuple:
         s = self.settings()
-        return (s.replay_set or "all", s.level_override, self.rating_engine(), tuple(a.key for a in self.plays))
+        return (s.replay_set or "all", self.level_override(), self.rating_engine(), tuple(a.key for a in self.plays))
 
     def profile(self) -> Profile | None:
         """The profile of the analysed replays with the current choices (All / Best replays, level set by
@@ -131,7 +131,8 @@ class Workspace:
                 s = self.settings()
                 chosen = scope.select(self.plays, s.replay_set or "all")
                 engine = make_engine(self.rating_engine())
-                self._profile = build_profile_from(chosen, level=s.level_override, engine=engine) if chosen else None
+                level = self.level_override()
+                self._profile = build_profile_from(chosen, level=level, engine=engine) if chosen else None
                 self._profile_sig, self._memo = sig, {}
             return self._profile
 
@@ -159,6 +160,11 @@ class Workspace:
             if self._profile_sig == sig:  # not if the profile was rebuilt meanwhile
                 self._memo[key] = value
         return value
+
+    def level_override(self) -> float | None:
+        """The level set by hand, used by Comfort Score only: Star Levels measures each skill against the maps
+        themselves, so it ignores it (the setting is kept for when Comfort Score is chosen again)."""
+        return self.settings().level_override if self.rating_engine() == COMFORT else None
 
     def rating_engine(self) -> str:
         """The rating engine chosen in the settings (``comfort`` unless a known other one is set)."""

@@ -197,6 +197,18 @@ def test_level_override_is_used_and_remembered(client):
     assert client.get("/api/profile/overview").json()["level"]["override"] is False
 
 
+def test_star_levels_ignore_a_level_set_by_hand_and_keep_it(client):
+    workspace(client).set_plays([summarize(a) for a in _two_plays_of_one_map()], [], "tester")
+    client.patch("/api/settings", json={"level_override": 3.0, "rating_engine": "irt"})
+    lv = client.get("/api/profile/overview").json()["level"]
+    assert lv["override"] is False and lv["stars"] != 3.0  # Star Levels measures against the maps themselves
+    assert load_settings(workspace(client).cache_dir)["level_override"] == 3.0  # kept for Comfort Score
+    client.patch("/api/settings", json={"rating_engine": "comfort"})
+    lv = client.get("/api/profile/overview").json()["level"]
+    assert lv["override"] and lv["stars"] == 3.0
+    client.patch("/api/settings", json={"level_override": None})
+
+
 # ------------------------------------------------------------------ tips and setup tips
 @pytest.fixture(scope="module")
 def small_profile():

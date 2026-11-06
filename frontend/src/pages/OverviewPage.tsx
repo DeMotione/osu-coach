@@ -80,6 +80,8 @@ const tenth = (v: number) => Math.round(v * 10) / 10;
 
 function LevelCard({ ov }: { ov: Overview }) {
   const lv = ov.level;
+  // Star Levels needs no level set by hand (the backend ignores a saved one): only Comfort Score offers it
+  const irt = ov.engine === "irt";
   const settings = useSettings();
   const patch = usePatchSettings();
   const applied = settings.data?.level_override ?? null; // null = the detected level
@@ -145,52 +147,61 @@ function LevelCard({ ov }: { ov: Overview }) {
             distort your numbers: your {lv.replays} replays count as {fmt(lv.weighted_replays, 1)}.
           </p>
           <div className="grow" />
-          <div className="controls">
-            <Switch
-              checked={byHand}
-              disabled={patch.isPending}
-              label="Set my level by hand"
-              hint="If the detected level is off (e.g. you only played easy maps lately). Type a level and press Apply: every number is recalculated with it."
-              onChange={(on) => {
-                setByHand(on);
-                setDraft(null);
-                setDone(null);
-                if (!on && applied !== null) apply(null);
-              }}
-            />
-            {byHand ? (
-              <form
-                className="apply-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (changed && !patch.isPending) apply(value);
-                }}
-              >
-                <input
-                  className="input"
-                  aria-label="My level (★)"
-                  aria-invalid={value === null}
-                  type="number"
-                  min={1}
-                  max={12}
-                  step={0.1}
-                  value={draft}
-                  onChange={(e) => {
-                    setDraft(e.target.value);
+          {irt ? (
+            <p className="muted small">
+              Star Levels measures each skill against the maps themselves, so your level isn't set by hand here. To set
+              it, switch to Comfort Score in Settings.
+            </p>
+          ) : (
+            <>
+              <div className="controls">
+                <Switch
+                  checked={byHand}
+                  disabled={patch.isPending}
+                  label="Set my level by hand"
+                  hint="If the detected level is off (e.g. you only played easy maps lately). Type a level and press Apply: every number is recalculated with it."
+                  onChange={(on) => {
+                    setByHand(on);
+                    setDraft(null);
                     setDone(null);
+                    if (!on && applied !== null) apply(null);
                   }}
                 />
-                <button type="submit" className="btn btn--primary" disabled={!changed || patch.isPending}>
-                  Apply
-                </button>
-              </form>
-            ) : (
-              lv.detected !== null && <span className="muted small">Detected: {stars(lv.detected)}</span>
-            )}
-          </div>
-          <p className={`apply-status${tone}`} role="status">
-            {status}
-          </p>
+                {byHand ? (
+                  <form
+                    className="apply-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (changed && !patch.isPending) apply(value);
+                    }}
+                  >
+                    <input
+                      className="input"
+                      aria-label="My level (★)"
+                      aria-invalid={value === null}
+                      type="number"
+                      min={1}
+                      max={12}
+                      step={0.1}
+                      value={draft}
+                      onChange={(e) => {
+                        setDraft(e.target.value);
+                        setDone(null);
+                      }}
+                    />
+                    <button type="submit" className="btn btn--primary" disabled={!changed || patch.isPending}>
+                      Apply
+                    </button>
+                  </form>
+                ) : (
+                  lv.detected !== null && <span className="muted small">Detected: {stars(lv.detected)}</span>
+                )}
+              </div>
+              <p className={`apply-status${tone}`} role="status">
+                {status}
+              </p>
+            </>
+          )}
         </div>
         <Tiles n={4}>
           {lv.weights.slice(0, 4).map((w) => (
