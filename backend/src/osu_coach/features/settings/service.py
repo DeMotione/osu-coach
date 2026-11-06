@@ -43,6 +43,7 @@ def app_settings(ws: Workspace) -> AppSettings:
         "date_from": _date(s.date_from),
         "date_to": _date(s.date_to),
         "replay_set": s.replay_set,
+        "rating_engine": s.rating_engine,
         "level_override": s.level_override,
         "player": s.player,
         "manual_comfort": s.manual_comfort,

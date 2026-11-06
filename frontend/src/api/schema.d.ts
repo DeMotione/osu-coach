@@ -1046,6 +1046,13 @@ export interface components {
              */
             replay_set: "all" | "best";
             /**
+             * Rating Engine
+             * @description The engine that makes the skill ratings; irt (Star-Scale IRT) is experimental.
+             * @default classic
+             * @enum {string}
+             */
+            rating_engine: "classic" | "irt";
+            /**
              * Level Override
              * @description Level (★) set by hand; null = detected.
              */
@@ -2127,6 +2134,8 @@ export interface components {
             date_choices: components["schemas"]["Choice"][];
             /** Replay Sets */
             replay_sets: components["schemas"]["Choice"][];
+            /** Rating Engines */
+            rating_engines: components["schemas"]["Choice"][];
             /** Best Definition */
             best_definition: string;
             /**
@@ -2263,6 +2272,18 @@ export interface components {
             sim_exact_share: number | null;
             /** Sim Agreement */
             sim_agreement: number | null;
+            /**
+             * Engine
+             * @description The rating engine that made the skill scores (classic | irt).
+             * @default classic
+             */
+            engine: string;
+            /**
+             * Engine Label
+             * @description Its name to show.
+             * @default Classic
+             */
+            engine_label: string;
         };
         /** OverviewKpis */
         OverviewKpis: {
@@ -2975,6 +2996,8 @@ export interface components {
             date_to?: string | null;
             /** Replay Set */
             replay_set?: ("all" | "best") | null;
+            /** Rating Engine */
+            rating_engine?: ("classic" | "irt") | null;
             /** Level Override */
             level_override?: number | null;
             /** Player */

@@ -9,6 +9,7 @@ from osu_coach.common.schemas import Choice
 from osu_coach.common.texts import MISS_LABELS, SKILL_HELP, SKILL_LABELS
 from osu_coach.domain.maps.suggestions import PLAYLIST_SKILLS, skill_label
 from osu_coach.domain.player import LEVEL_BAND, LEVEL_SIGMA
+from osu_coach.domain.player.engines import ENGINE_LABELS, ENGINES
 from osu_coach.domain.progress.periods import PERIODS
 from osu_coach.domain.replays import scope
 from osu_coach.domain.replays.selection import Latest
@@ -34,6 +35,7 @@ def meta(api_docs: bool) -> Meta:
         miss_causes=[MissCauseMeta(key=k, description=v) for k, v in MISS_LABELS.items()],
         date_choices=[Choice(key=k, label=scope.DATE_LABELS[k]) for k in scope.DATE_CHOICES],
         replay_sets=[Choice(key=k, label=scope.REPLAY_SET_LABELS[k]) for k in scope.REPLAY_SETS],
+        rating_engines=[Choice(key=k, label=ENGINE_LABELS[k]) for k in ENGINES],
         best_definition=scope.BEST_DEFINITION,
         latest_choices=LATEST_CHOICES,
         periods=list(PERIODS),

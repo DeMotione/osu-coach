@@ -27,6 +27,7 @@ from osu_coach.domain.maps.suggestions import (
     targets_from_profile,
 )
 from osu_coach.domain.player import build_profile_from
+from osu_coach.domain.player.engines import ENGINES, engine_name, make_engine
 from osu_coach.domain.player.records import UNRATED
 from osu_coach.domain.player.setup import Setup
 from osu_coach.domain.replays import scope
@@ -154,7 +155,8 @@ def _analyze(args, log):
         raise SystemExit("No passed plays among these replays — use --all-replays.")
     if replay_set == "best":
         log(f"best replays: {len(chosen)} of {len(plays)}")
-    return lib, player, plays, errors, build_profile_from(chosen, level=getattr(args, "level", None))
+    engine = make_engine(_rating_engine(args))
+    return lib, player, plays, errors, build_profile_from(chosen, level=getattr(args, "level", None), engine=engine)
 
 
 def _replay_set(args) -> str:
@@ -167,6 +169,11 @@ def _replay_set(args) -> str:
         return args.replay_set
     saved = load_settings(args.cache).get("replay_set")
     return saved if saved in scope.REPLAY_SETS else "all"
+
+
+def _rating_engine(args) -> str:
+    """--engine (this run only), else the rating engine chosen in the app."""
+    return engine_name(getattr(args, "engine", None) or load_settings(args.cache).get("rating_engine"))
 
 
 def _date_window(args, refs):
@@ -663,6 +670,11 @@ def build_parser() -> argparse.ArgumentParser:
             type=float,
             metavar="STARS",
             help="your level for the difficulty weighting (default: detected from your recent replays)",
+        )
+        p.add_argument(
+            "--engine",
+            choices=ENGINES,
+            help="the rating engine for the skill ratings (default: the one chosen in the app)",
         )
         p.add_argument(
             "--only",

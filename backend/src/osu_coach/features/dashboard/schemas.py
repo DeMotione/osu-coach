@@ -147,6 +147,8 @@ class Overview(BaseModel):
     aim_split: AimSplit | None
     sim_exact_share: float | None
     sim_agreement: float | None
+    engine: str = Field("classic", description="The rating engine that made the skill scores (classic | irt).")
+    engine_label: str = Field("Classic", description="Its name to show.")
 
 
 # ------------------------------------------------------------------ aim

@@ -37,6 +37,7 @@ class Meta(BaseModel):
     miss_causes: list[MissCauseMeta]
     date_choices: list[Choice]
     replay_sets: list[Choice]
+    rating_engines: list[Choice]
     best_definition: str
     latest_choices: list[int] = Field(description="Replay counts to analyse; 0 = all.")
     periods: list[str]

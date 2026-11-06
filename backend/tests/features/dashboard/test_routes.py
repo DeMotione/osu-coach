@@ -173,6 +173,18 @@ def test_best_replays_switch_rebuilds_the_profile(client):
     assert [r["key"] for r in client.get("/api/profile/replays").json()] == ["retry"]
 
 
+def test_rating_engine_switch_rebuilds_the_profile(client):
+    ws = workspace(client)
+    ws.set_plays([summarize(a) for a in _two_plays_of_one_map()], [], "tester")
+    before = ws.profile()
+    assert before.engine == "classic"
+    client.patch("/api/settings", json={"rating_engine": "irt"})
+    assert ws.profile() is not before  # rebuilt for the other engine
+    assert client.get("/api/profile/overview").status_code == 200
+    client.patch("/api/settings", json={"rating_engine": "classic"})
+    assert ws.profile().engine == "classic"
+
+
 def test_level_override_is_used_and_remembered(client):
     workspace(client).set_plays([summarize(a) for a in _two_plays_of_one_map()], [], "tester")
     client.patch("/api/settings", json={"level_override": 3.0})

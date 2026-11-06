@@ -147,6 +147,11 @@ class UserSettings:
         return _str(self.values.get("replay_set"))
 
     @property
+    def rating_engine(self) -> str | None:
+        """Classic | irt: the engine that makes the skill ratings."""
+        return _str(self.values.get("rating_engine"))
+
+    @property
     def level_override(self) -> float | None:
         """The level (★) set by hand."""
         return _float(self.values.get("level_override"))

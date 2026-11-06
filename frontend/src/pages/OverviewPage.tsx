@@ -46,7 +46,7 @@ function OverviewBody({ ov }: { ov: Overview }) {
         <Stat label="Misses / 100 notes" value={fmt(k.misses_per_100, 1)} />
         <Stat label="Accuracy" value={pct(k.accuracy)} />
       </Tiles>
-      <CompareCard compare={ov.compare} skills={ov.skills} help={help} height={skillsHeight} />
+      <CompareCard compare={ov.compare} skills={ov.skills} help={help} height={skillsHeight} engine={ov} />
       <Row>
         <Card
           title="Why you miss"
@@ -213,11 +213,13 @@ function CompareCard({
   skills,
   help,
   height,
+  engine,
 }: {
   compare: Schemas["StarCompare"];
   skills: Schemas["SkillScore"][];
   help?: Schemas["SkillMeta"][];
   height: number;
+  engine: Pick<Overview, "engine" | "engine_label">;
 }) {
   const [picked, setPicked] = useState<number | null>(null);
   const options = useMemo(() => targetOptions(compare), [compare]);
@@ -230,6 +232,7 @@ function CompareCard({
   return (
     <Card
       title="Current skill level"
+      actions={<Badge tone={engine.engine === "classic" ? "muted" : "info"}>{engine.engine_label}</Badge>}
       hint={`Your skill scores from 0 to 100: 50 = what is expected at your ${starLabel(comfort)} comfort level. Most skills use your best play per map; timing accuracy uses all hit single notes. Pick another star rating to see the scores on easier or harder maps: on harder ones they drop, each by how much more typical maps of that star rating demand of the skill (measured on ranked maps). Consistency is measured on your own maps from a star below the star rating up to it. You can pick any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level. Grey = not measured yet: point at a bar to see what to play.`}
     >
       {target === null || compare.comfort === null ? (

@@ -3152,6 +3152,16 @@
             "title": "Replay Set",
             "default": "all"
           },
+          "rating_engine": {
+            "type": "string",
+            "enum": [
+              "classic",
+              "irt"
+            ],
+            "title": "Rating Engine",
+            "description": "The engine that makes the skill ratings; irt (Star-Scale IRT) is experimental.",
+            "default": "classic"
+          },
           "level_override": {
             "anyOf": [
               {
@@ -6290,6 +6300,13 @@
             "type": "array",
             "title": "Replay Sets"
           },
+          "rating_engines": {
+            "items": {
+              "$ref": "#/components/schemas/Choice"
+            },
+            "type": "array",
+            "title": "Rating Engines"
+          },
           "best_definition": {
             "type": "string",
             "title": "Best Definition"
@@ -6339,6 +6356,7 @@
           "miss_causes",
           "date_choices",
           "replay_sets",
+          "rating_engines",
           "best_definition",
           "latest_choices",
           "periods",
@@ -6649,6 +6667,18 @@
               }
             ],
             "title": "Sim Agreement"
+          },
+          "engine": {
+            "type": "string",
+            "title": "Engine",
+            "description": "The rating engine that made the skill scores (classic | irt).",
+            "default": "classic"
+          },
+          "engine_label": {
+            "type": "string",
+            "title": "Engine Label",
+            "description": "Its name to show.",
+            "default": "Classic"
           }
         },
         "type": "object",
@@ -8702,6 +8732,21 @@
               }
             ],
             "title": "Replay Set"
+          },
+          "rating_engine": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "classic",
+                  "irt"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating Engine"
           },
           "level_override": {
             "anyOf": [

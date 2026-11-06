@@ -16,8 +16,9 @@ from osu_coach.domain.maps.skillset import recommend
 from osu_coach.domain.maps.suggestions import targets_from_profile
 from osu_coach.domain.player import Profile, weight_table
 from osu_coach.domain.player.consistency import star_consistency
+from osu_coach.domain.player.engines import ENGINE_LABELS, Rated, compare
 from osu_coach.domain.player.ratings import MIN_MAPS
-from osu_coach.domain.player.readiness import MAX_GAP, compare_at, default_target, targets
+from osu_coach.domain.player.readiness import MAX_GAP, default_target, targets
 from osu_coach.domain.player.records import UNRATED, SkillRating
 from osu_coach.features.dashboard import charts
 from osu_coach.features.dashboard import schemas as S
@@ -201,6 +202,8 @@ def overview(p: Profile) -> S.Overview:
         aim_split=aim_split,
         sim_exact_share=num(ov.sim_exact_share),
         sim_agreement=num(ov.sim_agreement),
+        engine=p.engine,
+        engine_label=ENGINE_LABELS.get(p.engine, p.engine),
     )
 
 
@@ -226,6 +229,7 @@ def star_compare(p: Profile) -> S.StarCompare:
     comfort = num(p.levels.comfort_stars)
     if comfort is None:
         return S.StarCompare(comfort=None, max_gap=MAX_GAP, targets=[], default_target=None)
+    rated = p.rated or Rated(engine=p.engine, skills=p.skill_ratings)
     out = []
     for stars, locked in targets(comfort):
         if locked:
@@ -234,7 +238,7 @@ def star_compare(p: Profile) -> S.StarCompare:
             )
             continue
         at_comfort = stars == round(comfort, 1)  # exactly the comfort level, so it shows its own scores
-        c = compare_at(p.skill_ratings, comfort, comfort if at_comfort else stars)
+        c = compare(rated, comfort, comfort if at_comfort else stars)
         skills = [
             S.CompareSkill(key=k, score=num(v.score), change=num(v.change), demand=num(v.demand), maps=None, needs=None)
             if v
