@@ -802,6 +802,17 @@ input[type="range"] {
   height: 14px;
 }
 
+/* a value as the hover target (Hint with children): keeps the value's own look */
+.hint--inline {
+  width: auto;
+  height: auto;
+  border-radius: var(--radius-xs);
+  color: inherit;
+  cursor: help;
+  text-decoration: underline dotted color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 0.18em;
+}
+
 .hint__bubble {
   position: fixed; /* a popover: placed in viewport coordinates by Hint */
   inset: auto;

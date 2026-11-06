@@ -2290,6 +2290,11 @@ export interface components {
             avg_stars: number | null;
             /** Max Stars Passed */
             max_stars_passed: number | null;
+            /**
+             * Max Stars Passed Map
+             * @description The hardest clean pass: 'Artist - Title [Difficulty] +MODS' (no '+…' without mods).
+             */
+            max_stars_passed_map?: string | null;
             /** Max Stars Fc */
             max_stars_fc: number | null;
             /** Accuracy */

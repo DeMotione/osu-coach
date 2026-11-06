@@ -161,6 +161,7 @@ function ProgressBody({
         <Stat label="Comfort ★" value={fmt(last.comfort_stars, 2)} note={delta(last, prev, "comfort_stars", 2)}
           hint="75% of your clean, finished plays (≤ 2 misses per 100 notes) are at or below this." />
         <Stat label="Hardest clean pass ★" value={fmt(last.max_stars_passed, 2)} note={delta(last, prev, "max_stars_passed", 2)}
+          valueHint={last.max_stars_passed_map ?? undefined}
           hint="Hardest map finished with at most 5 misses per 100 notes." />
         <Stat label="Plays" value={int(last.plays)} note={delta(last, prev, "plays", 0)} />
         <Stat label="New maps" value={int(last.new_maps)} note={delta(last, prev, "new_maps", 0)} hint={`Maps played for the first time that ${word}.`} />
