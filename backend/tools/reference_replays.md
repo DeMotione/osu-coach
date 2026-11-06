@@ -1,6 +1,6 @@
 # Reference replays: near-perfect plays per skill
 
-Used to calibrate the skill scores (`dev_tools/reference_analysis.py`). All maps are ranked / approved / loved, so
+Used to calibrate the skill scores (`tools/reference_analysis.py`). All maps are ranked / approved / loved, so
 the replays can be downloaded from the score's page on osu.ppy.sh while signed in (only scores still on the
 leaderboard keep their replay). Put the .osr files in `reference_replays/` (any sub-folders); the script sorts
 them by the map's MD5 (`reference_replays.json`). aetrna = Merami; cryshina = toromivana / toro-019.

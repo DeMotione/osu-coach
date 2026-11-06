@@ -7,8 +7,8 @@ from threading import Event
 
 import pytest
 
-from osu_coach.analysis.domain import ANALYSIS_VERSION
-from osu_coach.library import service as library_service
+from osu_coach.domain.analysis.models import ANALYSIS_VERSION
+from osu_coach.features.library import service as library_service
 from tests.conftest import analyse, make_client, plays_folder, scan, workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
@@ -62,9 +62,19 @@ def test_the_library_and_analyses_come_back_after_a_restart(tmp_path, monkeypatc
         analyse(c, player="Mot1one")  # the restored library can be analysed again
 
 
-def test_analyses_are_not_restored_when_the_cache_lost_one(tmp_path):
+def test_plays_come_back_from_their_summaries_without_the_analysis_cache(tmp_path):
+    first_session(tmp_path)
+    for f in (tmp_path / "cache" / "analyses").glob(f"*-v{ANALYSIS_VERSION}.pkl"):
+        f.unlink()
+    with make_client(tmp_path / "cache") as c:
+        settle(c)
+        assert c.get("/api/analysis").json()["analysed"] == 3
+
+
+def test_analyses_are_not_restored_when_one_is_gone_everywhere(tmp_path):
     first_session(tmp_path)
     next((tmp_path / "cache" / "analyses").glob(f"*-v{ANALYSIS_VERSION}.pkl")).unlink()
+    (tmp_path / "cache" / "summaries.sqlite").unlink()
     with make_client(tmp_path / "cache") as c:
         settle(c)
         assert c.get("/api/analysis").json()["analysed"] == 0
@@ -77,7 +87,7 @@ def test_a_scan_of_a_folder_that_is_gone_is_not_repeated(tmp_path):
         p.unlink()
     (tmp_path / "plays").rmdir()
     with make_client(tmp_path / "cache") as c:
-        assert workspace(c).gate.holder is None
+        settle(c)  # the analysed plays come back in the background; the scan isn't repeated
         assert c.get("/api/library").json()["scanned"] is False
         assert c.get("/api/analysis").json()["analysed"] == 3
 

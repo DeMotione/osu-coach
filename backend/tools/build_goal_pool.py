@@ -11,12 +11,12 @@ import json
 import math
 from pathlib import Path
 
-from osu_coach.beatmaps.parser import parse_beatmap_bytes
-from osu_coach.beatmaps.performance import CALCULATOR_VERSION, calculate
-from osu_coach.beatmaps.sources import download_osu
-from osu_coach.maps.goal_pool import CONFIGS, configuration
-from osu_coach.maps.goal_repository import GOAL_POOL, SCHEMA_VERSION
-from osu_coach.maps.repository import load_pool
+from osu_coach.domain.play_goals.pool import CONFIGS
+from osu_coach.features.play_goals.repository import GOAL_POOL, SCHEMA_VERSION, configuration
+from osu_coach.infra.beatmaps.parser import parse_beatmap_bytes
+from osu_coach.infra.beatmaps.performance import CALCULATOR_VERSION, calculate
+from osu_coach.infra.beatmaps.sources import download_osu
+from osu_coach.infra.map_pool import load_pool
 
 
 def clean(value):
@@ -44,7 +44,7 @@ def main():
             record = band.sort_values([skill, "playcount"], ascending=False).iloc[0].to_dict()
             if record["md5"] not in {r["md5"] for r in chosen}:
                 chosen.append(record)
-    chosen = chosen[:args.count]
+    chosen = chosen[: args.count]
     args.raw.mkdir(parents=True, exist_ok=True)
     rows = []
     for i, record in enumerate(chosen):
@@ -65,15 +65,32 @@ def main():
             stable["beatmap_id"] = int(record["beatmap_id"])
             stable["beatmapset_id"] = int(record["beatmapset_id"])
             rows.append(stable)
-            rows.append({**stable, "client": "lazer", "pp_curve": [
-                {"accuracy": point["accuracy"], "pp": calculate(
-                    data, CONFIGS[mods], "lazer", point["accuracy"])} for point in stable["pp_curve"]
-            ]})
+            rows.append(
+                {
+                    **stable,
+                    "client": "lazer",
+                    "pp_curve": [
+                        {
+                            "accuracy": point["accuracy"],
+                            "pp": calculate(data, CONFIGS[mods], "lazer", point["accuracy"]),
+                        }
+                        for point in stable["pp_curve"]
+                    ],
+                }
+            )
         print(f"{i + 1}/{len(chosen)} {record['stars']:.2f}* {record['title']}", flush=True)
-    document = clean({"schema_version": SCHEMA_VERSION, "calculator_version": CALCULATOR_VERSION,
-                      "coverage_maps": len(chosen), "rows": sorted(rows, key=lambda r: (r["md5"], r["client"], r["mods"]))})
+    document = clean(
+        {
+            "schema_version": SCHEMA_VERSION,
+            "calculator_version": CALCULATOR_VERSION,
+            "coverage_maps": len(chosen),
+            "rows": sorted(rows, key=lambda r: (r["md5"], r["client"], r["mods"])),
+        }
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_bytes(gzip.compress(json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False).encode(), mtime=0))
+    args.output.write_bytes(
+        gzip.compress(json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False).encode(), mtime=0)
+    )
     print(f"Wrote {len(rows)} configurations to {args.output}", flush=True)
 
 

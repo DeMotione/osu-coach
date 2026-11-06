@@ -1,20 +1,21 @@
 """Fetch raw material for the bundled map pool: popular ranked osu!standard
 difficulties (metadata via osu.direct search) + their .osu files.
 
-Usage: python dev_tools/fetch_pool_raw.py OUT_DIR [pages] [total] [core_share]
+Usage: python tools/fetch_pool_raw.py OUT_DIR [pages] [total] [core_share]
 
 pages: how many pages of 100 most-played ranked sets to search (default 120).
 total: difficulties to keep (default 5000). core_share (default 0.85) of them are 2-8 stars, split evenly
 over 0.25-star steps, most played first; the rest go to 0.8-2 and 8-8.5 stars. Steps short of maps are
 topped up with the next most played 2-8 star difficulties.
 """
+
 import json
 import math
 import sys
 import time
 from pathlib import Path
 
-from osu_coach.beatmaps import sources
+from osu_coach.infra.beatmaps import sources
 
 out = Path(sys.argv[1])
 pages = int(sys.argv[2]) if len(sys.argv) > 2 else 120
@@ -45,18 +46,35 @@ for s in sets:
         sr = b.get("difficulty_rating") or 0
         if not 0.8 <= sr <= 8.5:
             continue
-        diffs.append({
-            "beatmap_id": b["id"], "beatmapset_id": s["id"], "md5": b.get("checksum"),
-            "artist": s.get("artist"), "title": s.get("title"), "creator": s.get("creator"),
-            "version": b.get("version"), "status": b.get("status"), "stars": sr,
-            "ar": b.get("ar"), "od": b.get("accuracy"), "cs": b.get("cs"), "hp": b.get("drain"),
-            "bpm": b.get("bpm"), "length": b.get("total_length"), "drain_length": b.get("hit_length"),
-            "n_circles": b.get("count_circles"), "n_sliders": b.get("count_sliders"),
-            "n_spinners": b.get("count_spinners"), "max_combo": b.get("max_combo"),
-            "playcount": b.get("playcount") or 0, "passcount": b.get("passcount") or 0,
-            "set_playcount": s.get("play_count") or 0, "favourites": s.get("favourite_count") or 0,
-            "ranked_date": s.get("ranked_date"),
-        })
+        diffs.append(
+            {
+                "beatmap_id": b["id"],
+                "beatmapset_id": s["id"],
+                "md5": b.get("checksum"),
+                "artist": s.get("artist"),
+                "title": s.get("title"),
+                "creator": s.get("creator"),
+                "version": b.get("version"),
+                "status": b.get("status"),
+                "stars": sr,
+                "ar": b.get("ar"),
+                "od": b.get("accuracy"),
+                "cs": b.get("cs"),
+                "hp": b.get("drain"),
+                "bpm": b.get("bpm"),
+                "length": b.get("total_length"),
+                "drain_length": b.get("hit_length"),
+                "n_circles": b.get("count_circles"),
+                "n_sliders": b.get("count_sliders"),
+                "n_spinners": b.get("count_spinners"),
+                "max_combo": b.get("max_combo"),
+                "playcount": b.get("playcount") or 0,
+                "passcount": b.get("passcount") or 0,
+                "set_playcount": s.get("play_count") or 0,
+                "favourites": s.get("favourite_count") or 0,
+                "ranked_date": s.get("ranked_date"),
+            }
+        )
 # most played difficulties per 0.25* step: core steps (2-8*) share core_share of the total, the rest the remainder
 bins: dict[int, list] = {}
 for d in diffs:
@@ -64,20 +82,23 @@ for d in diffs:
 is_core = {k: CORE[0] <= k / 4 < CORE[1] for k in bins}
 n_core = sum(is_core.values()) or 1
 n_outer = (len(bins) - n_core) or 1
-quota = {k: math.ceil((core_share if is_core[k] else 1 - core_share) * total / (n_core if is_core[k] else n_outer))
-         for k in bins}
+quota = {
+    k: math.ceil((core_share if is_core[k] else 1 - core_share) * total / (n_core if is_core[k] else n_outer))
+    for k in bins
+}
 chosen, spare = [], []
 for k, lst in sorted(bins.items()):
     lst.sort(key=lambda d: -d["playcount"])
-    chosen.extend(lst[:quota[k]])
+    chosen.extend(lst[: quota[k]])
     if is_core[k]:
-        spare.extend(lst[quota[k]:])
+        spare.extend(lst[quota[k] :])
 spare.sort(key=lambda d: -d["playcount"])
-chosen.extend(spare[:max(0, total - len(chosen))])
-extra = len(chosen) - total                       # quotas are rounded up: drop the least played 2-8* ones
+chosen.extend(spare[: max(0, total - len(chosen))])
+extra = len(chosen) - total  # quotas are rounded up: drop the least played 2-8* ones
 if extra > 0:
-    core_idx = sorted((i for i, d in enumerate(chosen) if CORE[0] <= d["stars"] < CORE[1]),
-                      key=lambda i: chosen[i]["playcount"])[:extra]
+    core_idx = sorted(
+        (i for i, d in enumerate(chosen) if CORE[0] <= d["stars"] < CORE[1]), key=lambda i: chosen[i]["playcount"]
+    )[:extra]
     drop = set(core_idx)
     chosen = [d for i, d in enumerate(chosen) if i not in drop]
 core_n = sum(CORE[0] <= d["stars"] < CORE[1] for d in chosen)
@@ -136,5 +157,7 @@ for k, n in sorted(missing.items()):
             n -= 1
 failed_path.write_text(json.dumps(sorted(failed)))
 (out / "chosen.json").write_text(json.dumps(have))
-print(f"final: {len(have)} difficulties with .osu files "
-      f"({sum(CORE[0] <= d['stars'] < CORE[1] for d in have)} in 2-8*)", flush=True)
+print(
+    f"final: {len(have)} difficulties with .osu files ({sum(CORE[0] <= d['stars'] < CORE[1] for d in have)} in 2-8*)",
+    flush=True,
+)

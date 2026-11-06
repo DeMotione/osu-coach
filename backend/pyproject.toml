@@ -31,7 +31,7 @@ osu-coach-api = "osu_coach.app.server:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-osu_coach = ["maps/data/*.json.gz", "web/**/*"]
+osu_coach = ["infra/data/*.json.gz", "features/play_goals/data/*.json.gz", "web/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -51,9 +51,9 @@ ignore = ["E501", "E731", "B905", "B007", "B023", "E741", "B008", "UP040"]
 
 [tool.ruff.lint.per-file-ignores]
 # unused locals that predate the linter; left as they are so the analysis code stays untouched
-"src/osu_coach/analysis/domain.py" = ["F841"]
-"src/osu_coach/beatmaps/features.py" = ["F841"]
-"tests/profile/test_weighting.py" = ["F841"]
+"src/osu_coach/infra/analysis.py" = ["F841"]
+"src/osu_coach/domain/beatmaps/features.py" = ["F841"]
+"tests/domain/player/test_weighting.py" = ["F841"]
 
 [tool.importlinter]
 root_package = "osu_coach"
@@ -61,69 +61,47 @@ include_external_packages = true
 # Workspace is only named in annotations of feature code; it is not a runtime dependency
 exclude_type_checking_imports = true
 
-# The backend is organised by feature: each package under osu_coach (library, maps, profile, ...) holds
-# everything of one feature -- domain.py (pure), repository.py / parser / locate ... (disk, network, SQLite),
-# service.py, schemas.py, routes.py. `app` is the web plumbing and composition (workspace, errors, deps) and
-# `jobs` runs background work. The contracts keep the features a one-way dependency chain.
+# Vertical feature slices on a pure domain (see AGENTS.md):
+#   app       composition root: app factory, Workspace, dependencies, job routes
+#   features  one package per feature slice (routes, service, schemas, its own data access); slices never import
+#             each other
+#   infra     I/O several slices share: replay and beatmap files, rosu-pp, the analysis cache, the map pool,
+#             progress.sqlite, settings.json, the job runner, the clock
+#   common    what several slices' HTTP code shares: errors, conversions, shared response models
+#   domain    pure business calculations: no I/O, no web, no clock
 
 [[tool.importlinter.contracts]]
-name = "pure domain code is independent of I/O, the web and the other kinds of module"
-type = "forbidden"
-# every `domain` module/package is covered by the wildcard; pure code that lives in another file must be listed here
-source_modules = [
-    "osu_coach.*.domain",
-    "osu_coach.beatmaps.curves", "osu_coach.beatmaps.difficulty", "osu_coach.beatmaps.features",
-    "osu_coach.analysis.judge", "osu_coach.analysis.judge_lazer",
-    "osu_coach.replays.eligibility", "osu_coach.replays.scope", "osu_coach.progress.goals",
-]
-forbidden_modules = [
-    "osu_coach.config", "osu_coach.app", "osu_coach.main", "osu_coach.cli", "osu_coach.jobs",
-    "osu_coach.*.repository", "osu_coach.*.service", "osu_coach.*.schemas", "osu_coach.*.routes",
-    "osu_coach.beatmaps.parser", "osu_coach.beatmaps.sources",
-    "osu_coach.replays.osr", "osu_coach.replays.locate", "osu_coach.replays.detect",
-    "osu_coach.exports.collection_db", "osu_coach.exports.lazer_import", "osu_coach.library.uploads",
-    "requests", "fastapi", "pydantic", "pydantic_settings", "sqlite3",
-]
-
-[[tool.importlinter.contracts]]
-name = "data access and services do not depend on the web edge or the composition root"
-type = "forbidden"
-source_modules = [
-    "osu_coach.*.repository", "osu_coach.*.service", "osu_coach.jobs.manager",
-    "osu_coach.beatmaps.parser", "osu_coach.beatmaps.sources", "osu_coach.replays.osr", "osu_coach.replays.locate", "osu_coach.replays.detect",
-    "osu_coach.exports.collection_db", "osu_coach.exports.lazer_import", "osu_coach.library.uploads",
-]
-forbidden_modules = [
-    "osu_coach.*.routes", "osu_coach.app.deps", "osu_coach.app.workspace", "osu_coach.app.jobs",
-    "osu_coach.app.server", "osu_coach.app.web", "osu_coach.app.openapi", "osu_coach.main", "osu_coach.cli",
-]
-
-[[tool.importlinter.contracts]]
-name = "the shared web kernel knows no feature"
-type = "forbidden"
-source_modules = ["osu_coach.app.errors", "osu_coach.app.convert", "osu_coach.app.schemas"]
-forbidden_modules = [
-    "osu_coach.analysis", "osu_coach.beatmaps", "osu_coach.check", "osu_coach.dashboard", "osu_coach.exports",
-    "osu_coach.insights", "osu_coach.jobs", "osu_coach.library", "osu_coach.maps",
-    "osu_coach.profile", "osu_coach.progress", "osu_coach.replays", "osu_coach.settings", "osu_coach.system",
-    "osu_coach.tips", "osu_coach.play_goals",
-]
-
-[[tool.importlinter.contracts]]
-name = "features depend only downwards (a feature may use the ones below it, never its siblings or the ones above)"
+name = "layers: app -> features -> infra -> common -> domain"
 type = "layers"
 containers = ["osu_coach"]
-layers = [
-    "system | dashboard",
-    "play_goals",
-    "tips | check",
-    "insights | maps | progress | exports",
-    "library | profile",
-    "analysis | settings",
-    "replays | beatmaps | jobs",
+layers = ["main | cli", "app", "features", "infra", "common", "domain"]
+# routes reach the session's data through app.deps (the Workspace)
+ignore_imports = ["osu_coach.features.*.routes -> osu_coach.app.deps"]
+
+[[tool.importlinter.contracts]]
+name = "feature slices never import each other"
+type = "independence"
+modules = [
+    "osu_coach.features.check", "osu_coach.features.dashboard", "osu_coach.features.exports",
+    "osu_coach.features.library", "osu_coach.features.maps", "osu_coach.features.play_goals",
+    "osu_coach.features.progress", "osu_coach.features.settings", "osu_coach.features.system",
+    "osu_coach.features.tips",
 ]
-# routes reach their feature's data through app.deps -> app.workspace, which composes every feature.
-# The analysis routes run the analysis session (app.session), which ties library, progress and profile together.
-# NB: this only checks imports. Services also reach other features through the Workspace (ws.profile(),
-# ws.library, ...); those calls are invisible to import-linter and must be kept pointing downwards by review.
-ignore_imports = ["osu_coach.*.routes -> osu_coach.app.deps", "osu_coach.library.routes -> osu_coach.app.session"]
+# the composition root (app) knows every slice: going through it is not a slice importing another
+ignore_imports = ["osu_coach.features.*.routes -> osu_coach.app.deps"]
+
+[[tool.importlinter.contracts]]
+name = "domain subjects depend only downwards"
+type = "layers"
+containers = ["osu_coach.domain"]
+layers = ["maps | progress | exports | play_goals", "player", "analysis", "beatmaps | replays", "numeric"]
+
+[[tool.importlinter.contracts]]
+name = "the domain is pure: no I/O, web, settings or clock"
+type = "forbidden"
+source_modules = ["osu_coach.domain"]
+forbidden_modules = [
+    "osu_coach.config", "pandas", "requests", "rosu_pp_py", "fastapi", "starlette", "pydantic", "pydantic_settings", "uvicorn",
+    "sqlite3", "os", "pathlib", "pickle", "lzma", "gzip", "shutil", "subprocess", "socket", "threading", "time",
+    "random", "uuid", "urllib", "http", "tempfile", "logging",
+]

@@ -32,7 +32,10 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   const finished = useCallback(
     (job: Job) => {
       if (job.status !== "succeeded") return;
-      if (job.kind === "scan") void invalidateLibrary(qc);
+      if (job.kind === "scan") {
+        void invalidateLibrary(qc);
+        void invalidateResults(qc); // the start-up restore brings the analysed plays back in a scan job
+      }
       if (job.kind === "analysis") {
         void invalidateResults(qc);
         if (job.result?.new_plays?.length) void invalidateLibrary(qc); // the new plays were added to the library
