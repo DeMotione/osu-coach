@@ -1046,6 +1046,13 @@ export interface components {
              */
             replay_set: "all" | "best";
             /**
+             * Rating Engine
+             * @description The engine that makes the skill ratings; irt (Star-Scale IRT) is experimental.
+             * @default comfort
+             * @enum {string}
+             */
+            rating_engine: "comfort" | "irt";
+            /**
              * Level Override
              * @description Level (★) set by hand; null = detected.
              */
@@ -1336,6 +1343,11 @@ export interface components {
              * @description This score minus the comfort-level score (points).
              */
             change: number | null;
+            /**
+             * At Least
+             * @description Without a score: the skill is at least this good on these maps (untested, 0–100).
+             */
+            at_least?: number | null;
             /**
              * Demand
              * @description How many times what typical maps of the comfort level demand of the skill (1.25 = 25% more).
@@ -2127,6 +2139,8 @@ export interface components {
             date_choices: components["schemas"]["Choice"][];
             /** Replay Sets */
             replay_sets: components["schemas"]["Choice"][];
+            /** Rating Engines */
+            rating_engines: components["schemas"]["Choice"][];
             /** Best Definition */
             best_definition: string;
             /**
@@ -2263,6 +2277,18 @@ export interface components {
             sim_exact_share: number | null;
             /** Sim Agreement */
             sim_agreement: number | null;
+            /**
+             * Engine
+             * @description The rating engine that made the skill scores (comfort | irt).
+             * @default comfort
+             */
+            engine: string;
+            /**
+             * Engine Label
+             * @description Its name to show.
+             * @default Comfort Score
+             */
+            engine_label: string;
         };
         /** OverviewKpis */
         OverviewKpis: {
@@ -2975,6 +3001,8 @@ export interface components {
             date_to?: string | null;
             /** Replay Set */
             replay_set?: ("all" | "best") | null;
+            /** Rating Engine */
+            rating_engine?: ("comfort" | "irt") | null;
             /** Level Override */
             level_override?: number | null;
             /** Player */
@@ -3208,6 +3236,12 @@ export interface components {
             /** Label */
             label: string;
             /**
+             * Summary
+             * @description One plain line: what the skill is.
+             * @default
+             */
+            summary: string;
+            /**
              * What
              * @description What the skill measures.
              */
@@ -3222,6 +3256,11 @@ export interface components {
              * @description What raises it.
              */
             practise: string;
+            /**
+             * Irt What
+             * @description What the skill measures under Star Levels (null: as `what`).
+             */
+            irt_what?: string | null;
         };
         /** SkillScore */
         SkillScore: {
@@ -3260,6 +3299,33 @@ export interface components {
              * @description Without a score because nothing played was demanding enough (and nearly all of it was held): the score that much shows, a lower bound (0–100). null otherwise.
              */
             at_least: number | null;
+            /**
+             * Stars
+             * @description Star-Scale IRT: the map star rating the skill holds up on (about 2 in 100 of its notes failed there; accuracy: 90% 300s); untested: at least this.
+             */
+            stars?: number | null;
+            /**
+             * Stars Low
+             * @description Star-Scale IRT: the low end of its 90% range.
+             */
+            stars_low?: number | null;
+            /**
+             * Stars High
+             * @description Star-Scale IRT: the high end (null: open, untested).
+             */
+            stars_high?: number | null;
+            /**
+             * State
+             * @description Star-Scale IRT: measured | provisional | untested | not_enough_data | failed.
+             */
+            state?: string | null;
+            /**
+             * Natural
+             * @description Star-Scale IRT: the ability in natural units (natural_unit).
+             */
+            natural?: number | null;
+            /** Natural Unit */
+            natural_unit?: string | null;
         };
         /** SkillValue */
         SkillValue: {

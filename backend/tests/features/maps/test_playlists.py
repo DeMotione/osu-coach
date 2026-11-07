@@ -150,3 +150,24 @@ def test_accuracy_maps_have_tight_hit_windows_for_the_level():
     pl = build_playlist(pool, "accuracy", Targets(comfort=4.0), n=9)
     level = pool[(pool["stars"] - pl["stars"].mean()).abs() < 0.5]
     assert pl["od"].mean() > level["od"].mean()
+
+
+def test_irt_tapping_speed_is_put_on_the_recommenders_tempo_scale():
+    from types import SimpleNamespace
+
+    from osu_coach.domain.player.engines.comfort.skill_scale import speed_rating
+    from osu_coach.domain.player.messages import Message
+    from osu_coach.domain.player.records import SkillRating
+    from osu_coach.features.maps.service import measured_abilities
+
+    rows = {
+        "speed": SkillRating(77.0, 10, Message("irt_measured"), state="measured", natural=231.0, natural_unit="BPM"),
+        "aim": SkillRating(63.0, 10, Message("irt_measured"), state="measured"),
+        "sliders": SkillRating(93.0, 10, Message("irt_untested"), at_least=93.0, state="untested"),
+    }
+    irt = SimpleNamespace(engine="irt", skill_ratings=rows)
+    out = measured_abilities(irt, 6.0)
+    assert out["speed"] == round(speed_rating(231.0, 6.0), 1) != 77.0  # the BPM it measured, on the tempo scale
+    assert out["aim"] == 63.0 and "sliders" not in out  # a lower bound doesn't steer suggestions
+    comfort = SimpleNamespace(engine="comfort", skill_ratings=rows)
+    assert measured_abilities(comfort, 6.0)["speed"] == 77.0

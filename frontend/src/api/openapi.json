@@ -3152,6 +3152,16 @@
             "title": "Replay Set",
             "default": "all"
           },
+          "rating_engine": {
+            "type": "string",
+            "enum": [
+              "comfort",
+              "irt"
+            ],
+            "title": "Rating Engine",
+            "description": "The engine that makes the skill ratings; irt (Star-Scale IRT) is experimental.",
+            "default": "comfort"
+          },
           "level_override": {
             "anyOf": [
               {
@@ -4036,6 +4046,18 @@
             ],
             "title": "Change",
             "description": "This score minus the comfort-level score (points)."
+          },
+          "at_least": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At Least",
+            "description": "Without a score: the skill is at least this good on these maps (untested, 0–100)."
           },
           "demand": {
             "anyOf": [
@@ -6290,6 +6312,13 @@
             "type": "array",
             "title": "Replay Sets"
           },
+          "rating_engines": {
+            "items": {
+              "$ref": "#/components/schemas/Choice"
+            },
+            "type": "array",
+            "title": "Rating Engines"
+          },
           "best_definition": {
             "type": "string",
             "title": "Best Definition"
@@ -6339,6 +6368,7 @@
           "miss_causes",
           "date_choices",
           "replay_sets",
+          "rating_engines",
           "best_definition",
           "latest_choices",
           "periods",
@@ -6649,6 +6679,18 @@
               }
             ],
             "title": "Sim Agreement"
+          },
+          "engine": {
+            "type": "string",
+            "title": "Engine",
+            "description": "The rating engine that made the skill scores (comfort | irt).",
+            "default": "comfort"
+          },
+          "engine_label": {
+            "type": "string",
+            "title": "Engine Label",
+            "description": "Its name to show.",
+            "default": "Comfort Score"
           }
         },
         "type": "object",
@@ -8703,6 +8745,21 @@
             ],
             "title": "Replay Set"
           },
+          "rating_engine": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "comfort",
+                  "irt"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating Engine"
+          },
           "level_override": {
             "anyOf": [
               {
@@ -9481,6 +9538,12 @@
             "type": "string",
             "title": "Label"
           },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "One plain line: what the skill is.",
+            "default": ""
+          },
           "what": {
             "type": "string",
             "title": "What",
@@ -9495,6 +9558,18 @@
             "type": "string",
             "title": "Practise",
             "description": "What raises it."
+          },
+          "irt_what": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Irt What",
+            "description": "What the skill measures under Star Levels (null: as `what`)."
           }
         },
         "type": "object",
@@ -9577,6 +9652,77 @@
             ],
             "title": "At Least",
             "description": "Without a score because nothing played was demanding enough (and nearly all of it was held): the score that much shows, a lower bound (0–100). null otherwise."
+          },
+          "stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars",
+            "description": "Star-Scale IRT: the map star rating the skill holds up on (about 2 in 100 of its notes failed there; accuracy: 90% 300s); untested: at least this."
+          },
+          "stars_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars Low",
+            "description": "Star-Scale IRT: the low end of its 90% range."
+          },
+          "stars_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars High",
+            "description": "Star-Scale IRT: the high end (null: open, untested)."
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State",
+            "description": "Star-Scale IRT: measured | provisional | untested | not_enough_data | failed."
+          },
+          "natural": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Natural",
+            "description": "Star-Scale IRT: the ability in natural units (natural_unit)."
+          },
+          "natural_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Natural Unit"
           }
         },
         "type": "object",

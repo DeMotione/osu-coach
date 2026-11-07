@@ -10,97 +10,134 @@ from osu_coach.domain.maps.skillset import GoalMaps, Recommendation
 from osu_coach.domain.maps.suggestions import Targets, finite_or
 from osu_coach.domain.player.messages import Message
 
+# Skill names: short and plain, the words players use. The playlists use the same ones (``suggestions.SKILL_INFO``).
 SKILL_LABELS = {
-    "aim": "Jump aim",
-    "flow_aim": "Flow aim (spaced streams)",
-    "speed": "Tapping speed (bursts/streams)",
+    "aim": "Jumps",
+    "flow_aim": "Spaced streams",
+    "speed": "Tapping speed",
     "stamina": "Stamina",
-    "accuracy": "Accuracy (timing)",
-    "sliders": "Slider control",
-    "reading": "Reading (AR / BPM changes)",
+    "accuracy": "Accuracy",
+    "sliders": "Sliders",
+    "reading": "Reading",
     "consistency": "Consistency",
 }
-# Shown when the cursor is on a skill bar (Overview): what the skill measures, how the rating is worked out
+# One line under each name: what the skill is, in a player's words.
+SKILL_SUMMARIES = {
+    "aim": "Hitting notes that are far apart.",
+    "flow_aim": "Aiming while you stream: streams and bursts whose notes are spread out.",
+    "speed": "Tapping fast streams and bursts cleanly.",
+    "stamina": "Keeping up the tapping to the end of long streams.",
+    "accuracy": "Hitting single notes on time, for 300s.",
+    "sliders": "Following sliders to the end without breaking them.",
+    "reading": "Seeing notes in time: high AR, busy parts, HD and FL.",
+    "consistency": "Playing well on every map, not just once.",
+}
+
+# What each skill measures under Star Levels (Star-Scale IRT); the Comfort Score texts below measure something else.
+SKILL_HELP_IRT = {
+    "aim": "Jumps: how rarely you miss jumps and spread-out notes with the cursor, given how far and how fast each "
+    "jump is.",
+    "flow_aim": "Spaced streams: how rarely you miss the notes of streams that are a circle width or more apart, "
+    "given their spacing and speed.",
+    "speed": "Tapping speed: how rarely you miss stream and burst notes (or hit them for a 50), given their BPM. "
+    "Cursor misses on them count for spaced streams instead.",
+    "stamina": "Stamina: the same, for notes deep into long streams (after the 16th note, or 30 seconds into "
+    "nonstop tapping). If tapping speed holds up there and stamina doesn't, your fingers are getting tired.",
+    "accuracy": "Accuracy: how often your hits on single notes (not streams) are 300s, given how tight the 300 window "
+    "is (OD, with speed mods) and how hard the pattern is.",
+    "sliders": "Sliders: how rarely you break sliders that move (longer than a circle width), given how fast they are "
+    "for their map, their shape and their speed changes.",
+    "reading": "Reading: how rarely you miss notes, given how quickly they appear (higher AR = less time to see them) "
+    "and how many are on screen at once (HD and FL count too).",
+}
+
+# Shown when the cursor is on a skill (Overview): what the skill is, how its Comfort Score is worked out
 # (``ratings.py``) and what raises it. Keep in step with ``ratings.ratings``.
-BEST_PER_SETUP = "each map/mod setup counts once (its best play), best first and each next one 5% less"
+BEST_PER_SETUP = (
+    "Each map and mod setup counts once (your best play on it); your best counts fully, each next one 5% less"
+)
+COMFORT_50 = "50 = what maps at your comfort level ask for (assumed from ranked maps, not compared with other players)"
 SKILL_HELP = {
     "aim": (
-        "Jump aim: how fast the cursor has to move between jumps and spaced notes (2+ circle widths apart, "
-        "not streams), distance ÷ time, and whether you land those jumps.",
-        "Score: per passed play the average cursor speed of its 30 fastest jumps × (share of them you hit)^0.8; "
-        f"{BEST_PER_SETUP}; 50 = typical for your comfort level, +25 per doubling. Needs 3 different map/mod setups.",
-        "Jump maps slightly above your comfort level until you can hold the combo; keep your tablet area / "
-        "sensitivity fixed while you do.",
+        "Jumps: notes two or more circle widths apart (not streams) that you move the cursor to. Looks at how fast "
+        "the cursor has to travel between them and how many of them you land.",
+        "For each map you passed: the cursor speed of its 30 fastest jumps, lowered by the share you missed. "
+        f"{BEST_PER_SETUP}. {COMFORT_50}; twice the speed = +25. Needs 3 different map/mod setups.",
+        "Play jump maps a little above your comfort level until you can keep the combo. Don't change your tablet "
+        "area or sensitivity while you do.",
     ),
     "flow_aim": (
-        "Spaced streams: bursts and streams (3+ notes in a row) whose notes are about a circle width or "
-        "more apart, so the cursor has to keep moving while you tap: spacing × BPM × how much "
-        "of the map flows, and whether you hit those notes.",
-        "Score: per passed play the cursor speed of its 50 fastest spaced-stream notes × (notes ÷ 100)^0.25 × "
-        f"(share of them you hit)^0.8; {BEST_PER_SETUP}; 50 = typical for your comfort level, +25 per doubling.",
-        "Spaced-stream maps at a BPM you can tap cleanly, then raise the BPM step by step. Move the arm "
-        "in one smooth motion instead of stopping on every note.",
+        "Spaced streams: streams and bursts (3+ notes in a row) whose notes are about a circle width or more apart, "
+        "so the cursor has to keep moving while you tap. Looks at how fast the cursor moves and how many of those "
+        "notes you hit.",
+        "For each map you passed: the cursor speed of its 50 fastest spaced-stream notes, a little higher the more "
+        f"of them the map has, lowered by the share you missed. {BEST_PER_SETUP}. {COMFORT_50}; twice the speed = "
+        "+25.",
+        "Play spaced-stream maps at a BPM you can tap cleanly, then raise the BPM step by step. Move your arm in one "
+        "smooth motion instead of stopping on every note.",
     ),
     "speed": (
-        "Tapping speed: how fast you tap bursts and streams (3+ notes) cleanly: no finger miss (no tap, "
-        "too early or late, notelock; cursor misses don't count) and 80%+ of the notes as 300s.",
-        f"Score: per play the 3rd fastest clean run; {BEST_PER_SETUP}; 50 = the stream speed typical for your "
-        "comfort level, 10% faster ≈ +10.",
-        "Stream and burst maps 10–20 BPM above the speed you tap cleanly, in short sets with relaxed "
-        "fingers. See the Tapping page for your clean stream speed.",
+        "Tapping speed: the fastest streams and bursts (3+ notes) you tap cleanly: no finger misses (no tap, too "
+        "early or late, notelock) and at least 80% 300s. Cursor misses don't count here; they belong to spaced "
+        "streams.",
+        f"For each map: your 3rd fastest clean run. {BEST_PER_SETUP}. 50 = the stream speed maps at your comfort "
+        "level ask for (assumed); 10% faster ≈ +10.",
+        "Play stream and burst maps 10–20 BPM above the speed you tap cleanly, in short sets with relaxed fingers. "
+        "The Tapping page shows your clean stream speed.",
     ),
     "stamina": (
-        "Stamina: for how long you keep a high tempo before your fingers give in (you start "
-        "undertapping), not how accurate you stay.",
-        "Score: the fastest tempo you kept up for 10 s, 30 s, 1, 2 and 5 min while pressing 90%+ of the "
-        f"notes (overstreaming is fine); {BEST_PER_SETUP}, against your comfort level's typical tempo for that "
-        "long; 10% faster ≈ +10. Average of the durations measured on 3+ setups.",
-        "Play stream-heavy maps that are a little longer than usual and keep tapping to the end, even "
-        "when accuracy drops; make the stretches longer first, then faster.",
+        "Stamina: how long you can keep tapping fast before your fingers give in and you start missing taps. It's "
+        "about keeping up, not about accuracy.",
+        "The fastest tempo you kept up for 10 s, 30 s, 1, 2 and 5 minutes while pressing at least 90% of the notes "
+        f"(extra taps are fine). {BEST_PER_SETUP}. Each length is compared with the tempo maps at your comfort level "
+        "ask for over that long (assumed); 10% faster ≈ +10. The score is the average of the lengths measured on "
+        "3+ setups.",
+        "Play stream-heavy maps a little longer than usual and keep tapping to the end, even when your accuracy "
+        "drops. Make the streams longer first, then faster.",
     ),
     "accuracy": (
-        "Hit timing on single notes (not in streams): the share of hit notes that were not 300s. Lower is better.",
-        "Score: 50 − level-dependent points × log2(non-300 rate ÷ assumed OD- and comfort-matched rate), "
-        "clipped to 0–100. At 4.5★ and OD 8, 90% 300s scores 50 and 80% scores 20; from 5.5★ up "
-        "the previous reference and slope apply. Needs 60+ hit single notes.",
-        "Play maps you can full-combo and aim for 300s, not the combo. If your hits lean early or late "
-        "(Tapping page), fix your offset first.",
+        "Accuracy: how many of your hits on single notes (not streams) are 300s. Fewer 100s and 50s = better.",
+        "Your share of hits that weren't 300s, compared with what is expected at your comfort level and the maps' "
+        "OD. At 4.5★ and OD 8, 90% 300s scores 50 and 80% scores 20; from 5.5★ up, the reference and slope stay "
+        "where they are at 5.5★. Needs 60+ hit single notes.",
+        "Play maps you can full combo and go for 300s, not for the combo. If your hits are mostly early or late "
+        "(see the Tapping page), fix your offset first.",
     ),
     "sliders": (
-        "Slider control: how hard the sliders are that you follow to the end without a break: "
-        "speed, length, shape, speed changes and how soon the next note comes.",
-        "Score: per play your 30 hardest sliders (whose head you hit), average difficulty × share held³; "
-        f"{BEST_PER_SETUP}, against your comfort level's typical value, +25 per doubling.",
-        "Play maps with long, curved and fast sliders and follow every one to its end; mix slow and fast "
-        "sliders. Many short sliders don't raise it.",
+        "Sliders: how hard the sliders are that you follow to the end without breaking them: their speed, length, "
+        "shape, speed changes and how soon the next note comes.",
+        "For each map: your 30 hardest sliders (whose head you hit), their average difficulty times (the share you "
+        f"held)³. {BEST_PER_SETUP}. {COMFORT_50}; twice as hard = +25.",
+        "Play maps with long, curved and fast sliders and follow every one to its end; mix slow and fast sliders. "
+        "Lots of short sliders don't raise it.",
     ),
     "reading": (
-        "Reading: lower AR than usual for the map's difficulty on maps with many circles per second "
-        "(HD / FL count too), decent accuracy on those maps, and BPM changes you read and hit accurately.",
-        "Score: per passed map 2^((usual AR \u2212 AR) / 3 \u00d7 circles per second \u00f7 5) \u00d7 (up to "
-        "\u00d71.5 for BPM changes hit as 300s) \u00d7 accuracy^8; "
-        f"{BEST_PER_SETUP}; 50 = usual AR at 95%, +25 per doubling.",
-        "Play busy maps a little below the AR you're used to (or with HD) and keep the accuracy up; maps "
-        "with BPM changes, hitting the first notes after each change on time.",
+        "Reading: playing busy maps (many circles per second) at a lower AR than usual for their difficulty, or with "
+        "HD or FL, while keeping your accuracy, and hitting BPM changes on time.",
+        "For each map you passed: 2^((usual AR − AR) ÷ 3 × circles per second ÷ 5), up to ×1.5 for BPM changes "
+        f"hit as 300s, × accuracy⁸. {BEST_PER_SETUP}. 50 = the usual AR for the map at 95% accuracy; twice as "
+        "hard = +25.",
+        "Play busy maps a little below the AR you're used to (or with HD) and keep your accuracy up. On maps with "
+        "BPM changes, hit the first notes after each change on time.",
     ),
     "consistency": (
-        "Consistency: how steadily you keep your combo and your accuracy from map to map on the maps up to a star "
-        "below a star rating (at 6.2★: maps of 5.2–6.2★ with mods; harder maps never count): at your comfort level, "
-        "and in the comparison at each star rating.",
-        "Score: every play gets a map score from how much of the combo you hold (10% of the max combo = 0, 30% "
-        "= 0.48, 50% = 0.70, a full combo = 1: holding big parts counts, not only full combos) and your accuracy "
-        "(88% = 0, 94% = 1). The better of the two counts 70%, the other 30%, and a play that keeps less than about "
-        "20% of the combo fades to 0. Each map counts once (its plays averaged), a map a star easier half as much as "
-        "one at the star rating; consistency = your usual map score minus half how much it swings between maps. "
+        "Consistency: how steady your combo and accuracy are from map to map. Uses your maps from one star below a "
+        "star rating up to it (at 6.2★: maps of 5.2–6.2★ with mods); harder maps never count. Shown at your comfort "
+        "level and at each star rating you compare with.",
+        "Every play gets a map score from how much of the combo you hold (10% of the max combo = 0, 30% = 0.48, "
+        "50% = 0.70, a full combo = 1: holding big parts counts, not only full combos) and your accuracy (88% = 0, "
+        "94% = 1). The better of the two counts 70%, the other 30%, and a play that keeps less than about 20% of "
+        "the combo fades to 0. Each map counts once (its plays averaged), a map a star easier half as much as one "
+        "at the star rating. Consistency = your usual map score minus half of how much it swings between maps. "
         "Needs 8 different maps; the more maps, the more reliable.",
-        "Play many different maps of that star rating instead of retrying one: keep long stretches of combo and "
+        "Play many different maps of that star rating instead of retrying one. Keep long stretches of combo and "
         "your accuracy up on every one, rather than chasing one great result.",
     ),
 }
 MISS_LABELS = {
     "aim": "aim — tapped in time but outside the circle (jumps and single notes)",
     "speed_aim": "speed-aim — tapped in time, but the cursor couldn't keep up with a stream, burst or very fast jump",
-    "early": "too early — cursor on the note, tap outside the hit window",
+    "early": "too early — cursor on the note, tap before the hit window",
     "late": "too late — cursor on the note, tap after the hit window",
     "no_tap": "no tap — cursor was on the note but no key was pressed",
     "lost": "lost — no tap and the cursor far away (didn't see / read it)",
@@ -122,6 +159,17 @@ _TESTS = {
 }
 
 
+_IRT_TESTS = {
+    "aim": "jumps",
+    "flow_aim": "spaced streams",
+    "speed": "streams",
+    "stamina": "long streams",
+    "accuracy": "tight hit windows (high OD)",
+    "sliders": "sliders",
+    "reading": "fast-appearing notes (high AR)",
+}
+
+
 def _maps(n: int) -> str:
     return f"{n} more different map{'s' if n > 1 else ''}"
 
@@ -133,21 +181,24 @@ def message(m: Message | None) -> str | None:
     v = m.values
     match m.code:
         case "comfort_unknown":
-            return "Comfort not established"
+            return "Your comfort level isn't known yet"
         case "not_enough_data":
             return "Not enough data"
         case "insufficient_challenge":
-            return "Insufficient challenge"
+            return "Your maps haven't pushed this skill enough yet"
         case "need_maps":
-            return f"Need {v['maps']} relevant map/mod configurations"
+            return f"Needs {v['maps']} different map/mod setups that test it"
         case "best_per_setup":
-            return "Best per map/mod configuration; 0.95 rank decay"
+            return "Your best play on each map/mod setup; each next one counts 5% less"
         case "stamina_mean":
-            return "Mean of measured duration scores; easy or untested durations stay unknown"
+            return "Average over the stream lengths measured; lengths your maps haven't tested stay unknown"
         case "accuracy_gate":
-            return f"Need {v['heads']} timing heads after the DT accuracy >{v['dt_accuracy']:.0%} evidence gate"
+            return (
+                f"Needs {v['heads']} hit single notes; DT plays only count above {v['dt_accuracy']:.0%} accuracy "
+                "(evidence gate)"
+            )
         case "accuracy_measured":
-            return "Effective-OD-matched non-300 share on eligible hit single heads"
+            return "Share of 300s on your hit single notes, compared at each map's OD"
         case "consistency_held":
             return f"Combo and accuracy held across {v['maps']} different maps of {v['low']:.1f}–{v['high']:.1f}★"
         case "harder_maps":
@@ -168,6 +219,24 @@ def message(m: Message | None) -> str | None:
             )
         case "stamina_maps":
             return f"Play {v['maps']} different maps with streams or dense 1/4 sections of at least 10 seconds."
+        case "irt_measured":
+            return "Worked out from every note you hit or missed and how hard it was"
+        case "irt_provisional":
+            return "A rough estimate so far: more plays near your limit will sharpen it"
+        case "irt_untested":
+            maps = f" (up to {v['maps']:.1f}★)" if v.get("maps") else ""
+            return f"You almost never fail {_IRT_TESTS[v['skill']]} on the maps you played{maps}"
+        case "irt_not_enough":
+            return "Not enough notes near your limit to measure it yet"
+        case "irt_failed":
+            return "The calculation didn't settle on one answer, so no number is shown"
+        case "irt_play_harder":
+            return (
+                f"Play maps a bit above your level (around {v['level']:.1f}★) with plenty of "
+                f"{_IRT_TESTS[v['skill']]} to find your limit."
+            )
+        case "irt_play_at":
+            return f"Play more maps around your level ({v['level']:.1f}★) with {_IRT_TESTS[v['skill']]} to measure it."
         case "comfort_first":
             return (
                 "First your comfort level: pass 3 different maps (with at most 2 misses per 100 notes) and analyse "

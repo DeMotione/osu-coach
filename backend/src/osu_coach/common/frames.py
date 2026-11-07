@@ -10,7 +10,7 @@ from collections.abc import Callable
 import pandas as pd
 
 from osu_coach.domain.player import Profile
-from osu_coach.domain.player.aim import ANGLE_BINS, DIST_LABELS
+from osu_coach.domain.player.measures.aim import ANGLE_BINS, DIST_LABELS
 from osu_coach.domain.player.records import AimStats
 
 STREAM_PROFILE_COLUMNS = [

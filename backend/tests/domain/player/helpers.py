@@ -10,10 +10,10 @@ import numpy as np
 import pandas as pd
 
 from osu_coach.domain.analysis.notes import HitObjects
-from osu_coach.domain.player import skill_values as sv
 from osu_coach.domain.player.algorithm import timing_evidence_eligible
+from osu_coach.domain.player.engines.comfort import skill_values as sv
+from osu_coach.domain.player.engines.comfort.ratings import combine_ratings, rating_inputs
 from osu_coach.domain.player.profile import FallBehind
-from osu_coach.domain.player.ratings import combine_ratings, rating_inputs
 from osu_coach.domain.replays.configuration import from_meta
 
 # a hit single circle that tests no skill in particular
@@ -182,13 +182,13 @@ def weighted(O: pd.DataFrame, summary) -> list[tuple]:
 
 
 def quadrant_stats(O: pd.DataFrame):
-    from osu_coach.domain.player.aim import aim_summary, quadrant_table
+    from osu_coach.domain.player.measures.aim import aim_summary, quadrant_table
 
     return quadrant_table(weighted(O, aim_summary))
 
 
 def aim_regression(O: pd.DataFrame):
-    from osu_coach.domain.player.aim import jump_summary, regression
+    from osu_coach.domain.player.measures.aim import jump_summary, regression
     from osu_coach.domain.player.summary import miss_causes
 
     return regression(weighted(O, lambda n: jump_summary(n, miss_causes(n))))
@@ -196,7 +196,7 @@ def aim_regression(O: pd.DataFrame):
 
 def stream_speed_profile(O: pd.DataFrame, raw: bool = False):
     from osu_coach.common.frames import STREAM_PROFILE_COLUMNS
-    from osu_coach.domain.player.streams import speed_profile, stream_summary
+    from osu_coach.domain.player.measures.streams import speed_profile, stream_summary
 
     rows = speed_profile(weighted(O, stream_summary))
     if raw:
@@ -205,15 +205,15 @@ def stream_speed_profile(O: pd.DataFrame, raw: bool = False):
 
 
 def stream_limits(prof: pd.DataFrame, base_ur: float) -> dict:
+    from osu_coach.domain.player.measures.streams import stream_limits as limits
     from osu_coach.domain.player.records import SpeedRow
-    from osu_coach.domain.player.streams import stream_limits as limits
 
     return limits([SpeedRow(**r) for r in prof.to_dict("records")], base_ur)
 
 
 def stream_fall_behind(O: pd.DataFrame, reach_bpm: float | None = None, raw: bool = False) -> dict:
     """The fall-behind numbers with their curves as data frames (``raw``: as the profile keeps them, lists of rows)."""
-    from osu_coach.domain.player.streams import fall_behind, stream_summary
+    from osu_coach.domain.player.measures.streams import fall_behind, stream_summary
 
     fb = fall_behind(weighted(O, stream_summary), reach_bpm)
     return FallBehind(**fb) if raw else fall_behind_frames(fb)
@@ -233,7 +233,7 @@ def miss_causes(O: pd.DataFrame) -> list:
 
 
 def fit_miss_model(df: pd.DataFrame):
-    from osu_coach.domain.player import miss_notes
+    from osu_coach.domain.player.measures import miss_notes
 
     return miss_notes.fit_miss_model(
         df["local_eq"].to_numpy(float), (~df["head_hit"].astype(bool)).to_numpy(), np.ones(len(df))
@@ -241,7 +241,7 @@ def fit_miss_model(df: pd.DataFrame):
 
 
 def miss_chain_ratio(df: pd.DataFrame) -> float:
-    from osu_coach.domain.player import miss_notes
+    from osu_coach.domain.player.measures import miss_notes
     from osu_coach.domain.player.summary import fast_pattern
     from osu_coach.domain.player.summary import miss_causes as causes
 

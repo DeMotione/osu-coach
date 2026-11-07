@@ -108,7 +108,7 @@ def _aim_miss_where(p: Profile) -> dict[str, int]:
 
 def _aim_miss_actions(p: Profile) -> list[str]:
     jump_advice = [
-        "Focus practice on aim first (the 'Jump aim' playlist in Goals & Training).",
+        "Focus practice on aim first (the 'Jumps' playlist in Goals & Training).",
         "If Setup Tips says to keep your tablet area / sensitivity, it's precision, not your setup.",
     ]
     where = _aim_miss_where(p)
@@ -121,7 +121,7 @@ def _aim_miss_actions(p: Profile) -> list[str]:
         f"single notes {where['single notes'] / total:.0%}"
     )
     if streams / total >= 0.4 and streams >= where["jumps"]:
-        playlist = "Flow aim (spaced streams)" if where["flow"] > where["streams"] else "Tapping speed (bursts/streams)"
+        playlist = "Spaced streams" if where["flow"] > where["streams"] else "Tapping speed"
         return [
             f"Most of them are in streams and bursts ({split}): you keep tapping but the cursor falls "
             "behind or cuts corners.",
@@ -152,7 +152,7 @@ def _speed_aim_actions(p: Profile) -> list[str]:
     flow = p.skill_ratings.get("flow_aim", UNRATED).score
     acts += [
         ("Your flow-aim score is low. " if flow is not None and flow < 45 else "")
-        + "Practise spaced streams below the tempo where they break (the 'Flow aim (spaced streams)' playlist "
+        + "Practise spaced streams below the tempo where they break (the 'Spaced streams' playlist "
         "in Goals & Training, or the same map with HT / a lower rate), then raise the speed by ~10 BPM.",
         "Move with the stream's shape — a steady motion through the notes, not small jumps between them; "
         "keep the arm loose so the cursor can follow the tempo.",
@@ -216,7 +216,7 @@ def quadrant_tips(p: Profile, s: Setup):
             "If you lift and re-centre the mouse a lot, consider a slightly higher sensitivity.",
         ]
     actions.append(
-        f"Practice: jump maps from the 'Jump aim' playlist; in each retry, watch the {q} jumps and "
+        f"Practice: jump maps from the 'Jumps' playlist; in each retry, watch the {q} jumps and "
         "commit to the full movement."
     )
     return [
@@ -262,7 +262,7 @@ def direction_tips(p: Profile, s: Setup):
             2,
             f"Miss rate on jumps moving {worst}: {pct(row['miss_rate'])} vs {pct(overall)} on average{extra}.",
             [
-                "Pick maps with lots of jumps (Jump aim playlist) and pay attention to that movement.",
+                "Pick maps with lots of jumps (Jumps playlist) and pay attention to that movement.",
                 "Tablet: check your wrist/arm can move freely in that direction.",
             ],
         )
@@ -312,7 +312,7 @@ def distance_angle_tips(p: Profile, s: Setup):
                     1,
                     f"Sharp-angle miss rate {pct(sharp)} vs wide angles {pct(wide)}.",
                     [
-                        "Practice snap aim: maps with triangles and zig-zag jumps (Jump aim playlist).",
+                        "Practice snap aim: maps with triangles and zig-zag jumps (Jumps playlist).",
                         "Stop on each note; don't let momentum carry you past it.",
                     ],
                 )
@@ -325,7 +325,7 @@ def distance_angle_tips(p: Profile, s: Setup):
                     1,
                     f"Wide-angle miss rate {pct(wide)} vs sharp angles {pct(sharp)}.",
                     [
-                        "Practice flow aim (Flow aim playlist): keep the cursor moving smoothly through notes.",
+                        "Practice flow aim (Spaced streams playlist): keep the cursor moving smoothly through notes.",
                         "Relax the arm and follow through instead of stopping on every circle.",
                     ],
                 )

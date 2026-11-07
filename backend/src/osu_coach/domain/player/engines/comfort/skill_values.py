@@ -10,8 +10,8 @@ from dataclasses import dataclass
 import numpy as np
 
 from osu_coach.domain.analysis.notes import HitObjects
-from osu_coach.domain.player.aim import AIM_COMBO_POWER, AIM_TOP
-from osu_coach.domain.player.reading import (
+from osu_coach.domain.player.measures.aim import AIM_COMBO_POWER, AIM_TOP
+from osu_coach.domain.player.measures.reading import (
     READ_ACC_POWER,
     READ_AR_HIGH_STEP,
     READ_AR_MIN,
@@ -26,8 +26,8 @@ from osu_coach.domain.player.reading import (
     READ_NPS_RANGE,
     usual_ar,
 )
-from osu_coach.domain.player.stamina import PRESSED_REASONS, STAMINA_KEPT, STAMINA_KEPT_ZERO, STAMINA_WINDOWS
-from osu_coach.domain.player.tapping import SPEED_FINGER, SPEED_RUNS, SPEED_TIMING
+from osu_coach.domain.player.measures.stamina import PRESSED_REASONS, STAMINA_KEPT, STAMINA_KEPT_ZERO, STAMINA_WINDOWS
+from osu_coach.domain.player.measures.tapping import SPEED_FINGER, SPEED_RUNS, SPEED_TIMING
 
 FLOW_TOP = 50  # per play: the 50 fastest spaced-stream notes set its cursor speed
 FLOW_AMOUNT = 100.0  # spaced-stream notes for the full amount: ×(notes / 100)^0.25, 0.6–1.5

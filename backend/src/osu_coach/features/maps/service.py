@@ -21,6 +21,8 @@ from osu_coach.domain.maps.configuration import SearchOptions
 from osu_coach.domain.maps.skillset import recommend, recommend_modified
 from osu_coach.domain.maps.suggestions import SKILLS, Targets, collection_name, skill_label, targets_from_profile
 from osu_coach.domain.player import Profile
+from osu_coach.domain.player.engines import IRT, measured_scores
+from osu_coach.domain.player.engines.comfort.skill_scale import speed_rating
 from osu_coach.domain.replays.configuration import from_meta
 from osu_coach.features.maps.schemas import (
     Playlist,
@@ -63,6 +65,25 @@ def default_skill(p: Profile | None, abilities: dict[str, float]) -> str:
     return next((k for k in (p.weaknesses if p else []) if k in SKILLS and k in abilities), "aim")
 
 
+def _comfort_of(p: Profile | None) -> float:
+    """The level suggestions are made for: the comfort level, else the replay level."""
+    return (num(p.levels.comfort_stars) or num(p.levels.level_stars) or 2.5) if p else 2.5
+
+
+def measured_abilities(p: Profile | None, theta: float) -> dict[str, float]:
+    """The scores suggestions work from: measurements only, IRT tapping speed on the tempo scale
+    the recommender reads (from the BPM IRT measured).
+    """
+    if p is None:
+        return {}
+    scores = measured_scores(p.skill_ratings)
+    out = {k: float(v) for k, v in scores.items() if k in SKILLS and v is not None}
+    speed = p.skill_ratings.get("speed")
+    if p.engine == IRT and "speed" in out and speed is not None and num(speed.natural) is not None:
+        out["speed"] = round(speed_rating(float(speed.natural), theta), 1)
+    return out
+
+
 def _options(
     p: Profile | None,
     skill: str | None,
@@ -84,8 +105,8 @@ def _options(
     if theta is None:
         theta = 2.5  # Visible starting assumption until the user supplies comfort stars.
         source = "Unmeasured 2.5★ starting assumption"
-    measured = {key: row.score for key, row in p.skill_ratings.items()} if p else {}
-    abilities = {k: float(v) for k, v in measured.items() if k in SKILLS and v is not None}
+    measured = measured_abilities(p, theta)
+    abilities = dict(measured)
     if ratings:
         try:
             manual = json.loads(ratings)
@@ -242,11 +263,7 @@ def playlist(
         preferred_client=ws.preferred_client(),
         skill_adjusted_stars=ranked.skill_adjusted_stars,
         abilities=abilities,
-        measured_abilities={
-            key: float(row.score)
-            for key, row in (p.skill_ratings.items() if p else [])
-            if key in SKILLS and row.score is not None
-        },
+        measured_abilities=measured_abilities(p, _comfort_of(p)),
     )
 
 
@@ -447,11 +464,7 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
         preferred_client=client,
         skill_adjusted_stars=ranked.skill_adjusted_stars,
         abilities=abilities,
-        measured_abilities={
-            key: float(row.score)
-            for key, row in (p.skill_ratings.items() if p else [])
-            if key in SKILLS and row.score is not None
-        },
+        measured_abilities=measured_abilities(p, _comfort_of(p)),
         coverage_maps=coverage,
         unavailable_maps=unavailable,
         calculator_unavailable_maps=calculator_unavailable,

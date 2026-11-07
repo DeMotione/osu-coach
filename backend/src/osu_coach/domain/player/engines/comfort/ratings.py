@@ -15,13 +15,10 @@ import numpy as np
 from osu_coach.domain.analysis.models import ReplayMeta
 from osu_coach.domain.analysis.notes import HitObjects
 from osu_coach.domain.player.algorithm import DT_ACCURACY_MIN
-from osu_coach.domain.player.consistency import star_consistency
-from osu_coach.domain.player.demand import log_demand
-from osu_coach.domain.player.levels import replay_weight
-from osu_coach.domain.player.messages import Message
-from osu_coach.domain.player.records import SkillRating, StaminaPart
-from osu_coach.domain.player.skill_scale import SPEED_POINTS, expected_speed_bpm
-from osu_coach.domain.player.skill_values import (
+from osu_coach.domain.player.engines.comfort.consistency import star_consistency
+from osu_coach.domain.player.engines.comfort.demand import log_demand
+from osu_coach.domain.player.engines.comfort.skill_scale import SPEED_POINTS, expected_speed_bpm
+from osu_coach.domain.player.engines.comfort.skill_values import (
     PlayContext,
     aim_value,
     cursor_speed,
@@ -34,6 +31,9 @@ from osu_coach.domain.player.skill_values import (
     tempo_curve,
     top,
 )
+from osu_coach.domain.player.levels import replay_weight
+from osu_coach.domain.player.messages import Message
+from osu_coach.domain.player.records import SkillRating, StaminaPart
 
 MIN_MAPS = 3
 RANK_DECAY = 0.95

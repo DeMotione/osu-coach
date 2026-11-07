@@ -20,8 +20,8 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from osu_coach.domain.player.demand import log_demand
-from osu_coach.domain.player.ratings import ACCURACY_TRANSITION_STARS, POINTS
+from osu_coach.domain.player.engines.comfort.demand import log_demand
+from osu_coach.domain.player.engines.comfort.ratings import ACCURACY_TRANSITION_STARS, POINTS
 from osu_coach.domain.player.records import UNRATED, SkillRating
 
 SKILLS = ("aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading")
@@ -38,11 +38,13 @@ TARGET_RANGE = (1.0, 13.0)
 @dataclass(frozen=True, slots=True)
 class SkillAt:
     """A comfort-level score moved to another star rating: ``score`` (0–100), ``change`` (points against the
-    comfort level) and ``demand`` (how many times what comfort-level maps demand)."""
+    comfort level) and ``demand`` (how many times what comfort-level maps demand). Without a score, ``at_least``
+    can still say how good the skill is at least there (an untested skill whose engine can move its bound)."""
 
-    score: float
-    change: float
+    score: float | None
+    change: float | None
     demand: float
+    at_least: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,7 +115,7 @@ def scores_at(rows: Mapping[str, SkillRating], theta: float | None, target: floa
 def compare_at(rows: Mapping[str, SkillRating], theta: float, target: float) -> Readiness:
     """The :class:`Readiness` for maps of ``target`` ★ (the skills: :func:`scores_at`)."""
     skills = scores_at(rows, theta, target)
-    known = {k: v.score for k, v in skills.items() if v is not None}
+    known = {k: v.score for k, v in skills.items() if v is not None and v.score is not None}
     z = math.log(PASS_AT_LEVEL / (1 - PASS_AT_LEVEL)) - (target - theta) / PASS_SPREAD
     return Readiness(
         target=target,

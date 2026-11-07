@@ -3,7 +3,8 @@
 A play is summarised once, when it is analysed (:func:`~osu_coach.domain.player.summarize`); the profile, the
 progress months and the pages add the summaries up, so the session never holds every play's notes. Summaries of
 plays analysed before this store existed are made once from their analysis cache files (:func:`summaries_of`).
-A summary is saved with ``SUMMARY_VERSION`` and the analysis version: when either changes, it is made again.
+A summary is saved with the analysis version and a fingerprint of the domain code that makes it
+(:mod:`~osu_coach.infra.code_fingerprint`): when either changes, it is made again, with no version to bump by hand.
 
 The store only saves work: when it can't be used (locked by another osu-coach, disk full, read-only), the
 summaries are made in memory and not kept; a file that isn't a readable database is moved aside to
@@ -24,10 +25,11 @@ from typing import TypeVar
 from osu_coach.domain.analysis.models import ANALYSIS_VERSION, Play
 from osu_coach.domain.player import PlaySummary
 from osu_coach.domain.player import summarize as summarize_play
+from osu_coach.infra.code_fingerprint import fingerprint
 
 DB_FILE = "summaries.sqlite"
-SUMMARY_VERSION = 2  # bump when PlaySummary (or what goes into it) changes
-VERSION = ANALYSIS_VERSION * 1000 + SUMMARY_VERSION
+# text with a prefix, so SQLite never takes it for a number
+VERSION = f"a{ANALYSIS_VERSION}-{fingerprint('osu_coach.domain')}"
 CHUNK = 50  # plays summarised and stored at a time when summaries are made from the analysis cache
 
 

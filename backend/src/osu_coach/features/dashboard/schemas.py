@@ -76,6 +76,17 @@ class SkillScore(BaseModel):
         description="Without a score because nothing played was demanding enough (and nearly all of it was held): "
         "the score that much shows, a lower bound (0–100). null otherwise."
     )
+    stars: float | None = Field(
+        None,
+        description="Star-Scale IRT: the map star rating the skill holds up on (about 2 in 100 of its notes failed there; accuracy: 90% 300s); untested: at least this.",
+    )
+    stars_low: float | None = Field(None, description="Star-Scale IRT: the low end of its 90% range.")
+    stars_high: float | None = Field(None, description="Star-Scale IRT: the high end (null: open, untested).")
+    state: str | None = Field(
+        None, description="Star-Scale IRT: measured | provisional | untested | not_enough_data | failed."
+    )
+    natural: float | None = Field(None, description="Star-Scale IRT: the ability in natural units (natural_unit).")
+    natural_unit: str | None = None
 
 
 class CompareSkill(BaseModel):
@@ -85,6 +96,9 @@ class CompareSkill(BaseModel):
         "how much more they demand of the skill. null without a comfort-level score."
     )
     change: float | None = Field(description="This score minus the comfort-level score (points).")
+    at_least: float | None = Field(
+        None, description="Without a score: the skill is at least this good on these maps (untested, 0–100)."
+    )
     demand: float | None = Field(
         description="How many times what typical maps of the comfort level demand of the skill (1.25 = 25% more)."
     )
@@ -147,6 +161,8 @@ class Overview(BaseModel):
     aim_split: AimSplit | None
     sim_exact_share: float | None
     sim_agreement: float | None
+    engine: str = Field("comfort", description="The rating engine that made the skill scores (comfort | irt).")
+    engine_label: str = Field("Comfort Score", description="Its name to show.")
 
 
 # ------------------------------------------------------------------ aim

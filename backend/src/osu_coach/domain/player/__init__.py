@@ -18,9 +18,6 @@ Every statistic is weighted by the replay weight (column ``w`` on the objects an
 
 from __future__ import annotations
 
-from osu_coach.domain.player.aim import (
-    worst_quadrant,
-)
 from osu_coach.domain.player.build import build_profile, build_profile_from
 from osu_coach.domain.player.constants import SKILLS
 from osu_coach.domain.player.levels import (
@@ -30,8 +27,11 @@ from osu_coach.domain.player.levels import (
     replay_weight,
     weight_table,
 )
+from osu_coach.domain.player.measures.aim import (
+    worst_quadrant,
+)
+from osu_coach.domain.player.measures.reading import usual_ar
 from osu_coach.domain.player.profile import Profile
-from osu_coach.domain.player.reading import usual_ar
 from osu_coach.domain.player.summary import PlaySummary, summarize
 
 __all__ = [

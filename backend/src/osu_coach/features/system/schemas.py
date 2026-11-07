@@ -18,9 +18,11 @@ class Health(BaseModel):
 class SkillMeta(BaseModel):
     key: str
     label: str
+    summary: str = Field("", description="One plain line: what the skill is.")
     what: str = Field(description="What the skill measures.")
     how: str = Field(description="How the score is worked out.")
     practise: str = Field(description="What raises it.")
+    irt_what: str | None = Field(None, description="What the skill measures under Star Levels (null: as `what`).")
 
 
 class MissCauseMeta(BaseModel):
@@ -37,6 +39,7 @@ class Meta(BaseModel):
     miss_causes: list[MissCauseMeta]
     date_choices: list[Choice]
     replay_sets: list[Choice]
+    rating_engines: list[Choice]
     best_definition: str
     latest_choices: list[int] = Field(description="Replay counts to analyse; 0 = all.")
     periods: list[str]

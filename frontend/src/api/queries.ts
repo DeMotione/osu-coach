@@ -77,7 +77,7 @@ export function usePatchSettings() {
       qc.setQueryData(keys.settings, settings);
       if ("player" in patch || "client" in patch) void qc.invalidateQueries({ queryKey: keys.playGoals });
       // the change is done once the pages built from the profile have been recalculated: until then it is pending
-      if ("replay_set" in patch || "level_override" in patch) return invalidateResults(qc);
+      if ("replay_set" in patch || "level_override" in patch || "rating_engine" in patch) return invalidateResults(qc);
     },
   });
 }

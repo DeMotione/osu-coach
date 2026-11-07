@@ -5,10 +5,9 @@ import math
 
 import pytest
 
-from osu_coach.domain.player.demand import log_demand
-from osu_coach.domain.player.messages import Message
-from osu_coach.domain.player.ratings import POINTS, _accuracy_expected, _expected
-from osu_coach.domain.player.readiness import (
+from osu_coach.domain.player.engines.comfort.demand import log_demand
+from osu_coach.domain.player.engines.comfort.ratings import POINTS, _accuracy_expected, _expected
+from osu_coach.domain.player.engines.comfort.readiness import (
     MAX_GAP,
     PASS_AT_LEVEL,
     SKILLS,
@@ -18,6 +17,7 @@ from osu_coach.domain.player.readiness import (
     scores_at,
     targets,
 )
+from osu_coach.domain.player.messages import Message
 from osu_coach.domain.player.records import SkillRating, StaminaPart
 
 WINDOWS = [(79.5 - 6 * 8, 1.0), (79.5 - 6 * 9, 1.0)]  # OD 8 and OD 9

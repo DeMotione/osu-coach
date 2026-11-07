@@ -22,6 +22,7 @@ def new_goal(
     today: dt.date,
     score_source: str = "legacy",
     score_version: int | None = None,
+    engine: str | None = None,
 ) -> dict:
     goal = {
         "id": goal_id,
@@ -35,6 +36,8 @@ def new_goal(
     }
     if score_version is not None:
         goal["score_version"] = score_version
+    if engine is not None:
+        goal["engine"] = engine  # the rating engine whose scores it follows
     return goal
 
 

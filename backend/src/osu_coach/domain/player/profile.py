@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from osu_coach.domain.analysis.models import ReplayMeta
 from osu_coach.domain.player.records import (
@@ -16,6 +17,9 @@ from osu_coach.domain.player.records import (
     WorstQuadrant,
 )
 from osu_coach.domain.player.summary import ChartNotes
+
+if TYPE_CHECKING:
+    from osu_coach.domain.player.engines import Rated
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,3 +216,5 @@ class Profile:
     miss_breakdown_raw: dict = field(default_factory=dict)  # the same, unweighted counts
     fall_behind: FallBehind | None = None  # streams.fall_behind()
     skill_ratings: dict[str, SkillRating] = field(default_factory=dict)  # by skill (ratings.py)
+    engine: str = "comfort"  # the rating engine that made skill_ratings (engines.py)
+    rated: Rated | None = field(default=None, repr=False)  # what that engine gave (None without ratings)

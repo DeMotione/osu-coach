@@ -8,7 +8,9 @@ from collections import Counter
 import numpy as np
 
 from osu_coach.domain.analysis.models import Play
-from osu_coach.domain.player.aim import (
+from osu_coach.domain.player.engines import ComfortEngine, RatingEngine
+from osu_coach.domain.player.levels import LEVEL_BAND, LEVEL_SIGMA, clean_pass, comfort, replay_weight
+from osu_coach.domain.player.measures.aim import (
     angle_table,
     direction_table,
     distance_table,
@@ -18,8 +20,7 @@ from osu_coach.domain.player.aim import (
     regression,
     worst_quadrant,
 )
-from osu_coach.domain.player.levels import LEVEL_BAND, LEVEL_SIGMA, clean_pass, comfort, replay_weight
-from osu_coach.domain.player.miss_notes import (
+from osu_coach.domain.player.measures.miss_notes import (
     MissNotes,
     aim_split,
     consistency_metrics,
@@ -27,7 +28,10 @@ from osu_coach.domain.player.miss_notes import (
     reading_metrics,
     skill_levels,
 )
-from osu_coach.domain.player.moments import Moments, weighted_std
+from osu_coach.domain.player.measures.moments import Moments, weighted_std
+from osu_coach.domain.player.measures.stamina import STAMINA_REACH
+from osu_coach.domain.player.measures.streams import fall_behind, speed_profile, stream_limits
+from osu_coach.domain.player.measures.tapping import press_metrics, timing_metrics
 from osu_coach.domain.player.profile import (
     Aim,
     Consistency,
@@ -39,28 +43,32 @@ from osu_coach.domain.player.profile import (
     Sliders,
     Tapping,
 )
-from osu_coach.domain.player.ratings import combine_ratings, strengths_and_weaknesses
 from osu_coach.domain.player.records import PressLengths
-from osu_coach.domain.player.stamina import STAMINA_REACH
-from osu_coach.domain.player.streams import fall_behind, speed_profile, stream_limits
 from osu_coach.domain.player.summary import ChartNotes, PlaySummary, summarize
-from osu_coach.domain.player.tapping import press_metrics, timing_metrics
 
 
 def build_profile(
-    analyses: list[Play], level: float | None = None, weighted: bool = True, with_ratings: bool = True
+    analyses: list[Play],
+    level: float | None = None,
+    weighted: bool = True,
+    with_ratings: bool = True,
+    engine: RatingEngine | None = None,
 ) -> Profile:
     """:func:`build_profile_from` the summaries of these analysed plays."""
-    return build_profile_from([summarize(a) for a in analyses], level, weighted, with_ratings)
+    return build_profile_from([summarize(a) for a in analyses], level, weighted, with_ratings, engine)
 
 
 def build_profile_from(
-    summaries: list[PlaySummary], level: float | None = None, weighted: bool = True, with_ratings: bool = True
+    summaries: list[PlaySummary],
+    level: float | None = None,
+    weighted: bool = True,
+    with_ratings: bool = True,
+    engine: RatingEngine | None = None,
 ) -> Profile:
     """Profile of these replays. The player's level is their comfort level (:func:`comfort`, measured or
     provisional) unless ``level`` (★) is given; with ``weighted`` every replay counts by how close its star rating
     is to that level (:func:`replay_weight`), otherwise all count fully. The skill ratings need a measured comfort
-    level (or ``level``)."""
+    level (or ``level``); ``engine`` rates them (:mod:`engines`; default: the comfort ratings)."""
     replays = tuple(sm.meta for sm in summaries)
     found = comfort(replays)
     override = level is not None and bool(np.isfinite(level))
@@ -139,10 +147,10 @@ def build_profile_from(
     levels["comfort_status"] = "override" if override else found.status
     levels["comfort_setups"] = found.setups
     levels["comfort_source"] = "Manual override" if override else "Recent successful map/mod configurations"
-    skill_ratings = (
-        combine_ratings([sm.ratings for sm in summaries], replays, levels["comfort_stars"]) if with_ratings else {}
-    )
-    strengths, weaknesses = strengths_and_weaknesses(skill_ratings)
+    engine = engine or ComfortEngine()
+    rated = engine.rate(summaries, replays, levels["comfort_stars"]) if with_ratings else None
+    skill_ratings = rated.skills if rated else {}
+    strengths, weaknesses = (rated.strengths, rated.weaknesses) if rated else ([], [])
     return Profile(
         overview=Overview(**overview),
         replays=replays,
@@ -172,6 +180,8 @@ def build_profile_from(
         miss_breakdown_raw=miss_breakdown_raw,
         fall_behind=FallBehind(**fall),
         skill_ratings=skill_ratings,
+        engine=rated.engine if rated else engine.name,
+        rated=rated,
     )
 
 

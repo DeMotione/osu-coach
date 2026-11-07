@@ -10,6 +10,7 @@ from osu_coach.common.setup import SetupModel
 from osu_coach.domain.replays.selection import DateRange, Latest, SourceMode
 
 ReplaySet = Literal["all", "best"]
+RatingEngine = Literal["comfort", "irt"]
 
 
 class AppSettings(BaseModel):
@@ -22,6 +23,9 @@ class AppSettings(BaseModel):
     date_from: dt.date | None = None
     date_to: dt.date | None = None
     replay_set: ReplaySet = "all"
+    rating_engine: RatingEngine = Field(
+        "comfort", description="The engine that makes the skill ratings; irt (Star-Scale IRT) is experimental."
+    )
     level_override: float | None = Field(None, description="Level (★) set by hand; null = detected.")
     player: str | None = Field(None, description="Player analysed last; '*' = all players.")
     manual_comfort: float = Field(2.5, description="Star rating for playlists without analysed replays.")
@@ -42,6 +46,7 @@ class SettingsPatch(Request):
     date_from: dt.date | None = None
     date_to: dt.date | None = None
     replay_set: ReplaySet | None = None
+    rating_engine: RatingEngine | None = None
     level_override: float | None = Field(None, ge=1.0, le=12.0)
     player: str | None = Field(None, max_length=200)
     manual_comfort: float | None = Field(None, ge=1.0, le=8.0)

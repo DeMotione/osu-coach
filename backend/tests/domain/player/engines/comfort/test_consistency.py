@@ -5,8 +5,8 @@ import pandas as pd
 import pytest
 
 from osu_coach.common.texts import message
-from osu_coach.domain.player import consistency
-from osu_coach.domain.player.consistency import STAR_MIN_MAPS, combo_scale, map_score
+from osu_coach.domain.player.engines.comfort import consistency
+from osu_coach.domain.player.engines.comfort.consistency import STAR_MIN_MAPS, combo_scale, map_score
 from tests.domain.player.helpers import records
 
 

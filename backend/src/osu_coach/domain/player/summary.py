@@ -19,14 +19,15 @@ from osu_coach.domain.analysis.events import Events, events
 from osu_coach.domain.analysis.models import Play, ReplayMeta
 from osu_coach.domain.analysis.notes import HitObjects
 from osu_coach.domain.numeric.arrays import ArrayRecord, Bools, Floats, Ints, Texts
-from osu_coach.domain.player.aim import AimSummary, JumpSummary, aim_summary, jump_summary
 from osu_coach.domain.player.algorithm import timing_evidence_eligible
 from osu_coach.domain.player.constants import FAST_JUMP_MS
-from osu_coach.domain.player.miss_notes import MissNotes, miss_notes
-from osu_coach.domain.player.ratings import RatingInputs, rating_inputs
-from osu_coach.domain.player.skill_values import PlayContext
-from osu_coach.domain.player.streams import StreamSummary, stream_summary
-from osu_coach.domain.player.tapping import PressSummary, TimingSummary, press_summary, timing_summary
+from osu_coach.domain.player.engines.comfort.ratings import RatingInputs, rating_inputs
+from osu_coach.domain.player.engines.comfort.skill_values import PlayContext
+from osu_coach.domain.player.engines.irt.items import IrtGroups, group_table
+from osu_coach.domain.player.measures.aim import AimSummary, JumpSummary, aim_summary, jump_summary
+from osu_coach.domain.player.measures.miss_notes import MissNotes, miss_notes
+from osu_coach.domain.player.measures.streams import StreamSummary, stream_summary
+from osu_coach.domain.player.measures.tapping import PressSummary, TimingSummary, press_summary, timing_summary
 from osu_coach.domain.replays.configuration import from_meta
 
 
@@ -141,6 +142,7 @@ class PlaySummary:
     events: Events  # misses, combo and slider breaks
     stream_share: float  # of the played notes: in streams
     jump_share: float  # ... jumps
+    irt: IrtGroups  # the notes as Star-Scale IRT items against their difficulty, grouped (engines/irt)
 
 
 def summarize(play: Play) -> PlaySummary:
@@ -170,6 +172,7 @@ def summarize(play: Play) -> PlaySummary:
         ),
         presses=press_summary(play.notes, play.presses, m.rate),
         miss=miss_notes(played, m.stars, m.ar, bool(m.mods & 8), miss_causes(played), fast_pattern(played)),
+        irt=group_table(played, m, timing_evidence_eligible(m.mods, m.accuracy)),
     )
 
 

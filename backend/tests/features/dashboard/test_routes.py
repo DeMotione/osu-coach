@@ -173,6 +173,20 @@ def test_best_replays_switch_rebuilds_the_profile(client):
     assert [r["key"] for r in client.get("/api/profile/replays").json()] == ["retry"]
 
 
+def test_rating_engine_switch_rebuilds_the_profile(client):
+    ws = workspace(client)
+    ws.set_plays([summarize(a) for a in _two_plays_of_one_map()], [], "tester")
+    before = ws.profile()
+    assert before.engine == "comfort"
+    client.patch("/api/settings", json={"rating_engine": "irt"})
+    assert ws.profile() is not before and ws.profile().engine == "irt"  # rebuilt for the other engine
+    ov = client.get("/api/profile/overview").json()
+    assert ov["engine"] == "irt"
+    assert all(s["state"] for s in ov["skills"] if s["key"] != "consistency")
+    client.patch("/api/settings", json={"rating_engine": "comfort"})
+    assert ws.profile().engine == "comfort"
+
+
 def test_level_override_is_used_and_remembered(client):
     workspace(client).set_plays([summarize(a) for a in _two_plays_of_one_map()], [], "tester")
     client.patch("/api/settings", json={"level_override": 3.0})
@@ -181,6 +195,18 @@ def test_level_override_is_used_and_remembered(client):
     assert lv["stars"] == 3.0 and lv["override"]
     client.patch("/api/settings", json={"level_override": None})
     assert client.get("/api/profile/overview").json()["level"]["override"] is False
+
+
+def test_star_levels_ignore_a_level_set_by_hand_and_keep_it(client):
+    workspace(client).set_plays([summarize(a) for a in _two_plays_of_one_map()], [], "tester")
+    client.patch("/api/settings", json={"level_override": 3.0, "rating_engine": "irt"})
+    lv = client.get("/api/profile/overview").json()["level"]
+    assert lv["override"] is False and lv["stars"] != 3.0  # Star Levels measures against the maps themselves
+    assert load_settings(workspace(client).cache_dir)["level_override"] == 3.0  # kept for Comfort Score
+    client.patch("/api/settings", json={"rating_engine": "comfort"})
+    lv = client.get("/api/profile/overview").json()["level"]
+    assert lv["override"] and lv["stars"] == 3.0
+    client.patch("/api/settings", json={"level_override": None})
 
 
 # ------------------------------------------------------------------ tips and setup tips

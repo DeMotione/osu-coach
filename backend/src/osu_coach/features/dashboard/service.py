@@ -15,9 +15,10 @@ from osu_coach.common.texts import SKILL_LABELS, message
 from osu_coach.domain.maps.skillset import recommend
 from osu_coach.domain.maps.suggestions import targets_from_profile
 from osu_coach.domain.player import Profile, weight_table
-from osu_coach.domain.player.consistency import star_consistency
-from osu_coach.domain.player.ratings import MIN_MAPS
-from osu_coach.domain.player.readiness import MAX_GAP, compare_at, default_target, targets
+from osu_coach.domain.player.engines import ENGINE_LABELS, Rated, compare
+from osu_coach.domain.player.engines.comfort.consistency import star_consistency
+from osu_coach.domain.player.engines.comfort.ratings import MIN_MAPS
+from osu_coach.domain.player.engines.comfort.readiness import MAX_GAP, default_target, targets
 from osu_coach.domain.player.records import UNRATED, SkillRating
 from osu_coach.features.dashboard import charts
 from osu_coach.features.dashboard import schemas as S
@@ -75,6 +76,67 @@ def analysed_replays(p: Profile) -> list[S.AnalysedReplay]:
 
 
 # ------------------------------------------------------------------ skill facts (Overview hover)
+# what a Comfort-Based 50 is: an assumption about the comfort level's maps, not measured on other players
+COMFORT_50 = "50 = what maps at your comfort level ask for (assumed)"
+
+
+def natural_text(row: SkillRating) -> str | None:
+    """An IRT ability in units players know (BPM, AR, OD); None for the other skills."""
+    natural = num(row.natural)
+    if natural is None or row.state not in ("measured", "provisional"):
+        return None
+    unit = row.natural_unit
+    if unit == "BPM":
+        return f"≈ {natural:.0f} BPM"
+    if unit == "OD":
+        return f"≈ 90% 300s at OD {natural:.1f}"
+    if unit == "AR":
+        return f"≈ AR {natural:.1f}"
+    return None
+
+
+def irt_stars(row: SkillRating) -> tuple[float | None, float | None, float | None]:
+    """An IRT rating's map star rating with its range, as shown. A lower bound (``untested``) is never put above the
+    hardest maps the player played of the skill: nothing harder was seen, so "holds up on 9★ maps" can't be said."""
+    stars, low, high = num(row.stars), num(row.stars_low), num(row.stars_high)
+    played = num((row.reason.values or {}).get("maps")) if row.state == "untested" and row.reason else None
+    if stars is not None and played is not None and stars > played:
+        stars = low = played
+    return stars, low, high
+
+
+def irt_level_text(row: SkillRating) -> str | None:
+    """An IRT rating as the map star rating the skill holds up on (up to there the player fails about 2 in 100 of
+    its notes, accuracy: hits 90% of single notes as 300s, on maps made like theirs), with its likely range and
+    units players know; None without a measured or lower-bound rating."""
+    stars, low, high = irt_stars(row)
+    if stars is None:
+        return None
+    if row.state == "untested":
+        return f"{stars:.1f}★+ · limit not found yet · {message(row.reason)}"
+    if row.state not in ("measured", "provisional"):
+        return None
+    text = f"holds up on {stars:.1f}★ maps"
+    if low is not None and high is not None and round(high, 1) > round(low, 1):
+        text += f" (likely {low:.1f}–{high:.1f}★)"
+    shown = natural_text(row)
+    return f"{text} · {shown}" if shown else text
+
+
+def irt_facts(row: SkillRating) -> list[str]:
+    """The numbers behind an IRT rating: the 0–100 score other pages read (against maps of the player's level, not
+    against other players) and what it is fitted on."""
+    facts = []
+    level = num(row.expected)
+    if row.score is not None and level is not None:
+        bound = "at least " if row.state == "untested" else ""
+        facts.append(f"{bound}{row.score:.0f} of 100 against maps of your level ({level:.1f}★), for charts and goals")
+    facts.append(f"worked out from every note of {row.maps} plays")
+    if row.reason and row.state not in ("measured", "untested"):  # untested: its reason is the score text already
+        facts.append(message(row.reason))
+    return facts
+
+
 def skill_facts(skill: str, row: SkillRating) -> list[str]:
     """The player's own numbers behind a skill rating."""
     if skill == "consistency":
@@ -92,6 +154,8 @@ def skill_facts(skill: str, row: SkillRating) -> list[str]:
                 + (f"; {row.weak_maps} maps under 20% of the combo" if row.weak_maps else "")
             )
         return facts
+    if row.state is not None:
+        return irt_facts(row)
     facts = [f"{row.maps} relevant map/mod configurations"]
     measured, expected = num(row.measured), num(row.expected)
     if measured is not None and expected is not None:
@@ -144,10 +208,16 @@ def overview(p: Profile) -> S.Overview:
     def skill_row(k: str) -> S.SkillScore:
         row = p.skill_ratings.get(k, UNRATED)
         score = num(relative_scores.get(k))
-        at_least = num(row.at_least) if score is None and comfort_level else None
-        if score is not None:
+        at_least = num(row.at_least) if (score is None or row.state == "untested") and comfort_level else None
+        level_text = irt_level_text(row) if row.state is not None else None
+        shown_stars = irt_stars(row)
+        if level_text is not None:  # Star-Scale IRT: the map star rating the skill holds up on
+            text = level_text
+        elif score is not None:
             what = "combo and accuracy held from map to map around your level" if k == "consistency" else None
-            text = f"{score:.0f} · {what or '50 = typical for your comfort level'}"
+            text = f"{score:.0f} of 100 · {what or COMFORT_50}"
+        elif row.state is not None:  # Star-Scale IRT: why there's no score, in words
+            text = message(row.reason) or "not enough data"
         elif at_least is not None:
             text = f"at least {at_least:.0f} · your maps haven't tested it to its limit yet"
         else:
@@ -161,8 +231,14 @@ def overview(p: Profile) -> S.Overview:
             too_few_misses=False,
             n=int(row.hit_single_notes or row.maps or 0),
             facts=skill_facts(k, row),
-            needs=message(row.needs) if score is None else None,
+            needs=message(row.needs) if score is None or (row.state == "untested" and score < 100) else None,
             at_least=at_least,
+            stars=shown_stars[0],
+            stars_low=shown_stars[1],
+            stars_high=shown_stars[2],
+            state=row.state,
+            natural=num(row.natural),
+            natural_unit=row.natural_unit,
         )
 
     skills = [skill_row(k) for k in SKILL_LABELS]
@@ -201,6 +277,8 @@ def overview(p: Profile) -> S.Overview:
         aim_split=aim_split,
         sim_exact_share=num(ov.sim_exact_share),
         sim_agreement=num(ov.sim_agreement),
+        engine=p.engine,
+        engine_label=ENGINE_LABELS.get(p.engine, p.engine),
     )
 
 
@@ -226,6 +304,7 @@ def star_compare(p: Profile) -> S.StarCompare:
     comfort = num(p.levels.comfort_stars)
     if comfort is None:
         return S.StarCompare(comfort=None, max_gap=MAX_GAP, targets=[], default_target=None)
+    rated = p.rated or Rated(engine=p.engine, skills=p.skill_ratings)
     out = []
     for stars, locked in targets(comfort):
         if locked:
@@ -234,9 +313,17 @@ def star_compare(p: Profile) -> S.StarCompare:
             )
             continue
         at_comfort = stars == round(comfort, 1)  # exactly the comfort level, so it shows its own scores
-        c = compare_at(p.skill_ratings, comfort, comfort if at_comfort else stars)
+        c = compare(rated, comfort, comfort if at_comfort else stars)
         skills = [
-            S.CompareSkill(key=k, score=num(v.score), change=num(v.change), demand=num(v.demand), maps=None, needs=None)
+            S.CompareSkill(
+                key=k,
+                score=num(v.score),
+                change=num(v.change),
+                demand=num(v.demand),
+                maps=None,
+                needs=None,
+                at_least=num(v.at_least),
+            )
             if v
             else S.CompareSkill(key=k, score=None, change=None, demand=None, maps=None, needs=None)
             for k, v in c.skills.items()

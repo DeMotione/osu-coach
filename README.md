@@ -8,9 +8,11 @@ Analyses your own osu!standard replays and tells you what to work on:
 - **Statistics** for tapping (unstable rate, timing bias, stream speed, falling behind in streams,
   key alternation and holds), aim (miss causes, over/undershoot, direction, jump distance and angle),
   sliders, reading (AR, dense parts) and consistency.
-- **Strong and weak sides.** Each skill gets a rating from 0 to 100 against what is typical at your comfort
-  level (50 = typical); higher is better. The Overview, the tips and the playlists all name the same strengths
-  and weaknesses.
+- **Strong and weak sides.** Eight skills with plain names (Jumps, Spaced streams, Tapping speed, Stamina,
+  Accuracy, Sliders, Reading, Consistency). **Comfort Score** gives each a score from 0 to 100, where 50 = what maps
+  at your comfort level ask for (assumed from ranked maps, not compared with other players); **Star Levels**
+  (experimental) shows each as the map star rating it holds up on. The Overview, the tips and the playlists all
+  name the same strengths and weaknesses.
 - **Quadrant analysis.** Shows which screen quadrant you miss in most, checks the difference is
   statistically real, and suggests how to fix it (area placement, arm/wrist reach, practice).
 - **Setup tips.** Concrete tablet area or mouse sensitivity changes measured from your jumps (scale,

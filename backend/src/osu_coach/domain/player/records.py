@@ -43,7 +43,9 @@ class SpeedRow:
     ur_plays: int
     ur_pooled: float
     mean_err: float
-    ur_trend: float = math.nan  # the UR expected at this speed (:func:`~osu_coach.domain.player.streams.ur_trend`)
+    ur_trend: float = (
+        math.nan
+    )  # the UR expected at this speed (:func:`~osu_coach.domain.player.measures.streams.ur_trend`)
     weak: bool = False  # the UR is well above the trend: a speed you are weak at
 
 
@@ -129,7 +131,7 @@ class StaminaPart:
 
 @dataclass(frozen=True, slots=True)
 class SkillRating:
-    """A skill's rating against the comfort level (50 = what is typical there; None: not enough data) and how it was
+    """A skill's rating against the comfort level (50 = what its maps demand; None: not enough data) and how it was
     measured. Only some skills fill the optional numbers: stamina its ``parts``, accuracy the OD windows,
     consistency its range of maps."""
 
@@ -156,6 +158,13 @@ class SkillRating:
     mean_combo: float | None = None
     full_combo_share: float | None = None
     mean_accuracy: float | None = None
+    # Star-Scale IRT (engines/irt): the ability in stars, its 90% range, how sure it is and what it means in units
+    stars: float | None = None
+    stars_low: float | None = None
+    stars_high: float | None = None
+    state: str | None = None  # measured | provisional | untested | not_enough_data | failed
+    natural: float | None = None
+    natural_unit: str | None = None
 
 
 UNRATED = SkillRating(score=None, maps=0, reason=Message("not_enough_data"))  # a skill without a rating
