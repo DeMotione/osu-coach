@@ -118,7 +118,7 @@ class AimSplit:
 class StaminaPart:
     """The stamina rating at one stretch duration (s): the fastest tempo kept over it on the best map/mod setups
     (``measured``), the tempo typical at the comfort level (``expected``) and the hardest one played
-    (``tested_demand``). ``untested``: nothing played was demanding enough to tell."""
+    (``tested_demand``). ``untested``: nothing played was demanding enough to tell; ``counts``: part of the rating."""
 
     duration: int
     measured: float
@@ -127,6 +127,7 @@ class StaminaPart:
     success_share: float
     expected: float
     untested: bool
+    counts: bool = False
 
 
 @dataclass(frozen=True, slots=True)

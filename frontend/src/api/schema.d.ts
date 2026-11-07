@@ -898,6 +898,11 @@ export interface components {
             /** Error */
             error: string | null;
             /**
+             * Code
+             * @description A failed job's error code (stable, like an error response's).
+             */
+            code?: string | null;
+            /**
              * Created At
              * Format: date-time
              */
@@ -1888,6 +1893,11 @@ export interface components {
             /** Error */
             error: string | null;
             /**
+             * Code
+             * @description A failed job's error code (stable, like an error response's).
+             */
+            code?: string | null;
+            /**
              * Created At
              * Format: date-time
              */
@@ -2213,6 +2223,11 @@ export interface components {
             /** Error */
             error: string | null;
             /**
+             * Code
+             * @description A failed job's error code (stable, like an error response's).
+             */
+            code?: string | null;
+            /**
              * Created At
              * Format: date-time
              */
@@ -2365,6 +2380,11 @@ export interface components {
             message: string;
             /** Error */
             error: string | null;
+            /**
+             * Code
+             * @description A failed job's error code (stable, like an error response's).
+             */
+            code?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -2619,6 +2639,11 @@ export interface components {
             /** Error */
             error: string | null;
             /**
+             * Code
+             * @description A failed job's error code (stable, like an error response's).
+             */
+            code?: string | null;
+            /**
              * Created At
              * Format: date-time
              */
@@ -2865,6 +2890,11 @@ export interface components {
             message: string;
             /** Error */
             error: string | null;
+            /**
+             * Code
+             * @description A failed job's error code (stable, like an error response's).
+             */
+            code?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -4928,6 +4958,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description Required local data is unavailable or incompatible; `code` identifies it. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
     hide_api_maps_hidden_post: {
@@ -5020,6 +5059,15 @@ export interface operations {
             };
             /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Required local data is unavailable or incompatible; `code` identifies it. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

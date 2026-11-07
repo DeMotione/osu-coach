@@ -4,8 +4,9 @@ import pytest
 
 from osu_coach.domain.player import build_profile_from, summarize
 from osu_coach.domain.player.engines import COMFORT, ENGINES, ComfortEngine, Rated, compare, engine_name, make_engine
-from osu_coach.domain.player.engines.comfort.ratings import combine_ratings, strengths_and_weaknesses
+from osu_coach.domain.player.engines.comfort.ratings import combine_ratings
 from osu_coach.domain.player.engines.comfort.readiness import compare_at
+from osu_coach.domain.player.engines.ranking import strengths_and_weaknesses
 from osu_coach.infra.library import analyze_files
 from tests.conftest import MOT1ONE, OTHERS, replay_and_map
 

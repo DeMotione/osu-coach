@@ -155,7 +155,7 @@ def test_accuracy_maps_have_tight_hit_windows_for_the_level():
 def test_irt_tapping_speed_is_put_on_the_recommenders_tempo_scale():
     from types import SimpleNamespace
 
-    from osu_coach.domain.player.engines.comfort.skill_scale import speed_rating
+    from osu_coach.domain.player.engines.skill_scale import speed_rating
     from osu_coach.domain.player.messages import Message
     from osu_coach.domain.player.records import SkillRating
     from osu_coach.features.maps.service import measured_abilities

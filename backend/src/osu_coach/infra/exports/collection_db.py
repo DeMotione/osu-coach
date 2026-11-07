@@ -10,13 +10,13 @@ Collection Manager read, so one exported file works for both clients.
 
 from __future__ import annotations
 
-import datetime as _dt
 import os
 import shutil
 import struct
 from pathlib import Path
 
 from osu_coach.domain.exports.downloads import merge_collections
+from osu_coach.infra import clock
 
 DEFAULT_VERSION = 20150203  # same version osu-collect / osu-db write
 
@@ -140,7 +140,7 @@ def merge_into(path, new_collections, backup: bool = True) -> dict:
     if path.exists():
         version, existing = read_collection_db(path)
         if backup:
-            stamp = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+            stamp = clock.now().astimezone().strftime("%Y%m%d-%H%M%S")  # local time, as the player reads it
             backup_path = path.with_name(f"{path.name}.osu-coach-backup-{stamp}")
             shutil.copy2(path, backup_path)
     merged, replaced, added = merge_collections(existing, _normalise(new_collections))

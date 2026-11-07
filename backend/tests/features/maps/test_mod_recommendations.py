@@ -243,7 +243,7 @@ def test_missing_rating_search_skips_map_retrieval_and_reports_zero_coverage(
         profile=lambda: None,
         settings=lambda: UserSettings(),
         library=None,
-        check_library=None,
+        libraries=lambda: [],
         preferred_client=lambda: "stable",
         plays=[],
         cache_dir=tmp_path,

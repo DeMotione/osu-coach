@@ -18,7 +18,7 @@ Every statistic is weighted by the replay weight (column ``w`` on the objects an
 
 from __future__ import annotations
 
-from osu_coach.domain.player.build import build_profile, build_profile_from
+from osu_coach.domain.player.build import build_profile, build_profile_from, profile_for
 from osu_coach.domain.player.constants import SKILLS
 from osu_coach.domain.player.levels import (
     LEVEL_BAND,
@@ -41,6 +41,7 @@ __all__ = [
     "SKILLS",
     "build_profile",
     "build_profile_from",
+    "profile_for",
     "PlaySummary",
     "summarize",
     "comfort",

@@ -1,22 +1,14 @@
-"""Readiness for another star rating: the comfort-level scores moved to it and the clean-pass chance."""
+"""The comfort engine's readiness for another star rating: its comfort-level scores moved to it."""
 
 import dataclasses
 import math
 
 import pytest
 
-from osu_coach.domain.player.engines.comfort.demand import log_demand
 from osu_coach.domain.player.engines.comfort.ratings import POINTS, _accuracy_expected, _expected
-from osu_coach.domain.player.engines.comfort.readiness import (
-    MAX_GAP,
-    PASS_AT_LEVEL,
-    SKILLS,
-    _sigma_for,
-    compare_at,
-    default_target,
-    scores_at,
-    targets,
-)
+from osu_coach.domain.player.engines.comfort.readiness import _sigma_for, compare_at, scores_at
+from osu_coach.domain.player.engines.demand import log_demand
+from osu_coach.domain.player.engines.readiness import PASS_AT_LEVEL, SKILLS
 from osu_coach.domain.player.messages import Message
 from osu_coach.domain.player.records import SkillRating, StaminaPart
 
@@ -104,29 +96,3 @@ def test_skills_without_a_comfort_score_have_none():
     at = scores_at(r, 5.0, 6.0)
     assert at["aim"] is None and at["accuracy"] is None and at["speed"] is not None
     assert all(v is None for v in scores_at(r, None, 6.0).values())
-
-
-@pytest.mark.parametrize("comfort", [1.0, 1.4, 4.9, 6.3, 7.0, 11.4, 12.6, 12.9, 13.0])
-def test_the_star_ratings_to_compare_with(comfort):
-    options = targets(comfort)
-    stars = [s for s, _ in options]
-    base = round(comfort, 1)
-    assert stars == sorted(stars) and len(set(stars)) == len(stars)
-    assert stars[0] == 1.0 and stars[-1] == 13.0
-    assert (base, False) in options and (default_target(comfort), False) in options
-    assert {float(s) for s in range(1, 14)} <= set(stars)  # every whole star
-    for s, locked in options:  # only more than 2★ above is locked: any easier star rating is open
-        assert locked == (s > base + MAX_GAP + 1e-9), s
-    assert all(s == int(s) for s, locked in options if locked)
-
-
-@pytest.mark.parametrize(
-    "comfort,near,default",
-    [(6.15, [5.5, 6.0, 6.5, 7.0], 6.2), (6.55, [6.0, 6.5, 7.0, 7.5], round(6.55, 1)), (6.0, [5.5, 6.0, 6.5, 7.0], 6.0)],
-)
-def test_half_stars_near_the_comfort_level(comfort, near, default):
-    """The two half stars either side of the comfort level, the whole stars and the comfort level itself."""
-    stars = [s for s, _ in targets(comfort)]
-    base = round(comfort, 1)
-    assert {s for s in stars if s != int(s)} - {base} == {s for s in near if s != int(s)} - {base}
-    assert set(near) <= set(stars) and default_target(comfort) == default

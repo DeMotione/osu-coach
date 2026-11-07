@@ -24,7 +24,6 @@ from osu_coach.features.play_goals import repository, texts
 from osu_coach.features.play_goals.schemas import PlayGoalOptions, PlayGoalRequest, PlayGoalResult
 from osu_coach.infra import summaries
 from osu_coach.infra.jobs import Reporter
-from osu_coach.infra.library import Library
 from osu_coach.infra.replays.osr import lazer_info
 from osu_coach.infra.uploads import known_replay
 
@@ -80,7 +79,7 @@ def options(ws: Workspace) -> PlayGoalOptions:
 def validate_request(ws: Workspace, request: PlayGoalRequest) -> None:
     if request.goal == "fc":
         if request.replay_path:
-            known_replay(request.replay_path, ws.cache_dir, (ws.library, ws.check_library))
+            known_replay(request.replay_path, ws.cache_dir, ws.libraries())
         else:
             try:
                 beatmap_id(request.beatmap or "")
@@ -120,13 +119,8 @@ def _replay_target(
     ws: Workspace, request: PlayGoalRequest, player: str | None, has_plays: bool, warnings: list[str], report: Reporter
 ) -> _ReplayTarget:
     """The target from a replay: analyse it and the player's other attempts of its map."""
-    path = known_replay(request.replay_path or "", ws.cache_dir, (ws.library, ws.check_library))
-    lib = ws.replay_library()
-    if lib is None:
-        lib = ws.check_library = Library(ws.cache_dir)
-    if not any(str(r["path"]) == str(path) for r in lib.replays):
-        lib.add_files([path])
-    ref = next((r for r in lib.replays if str(r["path"]) == str(path)), None)
+    path = known_replay(request.replay_path or "", ws.cache_dir, ws.libraries())
+    lib, ref = ws.open_replay(path)
     if ref is None or not analysable(ref):
         raise Invalid("This replay cannot be used for a standard play goal.", "goal_replay_unsupported")
     missing = lib.missing_maps([ref])
@@ -256,7 +250,7 @@ def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayG
         else:
             report.note("Resolving the target difficulty")
             client = "lazer"
-            libraries = [lib for lib in (ws.library, ws.check_library) if lib]
+            libraries = ws.libraries()
             raw = repository.target_bytes(
                 ws.cache_dir, beatmap_id(request.beatmap or ""), libraries, request.online, pool
             )

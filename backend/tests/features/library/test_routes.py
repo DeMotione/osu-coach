@@ -112,7 +112,7 @@ def test_selection_by_count_and_date(tmp_path, client):
     r = client.get(
         "/api/library/selection", params={"date_range": "custom", "date_from": "2026-10-01", "date_to": "2026-09-01"}
     )
-    assert r.status_code == 422 and r.json()["code"] == "bad_date_range"
+    assert r.status_code == 422 and r.json()["code"] == "invalid_date_range"
     session = client.get("/api/library/selection", params={"date_range": "session"}).json()
     assert 1 <= session["replays"] <= 3
     r = client.post("/api/analysis", json={"date_range": "custom", "date_from": "2020-01-01", "date_to": "2020-01-31"})

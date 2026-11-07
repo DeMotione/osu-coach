@@ -21,13 +21,15 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from osu_coach.common.errors import ApiError, Busy, NotCancellable, NotFound
+from osu_coach.infra import clock
 
 log = logging.getLogger("osu_coach.infra.jobs")
 KEEP_JOBS = 50
+FAILED = "job_failed"  # the code of a failure that is no ApiError
 
 
 def _now() -> dt.datetime:
-    return dt.datetime.now(dt.UTC)
+    return clock.now()
 
 
 class Cancelled(Exception):  # noqa: N818 - not an error: the user stopped the job
@@ -68,6 +70,7 @@ class Job:
     message: str = ""
     result: Any = None
     error: str | None = None
+    code: str | None = None  # the error's stable code, with error
     created_at: dt.datetime = field(default_factory=_now)
     finished_at: dt.datetime | None = None
     cancellable: bool = False
@@ -133,16 +136,16 @@ class JobManager:
     def _run(self, job: Job, work: Callable[[Reporter], Any], exclusive: bool) -> None:
         # the gate opens before the job shows as finished: a client that sees it finished may start the next task
         # (e.g. clear the added files right after a scan) and must not be refused as busy
-        done: dict[str, Any] = {"status": "failed", "error": "The task stopped."}
+        done: dict[str, Any] = {"status": "failed", "error": "The task stopped.", "code": FAILED}
         try:
             done = {"status": "succeeded", "result": work(Reporter(job)), "progress": 1.0}
         except Cancelled:
             done = {"status": "cancelled", "message": "Cancelled."}
         except ApiError as exc:
-            done = {"status": "failed", "error": exc.message}
+            done = {"status": "failed", "error": exc.message, "code": exc.code}
         except Exception as exc:  # noqa: BLE001 - a job failure is reported to the client, not raised
             log.exception("job %s (%s) failed", job.id, job.kind)
-            done = {"status": "failed", "error": f"{type(exc).__name__}: {exc}"}
+            done = {"status": "failed", "error": f"{type(exc).__name__}: {exc}", "code": FAILED}
         finally:
             if exclusive:
                 self._gate.release()

@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from osu_coach.domain.analysis.models import ReplayMeta
 from osu_coach.domain.player.records import SkillRating
 
 if TYPE_CHECKING:
-    from osu_coach.domain.player.engines.comfort.readiness import Readiness
+    from osu_coach.domain.player.engines.readiness import Readiness
     from osu_coach.domain.player.summary import PlaySummary
 
 COMFORT = "comfort"
@@ -34,7 +34,6 @@ class Rated:
     strengths: list[str] = field(default_factory=list)
     weaknesses: list[str] = field(default_factory=list)
     reference: float | None = None  # ★ the 0–100 scores are relative to (the comfort level, or its stand-in)
-    fit: Any = field(default=None, repr=False)  # the engine's own state, for later questions (IRT: its IrtFit)
 
 
 def measured_scores(skills: Mapping[str, SkillRating]) -> dict[str, float | None]:
@@ -44,6 +43,7 @@ def measured_scores(skills: Mapping[str, SkillRating]) -> dict[str, float | None
 
 class RatingEngine(Protocol):
     name: str
+    uses_level: bool  # whether a level set by hand moves the ratings
 
     def rate(self, summaries: Sequence[PlaySummary], replays: Sequence[ReplayMeta], comfort: float | None) -> Rated:
         """The ratings of these plays against the comfort level ``comfort`` (★; None: not measured)."""
@@ -51,4 +51,8 @@ class RatingEngine(Protocol):
 
     def compare_at(self, rated: Rated, comfort: float, target: float) -> Readiness:
         """The skills on typical maps of ``target`` ★ and the chance to pass them."""
+        ...
+
+    def map_scores(self, skills: Mapping[str, SkillRating], theta: float) -> dict[str, float]:
+        """The scores map suggestions work from: measurements only, on the recommender's scale at ``theta`` ★."""
         ...

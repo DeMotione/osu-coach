@@ -1,12 +1,11 @@
-"""API errors: every error response is ``{"detail": <message>, "code": <machine-readable code>}``."""
+"""API errors: every error response is ``{"detail": <message>, "code": <machine-readable code>}``.
+
+The error types are plain exceptions, so the shared I/O code can raise them too; the web app turns them into
+responses (:mod:`osu_coach.app.errors`)."""
 
 from __future__ import annotations
 
-from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 class ErrorBody(BaseModel):
@@ -67,7 +66,7 @@ def responses(*statuses: int) -> dict:
 
 
 def document_validation_errors(schema: dict) -> dict:
-    """FastAPI documents request validation errors with its own body (``detail`` as a list), but ``install`` answers
+    """FastAPI documents request validation errors with its own body (``detail`` as a list), but the app answers
     them with ``ErrorBody`` like every other error: point those responses at it and drop FastAPI's schemas."""
     for operations in schema.get("paths", {}).values():
         for op in operations.values():
@@ -81,28 +80,3 @@ def document_validation_errors(schema: dict) -> dict:
     for name in ("HTTPValidationError", "ValidationError"):
         components.pop(name, None)
     return schema
-
-
-def install(app: FastAPI) -> None:
-    @app.exception_handler(ApiError)
-    async def _api_error(_: Request, exc: ApiError):
-        return JSONResponse({"detail": exc.message, "code": exc.code}, status_code=exc.status)
-
-    @app.exception_handler(StarletteHTTPException)
-    async def _http_error(_: Request, exc: StarletteHTTPException):
-        code = {404: "not_found", 405: "method_not_allowed"}.get(exc.status_code, "http_error")
-        return JSONResponse(
-            {"detail": str(exc.detail), "code": code},
-            status_code=exc.status_code,
-            headers=getattr(exc, "headers", None),
-        )
-
-    @app.exception_handler(RequestValidationError)
-    async def _validation_error(_: Request, exc: RequestValidationError):
-        parts = []
-        for e in exc.errors():
-            where = ".".join(str(x) for x in e.get("loc", ()) if x not in ("body", "query", "path"))
-            parts.append(f"{where}: {e.get('msg')}" if where else str(e.get("msg")))
-        return JSONResponse(
-            {"detail": "; ".join(parts) or "Invalid request.", "code": "validation_error"}, status_code=422
-        )

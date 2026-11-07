@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from osu_coach.domain.player.engines.comfort import demand_table
-from osu_coach.domain.player.engines.comfort.demand import MIN_SLOPE, SKILLS, fit_demand, log_demand
+from osu_coach.domain.player.engines import demand_table
+from osu_coach.domain.player.engines.demand import MIN_SLOPE, SKILLS, fit_demand, log_demand
 from osu_coach.infra.map_pool import load_pool
 
 

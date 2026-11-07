@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from scalar_fastapi import AgentScalarConfig, get_scalar_api_reference
 
 from osu_coach import __version__
+from osu_coach.app import errors as error_handlers
 from osu_coach.app import jobs, web
 from osu_coach.app.autoanalyze import AutoAnalyzer
 from osu_coach.app.security import LocalOnlyMiddleware
@@ -95,7 +96,7 @@ def create_app(config: Settings | None = None) -> FastAPI:
     session.start_restore(app.state.workspace)
     web_dir = config.web_dir if config.web_dir is not None else find_web_dir()
     app.state.web_dir = web_dir if web_dir is not None and (web_dir / "index.html").is_file() else None
-    errors.install(app)
+    error_handlers.install(app)
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(LocalOnlyMiddleware, allowed_hosts=config.allowed_hosts)
     for module in (system, settings, library, jobs, dashboard, tips, check, progress, maps, exports, play_goals):

@@ -6,30 +6,24 @@ Spec and why it differs from it: docs/star-scale-irt.md.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from osu_coach.domain.analysis.models import ReplayMeta
-from osu_coach.domain.player.engines.base import IRT, Rated
-from osu_coach.domain.player.engines.comfort.consistency import star_consistency
-from osu_coach.domain.player.engines.comfort.demand import log_demand
-from osu_coach.domain.player.engines.comfort.ratings import strengths_and_weaknesses
-from osu_coach.domain.player.engines.comfort.readiness import (
-    PASS_AT_LEVEL,
-    PASS_SPREAD,
-    Readiness,
-    SkillAt,
-)
-from osu_coach.domain.player.engines.comfort.readiness import (
-    SKILLS as READINESS_SKILLS,
-)
+from osu_coach.domain.player.engines.base import IRT, Rated, measured_scores
+from osu_coach.domain.player.engines.consistency import star_consistency
+from osu_coach.domain.player.engines.demand import log_demand
 from osu_coach.domain.player.engines.irt import constants as K
 from osu_coach.domain.player.engines.irt import tables
 from osu_coach.domain.player.engines.irt.anchors import UNITS, natural_at
 from osu_coach.domain.player.engines.irt.fit import IrtFit, SkillFit, fit, held_bound
 from osu_coach.domain.player.engines.irt.merge import Merged, merge
+from osu_coach.domain.player.engines.ranking import strengths_and_weaknesses
+from osu_coach.domain.player.engines.readiness import SKILLS as READINESS_SKILLS
+from osu_coach.domain.player.engines.readiness import Readiness, SkillAt, readiness
+from osu_coach.domain.player.engines.skill_scale import speed_rating
 from osu_coach.domain.player.levels import comfort as comfort_of
 from osu_coach.domain.player.messages import Message
 from osu_coach.domain.player.records import SkillRating
@@ -193,6 +187,7 @@ class IrtEngine:
     """Star-Scale IRT (experimental)."""
 
     name = IRT
+    uses_level = False  # each skill is measured against the maps themselves, not against a level
 
     def fit(self, summaries: Sequence[PlaySummary], prior: float) -> IrtFit:
         return self.fit_merged(merge([(sm.meta, sm.irt) for sm in summaries]), prior)
@@ -222,7 +217,6 @@ class IrtEngine:
             strengths=strengths,
             weaknesses=weaknesses,
             reference=level,
-            fit=result,
         )
 
     def compare_at(self, rated: Rated, comfort: float, target: float) -> Readiness:
@@ -237,11 +231,12 @@ class IrtEngine:
             score = adapter(row.measured, target)
             bound = score if row.at_least is not None else None
             skills[key] = SkillAt(score=score, change=round(score - row.score, 1), demand=demand, at_least=bound)
-        known = {k: v.score for k, v in skills.items() if v is not None and v.score is not None}
-        z = math.log(PASS_AT_LEVEL / (1 - PASS_AT_LEVEL)) - (target - comfort) / PASS_SPREAD
-        return Readiness(
-            target=target,
-            skills=skills,
-            weakest=min(known, key=known.__getitem__) if known else None,
-            pass_chance=round(1 / (1 + math.exp(-max(-35.0, min(35.0, z)))), 4),
-        )
+        return readiness(comfort, target, skills)
+
+    def map_scores(self, skills: Mapping[str, SkillRating], theta: float) -> dict[str, float]:
+        out = {k: float(v) for k, v in measured_scores(skills).items() if v is not None}
+        # the recommender reads tapping speed on the tempo scale, so it comes from the BPM measured
+        speed = skills.get("speed")
+        if "speed" in out and speed is not None and speed.natural is not None and math.isfinite(speed.natural):
+            out["speed"] = round(speed_rating(float(speed.natural), theta), 1)
+        return out

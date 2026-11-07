@@ -13,7 +13,7 @@ from osu_coach.features.maps.schemas import HideMaps, Playlist, PlaylistJob, Pla
 router = APIRouter(tags=["Maps"])
 
 
-@router.get("/maps/suggestions", summary="Comfort-level maps for measured weak skills", responses=responses(422))
+@router.get("/maps/suggestions", summary="Comfort-level maps for measured weak skills", responses=responses(422, 503))
 def suggestions(
     ws: WorkspaceDep,
     kappa: Annotated[float, Query(ge=0)] = 0.5,
@@ -36,7 +36,7 @@ def unhide(ws: WorkspaceDep) -> int:
 
 
 @router.get(
-    "/playlists", summary="A staged playlist (warm-up / core / push) for one skill", responses=responses(409, 422)
+    "/playlists", summary="A staged playlist (warm-up / core / push) for one skill", responses=responses(409, 422, 503)
 )
 def playlist(
     ws: WorkspaceDep,

@@ -26,8 +26,8 @@ from osu_coach.domain.maps.suggestions import (
     skill_label,
     targets_from_profile,
 )
-from osu_coach.domain.player import build_profile_from
-from osu_coach.domain.player.engines import ENGINES, engine_name, make_engine
+from osu_coach.domain.player import profile_for
+from osu_coach.domain.player.engines import ENGINE_LABELS, ENGINES, engine_name, make_engine
 from osu_coach.domain.player.records import UNRATED
 from osu_coach.domain.player.setup import Setup
 from osu_coach.domain.replays import scope
@@ -149,14 +149,15 @@ def _analyze(args, log):
         progress.update(lib.cache, plays, lambda keys: summaries.summaries_of(lib.cache, keys, lib.load_cached))
     except Exception as exc:  # noqa: BLE001 - the report matters more than the history
         log(f"could not save progress: {exc}")
-    replay_set = _replay_set(args)
-    chosen = scope.select(plays, replay_set)
-    if not chosen:
+    replay_set, engine, level = _replay_set(args), _rating_engine(args), getattr(args, "level", None)
+    if level is not None and not make_engine(engine).uses_level:
+        log(f"--level is ignored: {ENGINE_LABELS[engine]} measures each skill against the maps themselves")
+    prof = profile_for(plays, replay_set, engine, level)
+    if prof is None:
         raise SystemExit("No passed plays among these replays — use --all-replays.")
     if replay_set == "best":
-        log(f"best replays: {len(chosen)} of {len(plays)}")
-    engine = make_engine(_rating_engine(args))
-    return lib, player, plays, errors, build_profile_from(chosen, level=getattr(args, "level", None), engine=engine)
+        log(f"best replays: {len(prof.replays)} of {len(plays)}")
+    return lib, player, plays, errors, prof
 
 
 def _replay_set(args) -> str:
