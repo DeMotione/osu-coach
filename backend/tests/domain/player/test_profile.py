@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from osu_coach.common import frames
-from osu_coach.domain.player import build_profile, worst_quadrant
+from osu_coach.domain.player import build_profile, profile_for, summarize, worst_quadrant
 from osu_coach.infra.library import analyze_files
 from tests.conftest import replay_and_map
 from tests.domain.player.helpers import aim_regression, fit_miss_model, quadrant_stats, stream_speed_profile
@@ -261,3 +261,14 @@ def test_stream_profile_ignores_short_bursts():
         for i in range(300)
     ]
     assert stream_speed_profile(pd.DataFrame(rows)).empty
+
+
+def test_the_level_set_by_hand_moves_only_engines_that_use_one():
+    """The app and the command line build the profile alike: Star Levels ignores a level set by hand."""
+    names = ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr"]
+    plays = [summarize(analyze_files(*replay_and_map(n)[:2])) for n in names]
+    comfort = profile_for(plays, "all", "comfort", level=3.0)
+    irt = profile_for(plays, "all", "irt", level=3.0)
+    assert comfort.engine == "comfort" and comfort.levels.level_override and comfort.levels.level_stars == 3.0
+    assert irt.engine == "irt" and not irt.levels.level_override and irt.levels.level_stars != 3.0
+    assert profile_for([], "all", "comfort") is None

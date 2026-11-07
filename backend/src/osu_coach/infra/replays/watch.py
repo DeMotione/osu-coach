@@ -10,10 +10,10 @@ stayed the same from one poll to the next (osu! has finished writing it) and it 
 from __future__ import annotations
 
 import os
-import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
+from osu_coach.infra.clock import timestamp
 from osu_coach.infra.replays import locate
 from osu_coach.infra.replays.detect import Install
 
@@ -53,7 +53,7 @@ def is_replay(path: Path, kind: str) -> bool:
 class ReplayWatcher:
     """Call :meth:`poll` every few seconds; it returns the new replay files, each once, as ``(path, kind)``."""
 
-    def __init__(self, installs: Iterable[Install], clock: Callable[[], float] = time.time):
+    def __init__(self, installs: Iterable[Install], clock: Callable[[], float] = timestamp):
         self.started = clock()
         self._folders: dict[Path, _Folder] = {}
         self._pending: dict[Path, tuple[str, int]] = {}  # candidate -> (kind, size at the last poll)

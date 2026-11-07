@@ -127,7 +127,7 @@ def _value(v):
 def record(conn: sqlite3.Connection, analyses, tz=None) -> int:
     """Store (or refresh) one row per analysed replay. Returns how many replays were new."""
     before = conn.execute("SELECT COUNT(*) FROM replays").fetchone()[0]
-    now = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
+    now = clock.now().isoformat(timespec="seconds")
     cols = list(COLUMNS)
     sql = (
         f"INSERT INTO replays (key, played_at, month, added_at, {', '.join(cols)}) "
@@ -165,7 +165,7 @@ def players(conn: sqlite3.Connection) -> list[tuple[str, int]]:
 def rebuild_months(conn: sqlite3.Connection, player: str, plays: Sequence[PlaySummary], tz=None) -> None:
     """Skill scores (rated at the comfort level of all of the player's ``plays``) and stream speed per month."""
     analyses = [a for a in plays if a.meta.player == (player or "")]
-    now = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
+    now = clock.now().isoformat(timespec="seconds")
     for month, rows in period_metrics(analyses, tz or clock.local_tz()).items():
         with conn:
             conn.execute("DELETE FROM month_metrics WHERE player = ? AND month = ?", (player, month))

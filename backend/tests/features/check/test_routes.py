@@ -6,7 +6,7 @@ import pytest
 
 from osu_coach.infra import progress
 from osu_coach.infra.beatmaps.parser import read_metadata
-from tests.conftest import MOT1ONE, plays_folder, sample_paths, scan, wait
+from tests.conftest import MOT1ONE, make_client, plays_folder, sample_paths, scan, wait
 
 pytestmark = pytest.mark.usefixtures("_isolated")
 
@@ -98,6 +98,15 @@ def test_a_lazer_replay_read_before_the_scan_still_opens(tmp_path, client):
     assert report.status_code == 200, report.text
 
 
+def test_a_lazer_replay_opens_again_after_a_restart_before_any_scan(tmp_path, client):
+    """The page reopens a replay of an install after the app restarted: the quick look at the installs finds it."""
+    client.post("/api/installs", json={"path": str(_lazer(tmp_path))})
+    path = client.get("/api/check/replays").json()["selected"]
+    with make_client(tmp_path / "cache") as fresh:
+        lst = fresh.get("/api/check/replays", params={"path": path})
+    assert lst.status_code == 200 and lst.json()["selected"] == path
+
+
 def test_a_dropped_replay_is_checked_and_saved_in_the_history(tmp_path, client):
     rp, mp = sample_paths("mot1one__lazer_nm.osr")
     ups = client.post(
@@ -110,7 +119,7 @@ def test_a_dropped_replay_is_checked_and_saved_in_the_history(tmp_path, client):
     # the map isn't in any library: the report finds it once it is added too
     from tests.conftest import workspace
 
-    workspace(client).check_library.add_files([beatmap["path"]])
+    workspace(client).replay_library().add_files([beatmap["path"]])
     r = client.post("/api/check/report", json={"path": replay["path"], "online": False})
     assert r.status_code == 200, r.text
     assert _title("mot1one__lazer_nm.osr") in r.json()["summary"]["map"]

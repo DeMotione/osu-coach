@@ -7,10 +7,19 @@ import pytest
 
 from osu_coach.domain.player.messages import Message
 from osu_coach.domain.player.records import SkillRating
+from osu_coach.infra import clock
 from osu_coach.infra.settings import load_settings, save_settings
 from tests.conftest import workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
+
+NOW = dt.datetime(2026, 6, 15, 12, tzinfo=dt.UTC)  # noon: the same day in every time zone the tests run in
+TODAY = NOW.astimezone().date()
+
+
+@pytest.fixture(autouse=True)
+def _pinned_clock(monkeypatch):
+    monkeypatch.setattr(clock, "now", lambda: NOW)
 
 
 def test_nothing_saved_yet(client):
@@ -43,7 +52,7 @@ def test_progress_range_and_players(analysed):
     none = analysed.get("/api/progress", params={"since": "2020-01-01", "until": "2020-01-31"}).json()
     assert none["rows"] == []
     r = analysed.get("/api/progress", params={"since": "2026-10-01", "until": "2026-09-01"})
-    assert r.status_code == 422 and r.json()["code"] == "bad_date_range"
+    assert r.status_code == 422 and r.json()["code"] == "invalid_date_range"
     assert analysed.get("/api/progress", params={"player": "nobody"}).status_code == 404
     assert analysed.get("/api/progress", params={"period": "year"}).status_code == 422
     assert analysed.get("/api/progress", params={"replays": "some"}).status_code == 422
@@ -109,7 +118,7 @@ def _measured_profile(analysed):
 def test_goals_need_skill_scores(client):
     g = client.get("/api/goals").json()
     assert not g["has_profile"] and g["open"] == [] and g["skills"] == []
-    deadline = (dt.date.today() + dt.timedelta(days=7)).isoformat()
+    deadline = (TODAY + dt.timedelta(days=7)).isoformat()
     r = client.post("/api/goals", json={"skill": "aim", "target": 60, "deadline": deadline})
     assert r.status_code == 409 and r.json()["code"] == "no_profile"
     assert client.post("/api/goals/plan").status_code == 409
@@ -150,7 +159,7 @@ def test_plan_add_and_remove_goals(analysed):
 def test_add_a_goal(analysed):
     _measured_profile(analysed)
     skill = analysed.get("/api/goals").json()["skills"][0]
-    deadline = (dt.date.today() + dt.timedelta(days=14)).isoformat()
+    deadline = (TODAY + dt.timedelta(days=14)).isoformat()
     r = analysed.post("/api/goals", json={"skill": skill["key"], "target": 100, "deadline": deadline})
     assert r.status_code == 201
     goal = r.json()["open"][0]
@@ -159,7 +168,7 @@ def test_add_a_goal(analysed):
         and goal["target"] == 100
         and goal["start"] == pytest.approx(skill["score"], abs=0.05)
     )
-    past = (dt.date.today() - dt.timedelta(days=1)).isoformat()
+    past = (TODAY - dt.timedelta(days=1)).isoformat()
     r = analysed.post("/api/goals", json={"skill": skill["key"], "target": 90, "deadline": past})
     assert r.status_code == 422 and r.json()["code"] == "deadline_past"
     assert (
@@ -192,7 +201,7 @@ def test_a_reached_goal_is_marked_done(analysed):
     )
     g = analysed.get("/api/goals").json()
     assert g["open"] == [] and g["done"][0]["id"] == "g1" and g["done"][0]["state"] == "done"
-    assert load_settings(ws.cache_dir)["goals"][0]["done"] == dt.date.today().isoformat()
+    assert load_settings(ws.cache_dir)["goals"][0]["done"] == TODAY.isoformat()
 
 
 def test_old_lower_level_accuracy_goal_is_paused_and_new_goal_uses_new_scale(analysed):
@@ -221,7 +230,7 @@ def test_old_lower_level_accuracy_goal_is_paused_and_new_goal_uses_new_scale(ana
     old = analysed.get("/api/goals").json()["open"][0]
     assert old["state"] == "paused" and old["progress"] is None and old["current"] is None
     assert load_settings(ws.cache_dir)["goals"][0]["done"] is None
-    deadline = (dt.date.today() + dt.timedelta(days=14)).isoformat()
+    deadline = (TODAY + dt.timedelta(days=14)).isoformat()
     response = analysed.post("/api/goals", json={"skill": "accuracy", "target": 60, "deadline": deadline})
     assert response.status_code == 201
     new = next(g for g in response.json()["open"] if g["id"] != "old-acc")
@@ -262,7 +271,7 @@ def test_goals_of_the_previous_rating_scale_are_paused_not_measured(analysed):
 def test_one_open_goal_per_skill_with_a_target_above_the_score(analysed):
     _measured_profile(analysed)
     first, second = analysed.get("/api/goals").json()["skills"][:2]
-    deadline = (dt.date.today() + dt.timedelta(days=14)).isoformat()
+    deadline = (TODAY + dt.timedelta(days=14)).isoformat()
     assert (
         analysed.post("/api/goals", json={"skill": first["key"], "target": 100, "deadline": deadline}).status_code
         == 201
@@ -278,7 +287,7 @@ def test_one_open_goal_per_skill_with_a_target_above_the_score(analysed):
 
 def test_a_goal_is_followed_only_with_the_engine_it_was_set_with(analysed):
     _measured_profile(analysed)
-    deadline = (dt.date.today() + dt.timedelta(days=14)).isoformat()
+    deadline = (TODAY + dt.timedelta(days=14)).isoformat()
     g = analysed.post("/api/goals", json={"skill": "speed", "target": 75, "deadline": deadline}).json()
     goal = g["open"][0]
     assert load_settings(workspace(analysed).cache_dir)["goals"][0]["engine"] == "comfort"
@@ -302,6 +311,6 @@ def test_an_at_least_score_neither_sets_nor_reaches_a_goal(analysed):
     }
     g = analysed.get("/api/goals").json()
     assert "sliders" not in {s["key"] for s in g["skills"]}
-    deadline = (dt.date.today() + dt.timedelta(days=14)).isoformat()
+    deadline = (TODAY + dt.timedelta(days=14)).isoformat()
     r = analysed.post("/api/goals", json={"skill": "sliders", "target": 95, "deadline": deadline})
     assert r.status_code == 422 and r.json()["code"] == "skill_without_score"

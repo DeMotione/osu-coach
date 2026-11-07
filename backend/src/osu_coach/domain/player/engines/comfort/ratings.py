@@ -15,9 +15,6 @@ import numpy as np
 from osu_coach.domain.analysis.models import ReplayMeta
 from osu_coach.domain.analysis.notes import HitObjects
 from osu_coach.domain.player.algorithm import DT_ACCURACY_MIN
-from osu_coach.domain.player.engines.comfort.consistency import star_consistency
-from osu_coach.domain.player.engines.comfort.demand import log_demand
-from osu_coach.domain.player.engines.comfort.skill_scale import SPEED_POINTS, expected_speed_bpm
 from osu_coach.domain.player.engines.comfort.skill_values import (
     PlayContext,
     aim_value,
@@ -31,6 +28,9 @@ from osu_coach.domain.player.engines.comfort.skill_values import (
     tempo_curve,
     top,
 )
+from osu_coach.domain.player.engines.consistency import star_consistency
+from osu_coach.domain.player.engines.demand import log_demand
+from osu_coach.domain.player.engines.skill_scale import SPEED_POINTS, expected_speed_bpm
 from osu_coach.domain.player.levels import replay_weight
 from osu_coach.domain.player.messages import Message
 from osu_coach.domain.player.records import SkillRating, StaminaPart
@@ -270,6 +270,7 @@ def _stamina(inputs: Sequence[RatingInputs], theta: float) -> SkillRating:
                 success_share=share,
                 expected=expected,
                 untested=untested,
+                counts=usable,
             )
         )
         if usable:
@@ -325,23 +326,6 @@ def _accuracy(inputs: Sequence[RatingInputs], weight_of: Mapping[str, float], th
         od_windows=windows,
         reason=Message("accuracy_measured") if n >= 60 else gate,
     )
-
-
-STRONG, WEAK = 55.0, 45.0  # a rating this high is a strength, this low a weakness
-RANKED = 3  # at most this many of each
-
-
-def strengths_and_weaknesses(rows: Mapping[str, SkillRating]) -> tuple[list[str], list[str]]:
-    """The skills to show as strong and to work on, the same everywhere (Overview, tips, playlists): the best
-    ``RANKED`` rated at ``STRONG`` or more and the worst ``RANKED`` rated at ``WEAK`` or less. With three or more
-    ratings and none that low, the lowest is still a weakness: there is always one thing to work on."""
-    scored = [(skill, float(row.score)) for skill, row in rows.items() if row.score is not None]
-    best = sorted(scored, key=lambda item: item[1], reverse=True)
-    strengths = [skill for skill, score in best[:RANKED] if score >= STRONG]
-    weaknesses = [skill for skill, score in sorted(scored, key=lambda item: item[1])[:RANKED] if score <= WEAK]
-    if not weaknesses and len(scored) >= RANKED:
-        weaknesses = [best[-1][0]]
-    return strengths, weaknesses
 
 
 def at_level(rows: Mapping[str, SkillRating], theta: float) -> dict[str, float | None]:

@@ -1842,6 +1842,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required local data is unavailable or incompatible; `code` identifies it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -2040,6 +2050,16 @@
           },
           "422": {
             "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required local data is unavailable or incompatible; `code` identifies it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2818,6 +2838,18 @@
               }
             ],
             "title": "Error"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "A failed job's error code (stable, like an error response's)."
           },
           "created_at": {
             "type": "string",
@@ -5572,6 +5604,18 @@
             ],
             "title": "Error"
           },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "A failed job's error code (stable, like an error response's)."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -6484,6 +6528,18 @@
             ],
             "title": "Error"
           },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "A failed job's error code (stable, like an error response's)."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -6979,6 +7035,18 @@
               }
             ],
             "title": "Error"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "A failed job's error code (stable, like an error response's)."
           },
           "created_at": {
             "type": "string",
@@ -7689,6 +7757,18 @@
             ],
             "title": "Error"
           },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "A failed job's error code (stable, like an error response's)."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -8386,6 +8466,18 @@
               }
             ],
             "title": "Error"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "A failed job's error code (stable, like an error response's)."
           },
           "created_at": {
             "type": "string",

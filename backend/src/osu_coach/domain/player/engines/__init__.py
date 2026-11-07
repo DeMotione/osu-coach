@@ -2,6 +2,9 @@
 
 * :mod:`.base` — what an engine is (:class:`RatingEngine`) and gives (:class:`Rated`);
 * :mod:`.registry` — picking one by name (:func:`make_engine`);
+* shared by every engine: :mod:`.readiness` (other star ratings, the pass chance), :mod:`.demand` (the map pool's
+  demand curves), :mod:`.consistency`, :mod:`.ranking` (strengths and weaknesses), :mod:`.skill_scale` (the tempo
+  scale map suggestions read);
 * :mod:`.comfort` — the comfort-based 0–100 ratings;
 * :mod:`.irt` — Star-Scale IRT, skills in stars (experimental; ``docs/star-scale-irt.md``).
 """

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from osu_coach.domain.player.engines.base import COMFORT, ENGINES, IRT, Rated, RatingEngine
 from osu_coach.domain.player.engines.comfort.engine import ComfortEngine
-from osu_coach.domain.player.engines.comfort.readiness import Readiness
 from osu_coach.domain.player.engines.irt.engine import IrtEngine
+from osu_coach.domain.player.engines.readiness import Readiness
 
 
 def engine_name(name: str | None) -> str:

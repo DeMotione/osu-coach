@@ -96,7 +96,7 @@ def fit_demand(pool: Mapping[str, Any]) -> dict:
 # ------------------------------------------------------------------ lookups on the fitted table
 def _table():
     # imported when first used: fit_demand (which writes the table) works without it
-    from osu_coach.domain.player.engines.comfort import demand_table
+    from osu_coach.domain.player.engines import demand_table
 
     return demand_table
 

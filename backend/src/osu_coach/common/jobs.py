@@ -17,6 +17,7 @@ class JobBase(BaseModel):
     progress: float | None = Field(description="0–1 when known.")
     message: str
     error: str | None
+    code: str | None = Field(None, description="A failed job's error code (stable, like an error response's).")
     created_at: dt.datetime
     finished_at: dt.datetime | None
     cancellable: bool = Field(description="Whether POST /api/jobs/{id}/cancel can stop it.")
@@ -31,6 +32,7 @@ def job_view(model: type[JobBase], job) -> JobBase:
         progress=job.progress,
         message=job.message,
         error=job.error,
+        code=job.code,
         created_at=job.created_at,
         finished_at=job.finished_at,
         cancellable=job.cancellable,

@@ -93,13 +93,10 @@ def replay_list(ws: Workspace, path: str | None, only_map: bool) -> CheckList:
     """Replays to pick from, newest first; ``path`` (a replay opened elsewhere or uploaded) is always in the list,
     ``only_map``: only (all of) the plays of that replay's map."""
     with _hold(ws):
-        lib = ws.replay_library()
-        p = known_replay(path, ws.cache_dir, (ws.library, ws.check_library)) if path else None
+        lib = ws.replay_library()  # first: before any scan, the installs' newest replays are known only from it
+        p = known_replay(path, ws.cache_dir, ws.libraries()) if path else None
         if p:
-            if lib is None:
-                lib = ws.check_library = Library(ws.cache_dir)
-            if not any(same_file(r["path"], p) for r in lib.replays):
-                lib.add_files([p])
+            lib = ws.open_replay(p)[0]
         if lib is None:
             return CheckList(available=False, replays=[], selected=None, focus_md5=None, only_map=False)
         every = lib.eligible("*")
@@ -130,15 +127,9 @@ def replay_list(ws: Workspace, path: str | None, only_map: bool) -> CheckList:
 
 # ------------------------------------------------------------------ the report
 def report(ws: Workspace, path: str, online: bool) -> CheckReport:
-    p = known_replay(path, ws.cache_dir, (ws.library, ws.check_library))
+    p = known_replay(path, ws.cache_dir, ws.libraries())
     with _hold(ws):
-        lib = ws.replay_library()
-        if lib is None:
-            lib = ws.check_library = Library(ws.cache_dir)
-        ref = next((r for r in lib.replays if same_file(r["path"], p)), None)
-        if ref is None:
-            lib.add_files([p])
-            ref = next((r for r in lib.replays if same_file(r["path"], p)), None)
+        lib, ref = ws.open_replay(p)
         if ref is None:
             raise Invalid("Not an osu! replay.", "not_a_replay")
         reason = _reason(ref)

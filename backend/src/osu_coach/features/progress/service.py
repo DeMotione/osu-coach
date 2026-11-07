@@ -13,7 +13,7 @@ from osu_coach.common.errors import ApiError, Invalid, NoProfile, NotFound
 from osu_coach.common.texts import SKILL_LABELS
 from osu_coach.domain.player.engines import COMFORT, engine_name, measured_scores
 from osu_coach.domain.progress import goals
-from osu_coach.domain.progress.periods import SKILL_REFERENCE, period_metrics
+from osu_coach.domain.progress.periods import HISTORY_ENGINE, SKILL_REFERENCE, period_metrics
 from osu_coach.domain.replays import scope
 from osu_coach.features.progress.schemas import (
     GoalCreate,
@@ -119,7 +119,7 @@ def by_period(
     replays: str = "analysed",
 ) -> ProgressOut:
     if since and until and since > until:
-        raise Invalid("The start of the date range is after its end.", "bad_date_range")
+        raise Invalid("The start of the date range is after its end.", "invalid_date_range")
     conn = progress.connect(ws.cache_dir)
     try:
         name = _player(ws, conn, player)
@@ -241,7 +241,7 @@ def _goals(ws: Workspace, scores: dict, low_comfort: bool = False) -> list[dict]
     engine = ws.rating_engine()
     for g in ws.settings().goals or []:
         score = _goal_score(g, scores, low_comfort, engine)
-        updated, reached = goals.update([g], {g["skill"]: score}, today=dt.date.today())
+        updated, reached = goals.update([g], {g["skill"]: score}, today=clock.today())
         gl.extend(updated)
         changed |= reached
     if changed:
@@ -250,7 +250,7 @@ def _goals(ws: Workspace, scores: dict, low_comfort: bool = False) -> list[dict]
 
 
 def _goal_out(g: dict, current, low_comfort: bool = False, engine: str = COMFORT) -> GoalOut:
-    st = goals.status(g, current, today=dt.date.today())
+    st = goals.status(g, current, today=clock.today())
     paused = _paused(g, low_comfort, engine)
     return GoalOut(
         id=g["id"],
@@ -272,8 +272,8 @@ def _goal_out(g: dict, current, low_comfort: bool = False, engine: str = COMFORT
 
 def _history(ws: Workspace, gl: list[dict]) -> list[GoalHistory]:
     """The goal skills day by day since the oldest goal (from the saved progress), with the path to each target.
-    The saved daily scores are on the Comfort-Based engine's scale, so only goals set on it get a history."""
-    gl = [g for g in gl if g.get("score_source") == "experimental" and _engine_of(g) == COMFORT]
+    The saved daily scores are rated by one engine (``HISTORY_ENGINE``), so only goals set with it get a history."""
+    gl = [g for g in gl if g.get("score_source") == "experimental" and _engine_of(g) == HISTORY_ENGINE]
     if not gl:
         return []
     conn = progress.connect(ws.cache_dir)
@@ -339,7 +339,7 @@ def add_goal(ws: Workspace, req: GoalCreate) -> GoalsOut:
         raise NoProfile("Analyse your replays first — goals follow your skill scores.")
     if num(scores.get(req.skill)) is None:
         raise Invalid(f"{short_label(req.skill)} has no score yet, so it can't be followed.", "skill_without_score")
-    if req.deadline < dt.date.today():
+    if req.deadline < clock.today():
         raise Invalid("The deadline is in the past.", "deadline_past")
     if req.target <= scores[req.skill]:
         raise Invalid(
@@ -360,7 +360,7 @@ def add_goal(ws: Workspace, req: GoalCreate) -> GoalsOut:
                 req.target,
                 req.deadline,
                 goal_id=_new_id(),
-                today=dt.date.today(),
+                today=clock.today(),
                 score_source="experimental",
                 score_version=2 if req.skill == "accuracy" else None,
                 engine=engine,
@@ -382,7 +382,7 @@ def add_plan(ws: Workspace) -> GoalsOut:
     engine = ws.rating_engine()
     gl = _goals(ws, scores, low_comfort)
     have_open = {g["skill"] for g in gl if not g.get("done") and not _paused(g, low_comfort, engine)}
-    deadline = dt.date.today() + dt.timedelta(weeks=PLAN_WEEKS)
+    deadline = clock.today() + dt.timedelta(weeks=PLAN_WEEKS)
     new = [
         goals.new_goal(
             k,
@@ -390,7 +390,7 @@ def add_plan(ws: Workspace) -> GoalsOut:
             tg,
             deadline,
             goal_id=_new_id(),
-            today=dt.date.today(),
+            today=clock.today(),
             score_source="experimental",
             score_version=2 if k == "accuracy" else None,
             engine=engine,

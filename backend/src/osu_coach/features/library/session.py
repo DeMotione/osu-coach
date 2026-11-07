@@ -80,7 +80,7 @@ def start_restore(ws: Workspace) -> None:
         try:
             _restore_analyses(ws, saved.get("analysis"))
         finally:
-            ws.restoring = False  # the pages say "restoring" until here, not "nothing analysed"
+            ws.set_restoring(False)  # the pages say "restoring" until here, not "nothing analysed"
         if not rescan:
             return None
         installs = ws.installs()
@@ -96,11 +96,11 @@ def start_restore(ws: Workspace) -> None:
         )
         return run_scan(ws, args, report)  # every replay, also when an older version saved a limit ("latest")
 
-    ws.restoring = restore
+    ws.set_restoring(restore)
     try:
         ws.jobs.start("scan", "Restoring your last session", work)
     except Exception:
-        ws.restoring = False
+        ws.set_restoring(False)
         raise
 
 

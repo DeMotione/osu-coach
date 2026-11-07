@@ -68,7 +68,7 @@ def test_a_job_reports_progress_and_its_result():
     assert jobs.get(job.id) is job and jobs.running() == []
 
 
-def test_failures_keep_the_message():
+def test_failures_keep_the_message_and_the_code():
     jobs = JobManager(BusyGate())
 
     def known(report):
@@ -77,8 +77,9 @@ def test_failures_keep_the_message():
     def unknown(report):
         raise ValueError("boom")
 
-    assert _finish(jobs.start("scan", "x", known)).error == "Nothing to do."
-    assert _finish(jobs.start("scan", "x", unknown)).error == "ValueError: boom"
+    known_job, unknown_job = _finish(jobs.start("scan", "x", known)), _finish(jobs.start("scan", "x", unknown))
+    assert (known_job.error, known_job.code) == ("Nothing to do.", "nothing")
+    assert (unknown_job.error, unknown_job.code) == ("ValueError: boom", "job_failed")
 
 
 def test_exclusive_jobs_wait_for_each_other_and_release_the_gate():

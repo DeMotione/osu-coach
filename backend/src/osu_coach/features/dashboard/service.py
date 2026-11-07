@@ -16,9 +16,8 @@ from osu_coach.domain.maps.skillset import recommend
 from osu_coach.domain.maps.suggestions import targets_from_profile
 from osu_coach.domain.player import Profile, weight_table
 from osu_coach.domain.player.engines import ENGINE_LABELS, Rated, compare
-from osu_coach.domain.player.engines.comfort.consistency import star_consistency
-from osu_coach.domain.player.engines.comfort.ratings import MIN_MAPS
-from osu_coach.domain.player.engines.comfort.readiness import MAX_GAP, default_target, targets
+from osu_coach.domain.player.engines.consistency import star_consistency
+from osu_coach.domain.player.engines.readiness import MAX_GAP, default_target, targets
 from osu_coach.domain.player.records import UNRATED, SkillRating
 from osu_coach.features.dashboard import charts
 from osu_coach.features.dashboard import schemas as S
@@ -250,7 +249,7 @@ def overview(p: Profile) -> S.Overview:
         stamina = [
             S.StaminaPoint(seconds=float(part.duration), bpm=float(part.measured), typical=num(part.expected))
             for part in stam.parts or ()
-            if part.maps >= MIN_MAPS and not part.untested
+            if part.counts
         ]
     mb = p.miss_breakdown or {}
     total = sum(mb.values()) or 1.0

@@ -19,6 +19,7 @@ from typing import NamedTuple
 
 from osu_coach.domain.player import PlaySummary, build_profile_from, comfort
 from osu_coach.domain.player.constants import SKILLS
+from osu_coach.domain.player.engines import COMFORT, make_engine
 from osu_coach.domain.player.records import UNRATED
 
 FEW_PLAYS = 5  # periods with fewer plays are shown, but marked as uncertain
@@ -28,6 +29,7 @@ ROLLING_DAYS = 7
 # Saved with a period's skill scores: the comfort level (★) they were rated at. Its presence also marks scores of
 # this rating scale; scores saved by older versions (a miss model) have none and are not shown.
 SKILL_REFERENCE = "skill_reference_stars"
+HISTORY_ENGINE = COMFORT  # the engine that rates the saved scores: a goal set with another one has no history
 
 
 def utc(date) -> dt.datetime:
@@ -118,7 +120,13 @@ def period_metrics(
             continue
         try:
             # level=reference: the ratings are measured against it, not against the period's own comfort
-            mp = build_profile_from(group, level=reference, weighted=False, with_ratings=reference is not None)
+            mp = build_profile_from(
+                group,
+                level=reference,
+                weighted=False,
+                with_ratings=reference is not None,
+                engine=make_engine(HISTORY_ENGINE),
+            )
         except Exception:  # noqa: BLE001 - one period that can't be computed must not stop the others
             continue
         ratings = mp.skill_ratings

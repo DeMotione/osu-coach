@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from collections.abc import Sequence
 
 import numpy as np
 
 from osu_coach.domain.analysis.models import Play
-from osu_coach.domain.player.engines import ComfortEngine, RatingEngine
+from osu_coach.domain.player.engines import RatingEngine, make_engine
 from osu_coach.domain.player.levels import LEVEL_BAND, LEVEL_SIGMA, clean_pass, comfort, replay_weight
 from osu_coach.domain.player.measures.aim import (
     angle_table,
@@ -45,6 +46,7 @@ from osu_coach.domain.player.profile import (
 )
 from osu_coach.domain.player.records import PressLengths
 from osu_coach.domain.player.summary import ChartNotes, PlaySummary, summarize
+from osu_coach.domain.replays import scope
 
 
 def build_profile(
@@ -56,6 +58,18 @@ def build_profile(
 ) -> Profile:
     """:func:`build_profile_from` the summaries of these analysed plays."""
     return build_profile_from([summarize(a) for a in analyses], level, weighted, with_ratings, engine)
+
+
+def profile_for(
+    plays: Sequence[PlaySummary], replay_set: str, engine: str | None, level: float | None = None
+) -> Profile | None:
+    """The profile the app and the command line show: the plays of ``replay_set`` (``all`` / ``best``) rated by the
+    engine called ``engine``, against ``level`` (★, set by hand) if that engine uses one. None: the set is empty."""
+    chosen = scope.select(list(plays), replay_set)
+    if not chosen:
+        return None
+    rater = make_engine(engine)
+    return build_profile_from(chosen, level=level if rater.uses_level else None, engine=rater)
 
 
 def build_profile_from(
@@ -147,7 +161,7 @@ def build_profile_from(
     levels["comfort_status"] = "override" if override else found.status
     levels["comfort_setups"] = found.setups
     levels["comfort_source"] = "Manual override" if override else "Recent successful map/mod configurations"
-    engine = engine or ComfortEngine()
+    engine = engine or make_engine()
     rated = engine.rate(summaries, replays, levels["comfort_stars"]) if with_ratings else None
     skill_ratings = rated.skills if rated else {}
     strengths, weaknesses = (rated.strengths, rated.weaknesses) if rated else ([], [])

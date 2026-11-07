@@ -21,8 +21,7 @@ from osu_coach.domain.maps.configuration import SearchOptions
 from osu_coach.domain.maps.skillset import recommend, recommend_modified
 from osu_coach.domain.maps.suggestions import SKILLS, Targets, collection_name, skill_label, targets_from_profile
 from osu_coach.domain.player import Profile
-from osu_coach.domain.player.engines import IRT, measured_scores
-from osu_coach.domain.player.engines.comfort.skill_scale import speed_rating
+from osu_coach.domain.player.engines import make_engine
 from osu_coach.domain.replays.configuration import from_meta
 from osu_coach.features.maps.schemas import (
     Playlist,
@@ -55,7 +54,7 @@ def _played(ws: Workspace, t: Targets) -> frozenset[str]:
 def _pool(ws: Workspace) -> pd.DataFrame:
     pool = ws.pool()
     if pool.empty:
-        raise ApiError(500, "pool_missing", "The bundled map pool is missing.")
+        raise ApiError(503, "pool_missing", "The bundled map pool is missing.")
     return pool
 
 
@@ -71,17 +70,11 @@ def _comfort_of(p: Profile | None) -> float:
 
 
 def measured_abilities(p: Profile | None, theta: float) -> dict[str, float]:
-    """The scores suggestions work from: measurements only, IRT tapping speed on the tempo scale
-    the recommender reads (from the BPM IRT measured).
-    """
+    """The scores suggestions work from: measurements only, on the scale the recommender reads."""
     if p is None:
         return {}
-    scores = measured_scores(p.skill_ratings)
-    out = {k: float(v) for k, v in scores.items() if k in SKILLS and v is not None}
-    speed = p.skill_ratings.get("speed")
-    if p.engine == IRT and "speed" in out and speed is not None and num(speed.natural) is not None:
-        out["speed"] = round(speed_rating(float(speed.natural), theta), 1)
-    return out
+    scores = make_engine(p.engine).map_scores(p.skill_ratings, theta)
+    return {k: v for k, v in scores.items() if k in SKILLS}
 
 
 def _options(
@@ -400,7 +393,7 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
         if meta.completed and acc is not None:
             key = from_meta(meta.to_dict()).key
             history[key] = max(history.get(key, 0.0), min(1.10, max(0.0, acc / 0.95)))
-    libraries = [lib for lib in (ws.library, ws.check_library) if lib is not None]
+    libraries = ws.libraries()
     unavailable = 0
     coverage = 0
     calculator_unavailable = 0

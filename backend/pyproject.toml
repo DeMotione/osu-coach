@@ -46,7 +46,7 @@ src = ["src", "tests"]
 extend-exclude = ["tools"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "B", "I", "UP"]
+select = ["E", "F", "W", "B", "I", "UP", "TID251"]
 ignore = ["E501", "E731", "B905", "B007", "B023", "E741", "B008", "UP040"]
 
 [tool.ruff.lint.per-file-ignores]
@@ -54,6 +54,16 @@ ignore = ["E501", "E731", "B905", "B007", "B023", "E741", "B008", "UP040"]
 "src/osu_coach/infra/analysis.py" = ["F841"]
 "src/osu_coach/domain/beatmaps/features.py" = ["F841"]
 "tests/domain/player/test_weighting.py" = ["F841"]
+# the one place that reads the clock; tests may make their own times
+"src/osu_coach/infra/clock.py" = ["TID251"]
+"tests/**" = ["TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"datetime.datetime.now".msg = "Read the time through osu_coach.infra.clock, so tests can pin it."
+"datetime.datetime.utcnow".msg = "Read the time through osu_coach.infra.clock, so tests can pin it."
+"datetime.datetime.today".msg = "Read the time through osu_coach.infra.clock, so tests can pin it."
+"datetime.date.today".msg = "Use osu_coach.infra.clock.today(), so tests can pin it."
+"time.time".msg = "Read the time through osu_coach.infra.clock (time.monotonic for durations)."
 
 [tool.importlinter]
 root_package = "osu_coach"
@@ -95,6 +105,26 @@ name = "domain subjects depend only downwards"
 type = "layers"
 containers = ["osu_coach.domain"]
 layers = ["maps | progress | exports | play_goals", "player", "analysis", "beatmaps | replays", "numeric"]
+
+[[tool.importlinter.contracts]]
+name = "only app and the slices know the web framework"
+type = "forbidden"
+# the error types are plain exceptions (common/errors.py); app/errors.py turns them into responses
+source_modules = ["osu_coach.infra", "osu_coach.common"]
+forbidden_modules = ["fastapi", "starlette"]
+
+[[tool.importlinter.contracts]]
+name = "rating engines never import each other"
+type = "independence"
+# what both need (the readiness result, demand curves, consistency, ranking, tempo scale) lives next to them in engines/
+modules = ["osu_coach.domain.player.engines.comfort", "osu_coach.domain.player.engines.irt"]
+
+[[tool.importlinter.contracts]]
+name = "engine internals are reached only through engines/"
+type = "protected"
+protected_modules = ["osu_coach.domain.player.engines.comfort", "osu_coach.domain.player.engines.irt"]
+# summary.py reduces a play once, to the per-play inputs of every engine
+allowed_importers = ["osu_coach.domain.player.engines", "osu_coach.domain.player.summary"]
 
 [[tool.importlinter.contracts]]
 name = "the domain is pure: no I/O, web, settings or clock"

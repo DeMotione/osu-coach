@@ -113,7 +113,7 @@ def run_scan(ws: Workspace, args: ScanArgs, report: Reporter) -> ScanResult:
     if players and lib.has_unread_maps():
         report.note("Looking for the beatmaps of these replays…")
         lib.missing_maps(lib.eligible(players[0][0]), progress=report.note)
-    ws.library, ws.scan_args = lib, args
+    ws.set_library(lib, args)
     return ScanResult(replays=len(lib.standard_replays()), players=len(players), warnings=warnings)
 
 
@@ -144,7 +144,7 @@ def forget_files(ws: Workspace) -> None:
     if args is None or not args.files:
         return
     gone = set(args.files)
-    ws.scan_args = replace(args, files=[])
+    ws.set_library(ws.library, replace(args, files=[]))
     if ws.library is not None:
         ws.library.replays = [r for r in ws.library.replays if r.get("path") not in gone]
 
@@ -190,10 +190,10 @@ def select(
     choice = "all" if only else date_range
     start = end = None
     if choice == "custom":
-        today = dt.date.today()
+        today = clock.today()
         start, end = date_from or today - dt.timedelta(days=30), date_to or today
         if start > end:
-            raise Invalid("The start of the date range is after its end.", "bad_date_range")
+            raise Invalid("The start of the date range is after its end.", "invalid_date_range")
     since, until = scope.date_window(
         choice, [r.get("timestamp") for r in every], start, end, now=clock.now(), tz=clock.local_tz()
     )

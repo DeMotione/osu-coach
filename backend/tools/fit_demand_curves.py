@@ -1,17 +1,17 @@
 """Fit the skill demand curves on the bundled map pool and write them as a constant table.
 
 Usage: python backend/tools/fit_demand_curves.py [POOL] [OUT]
-Defaults: the bundled pool (osu_coach/infra/data/pool.json.gz) and osu_coach/domain/player/engines/comfort/demand_table.py.
-Run it again after the pool is rebuilt; backend/tests/domain/player/engines/comfort/test_demand.py fails while the table is stale.
+Defaults: the bundled pool (osu_coach/infra/data/pool.json.gz) and osu_coach/domain/player/engines/demand_table.py.
+Run it again after the pool is rebuilt; backend/tests/domain/player/engines/test_demand.py fails while the table is stale.
 """
 
 import sys
 from pathlib import Path
 
-from osu_coach.domain.player.engines.comfort.demand import fit_demand
+from osu_coach.domain.player.engines.demand import fit_demand
 from osu_coach.infra.map_pool import POOL_PATH, load_pool
 
-OUT = Path(__file__).resolve().parents[1] / "src" / "osu_coach" / "domain" / "player" / "engines" / "comfort" / "demand_table.py"
+OUT = Path(__file__).resolve().parents[1] / "src" / "osu_coach" / "domain" / "player" / "engines" / "demand_table.py"
 
 
 def _numbers(values: list[float], indent: str, per_line: int = 12) -> list[str]:
