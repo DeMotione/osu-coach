@@ -1,6 +1,10 @@
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { canGoBack, canGoForward, FIRST_ROUND, HISTORY, moveRound, type Rounds, stageMaps } from "./playlist";
+import {
+  canGoBack, canGoForward, FIRST_ROUND, HISTORY, loadPlaylist, moveRound, NO_PLAYLIST, playlistKey, type Rounds,
+  savePlaylist, stageMaps, useRounds,
+} from "./playlist";
 
 describe("stageMaps", () => {
   const maps = Array.from({ length: 12 }, (_, i) => i);
@@ -47,5 +51,54 @@ describe("moveRound", () => {
     expect(r).toEqual({ at: 6, latest: HISTORY + 5 });
     expect(r.latest - r.at + 1).toBe(HISTORY);
     expect(canGoBack(r)).toBe(false);
+  });
+});
+
+describe("the playlist kept while away (#107)", () => {
+  const memory = () => {
+    const items = new Map<string, string>();
+    return { getItem: (k: string) => items.get(k) ?? null, setItem: (k: string, v: string) => void items.set(k, v), items };
+  };
+  const pl = (skill: string, md5s: string[]) => ({ skill, stages: [{ stage: "Comfort", maps: md5s.map((md5) => ({ md5 })) }] });
+
+  it("comes back as it was saved", () => {
+    const storage = memory();
+    const saved = {
+      options: { skill: "stamina", assessed: "stamina", allow_hr: true },
+      controls: { skill: "flow_aim", measured: { stamina: 54.6 }, comfort: 6.27 },
+      job: "j1",
+      maps: "stamina:abc:12",
+      rounds: { Comfort: { at: 1, latest: 2 } },
+    };
+    savePlaylist(saved, storage);
+    expect(loadPlaylist(storage)).toEqual(saved);
+  });
+
+  it("starts with the default playlist when nothing or something garbled is kept", () => {
+    const storage = memory();
+    expect(loadPlaylist(storage)).toEqual(NO_PLAYLIST);
+    storage.items.set("osu-coach:skill-playlist", "{not json");
+    expect(loadPlaylist(storage)).toEqual(NO_PLAYLIST);
+    storage.items.set("osu-coach:skill-playlist", JSON.stringify({ options: {}, rounds: { Comfort: { at: "x" } }, controls: 3 }));
+    expect(loadPlaylist(storage)).toEqual(NO_PLAYLIST);
+  });
+
+  it("names a playlist by its maps", () => {
+    expect(playlistKey(pl("stamina", ["a", "b"]))).toBe(playlistKey(pl("stamina", ["a", "b"])));
+    expect(playlistKey(pl("stamina", ["a", "b"]))).not.toBe(playlistKey(pl("stamina", ["b", "a"])));
+    expect(playlistKey(pl("stamina", ["a"]))).not.toBe(playlistKey(pl("speed", ["a"])));
+    expect(playlistKey(undefined)).toBeNull();
+  });
+
+  it("shows the kept groups again only for the same playlist", () => {
+    const kept = { of: "K", by: { Comfort: { at: 1, latest: 1 } } };
+    const { result, rerender } = renderHook(({ of }: { of: string | null }) => useRounds(of, kept), { initialProps: { of: null as string | null } });
+    expect(result.current.rounds("Comfort")).toEqual(FIRST_ROUND); // still loading
+    rerender({ of: "K" });
+    expect(result.current.rounds("Comfort")).toEqual({ at: 1, latest: 1 });
+    rerender({ of: "other" });
+    expect(result.current.rounds("Comfort")).toEqual(FIRST_ROUND);
+    act(() => result.current.move("Comfort", "other"));
+    expect(result.current.by).toEqual({ Comfort: { at: 1, latest: 1 } });
   });
 });

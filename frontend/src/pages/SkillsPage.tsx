@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 
 import { api, unwrap, type Schemas } from "../api/client";
@@ -16,7 +16,7 @@ import { StageNav } from "../components/StageNav";
 import { EmptyState, ErrorCard, JobStatus, LoadingPage } from "../components/states";
 import { Alert, Badge, Card, Page, Progress, Stat, Tabs, Tiles } from "../components/ui";
 import { fmt } from "../lib/format";
-import { STAGE_SIZE, stageMaps, useRounds } from "../lib/playlist";
+import { loadPlaylist, playlistKey, savePlaylist, STAGE_SIZE, stageMaps, useRounds, type PlaylistControls } from "../lib/playlist";
 import { speedFitNotice } from "../lib/recommendationFit";
 
 type Tab = "goals" | "playlist";
@@ -169,29 +169,50 @@ function PlanCard({ goals }: { goals: Schemas["GoalsOut"] }) {
 }
 
 // ------------------------------------------------------------------ playlist
+const isModified = (o: RecommendationOptions) => !!(o.allow_hr || o.allow_hd || o.adjustable_dt);
+const controlsOf = (p: Schemas["Playlist"] | null | undefined): PlaylistControls | null =>
+  p ? { skill: p.skill, measured: p.measured_abilities ?? {}, comfort: p.comfort } : null;
+const searchPlaylist = (next: RecommendationOptions) => unwrap(api.POST("/api/playlists/search", { body: {
+  skill: next.skill, assessed: next.assessed, ratings: next.ratings, comfort: next.comfort,
+  kappa: next.kappa ?? 0.5, min_relevance: next.min_relevance ?? 0.3, exclude_played: next.exclude_played ?? true,
+  allow_hr: !!next.allow_hr, allow_hd: !!next.allow_hd, adjustable_dt: !!next.adjustable_dt,
+  min_rate: next.min_rate ?? 1.10, max_rate: next.max_rate ?? 2.00,
+} }));
+
 function PlaylistTab() {
-  const [options, setOptions] = useState<RecommendationOptions>({});
-  const modified = !!(options.allow_hr || options.allow_hd || options.adjustable_dt);
+  // the playlist as it was left on another tab or page (#107)
+  const [saved] = useState(loadPlaylist);
+  const [options, setOptions] = useState<RecommendationOptions>(saved.options);
+  const modified = isModified(options);
   const q = usePlaylist(options, !modified);
   const search = useJob("playlist");
   const modifiedPl = search.job?.kind === "playlist" && search.job.status === "succeeded" ? search.job.result : null;
   const pl = modified ? modifiedPl : q.data;
-  const [controlSnapshot, setControlSnapshot] = useState<Schemas["Playlist"] | null>(null);
-  const controlData = controlSnapshot ?? q.data ?? pl;
+  const [controls, setControls] = useState<PlaylistControls | null>(saved.controls);
+  const controlData = controls ?? controlsOf(q.data ?? pl);
   const apply = (next: RecommendationOptions) => {
-    if (!controlSnapshot && q.data) setControlSnapshot(q.data);
+    if (!controls && q.data) setControls(controlsOf(q.data));
     setOptions(next);
-    if (next.allow_hr || next.allow_hd || next.adjustable_dt) {
-      void search.run(() => unwrap(api.POST("/api/playlists/search", { body: {
-        skill: next.skill, assessed: next.assessed, ratings: next.ratings, comfort: next.comfort,
-        kappa: next.kappa ?? 0.5, min_relevance: next.min_relevance ?? 0.3, exclude_played: next.exclude_played ?? true,
-        allow_hr: !!next.allow_hr, allow_hd: !!next.allow_hd, adjustable_dt: !!next.adjustable_dt,
-        min_rate: next.min_rate ?? 1.10, max_rate: next.max_rate ?? 2.00,
-      } })));
-    }
+    if (isModified(next)) void search.run(() => searchPlaylist(next));
   };
+  // a playlist with mods whose search this window no longer holds (the page was reloaded): ask the server for
+  // that search again, and run it again if the server no longer has it either
+  const { run } = search;
+  const lost = useRef(modified && !search.job);
+  useEffect(() => {
+    if (!lost.current) return;
+    lost.current = false;
+    const again = () => searchPlaylist(options);
+    void run(() => (saved.job ? unwrap(api.GET("/api/jobs/{job_id}", { params: { path: { job_id: saved.job } } })).catch(again) : again()));
+  }, [run, options, saved.job]);
   // which group of five each stage shows; a new playlist starts again with the best ones
-  const { rounds, move } = useRounds(pl);
+  const key = playlistKey(pl);
+  const { rounds, move, by } = useRounds(key, { of: saved.maps, by: saved.rounds });
+  const job = modified ? (search.job?.id ?? null) : null;
+  useEffect(() => {
+    // while a playlist loads (no key yet), the groups of the one left stay kept
+    savePlaylist({ options, controls, job, maps: key ?? saved.maps, rounds: key ? by : saved.rounds });
+  }, [options, controls, job, key, by, saved]);
   const shown = useMemo(
     () => new Map((pl?.stages ?? []).map((st) => [st.stage, stageMaps(st.maps, rounds(st.stage).at)])),
     [pl, rounds],
@@ -206,7 +227,7 @@ function PlaylistTab() {
   if (q.error && !pl) return <ErrorCard error={q.error} onRetry={() => void q.refetch()} />;
   return (
     <>
-      {controlData && <RecommendationControls current={controlData.skill} measured={controlData.measured_abilities ?? {}} comfort={controlData.comfort} onApply={apply} />}
+      {controlData && <RecommendationControls current={controlData.skill} measured={controlData.measured} comfort={controlData.comfort} initial={options} onApply={apply} />}
       {modified && <><JobStatus job={search.job} error={search.error} onCancel={search.cancel} />
         {pl ? <p className="small muted">Searched {pl.coverage_maps ?? 0} maps with verified data; {pl.unavailable_maps ?? 0} missing files; {pl.calculator_unavailable_maps ?? 0} without any supported calculation; {pl.unavailable_configurations ?? 0} individual configurations could not be calculated. Showing up to {pl.result_limit ?? 0} distinct maps per stage.</p>
           : <Alert tone="info">Searching exact map configurations. Available maps and exclusions will be shown when the search finishes.</Alert>}</>}
