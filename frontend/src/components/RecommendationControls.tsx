@@ -23,28 +23,41 @@ const SKILLS = [
   ["reading", "Reading"], ["consistency", "Consistency"],
 ] as const;
 
-/** Draft every control locally; the one Show maps action applies the complete selection. */
-export function RecommendationControls({ current, measured, comfort, onApply }: {
+/** Manual ratings as applied (a JSON object of numbers) back into the fields' texts. */
+function ratingTexts(applied: string | undefined): Record<string, string> {
+  try {
+    const v: unknown = applied ? JSON.parse(applied) : null;
+    if (typeof v !== "object" || v === null) return {};
+    return Object.fromEntries(Object.entries(v).filter(([, n]) => typeof n === "number").map(([k, n]) => [k, String(n)]));
+  } catch {
+    return {};
+  }
+}
+
+/** Draft every control locally; the one Show maps action applies the complete selection. The draft starts from
+ * ``initial``, the selection applied last (a playlist come back to, #107). */
+export function RecommendationControls({ current, measured, comfort, initial = {}, onApply }: {
   current: string;
   measured: Record<string, number>;
   comfort: number;
+  initial?: RecommendationOptions;
   onApply: (options: RecommendationOptions) => void;
 }) {
-  const [skill, setSkill] = useState(current);
+  const [skill, setSkill] = useState(initial.skill ?? current);
   const [panel, setPanel] = useState<"fine" | "ratings" | null>(null);
   const panelId = useId();
-  const [assessed, setAssessed] = useState<string[] | null>(null);
-  const [ratings, setRatings] = useState<Record<string, string>>({});
-  const [starsOverride, setStarsOverride] = useState<string | null>(null);
+  const [assessed, setAssessed] = useState<string[] | null>(initial.assessed ? initial.assessed.split(",") : null);
+  const [ratings, setRatings] = useState<Record<string, string>>(() => ratingTexts(initial.ratings));
+  const [starsOverride, setStarsOverride] = useState<string | null>(initial.comfort !== undefined ? String(initial.comfort) : null);
   const stars = starsOverride ?? comfort.toFixed(2);
-  const [kappa, setKappa] = useState("0.5");
-  const [relevance, setRelevance] = useState("0.3");
-  const [excludePlayed, setExcludePlayed] = useState(true);
-  const [allowHr, setAllowHr] = useState(false);
-  const [allowHd, setAllowHd] = useState(false);
-  const [adjustableDt, setAdjustableDt] = useState(false);
-  const [minRate, setMinRate] = useState("1.10");
-  const [maxRate, setMaxRate] = useState("2.00");
+  const [kappa, setKappa] = useState(String(initial.kappa ?? 0.5));
+  const [relevance, setRelevance] = useState(String(initial.min_relevance ?? 0.3));
+  const [excludePlayed, setExcludePlayed] = useState(initial.exclude_played ?? true);
+  const [allowHr, setAllowHr] = useState(!!initial.allow_hr);
+  const [allowHd, setAllowHd] = useState(!!initial.allow_hd);
+  const [adjustableDt, setAdjustableDt] = useState(!!initial.adjustable_dt);
+  const [minRate, setMinRate] = useState((initial.min_rate ?? 1.1).toFixed(2));
+  const [maxRate, setMaxRate] = useState((initial.max_rate ?? 2).toFixed(2));
   const selected = [skill, ...(assessed ?? []).filter((id) => id !== skill)];
   const valid = Number(stars) > 0 && Number(kappa) >= 0 && Number(relevance) >= 0 && Number(relevance) <= 1 &&
     [stars, kappa, relevance].every((n) => n.trim() !== "" && Number.isFinite(Number(n))) &&
