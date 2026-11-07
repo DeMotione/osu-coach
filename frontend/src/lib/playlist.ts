@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 
+import type { Schemas } from "../api/client";
 import type { RecommendationOptions } from "../components/RecommendationControls";
 
 /** How many maps of a playlist stage are shown (and exported) at a time. */
@@ -61,49 +62,98 @@ export interface PlaylistControls {
 }
 
 /** The Playlist for a skill tab as it was left, so another tab or page and back shows the same playlist (#107): the
- * selection applied, the figures its controls started from, the search behind a playlist with mods, and the group
- * of five each stage shows for the playlist ``maps`` names. Kept for the app window's session. */
+ * selection applied, the figures its controls started from, the search behind a playlist with mods, the playlist
+ * itself (its maps stay until Show maps asks for new ones) and the group of five each stage shows for the playlist
+ * ``maps`` names. Kept for the app window's session. */
 export interface SavedPlaylist {
   options: RecommendationOptions;
   controls: PlaylistControls | null;
   job: string | null;
+  playlist: Schemas["Playlist"] | null;
   maps: string | null;
   rounds: Record<string, Rounds>;
 }
 
 const SAVED = "osu-coach:skill-playlist";
-export const NO_PLAYLIST: SavedPlaylist = { options: {}, controls: null, job: null, maps: null, rounds: {} };
+export const NO_PLAYLIST: SavedPlaylist = { options: {}, controls: null, job: null, playlist: null, maps: null, rounds: {} };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isRounds = (v: unknown): v is Rounds => isRecord(v) && Number.isInteger(v.at) && Number.isInteger(v.latest);
+const roundsOf = (v: unknown): Record<string, Rounds> =>
+  Object.fromEntries(isRecord(v) ? Object.entries(v).filter((e): e is [string, Rounds] => isRounds(e[1])) : []);
 
-export function loadPlaylist(storage: Pick<Storage, "getItem"> = sessionStorage): SavedPlaylist {
+function load(name: string, storage: Pick<Storage, "getItem">): unknown {
   try {
-    const v: unknown = JSON.parse(storage.getItem(SAVED) ?? "null");
-    if (!isRecord(v) || !isRecord(v.options)) return NO_PLAYLIST;
-    const c = v.controls;
-    const controls = isRecord(c) && typeof c.skill === "string" && typeof c.comfort === "number" && isRecord(c.measured)
-      ? { skill: c.skill, comfort: c.comfort, measured: c.measured as Record<string, number> }
-      : null;
-    const rounds = isRecord(v.rounds) ? Object.entries(v.rounds).filter((e): e is [string, Rounds] => isRounds(e[1])) : [];
-    return {
-      options: v.options as RecommendationOptions,
-      controls,
-      job: typeof v.job === "string" ? v.job : null,
-      maps: typeof v.maps === "string" ? v.maps : null,
-      rounds: Object.fromEntries(rounds),
-    };
+    return JSON.parse(storage.getItem(name) ?? "null");
   } catch {
-    return NO_PLAYLIST; // storage blocked or garbled: the default playlist
+    return null; // storage blocked or garbled: start as new
   }
 }
 
-export function savePlaylist(saved: SavedPlaylist, storage: Pick<Storage, "setItem"> = sessionStorage) {
+/** Keeps ``value``; one too big for the storage is kept ``smaller`` instead, never left at an older value. */
+function keep(name: string, value: unknown, smaller: unknown, storage: Pick<Storage, "setItem">) {
   try {
-    storage.setItem(SAVED, JSON.stringify(saved));
+    storage.setItem(name, JSON.stringify(value));
   } catch {
-    /* a convenience only */
+    try {
+      storage.setItem(name, JSON.stringify(smaller));
+    } catch {
+      /* a convenience only */
+    }
   }
+}
+
+export function loadPlaylist(storage: Pick<Storage, "getItem"> = sessionStorage): SavedPlaylist {
+  const v = load(SAVED, storage);
+  if (!isRecord(v) || !isRecord(v.options)) return NO_PLAYLIST;
+  const c = v.controls;
+  const controls = isRecord(c) && typeof c.skill === "string" && typeof c.comfort === "number" && isRecord(c.measured)
+    ? { skill: c.skill, comfort: c.comfort, measured: c.measured as Record<string, number> }
+    : null;
+  const p = v.playlist;
+  const playlist = isRecord(p) && typeof p.skill === "string" && Array.isArray(p.stages) ? (p as unknown as Schemas["Playlist"]) : null;
+  return {
+    options: v.options as RecommendationOptions,
+    controls,
+    job: typeof v.job === "string" ? v.job : null,
+    playlist,
+    maps: typeof v.maps === "string" ? v.maps : null,
+    rounds: roundsOf(v.rounds),
+  };
+}
+
+export function savePlaylist(saved: SavedPlaylist, storage: Pick<Storage, "setItem"> = sessionStorage) {
+  // without its maps, the selection still comes back and the playlist is made again from it
+  keep(SAVED, saved, { ...saved, playlist: null }, storage);
+}
+
+/** Skill Development as it was left (#107): the settings applied, how many times they were (a new apply starts each
+ * skill's maps again with the best ones) and the group of five each skill shows. */
+export interface SavedSuggestions {
+  options: { kappa?: number; min_relevance?: number };
+  applied: number;
+  rounds: Record<string, Rounds>;
+}
+
+const SAVED_SUGGESTIONS = "osu-coach:skill-development";
+export const NO_SUGGESTIONS: SavedSuggestions = { options: {}, applied: 0, rounds: {} };
+
+export function loadSuggestions(storage: Pick<Storage, "getItem"> = sessionStorage): SavedSuggestions {
+  const v = load(SAVED_SUGGESTIONS, storage);
+  if (!isRecord(v) || !isRecord(v.options) || !Number.isInteger(v.applied)) return NO_SUGGESTIONS;
+  const { kappa, min_relevance } = v.options;
+  return {
+    options: {
+      ...(typeof kappa === "number" ? { kappa } : {}),
+      ...(typeof min_relevance === "number" ? { min_relevance } : {}),
+    },
+    applied: v.applied as number,
+    rounds: roundsOf(v.rounds),
+  };
+}
+
+export function saveSuggestions(saved: SavedSuggestions, storage: Pick<Storage, "setItem"> = sessionStorage) {
+  keep(SAVED_SUGGESTIONS, saved, NO_SUGGESTIONS, storage);
 }
 
 /** Names a playlist by its maps, so the groups shown come back only for the same maps (null: no playlist yet). */

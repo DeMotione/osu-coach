@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { Schemas } from "../api/client";
 import { useHideMaps, useSuggestions } from "../api/queries";
@@ -7,31 +7,39 @@ import { MapTable } from "../components/MapTable";
 import { StageNav } from "../components/StageNav";
 import { QueryView } from "../components/states";
 import { Alert, Card, Field, Page } from "../components/ui";
-import { STAGE_SIZE, stageMaps, useRounds } from "../lib/playlist";
+import { loadSuggestions, saveSuggestions, STAGE_SIZE, stageMaps, useRounds, type SavedSuggestions } from "../lib/playlist";
 import { speedFitNotice } from "../lib/recommendationFit";
 
 export default function MapsPage() {
-  const [options, setOptions] = useState<{ kappa?: number; min_relevance?: number }>({});
-  const q = useSuggestions(options);
+  // the settings applied, as left on another page (#107)
+  const [view, setView] = useState<Omit<SavedSuggestions, "rounds">>(() => loadSuggestions());
+  const q = useSuggestions(view.options);
   return (
     <Page title="Skill Development">
-      <QueryView query={q}>{(s) => <Body s={s} options={options} onApply={setOptions} />}</QueryView>
+      <QueryView query={q}>
+        {(s) => <Body s={s} options={view.options} applied={view.applied} onApply={(options) => setView((v) => ({ options, applied: v.applied + 1 }))} />}
+      </QueryView>
     </Page>
   );
 }
 
-function Body({ s, options, onApply }: {
+function Body({ s, options, applied, onApply }: {
   s: Schemas["Suggestions"];
-  options: object;
+  options: SavedSuggestions["options"];
+  /** How many times settings were applied: each new apply is a new set of suggestions. */
+  applied: number;
   onApply: (options: { kappa: number; min_relevance: number }) => void;
 }) {
   const hide = useHideMaps();
-  const [kappa, setKappa] = useState("0.5");
-  const [relevance, setRelevance] = useState("0.3");
+  const [kappa, setKappa] = useState(String(options.kappa ?? 0.5));
+  const [relevance, setRelevance] = useState(String(options.min_relevance ?? 0.3));
   const valid = kappa.trim() !== "" && relevance.trim() !== "" && Number.isFinite(Number(kappa)) &&
     Number(kappa) >= 0 && Number.isFinite(Number(relevance)) && Number(relevance) >= 0 && Number(relevance) <= 1;
-  // which group of five each skill shows: back to the best ones when new settings are applied, not when a map is hidden
-  const { rounds, move } = useRounds(options);
+  // which group of five each skill shows: back to the best ones when new settings are applied, not when a map is
+  // hidden, and the same again after another page (#107)
+  const [saved] = useState(loadSuggestions);
+  const { rounds, move, by } = useRounds(applied, { of: saved.applied, by: saved.rounds });
+  useEffect(() => saveSuggestions({ options, applied, rounds: by }), [options, applied, by]);
   const shown = useMemo(
     () => new Map(s.sections.map((sec) => [sec.skill, stageMaps(sec.maps, rounds(sec.skill).at)])),
     [s.sections, rounds],

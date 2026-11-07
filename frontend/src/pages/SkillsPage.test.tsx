@@ -8,11 +8,14 @@ import SkillsPage from "./SkillsPage";
 
 const NAMES: Record<string, string> = { flow_aim: "Spaced streams", stamina: "Stamina" };
 
+/** The server's answers change when a new play is analysed. */
+const server = vi.hoisted(() => ({ plays: 0 }));
+
 /** A playlist per skill: one stage of 12 maps, so it has a second group of five. */
 function playlist(skill: string): Schemas["Playlist"] {
   const maps = Array.from({ length: 12 }, (_, i) => ({
-    md5: `${skill}-${i}`.padEnd(32, "0"), beatmap_id: i + 1, beatmapset_id: i + 1,
-    artist: "Artist", title: `${NAMES[skill]} map ${i + 1}`, version: "Hard",
+    md5: `${skill}-${server.plays}-${i}`.padEnd(32, "0"), beatmap_id: i + 1, beatmapset_id: i + 1,
+    artist: "Artist", title: `${NAMES[skill]} map ${i + 1}${server.plays ? ` after ${server.plays} plays` : ""}`, version: "Hard",
     stars: 6, mods: "", rate: 1, bpm: 200, ar: 9, length_s: 120, why: NAMES[skill], url: `https://osu.ppy.sh/beatmaps/${i + 1}`,
   }));
   return {
@@ -37,7 +40,10 @@ vi.mock("../api/jobs", () => ({
 
 vi.mock("../components/ExportPanel", () => ({ ExportPanel: () => null }));
 
-beforeEach(() => sessionStorage.clear());
+beforeEach(() => {
+  sessionStorage.clear();
+  server.plays = 0;
+});
 
 const collection = () => screen.getByText(/^osu-coach: /).textContent;
 
@@ -80,4 +86,25 @@ it("starts with the best maps again when a new playlist is made", () => {
   fireEvent.change(screen.getByRole("combobox", { name: /Target skill/ }), { target: { value: "stamina" } });
   fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
   expect(screen.getByText(/showing 1–5 of 12/)).toBeInTheDocument();
+});
+
+it("keeps the maps of a playlist made until Show maps is pressed again, and says when plays changed it", () => {
+  render(<MemoryRouter initialEntries={["/skills?tab=playlist"]}><SkillsPage /></MemoryRouter>);
+  fireEvent.change(screen.getByRole("combobox", { name: /Target skill/ }), { target: { value: "stamina" } });
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  fireEvent.click(screen.getByRole("button", { name: /Other maps/ }));
+
+  server.plays = 1; // a new play is analysed: the server's playlist is another one now
+  fireEvent.click(screen.getByRole("tab", { name: "Training plan & goals" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Playlist for a skill" }));
+  const table = () => screen.getByRole("table", { name: "Maps" });
+  expect(table()).toHaveTextContent("Stamina map 6 ");
+  expect(table()).not.toHaveTextContent("after 1 plays");
+  expect(screen.getByText(/showing 6–10 of 12/)).toBeInTheDocument();
+  expect(screen.getByText(/made before your latest plays were analysed/)).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  expect(table()).toHaveTextContent("Stamina map 1 after 1 plays");
+  expect(screen.getByText(/showing 1–5 of 12/)).toBeInTheDocument();
+  expect(screen.queryByText(/made before your latest plays were analysed/)).toBeNull();
 });

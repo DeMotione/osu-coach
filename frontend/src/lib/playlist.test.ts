@@ -1,9 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import type { Schemas } from "../api/client";
 import {
-  canGoBack, canGoForward, FIRST_ROUND, HISTORY, loadPlaylist, moveRound, NO_PLAYLIST, playlistKey, type Rounds,
-  savePlaylist, stageMaps, useRounds,
+  canGoBack, canGoForward, FIRST_ROUND, HISTORY, loadPlaylist, loadSuggestions, moveRound, NO_PLAYLIST, NO_SUGGESTIONS,
+  playlistKey, type Rounds, savePlaylist, saveSuggestions, stageMaps, useRounds,
 } from "./playlist";
 
 describe("stageMaps", () => {
@@ -67,6 +68,7 @@ describe("the playlist kept while away (#107)", () => {
       options: { skill: "stamina", assessed: "stamina", allow_hr: true },
       controls: { skill: "flow_aim", measured: { stamina: 54.6 }, comfort: 6.27 },
       job: "j1",
+      playlist: pl("stamina", ["a", "b"]) as unknown as Schemas["Playlist"],
       maps: "stamina:abc:12",
       rounds: { Comfort: { at: 1, latest: 2 } },
     };
@@ -81,6 +83,27 @@ describe("the playlist kept while away (#107)", () => {
     expect(loadPlaylist(storage)).toEqual(NO_PLAYLIST);
     storage.items.set("osu-coach:skill-playlist", JSON.stringify({ options: {}, rounds: { Comfort: { at: "x" } }, controls: 3 }));
     expect(loadPlaylist(storage)).toEqual(NO_PLAYLIST);
+  });
+
+  it("keeps the selection without the maps when the playlist is too big for the storage", () => {
+    const items = new Map<string, string>();
+    const full = { getItem: (k: string) => items.get(k) ?? null, setItem: (k: string, v: string) => {
+      if (v.length > 200) throw new DOMException("full", "QuotaExceededError");
+      items.set(k, v);
+    } };
+    const big = pl("stamina", Array.from({ length: 50 }, (_, i) => `map${i}`)) as unknown as Schemas["Playlist"];
+    savePlaylist({ ...NO_PLAYLIST, options: { skill: "stamina" }, playlist: big }, full);
+    expect(loadPlaylist(full)).toEqual({ ...NO_PLAYLIST, options: { skill: "stamina" } });
+  });
+
+  it("keeps Skill Development's settings and groups", () => {
+    const storage = memory();
+    expect(loadSuggestions(storage)).toEqual(NO_SUGGESTIONS);
+    const saved = { options: { kappa: 0.8, min_relevance: 0.4 }, applied: 2, rounds: { speed: { at: 1, latest: 1 } } };
+    saveSuggestions(saved, storage);
+    expect(loadSuggestions(storage)).toEqual(saved);
+    storage.items.set("osu-coach:skill-development", JSON.stringify({ options: { kappa: "x" }, applied: 1, rounds: {} }));
+    expect(loadSuggestions(storage)).toEqual({ options: {}, applied: 1, rounds: {} });
   });
 
   it("names a playlist by its maps", () => {

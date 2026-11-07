@@ -186,33 +186,50 @@ function PlaylistTab() {
   const modified = isModified(options);
   const q = usePlaylist(options, !modified);
   const search = useJob("playlist");
-  const modifiedPl = search.job?.kind === "playlist" && search.job.status === "succeeded" ? search.job.result : null;
-  const pl = modified ? modifiedPl : q.data;
+  // the search that makes the playlist with mods applied last (not one another window started)
+  const [jobId, setJobId] = useState<string | null>(saved.job);
+  const searched = search.job?.kind === "playlist" && search.job.id === jobId && search.job.status === "succeeded" ? search.job.result : null;
+  // the newest answer for the selection applied
+  const fresh = modified ? searched : q.isPlaceholderData ? null : (q.data ?? null);
+  // the playlist on screen keeps its maps until Show maps asks for new ones, also when a new play is analysed (#107)
+  const [kept, setKept] = useState<Schemas["Playlist"] | null>(saved.playlist);
+  const [waiting, setWaiting] = useState(!saved.playlist);
+  if (waiting && fresh) {
+    setKept(fresh);
+    setWaiting(false);
+  }
+  const pl = waiting ? (fresh ?? (modified ? null : kept)) : kept;
   const [controls, setControls] = useState<PlaylistControls | null>(saved.controls);
   const controlData = controls ?? controlsOf(q.data ?? pl);
   const apply = (next: RecommendationOptions) => {
     if (!controls && q.data) setControls(controlsOf(q.data));
     setOptions(next);
-    if (isModified(next)) void search.run(() => searchPlaylist(next));
+    setWaiting(true);
+    setJobId(null);
+    if (isModified(next)) void search.run(() => searchPlaylist(next)).then((job) => setJobId(job?.id ?? null));
   };
-  // a playlist with mods whose search this window no longer holds (the page was reloaded): ask the server for
-  // that search again, and run it again if the server no longer has it either
+  // a playlist with mods still being made when this window lost its search (a reload, or another window's search in
+  // its place): follow that search again, and run it again if the server no longer has it
   const { run } = search;
-  const lost = useRef(modified && !search.job);
+  const lost = useRef(modified && waiting && search.job?.id !== jobId);
   useEffect(() => {
     if (!lost.current) return;
     lost.current = false;
     const again = () => searchPlaylist(options);
-    void run(() => (saved.job ? unwrap(api.GET("/api/jobs/{job_id}", { params: { path: { job_id: saved.job } } })).catch(again) : again()));
+    const request = saved.job ? unwrap(api.GET("/api/jobs/{job_id}", { params: { path: { job_id: saved.job } } })).catch(again) : again();
+    void run(() => request).then((job) => setJobId(job?.id ?? null));
   }, [run, options, saved.job]);
   // which group of five each stage shows; a new playlist starts again with the best ones
   const key = playlistKey(pl);
   const { rounds, move, by } = useRounds(key, { of: saved.maps, by: saved.rounds });
-  const job = modified ? (search.job?.id ?? null) : null;
   useEffect(() => {
-    // while a playlist loads (no key yet), the groups of the one left stay kept
-    savePlaylist({ options, controls, job, maps: key ?? saved.maps, rounds: key ? by : saved.rounds });
-  }, [options, controls, job, key, by, saved]);
+    // while a new playlist loads (no key yet), the groups of the one left stay kept
+    savePlaylist({
+      options, controls, job: modified ? jobId : null, playlist: waiting ? null : kept, maps: key ?? saved.maps, rounds: key ? by : saved.rounds,
+    });
+  }, [options, controls, modified, jobId, waiting, kept, key, by, saved]);
+  // plays analysed since it was made would change it: say so, Show maps makes it again
+  const newer = !waiting && !modified && !!fresh && playlistKey(fresh) !== key;
   const shown = useMemo(
     () => new Map((pl?.stages ?? []).map((st) => [st.stage, stageMaps(st.maps, rounds(st.stage).at)])),
     [pl, rounds],
@@ -223,7 +240,7 @@ function PlaylistTab() {
     [shown],
   );
 
-  if (q.isPending && !modified) return <LoadingPage tiles={2} />;
+  if (!pl && q.isPending && !modified) return <LoadingPage tiles={2} />;
   if (q.error && !pl) return <ErrorCard error={q.error} onRetry={() => void q.refetch()} />;
   return (
     <>
@@ -232,6 +249,7 @@ function PlaylistTab() {
         {pl ? <p className="small muted">Searched {pl.coverage_maps ?? 0} maps with verified data; {pl.unavailable_maps ?? 0} missing files; {pl.calculator_unavailable_maps ?? 0} without any supported calculation; {pl.unavailable_configurations ?? 0} individual configurations could not be calculated. Showing up to {pl.result_limit ?? 0} distinct maps per stage.</p>
           : <Alert tone="info">Searching exact map configurations. Available maps and exclusions will be shown when the search finishes.</Alert>}</>}
       {pl && <>
+      {newer && <Alert tone="info">This playlist was made before your latest plays were analysed. Press Show maps to make it again with them.</Alert>}
       <Card>
         {!pl.has_profile && <Alert tone="info">No replays analysed yet — enter comfort stars and player ratings to get a personal playlist.</Alert>}
         <p className="muted">
