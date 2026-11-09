@@ -62,7 +62,8 @@ export function ExportPanel({ maps, name, preferred, title, sub }: {
         <StableTab
           body={body}
           preview={preview.data}
-          setIds={[...new Set(maps.map((m) => m.beatmapset_id))]}
+          setIds={[...new Set(maps.map((m) => m.beatmapset_id).filter((s) => s > 0))]}
+          unknownSets={maps.filter((m) => m.beatmapset_id <= 0).length}
           onCollection={() => download("/api/exports/collection-db", "collection.db")}
         />
       )}
@@ -117,6 +118,8 @@ function LazerTab({ body, preview, onZip }: {
                 Ready: <code>{j.result.path}</code> with {j.result.maps.length} map set(s) and the collection.
                 {j.result.failed.length > 0 &&
                   ` Couldn't download set(s) ${j.result.failed.join(", ")}: use the links in the map list.`}
+                {j.result.not_found > 0 &&
+                  ` ${j.result.not_found} map(s) you don't have weren't found online: they're in the collection, but you need to get them yourself.`}
               </Alert>
             ) : null
           }
@@ -135,10 +138,11 @@ function LazerTab({ body, preview, onZip }: {
   );
 }
 
-function StableTab({ body, preview, setIds, onCollection }: {
+function StableTab({ body, preview, setIds, unknownSets, onCollection }: {
   body: Schemas["ExportRequest"];
   preview?: Schemas["ExportPreview"];
   setIds: number[];
+  unknownSets: number;
   onCollection: () => void;
 }) {
   const merge = useMergeStable();
@@ -180,13 +184,19 @@ function StableTab({ body, preview, setIds, onCollection }: {
         <button
           type="button"
           className="btn"
-          disabled={osz.running || !dest.trim()}
+          disabled={osz.running || !dest.trim() || !setIds.length}
           onClick={() =>
             void osz.run(() => unwrap(api.POST("/api/exports/osz", { body: { folder: dest.trim(), set_ids: setIds } })))
           }
         >
           <IconDownload /> Download all {setIds.length} maps
         </button>
+        {unknownSets > 0 && (
+          <p className="small muted">
+            {unknownSets} map(s) have no known beatmap set, so they can't be downloaded here (the lazer folder looks them up).
+            They're still in the collection.
+          </p>
+        )}
         <JobStatus
           job={osz.job}
           error={osz.error}

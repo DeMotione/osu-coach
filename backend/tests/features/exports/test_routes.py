@@ -136,6 +136,58 @@ def test_osz_downloads_report_what_failed(client, tmp_path):
     assert job["status"] == "succeeded" and job["result"]["downloaded"] == 0 and job["result"]["failed"] == [1, 2]
 
 
+def _without_set(export):
+    # the second map with no known set, as an old .osu file reads
+    maps = [dict(m) for m in export["maps"]]
+    maps[1]["beatmapset_id"] = 0
+    return {**export, "maps": maps}, maps[1]["md5"]
+
+
+def test_a_map_without_a_known_set_doesnt_break_the_export(client, export):
+    body, _ = _without_set(export)
+    p = client.post("/api/exports/preview", json=body)
+    assert p.status_code == 200, p.text
+    p = p.json()
+    assert p["total_sets"] == len({m["beatmapset_id"] for m in body["maps"] if m["beatmapset_id"] > 0}) + 1
+    assert p["lazer_sets"] == p["total_sets"] and p["lazer_approximate"]
+    r = client.post("/api/exports/collection-db", json=body)
+    assert r.status_code == 200 and loads(r.content)[1][0][1] == [m["md5"] for m in body["maps"]]
+
+
+def test_the_lazer_folder_looks_up_a_maps_unknown_set(client, export, monkeypatch):
+    body, md5 = _without_set(export)
+    looked_up = []
+
+    def lookup(m):
+        looked_up.append(m)
+        return {"id": 999, "beatmapset_id": 4242}
+
+    def fake_download(set_id, dest, progress=None, stop=None):
+        dest = Path(dest)
+        dest.mkdir(parents=True, exist_ok=True)
+        osz = dest / f"{set_id}.osz"
+        with zipfile.ZipFile(osz, "w") as z:
+            z.writestr("map.osu", "osu file format v14\n")
+        return osz
+
+    monkeypatch.setattr(sources, "lookup_md5", lookup)
+    monkeypatch.setattr(sources, "download_osz", fake_download)
+    job = wait(client, client.post("/api/exports/lazer-pack", json=body).json())
+    assert job["status"] == "succeeded", job
+    assert looked_up == [md5]
+    assert 4242 in job["result"]["maps"] and 0 not in job["result"]["maps"] and job["result"]["not_found"] == 0
+
+    monkeypatch.setattr(sources, "lookup_md5", lambda m: None)
+    job = wait(client, client.post("/api/exports/lazer-pack", json=body).json())
+    assert job["status"] == "succeeded" and job["result"]["not_found"] == 1 and 0 not in job["result"]["maps"]
+
+
+def test_osz_downloads_skip_unknown_sets(client, tmp_path):
+    r = client.post("/api/exports/osz", json={"folder": str(tmp_path / "maps"), "set_ids": [0, -1]})
+    assert r.status_code == 422 and r.json()["code"] == "no_sets"
+    assert not (tmp_path / "maps").exists()
+
+
 def test_export_requests_are_validated(client):
     assert client.post("/api/exports/preview", json={"name": "x", "maps": []}).status_code == 422
     bad = {"name": "x", "maps": [{"md5": "zz", "beatmapset_id": 1}]}

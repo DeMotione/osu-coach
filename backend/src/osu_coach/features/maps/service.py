@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from osu_coach.common.convert import num
+from osu_coach.common.convert import integer, num
 from osu_coach.common.errors import ApiError, Invalid
 from osu_coach.common.maps import map_rows
 from osu_coach.common.texts import explain
@@ -265,6 +265,13 @@ def validate_search(ws: Workspace, req: PlaylistSearchRequest) -> None:
     _options(ws.profile(), req.skill, req.assessed, req.ratings, req.comfort, req.kappa, req.min_relevance)
 
 
+def with_pool_ids(row: dict, record) -> dict:
+    """A calculated variant with the pool's beatmap and set ids. Variants are calculated from the .osu file, and
+    old .osu files don't name their beatmap or set (they read as 0); the pool, from the osu! website, does."""
+    ids = {k: v for k in ("beatmap_id", "beatmapset_id") if (v := integer(record.get(k))) is not None and v > 0}
+    return {**row, **ids} if ids else row
+
+
 def _search_map_results(cache_dir, records, libraries, options, client, report, workers=None):
     """Yield map results in pool order while calculating different maps in parallel.
 
@@ -402,7 +409,7 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
 
     def rows():
         nonlocal unavailable, coverage, calculator_unavailable, unavailable_configurations
-        for _, found, calculated, failed_configs, _ in _search_map_results(
+        for index, found, calculated, failed_configs, _ in _search_map_results(
             ws.cache_dir, records, libraries, options, client, report
         ):
             if not found:
@@ -412,7 +419,7 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
             unavailable_configurations += failed_configs
             if not calculated:
                 calculator_unavailable += 1
-            yield from calculated
+            yield from (with_pool_ids(row, records[index]) for row in calculated)
 
     ranked = recommend_modified(
         pool.to_dict("records"),

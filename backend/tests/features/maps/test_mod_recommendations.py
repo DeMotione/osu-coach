@@ -126,6 +126,49 @@ def _row(md5: str, stars: float) -> dict:
     }
 
 
+def test_modded_search_takes_beatmap_and_set_ids_from_the_pool(monkeypatch, tmp_path):
+    # variants are calculated from the .osu file; an old .osu file names neither its beatmap nor its set
+    import pandas as pd
+
+    from osu_coach.features.maps import service
+    from osu_coach.features.maps.schemas import PlaylistSearchRequest
+
+    md5 = "b" * 32
+    pool = pd.DataFrame([{**_row(md5, 4.0), "beatmap_id": 76, "beatmapset_id": 7634}])
+    ws = SimpleNamespace(
+        pool=lambda: pool,
+        profile=lambda: None,
+        settings=lambda: UserSettings(),
+        library=None,
+        libraries=lambda: [],
+        preferred_client=lambda: "stable",
+        plays=[],
+        cache_dir=tmp_path,
+    )
+    variant = {**_row(md5, 4.0), "beatmap_id": 0, "beatmapset_id": 0, "configuration_id": "x", "mods": "HR"}
+    monkeypatch.setattr(service, "_search_map_results", lambda *a, **k: iter([(0, True, [variant], 0, 1)]))
+    seen = []
+
+    class Seen(Exception):
+        pass
+
+    def capture(base_pool, variants, *rest, **kw):
+        seen.extend(variants)
+        raise Seen
+
+    monkeypatch.setattr(service, "recommend_modified", capture)
+    with pytest.raises(Seen):
+        service.search(
+            ws, PlaylistSearchRequest(skill="aim", comfort=4, ratings='{"aim":50}', assessed="aim"), lambda *_: None
+        )
+    assert [(r["beatmap_id"], r["beatmapset_id"], r["mods"]) for r in seen] == [(76, 7634, "HR")]
+    # a pool without ids (or with 0) leaves the variant's own
+    assert service.with_pool_ids({"beatmap_id": 5, "beatmapset_id": 6}, {"beatmapset_id": float("nan")}) == {
+        "beatmap_id": 5,
+        "beatmapset_id": 6,
+    }
+
+
 def test_transformed_star_entry_stable_tie_and_empty_set():
 
     base = [_row(f"{i:032x}", 4.0) for i in range(20)] + [_row("f" * 32, 2.0)]
