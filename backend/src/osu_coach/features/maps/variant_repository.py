@@ -1,0 +1,129 @@
+"""Verified map bytes and versioned per-map configuration statistics cache."""
+
+from __future__ import annotations
+
+import gzip
+import hashlib
+import json
+import math
+import os
+from pathlib import Path
+
+import numpy as np
+
+from osu_coach.domain.beatmaps.features import features_at_rate, object_features
+from osu_coach.domain.beatmaps.models import PlayableBeatmap
+from osu_coach.domain.maps.suggestions import pattern_stats
+from osu_coach.domain.player.algorithm import MODEL_VERSION
+from osu_coach.domain.replays.configuration import Configuration
+from osu_coach.infra.beatmaps import difficulty
+from osu_coach.infra.beatmaps.parser import parse_beatmap_bytes
+from osu_coach.infra.beatmaps.performance import CALCULATOR_VERSION
+from osu_coach.infra.beatmaps.sources import download_osu
+from osu_coach.infra.map_stats import finish_stats
+
+CACHE_VERSION = 1
+
+
+def verified_bytes(cache_dir: Path, row: dict, libraries: list) -> bytes | None:
+    md5 = str(row.get("md5") or "")
+    local = [Path(lib.maps[md5]) for lib in libraries if md5 in lib.maps]
+    local.append(cache_dir / "play-goals" / "maps" / f"{row.get('beatmap_id')}.osu")
+    own = cache_dir / "recommendations" / "maps" / f"{md5}.osu"
+    local.append(own)
+    for path in local:
+        try:
+            data = path.read_bytes()
+        except OSError:
+            continue
+        if hashlib.md5(data).hexdigest() == md5:
+            return data
+    beatmap_id = row.get("beatmap_id")
+    if not isinstance(beatmap_id, (int, float)) or not math.isfinite(beatmap_id) or beatmap_id <= 0:
+        return None
+    data = download_osu(int(beatmap_id), expected_md5=md5)
+    if data is None:
+        return None
+    own.parent.mkdir(parents=True, exist_ok=True)
+    temp = own.with_suffix(".tmp")
+    temp.write_bytes(data)
+    os.replace(temp, own)
+    return data
+
+
+def _clean(value):
+    if isinstance(value, np.generic):
+        return _clean(value.item())
+    if isinstance(value, dict):
+        return {key: _clean(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_clean(item) for item in value]
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
+
+
+def variant_rows(cache_dir: Path, raw: bytes, configs: tuple[Configuration, ...], on_unavailable=None):
+    """Yield exact rows, saving completed configurations after each map."""
+    md5 = hashlib.md5(raw).hexdigest()
+    directory = cache_dir / "recommendations" / "variants"
+    filename = f"{md5}-r{CACHE_VERSION}-m{MODEL_VERSION}-rosu{CALCULATOR_VERSION}.json.gz"
+    path = directory / filename
+    try:
+        with gzip.open(path, "rt", encoding="utf-8") as fh:
+            cached = json.load(fh)
+    except (OSError, ValueError):
+        cached = {}
+    missing = [config for config in configs if config.key not in cached]
+    bm = parse_beatmap_bytes(raw) if missing else None
+    parsed_map = difficulty.parse_map(raw) if bm is not None and bm.mode == 0 and len(bm.objects) >= 30 else None
+    templates = {}
+    patterns = {}
+    for config in missing:
+        try:
+            if bm.mode != 0 or len(bm.objects) < 30 or parsed_map is None:
+                stats = None
+            else:
+                geometry = config.hr
+                if geometry not in templates:
+                    templates[geometry] = object_features(PlayableBeatmap(bm, 16 if geometry else 0, rate=1.0))
+                pattern_key = (geometry, config.rate)
+                if pattern_key not in patterns:
+                    features = features_at_rate(templates[geometry], config.rate)
+                    patterns[pattern_key] = pattern_stats(bm, raw, config.mods, config.rate, features)
+                pattern = patterns[pattern_key]
+                stats = (
+                    finish_stats(
+                        pattern, raw, config.mods, config.rate, lazer=config.client == "lazer", parsed_map=parsed_map
+                    )
+                    if pattern is not None
+                    else None
+                )
+        except (OSError, ValueError):
+            stats = None
+        cached[config.key] = _clean(stats) if stats and stats.get("stars") else None
+    if missing:
+        directory.mkdir(parents=True, exist_ok=True)
+        temp = path.with_suffix(".tmp")
+        with gzip.open(temp, "wt", encoding="utf-8") as fh:
+            json.dump(cached, fh, separators=(",", ":"), allow_nan=False)
+        os.replace(temp, path)
+    if on_unavailable is not None:
+        on_unavailable(sum(not cached.get(config.key) for config in configs))
+    for config in configs:
+        row = cached.get(config.key)
+        if row:
+            yield {
+                **row,
+                "configuration_id": config.key,
+                "mods": "".join(part for part, on in (("HD", config.hd), ("HR", config.hr), ("DT", config.dt)) if on)
+                or "NM",
+                "rate": config.rate,
+            }
+
+
+def calculate_variants(cache_dir: Path, raw: bytes, configs: tuple[Configuration, ...]) -> tuple[list[dict], int]:
+    """Calculate one map in a worker process; that worker owns its cache file."""
+    unavailable: list[int] = []
+    rows = list(variant_rows(cache_dir, raw, configs, on_unavailable=unavailable.append))
+    return rows, unavailable[0]

@@ -26,7 +26,7 @@ import { closeWindow, isDesktop, minimizeWindow, toggleMaximizeWindow, useWindow
 import { stars } from "../lib/format";
 import { useSidebarCollapsed } from "../lib/sidebar";
 import { useTheme, type ThemeChoice } from "../lib/theme";
-import { NAV, PAGES, currentPage } from "./nav";
+import { NAV, PAGES, SETTINGS, currentPage } from "./nav";
 
 function Brand({ onClick }: { onClick?: () => void }) {
   return (
@@ -95,6 +95,24 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       ))}
     </nav>
+  );
+}
+
+/** Settings, at the foot of the sidebar: apart from the pages, which are about your playing. */
+function SettingsLink({ onNavigate }: { onNavigate?: () => void }) {
+  const { path, label, icon: Icon } = SETTINGS;
+  return (
+    <NavLink
+      to={path}
+      onClick={onNavigate}
+      onPointerEnter={() => prefetchPage(path)}
+      onFocus={() => prefetchPage(path)}
+      title={label}
+      className={({ isActive: on }) => `sidenav__link${on ? " active" : ""}`}
+    >
+      <Icon />
+      <span className="sidenav__text">{label}</span>
+    </NavLink>
   );
 }
 
@@ -328,6 +346,7 @@ function Shell() {
         )}
         <SidebarNav onNavigate={close} />
         <div className="sidebar__foot">
+          <SettingsLink onNavigate={close} />
           <PlayerCard onClick={close} />
         </div>
       </aside>

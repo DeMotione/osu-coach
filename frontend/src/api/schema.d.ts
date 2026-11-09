@@ -495,7 +495,8 @@ export interface paths {
         /**
          * Progress by month, week or day
          * @description Not weighted by difficulty, so periods stay comparable. ``since`` / ``until``: days on this computer's
-         *     clock, both included.
+         *     clock, both included. ``replays``: analysed = only the replays of the last analysis (what the Overview shows,
+         *     rated at its comfort level; every saved play when none of the player's is analysed), all = the whole history.
          */
         get: operations["by_period_api_progress_get"];
         put?: never;
@@ -636,6 +637,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/playlists/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Search exact mod and rate configurations */
+        post: operations["search_api_playlists_search_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/exports/preview": {
         parameters: {
             query?: never;
@@ -670,7 +688,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/exports/lazer-zip": {
+    "/api/exports/lazer-send": {
         parameters: {
             query?: never;
             header?: never;
@@ -680,17 +698,18 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * lazer import folder without maps (.zip)
-         * @description Just the collection, e.g. for lazer on another computer: unzip it and import the folder.
+         * Send the maps to osu!lazer (background job)
+         * @description The maps lazer doesn't have yet are downloaded into osu! coach's data folder (``lazer-maps``) and handed to
+         *     lazer, which imports them and deletes the files (it starts if it's closed). 404 ``no_lazer`` without lazer.
          */
-        post: operations["lazer_zip_api_exports_lazer_zip_post"];
+        post: operations["lazer_send_api_exports_lazer_send_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/exports/lazer-pack": {
+    "/api/exports/lazer-open": {
         parameters: {
             query?: never;
             header?: never;
@@ -700,10 +719,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Make the lazer import folder (background job)
-         * @description In Downloads/osu-coach lazer import/<name>: the collection plus the maps lazer doesn't have yet.
+         * Open a map in osu!lazer
+         * @description Shows the map's page in lazer with this difficulty picked (lazer starts if it's closed); lazer's "Go to
+         *     beatmap" button there jumps to it in song select. 404 ``no_lazer`` without lazer.
          */
-        post: operations["lazer_pack_api_exports_lazer_pack_post"];
+        post: operations["lazer_open_api_exports_lazer_open_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -880,6 +900,11 @@ export interface components {
             /** Error */
             error: string | null;
             /**
+             * Code
+             * @description A failed job's error code (stable, like an error response's).
+             */
+            code?: string | null;
+            /**
              * Created At
              * Format: date-time
              */
@@ -973,6 +998,12 @@ export interface components {
             skipped: components["schemas"]["SkippedReplay"][];
             /** Skipped Total */
             skipped_total: number;
+            /**
+             * Restoring
+             * @description The analysed replays of the last session are still being brought back (at start-up); the profile pages answer 409 no_profile until then.
+             * @default false
+             */
+            restoring: boolean;
         };
         /** AngleRow */
         AngleRow: {
@@ -1021,6 +1052,13 @@ export interface components {
              * @enum {string}
              */
             replay_set: "all" | "best";
+            /**
+             * Rating Engine
+             * @description The engine that makes the skill ratings; irt (Star-Scale IRT) is experimental.
+             * @default comfort
+             * @enum {string}
+             */
+            rating_engine: "comfort" | "irt";
             /**
              * Level Override
              * @description Level (★) set by hand; null = detected.
@@ -1313,6 +1351,11 @@ export interface components {
              */
             change: number | null;
             /**
+             * At Least
+             * @description Without a score: the skill is at least this good on these maps (untested, 0–100).
+             */
+            at_least?: number | null;
+            /**
              * Demand
              * @description How many times what typical maps of the comfort level demand of the skill (1.25 = 25% more).
              */
@@ -1410,7 +1453,10 @@ export interface components {
         ExportMap: {
             /** Md5 */
             md5: string;
-            /** Beatmapset Id */
+            /**
+             * Beatmapset Id
+             * @description The map's beatmap set on the osu! website; 0 (or less) when it isn't known, e.g. a map that isn't on the website. Such a map is still put in the collection.
+             */
             beatmapset_id: number;
         };
         /** ExportPreview */
@@ -1426,16 +1472,14 @@ export interface components {
             total_sets: number;
             /**
              * Lazer Sets
-             * @description Map sets the lazer import folder would download.
+             * @description Map sets that would be downloaded and sent to lazer.
              */
             lazer_sets: number;
             /**
              * Lazer Approximate
-             * @description Not all of lazer's files were read yet: an upper bound.
+             * @description An upper bound: not all of lazer's files were read yet, or some maps' sets are only looked up when they are sent.
              */
             lazer_approximate: boolean;
-            /** Lazer Folder */
-            lazer_folder: string;
             /**
              * Stable Available
              * @description An osu!stable install to add the collection to was found.
@@ -1833,8 +1877,24 @@ export interface components {
          * @enum {integer}
          */
         Latest: 100 | 500 | 1000 | 0;
-        /** LazerPackJob */
-        LazerPackJob: {
+        /** LazerOpenRequest */
+        LazerOpenRequest: {
+            /**
+             * Beatmap Id
+             * @description The difficulty on the osu! website.
+             */
+            beatmap_id: number;
+        };
+        /** LazerOpened */
+        LazerOpened: {
+            /**
+             * Link
+             * @description The link lazer was given, ``osu://b/<beatmap id>``.
+             */
+            link: string;
+        };
+        /** LazerSendJob */
+        LazerSendJob: {
             /** Id */
             id: string;
             /**
@@ -1852,6 +1912,11 @@ export interface components {
             /** Error */
             error: string | null;
             /**
+             * Code
+             * @description A failed job's error code (stable, like an error response's).
+             */
+            code?: string | null;
+            /**
              * Created At
              * Format: date-time
              */
@@ -1867,17 +1932,37 @@ export interface components {
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
-            kind: "lazer_pack";
-            result: components["schemas"]["LazerPackResult"] | null;
+            kind: "lazer_send";
+            result: components["schemas"]["LazerSendResult"] | null;
         };
-        /** LazerPackResult */
-        LazerPackResult: {
-            /** Path */
-            path: string;
-            /** Maps */
-            maps: number[];
-            /** Failed */
-            failed: number[];
+        /** LazerSendResult */
+        LazerSendResult: {
+            /**
+             * Maps
+             * @description Map sets downloaded and handed to lazer.
+             */
+            maps?: number[];
+            /**
+             * Failed
+             * @description Map sets that couldn't be downloaded.
+             */
+            failed?: number[];
+            /**
+             * Not Found
+             * @description Maps you don't have whose beatmap set couldn't be found online.
+             * @default 0
+             */
+            not_found: number;
+            /**
+             * Imported
+             * @description Map sets lazer took (it deletes each .osz).
+             */
+            imported?: number[];
+            /**
+             * Not Imported
+             * @description Map sets lazer hadn't taken when osu! coach stopped waiting: it may still be busy with them.
+             */
+            not_imported?: number[];
         };
         /** LevelInfo */
         LevelInfo: {
@@ -2017,9 +2102,24 @@ export interface components {
             creator?: string | null;
             /**
              * Stars
-             * @description Star rating (no mod).
+             * @description Star rating for the exact map configuration.
              */
             stars: number | null;
+            /**
+             * Configuration Id
+             * @description Complete map, mods, rate, client, and settings identity.
+             */
+            configuration_id?: string | null;
+            /**
+             * Mods
+             * @default NM
+             */
+            mods: string;
+            /**
+             * Rate
+             * @default 1
+             */
+            rate: number;
             /** Bpm */
             bpm: number | null;
             /** Ar */
@@ -2088,6 +2188,8 @@ export interface components {
             date_choices: components["schemas"]["Choice"][];
             /** Replay Sets */
             replay_sets: components["schemas"]["Choice"][];
+            /** Rating Engines */
+            rating_engines: components["schemas"]["Choice"][];
             /** Best Definition */
             best_definition: string;
             /**
@@ -2098,10 +2200,10 @@ export interface components {
             /** Periods */
             periods: string[];
             /**
-             * Lazer Instructions
-             * @description Steps to import a lazer import folder (Markdown).
+             * Lazer Found
+             * @description osu!lazer's program was found: maps can be sent to lazer and opened there.
              */
-            lazer_instructions: string[];
+            lazer_found: boolean;
             /** Level Band */
             level_band: number;
             /** Level Sigma */
@@ -2159,6 +2261,11 @@ export interface components {
             message: string;
             /** Error */
             error: string | null;
+            /**
+             * Code
+             * @description A failed job's error code (stable, like an error response's).
+             */
+            code?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -2224,6 +2331,18 @@ export interface components {
             sim_exact_share: number | null;
             /** Sim Agreement */
             sim_agreement: number | null;
+            /**
+             * Engine
+             * @description The rating engine that made the skill scores (comfort | irt).
+             * @default comfort
+             */
+            engine: string;
+            /**
+             * Engine Label
+             * @description Its name to show.
+             * @default Comfort Score
+             */
+            engine_label: string;
         };
         /** OverviewKpis */
         OverviewKpis: {
@@ -2257,6 +2376,11 @@ export interface components {
             avg_stars: number | null;
             /** Max Stars Passed */
             max_stars_passed: number | null;
+            /**
+             * Max Stars Passed Map
+             * @description The hardest clean pass: 'Artist - Title [Difficulty] +MODS' (no '+…' without mods).
+             */
+            max_stars_passed_map?: string | null;
             /** Max Stars Fc */
             max_stars_fc: number | null;
             /** Accuracy */
@@ -2295,6 +2419,11 @@ export interface components {
             message: string;
             /** Error */
             error: string | null;
+            /**
+             * Code
+             * @description A failed job's error code (stable, like an error response's).
+             */
+            code?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -2504,6 +2633,124 @@ export interface components {
             measured_abilities?: {
                 [key: string]: number;
             };
+            /**
+             * Coverage Maps
+             * @description Maps with verified .osu data searched for modified configurations.
+             */
+            coverage_maps?: number | null;
+            /**
+             * Unavailable Maps
+             * @description Pool maps whose verified .osu data was unavailable.
+             */
+            unavailable_maps?: number | null;
+            /**
+             * Calculator Unavailable Maps
+             * @description Verified maps whose supported difficulty calculation was unavailable.
+             */
+            calculator_unavailable_maps?: number | null;
+            /**
+             * Unavailable Configurations
+             * @description Configurations on verified maps whose exact calculation was unavailable, including partial maps.
+             */
+            unavailable_configurations?: number | null;
+            /**
+             * Result Limit
+             * @description Maximum distinct ranked maps returned per stage; eligible counts include all selected maps.
+             */
+            result_limit?: number | null;
+        };
+        /** PlaylistJob */
+        PlaylistJob: {
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "succeeded" | "failed" | "cancelled";
+            /**
+             * Progress
+             * @description 0–1 when known.
+             */
+            progress: number | null;
+            /** Message */
+            message: string;
+            /** Error */
+            error: string | null;
+            /**
+             * Code
+             * @description A failed job's error code (stable, like an error response's).
+             */
+            code?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Cancellable
+             * @description Whether POST /api/jobs/{id}/cancel can stop it.
+             */
+            cancellable: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "playlist";
+            result: components["schemas"]["Playlist"] | null;
+        };
+        /** PlaylistSearchRequest */
+        PlaylistSearchRequest: {
+            /** Skill */
+            skill?: string | null;
+            /** Comfort */
+            comfort?: number | null;
+            /** Assessed */
+            assessed?: string | null;
+            /** Ratings */
+            ratings?: string | null;
+            /**
+             * Kappa
+             * @default 0.5
+             */
+            kappa: number;
+            /**
+             * Min Relevance
+             * @default 0.3
+             */
+            min_relevance: number;
+            /**
+             * Exclude Played
+             * @default true
+             */
+            exclude_played: boolean;
+            /**
+             * Allow Hr
+             * @default false
+             */
+            allow_hr: boolean;
+            /**
+             * Allow Hd
+             * @default false
+             */
+            allow_hd: boolean;
+            /**
+             * Adjustable Dt
+             * @default false
+             */
+            adjustable_dt: boolean;
+            /**
+             * Min Rate
+             * @default 1.1
+             */
+            min_rate: number;
+            /**
+             * Max Rate
+             * @default 2
+             */
+            max_rate: number;
         };
         /** PlaylistSkill */
         PlaylistSkill: {
@@ -2582,6 +2829,18 @@ export interface components {
              * @enum {string}
              */
             period: "month" | "week" | "day";
+            /**
+             * Replays
+             * @description analysed = only the replays of the last analysis (the ones the Overview shows, rated at its comfort level); all = every play saved for the player.
+             * @default all
+             * @enum {string}
+             */
+            replays: "analysed" | "all";
+            /**
+             * Analysed Plays
+             * @description How many of the player's replays the last analysis holds; null = none.
+             */
+            analysed_plays?: number | null;
             /**
              * First Day
              * @description Day of the first saved play.
@@ -2670,6 +2929,11 @@ export interface components {
             message: string;
             /** Error */
             error: string | null;
+            /**
+             * Code
+             * @description A failed job's error code (stable, like an error response's).
+             */
+            code?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -2806,6 +3070,8 @@ export interface components {
             date_to?: string | null;
             /** Replay Set */
             replay_set?: ("all" | "best") | null;
+            /** Rating Engine */
+            rating_engine?: ("comfort" | "irt") | null;
             /** Level Override */
             level_override?: number | null;
             /** Player */
@@ -3039,6 +3305,12 @@ export interface components {
             /** Label */
             label: string;
             /**
+             * Summary
+             * @description One plain line: what the skill is.
+             * @default
+             */
+            summary: string;
+            /**
              * What
              * @description What the skill measures.
              */
@@ -3053,6 +3325,11 @@ export interface components {
              * @description What raises it.
              */
             practise: string;
+            /**
+             * Irt What
+             * @description What the skill measures under Star Levels (null: as `what`).
+             */
+            irt_what?: string | null;
         };
         /** SkillScore */
         SkillScore: {
@@ -3071,7 +3348,10 @@ export interface components {
             low_data: boolean;
             /** Too Few Misses */
             too_few_misses: boolean;
-            /** N */
+            /**
+             * N
+             * @description How much the score is measured on: hit single notes for accuracy, map and mod setups for the other skills; 0 without data.
+             */
             n: number;
             /**
              * Facts
@@ -3088,6 +3368,33 @@ export interface components {
              * @description Without a score because nothing played was demanding enough (and nearly all of it was held): the score that much shows, a lower bound (0–100). null otherwise.
              */
             at_least: number | null;
+            /**
+             * Stars
+             * @description Star-Scale IRT: the map star rating the skill holds up on (about 2 in 100 of its notes failed there; accuracy: 90% 300s); untested: at least this.
+             */
+            stars?: number | null;
+            /**
+             * Stars Low
+             * @description Star-Scale IRT: the low end of its 90% range.
+             */
+            stars_low?: number | null;
+            /**
+             * Stars High
+             * @description Star-Scale IRT: the high end (null: open, untested).
+             */
+            stars_high?: number | null;
+            /**
+             * State
+             * @description Star-Scale IRT: measured | provisional | untested | not_enough_data | failed.
+             */
+            state?: string | null;
+            /**
+             * Natural
+             * @description Star-Scale IRT: the ability in natural units (natural_unit).
+             */
+            natural?: number | null;
+            /** Natural Unit */
+            natural_unit?: string | null;
         };
         /** SkillValue */
         SkillValue: {
@@ -3942,7 +4249,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": (components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"])[];
+                    "application/json": (components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerSendJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"] | components["schemas"]["PlaylistJob"])[];
                 };
             };
             /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
@@ -3973,7 +4280,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"];
+                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerSendJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"] | components["schemas"]["PlaylistJob"];
                 };
             };
             /** @description Not found; `code` says what is missing. */
@@ -4013,7 +4320,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"];
+                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerSendJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"] | components["schemas"]["PlaylistJob"];
                 };
             };
             /** @description Not found; `code` says what is missing. */
@@ -4449,6 +4756,7 @@ export interface operations {
                 period?: "month" | "week" | "day";
                 since?: string | null;
                 until?: string | null;
+                replays?: "analysed" | "all";
             };
             header?: never;
             path?: never;
@@ -4491,6 +4799,7 @@ export interface operations {
                 key: string;
                 player?: string | null;
                 period?: "month" | "week" | "day";
+                replays?: "analysed" | "all";
             };
             header?: never;
             path?: never;
@@ -4688,6 +4997,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description Required local data is unavailable or incompatible; `code` identifies it. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
     hide_api_maps_hidden_post: {
@@ -4787,6 +5105,57 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description Required local data is unavailable or incompatible; `code` identifies it. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    search_api_playlists_search_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaylistSearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistJob"];
+                };
+            };
+            /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
     preview_api_exports_preview_post: {
@@ -4855,40 +5224,7 @@ export interface operations {
             };
         };
     };
-    lazer_zip_api_exports_lazer_zip_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ExportRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/zip": unknown;
-                };
-            };
-            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-        };
-    };
-    lazer_pack_api_exports_lazer_pack_post: {
+    lazer_send_api_exports_lazer_send_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4907,11 +5243,62 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LazerPackJob"];
+                    "application/json": components["schemas"]["LazerSendJob"];
+                };
+            };
+            /** @description Not found; `code` says what is missing. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    lazer_open_api_exports_lazer_open_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LazerOpenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LazerOpened"];
+                };
+            };
+            /** @description Not found; `code` says what is missing. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

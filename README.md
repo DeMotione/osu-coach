@@ -8,8 +8,11 @@ Analyses your own osu!standard replays and tells you what to work on:
 - **Statistics** for tapping (unstable rate, timing bias, stream speed, falling behind in streams,
   key alternation and holds), aim (miss causes, over/undershoot, direction, jump distance and angle),
   sliders, reading (AR, dense parts) and consistency.
-- **Strong and weak sides.** Each skill gets a score from 0 to 100. 50 means you miss as often as
-  expected for how hard those notes are; higher is better.
+- **Strong and weak sides.** Eight skills with plain names (Jumps, Spaced streams, Tapping speed, Stamina,
+  Accuracy, Sliders, Reading, Consistency). **Comfort Score** gives each a score from 0 to 100, where 50 = what maps
+  at your comfort level ask for (assumed from ranked maps, not compared with other players); **Star Levels**
+  (experimental) shows each as the map star rating it holds up on. The Overview, the tips and the playlists all
+  name the same strengths and weaknesses.
 - **Quadrant analysis.** Shows which screen quadrant you miss in most, checks the difference is
   statistically real, and suggests how to fix it (area placement, arm/wrist reach, practice).
 - **Setup tips.** Concrete tablet area or mouse sensitivity changes measured from your jumps (scale,
@@ -21,11 +24,45 @@ Analyses your own osu!standard replays and tells you what to work on:
   the most played per 0.25★ step), each analysed for
   its patterns, with a one-click download of all suggested maps.
 - **Goals & Training.** Builds a staged playlist (warm-up / core / push) for one skill and gets it into
-  the game: for **lazer**, one click makes an import folder with the maps and the collection (see
-  below); for **stable**, it adds the collection to your `collection.db` and downloads the maps (.osz).
+  the game: for **lazer**, one click sends the maps straight into lazer and each map opens there with one more
+  (see below); for **stable**, it adds the collection to your `collection.db` and downloads the maps (.osz).
 
 Everything runs locally. The only network use is downloading beatmaps you don't have, by MD5 from
 osu.direct and osu.ppy.sh (verified), and downloading playlist maps from public mirrors.
+
+### Mod-aware skill playlists
+
+In **Goals & Training → Fine-tune**, allow Hard Rock, Hidden, and adjustable DT independently. DT rate is an **absolute**
+playback rate from 1.10× to 2.00×, inclusive, searched at 0.01× intervals; standard DT is 1.50×. The ordinary NoMod
+playlist stays available immediately. A modified search runs as a cancellable job and reports how many pool maps had
+verified `.osu` data. The first search can take a long time because the bundled pool contains statistics, not the
+`.osu` files. Missing or outdated beatmaps are excluded and counted; the result also counts individual configurations
+whose exact calculation was unavailable, including maps for which other configurations succeeded. Empty stages show
+their exclusion reasons, including missing player ratings and no configurations passing the fixed star and relevance
+filters. The best 100 configurations per stage are returned, ranked from all
+available candidates. A downloaded collection or map pack contains beatmaps only; the text list records exact mods
+and speed to set in osu!.
+
+For each configuration, the game ruleset model applies HR difficulty caps and vertical reflection, recalculates the
+circle radius, scales real-time intervals, durations, BPM, judgement windows and approach time once by the selected
+rate, and asks rosu-pp for modified stars and strain sections. Map demands use these transformed features and a
+comfort-relative 0–100 scale. Reading demand is an experimental sum of density/pattern demand, low-AR cost below 9.5,
+high-AR reaction cost above 10.5, and an extra HD term whose preferred initial AR region is 9.5–10.0. These boundaries
+and coefficients are assumptions in `domain/player/algorithm.py`, not calibrated player thresholds. Uniform speed
+alone does not increase simultaneous visibility in the reading density calculation. Customized lazer Hidden replays
+retain their exact settings in their configuration identity and are excluded from the ordinary Hidden reading rating
+until a visibility model for those settings is available. Suitability `F` is the negative squared star/demand mismatch
+minus other-skill overload, plus a history term; larger is better. Its history factor is
+the best completed accuracy on the exact map/mod/rate/client/settings configuration divided by 0.95 and capped to
+0–1.10. With no matching play it is the neutral assumption 1. `F` is a heuristic suitability score, not an FC
+probability or a calibrated performance forecast.
+
+DT/NC replay timing accuracy contributes to the accuracy rating only when its overall replay accuracy is strictly
+above 88%; those replays still count for other skills. Too little accepted timing evidence leaves the rating
+unmeasured. The threshold is an evidence rule, not a diagnosis of why a play had low accuracy. Reanalyse replays after
+upgrading to refresh configuration identity and this gate (`ANALYSIS_VERSION = 9`). Variant statistics are cached in
+the osu! coach data folder under `recommendations/variants`; their filenames contain the model, engine, and cache
+versions, so changing those versions invalidates old projections. A changed `.osu` checksum is a different map.
 
 ### Play a goal, not another chart
 
@@ -191,22 +228,16 @@ in Detailed Map Analysis. Failed or quit plays have no replay, so they aren't an
 
 ### Playlists in osu!lazer
 
-lazer can't open a `collection.db` by itself, but *Settings → General → Run setup wizard → Import*
-("import from a previous osu! version") takes maps **and** collections from any folder that looks like an
-osu!stable install. **Make lazer import folder** (Goals & Training or Skill Development → osu!lazer tab, or
-`osu-coach playlist SKILL --lazer`) builds exactly that, in `Downloads/osu-coach lazer import/<playlist>`:
+**Send the maps to lazer** (Goals & Training or Skill Development → osu!lazer tab) downloads the maps you don't
+have into osu! coach's data folder (`lazer-maps`) and hands them to lazer's program (`osu!.exe <file.osz>`, found
+through the .osz file association lazer registers, else `%LOCALAPPDATA%\osulazer\current`). A running lazer
+imports them at once (it waits while you're in gameplay); a closed one starts and imports them. lazer deletes each
+.osz once it's in, so nothing is left in Downloads or elsewhere. `osu-coach playlist SKILL --lazer` does the same.
 
-```
-osu!.user.cfg      empty: marks the folder as a stable install
-collection.db      the playlist
-Songs/<set id>/    the maps you don't have yet, downloaded and unpacked
-```
-
-Then in lazer: open the setup wizard, press **Next** until **Import**, drag the folder onto the lazer
-window (or click *previous osu! install* and pick it) and press **Import content from previous version**.
-lazer imports the maps first and the collection after them; re-importing the same playlist only adds
-what's new. The folder can be deleted afterwards. *Folder without maps (.zip)* is the same folder with
-only the collection, for lazer on another computer.
+**in lazer**, next to every map in the app, gives lazer the map's link (`osu!.exe osu://b/<beatmap id>`): lazer shows
+the map's page with that difficulty picked, and its **Go to beatmap** button (») there opens it in song select.
+lazer has no way in from outside straight to song select, and none for collections (only its "import from a
+previous osu! version"), so there is no lazer collection: set the mods and speed shown in the list yourself.
 
 
 ### Progress by month, week or day
@@ -224,9 +255,12 @@ this rating scale are not shown: analysing again rates every period anew.
 
 ### Difficulty weighting and your level
 
-The **Overview** shows *Your level*: the comfort star rating (75% of your finished plays with at most 2 misses
-per 100 notes are at or below it) of your replays from the last 30 days before your newest one (at least the
-newest 15). Star ratings include the mods of the play (DT, HR, ...). Every replay then gets a weight: **1 within
+The **Overview** shows *Your level*: your comfort level, from your replays of the last 30 days before your newest
+one (at least the newest 15). Only finished plays with at most 2 misses per 100 notes count: with 3 or more different
+map/mod setups among them it is the 75th percentile of each setup's median star rating (*measured*); with fewer it is
+a provisional estimate (the 75th percentile of those plays, or without any such play the 25th percentile of all
+your star ratings minus 0.4). Star ratings include the mods of the play (DT, HR, ...). The skill ratings need a
+measured comfort level. Every replay then gets a weight: **1 within
 ±0.5★** of your level, then a Gaussian fall-off (σ = 0.5★): 1★ off 61%, 1.5★ 14%, 2★ 1%, 3★ ≈ 0. All statistics
 use these weights — miss causes, skill scores, stamina, UR, stream speed, the setup tips (tablet area /
 sensitivity, rapid trigger) and the map suggestions. *Set my level by hand* overrides the detected level
@@ -236,10 +270,8 @@ sensitivity, rapid trigger) and the map suggestions. *Set my level by hand* over
 
 `backend/tools/reference_analysis.py` scores 38 near-perfect plays of top players (WhiteCat, mrekk, chocomint,
 MALISZEWSKI, -GN, …; list in `backend/tools/reference_replays.md`, the .osr files go in `backend/tools/reference_replays/`, not in
-git) skill by skill. What it changed: **Accuracy** = (300s on single notes − 50%) ÷ 49%, so 100 = 99% 300s (was
-95%, which every top player passed: they now spread from ~87 to 99). Aim, flow aim, speed, reading and
-consistency compare your misses with what the difficulty predicts; a player who barely misses has nothing to
-compare, so those now say **too few misses to tell** instead of *not enough data*. Sliders: top players
+git) skill by skill with the same skill ratings the Overview shows, plus the measured values and references
+behind them, so a yardstick that reads top players too low or too high shows up before and after a change.
 
 ### Setup Tips page
 
@@ -274,7 +306,7 @@ osu-coach analyze --level 6.2                      # weight replays around 6.2�
 osu-coach analyze --only a.osr --only b.osr        # only these replay files
 osu-coach progress [--player NAME]                 # your progress by month (saved by every analysis)
 osu-coach check [REPLAY.osr]                       # one replay on its own (default: your newest)
-osu-coach playlist aim --lazer                     # Goals & Training: playlist + lazer import folder
+osu-coach playlist aim --lazer                     # Goals & Training: playlist, maps sent to lazer
 osu-coach playlist aim --merge                     # ... added to your osu!stable collections instead
 osu-coach playlist speed --comfort 3 --download ~/maps   # without replays: give your level
 ```
@@ -300,9 +332,10 @@ Skills: `aim flow_aim speed stamina accuracy sliders reading consistency quadran
    bursts with their BPM, slider velocity, how many notes are on screen. Local difficulty comes from
    osu!'s own strain model (rosu-pp).
 4. **Profile**:
-   - Skill scores compare your misses with a model of *your own* miss chance against local difficulty,
-     so a weakness means "worse than your level predicts". Hard parts don't count as weaknesses just
-     for being hard.
+   - Skill ratings compare what you did on each map/mod setup (cursor speed of the jumps you landed, the stream
+     speed you tap cleanly, the tempo you keep up, ...) with what is typical at your comfort level, so a weakness
+     means "below what your level usually shows". A skill your maps never tested at your level gets "at least"
+     and what to play instead of a rating.
    - Aim calibration fits your actual movement against the needed movement on jumps (affine fit:
      scale x/y, rotation, offset). That fit drives the tablet area and sensitivity advice.
    - *Where your clicks land* (Aim page) draws a random sample of all clicks — the click that hit each

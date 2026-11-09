@@ -3,41 +3,47 @@
 osu-coach ui                         open the app in your browser
 osu-coach locate                     show detected osu! installs
 osu-coach analyze [--folder DIR]     analyse your replays, print stats + tips
-osu-coach playlist SKILL [...]       practice playlist (+ lazer import folder, collection.db, .osz)
+osu-coach playlist SKILL [...]       practice playlist (+ maps into lazer, collection.db, .osz)
 """
 
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import math
 import sys
 from collections import Counter
 from pathlib import Path
 
-from osu_coach.beatmaps import sources
-from osu_coach.check import domain as check
-from osu_coach.exports import lazer_import
-from osu_coach.exports.collection_db import merge_into, write_collection_db
-from osu_coach.exports.domain import sets_to_download
-from osu_coach.library.repository import Library
-from osu_coach.maps.domain import (
+from osu_coach.common import frames
+from osu_coach.common.texts import MISS_LABELS, SKILL_LABELS, message
+from osu_coach.config import default_cache_dir
+from osu_coach.domain.exports.downloads import sets_to_download
+from osu_coach.domain.maps.suggestions import (
     PLAYLIST_SKILLS,
     Targets,
-    build_playlist,
     collection_name,
-    recommendations,
     skill_label,
     targets_from_profile,
 )
-from osu_coach.maps.repository import load_pool
-from osu_coach.profile.domain import MISS_LABELS, build_profile
-from osu_coach.progress import repository as progress
-from osu_coach.replays import detect, scope
-from osu_coach.replays.eligibility import EXCLUDE_MODS, skip_reason
-from osu_coach.settings.domain import Setup
-from osu_coach.settings.repository import load_settings, save_settings
-from osu_coach.tips.domain import make_tips, practice_plan, setup_advice
+from osu_coach.domain.player import profile_for
+from osu_coach.domain.player.engines import ENGINE_LABELS, ENGINES, engine_name, make_engine
+from osu_coach.domain.player.records import UNRATED
+from osu_coach.domain.player.setup import Setup
+from osu_coach.domain.replays import scope
+from osu_coach.domain.replays.eligibility import EXCLUDE_MODS, skip_reason
+from osu_coach.features.check import report as check
+from osu_coach.features.maps.playlists import build_playlist, recommendations
+from osu_coach.features.tips.rules import make_tips, practice_plan, setup_advice
+from osu_coach.infra import clock, progress, summaries
+from osu_coach.infra.beatmaps import sources
+from osu_coach.infra.exports import lazer_import
+from osu_coach.infra.exports.collection_db import merge_into, write_collection_db
+from osu_coach.infra.library import Library
+from osu_coach.infra.map_pool import load_pool
+from osu_coach.infra.replays import detect
+from osu_coach.infra.settings import load_settings, save_settings
 
 SEVERITY = {3: "HIGH", 2: "MED ", 1: "LOW "}
 
@@ -99,7 +105,7 @@ def _discover(args, log) -> Library:
     return lib
 
 
-def _analyse(args, log):
+def _analyze(args, log):
     lib = _discover(args, log)
     players = lib.players()
     if not players:
@@ -137,18 +143,22 @@ def _analyse(args, log):
         log(f"skipped {Path(ref['path']).name}: {err}")
     if not analyses:
         raise SystemExit("None of the replays could be analysed.")
+    plays = summaries.summarize(lib.cache, analyses)  # as the app does: only the summaries are kept
+    del analyses
     log("saving your progress by month…")
     try:
-        progress.update(lib.cache, analyses, lib.load_cached)
+        progress.update(lib.cache, plays, lambda keys: summaries.summaries_of(lib.cache, keys, lib.load_cached))
     except Exception as exc:  # noqa: BLE001 - the report matters more than the history
         log(f"could not save progress: {exc}")
-    replay_set = _replay_set(args)
-    chosen = scope.select(analyses, replay_set)
-    if not chosen:
+    replay_set, engine, level = _replay_set(args), _rating_engine(args), getattr(args, "level", None)
+    if level is not None and not make_engine(engine).uses_level:
+        log(f"--level is ignored: {ENGINE_LABELS[engine]} measures each skill against the maps themselves")
+    prof = profile_for(plays, replay_set, engine, level)
+    if prof is None:
         raise SystemExit("No passed plays among these replays — use --all-replays.")
     if replay_set == "best":
-        log(f"best replays: {len(chosen)} of {len(analyses)}")
-    return lib, player, analyses, errors, build_profile(chosen, level=getattr(args, "level", None))
+        log(f"best replays: {len(prof.replays)} of {len(plays)}")
+    return lib, player, plays, errors, prof
 
 
 def _replay_set(args) -> str:
@@ -161,6 +171,11 @@ def _replay_set(args) -> str:
         return args.replay_set
     saved = load_settings(args.cache).get("replay_set")
     return saved if saved in scope.REPLAY_SETS else "all"
+
+
+def _rating_engine(args) -> str:
+    """--engine (this run only), else the rating engine chosen in the app."""
+    return engine_name(getattr(args, "engine", None) or load_settings(args.cache).get("rating_engine"))
 
 
 def _date_window(args, refs):
@@ -177,10 +192,18 @@ def _date_window(args, refs):
             raise SystemExit(f"Not a date (YYYY-MM-DD): {v}") from None
 
     if since_arg in ("session", "7d", "30d"):
-        since, _ = scope.date_window(since_arg, [r.get("timestamp") for r in refs])
+        since, _ = scope.date_window(
+            since_arg, [r.get("timestamp") for r in refs], now=clock.now(), tz=clock.local_tz()
+        )
     else:
-        since, _ = scope.date_window("custom", start=day(since_arg)) if since_arg else (None, None)
-    until = scope.date_window("custom", end=day(until_arg))[1] if until_arg else None
+        since, _ = (
+            scope.date_window("custom", start=day(since_arg), now=clock.now(), tz=clock.local_tz())
+            if since_arg
+            else (None, None)
+        )
+    until = (
+        scope.date_window("custom", end=day(until_arg), now=clock.now(), tz=clock.local_tz())[1] if until_arg else None
+    )
     return since, until
 
 
@@ -211,7 +234,7 @@ def cmd_locate(args) -> int:
 
 
 def cmd_analyze(args) -> int:
-    lib, player, analyses, errors, prof = _analyse(args, _log(args.quiet))
+    lib, player, analyses, errors, prof = _analyze(args, _log(args.quiet))
     setup = _setup_from(args)
     tips = make_tips(prof, setup)
     ov, lv = prof.overview, prof.levels
@@ -219,16 +242,19 @@ def cmd_analyze(args) -> int:
     if args.json:
         out = {
             "player": player,
-            "overview": ov,
-            "levels": {k: v for k, v in lv.items() if k != "model_coef"},
-            "skills": prof.skills,
+            "overview": dataclasses.asdict(ov),
+            "levels": {k: v for k, v in dataclasses.asdict(lv).items() if k != "model_coef"},
+            "skills": {
+                k: {**dataclasses.asdict(r), "reason": message(r.reason), "needs": message(r.needs)}
+                for k, r in prof.skill_ratings.items()
+            },
             "strengths": prof.strengths,
             "weaknesses": prof.weaknesses,
             "miss_breakdown": prof.miss_breakdown,
-            "tapping": prof.tapping,
-            "aim": prof.aim,
-            "worst_quadrant": prof.worst_quadrant,
-            "regression": prof.regression,
+            **{
+                name: None if (section := getattr(prof, name)) is None else dataclasses.asdict(section)
+                for name in ("tapping", "aim", "worst_quadrant", "regression")
+            },
             "tips": [t.to_dict() for t in tips],
             "practice_plan": practice_plan(prof),
         }
@@ -236,47 +262,42 @@ def cmd_analyze(args) -> int:
         print(f"wrote {args.json}")
     which = "best " if replay_set == "best" else ""
     print(
-        f"\nosu-coach report — {player}: {ov['replays']} {which}{'newest ' if args.limit else ''}replays on "
-        f"{ov['maps']} maps, "
-        f"{_num(ov['play_minutes'], '.0f')} min of play"
+        f"\nosu-coach report — {player}: {ov.replays} {which}{'newest ' if args.limit else ''}replays on "
+        f"{ov.maps} maps, "
+        f"{_num(ov.play_minutes, '.0f')} min of play"
     )
     if replay_set == "best":
         print(f"  ({scope.BEST_DEFINITION})")
-    lvl = lv.get("level_stars")
-    how = (
-        "set with --level"
-        if lv.get("level_override")
-        else f"detected from your {lv.get('level_recent_n', 0)} most recent replays"
+    lvl = lv.level_stars
+    how = "set with --level" if lv.level_override else f"detected from your {lv.level_recent_n} most recent replays"
+    print(
+        f"Level {_num(lvl, '.2f')}★ ({how}): replays within ±{lv.level_band:g}★ count fully, the "
+        f"further away the less (weighted replays: {ov.weighted_replays:.1f} of {ov.replays})"
     )
     print(
-        f"Level {_num(lvl, '.2f')}★ ({how}): replays within ±{lv.get('level_band', 0.5):g}★ count fully, the "
-        f"further away the less (weighted replays: {ov.get('weighted_replays', 0):.1f} of {ov['replays']})"
+        f"Comfort level ≈ {_num(lv.comfort_stars, '.1f')}★ | UR {_num(ov.ur, '.0f')} | "
+        f"{_num(ov.misses_per_100, '.1f')} misses per 100 notes | accuracy {_num(ov.accuracy * 100, '.1f')}%"
     )
     print(
-        f"Comfort level ≈ {_num(lv.get('comfort_stars'), '.1f')}★ | UR {_num(ov['ur'], '.0f')} | "
-        f"{_num(ov['misses_per_100'], '.1f')} misses per 100 notes | accuracy {_num(ov['accuracy'] * 100, '.1f')}%"
+        f"Judgement check: re-simulated results match the replay exactly on {ov.sim_exact_share:.0%} of "
+        f"replays ({ov.sim_agreement:.1%} of judgements)"
     )
-    print(
-        f"Judgement check: re-simulated results match the replay exactly on {ov['sim_exact_share']:.0%} of "
-        f"replays ({ov['sim_agreement']:.1%} of judgements)"
-    )
-    print("\nSkills (0-100, 50 = typical for your level; higher is better)")
-    for k, s in prof.skills.items():
-        score = s.get("score")
+    print("\nSkills (0-100, 50 = what maps at your comfort level ask for, assumed; higher is better)")
+    for k, label in SKILL_LABELS.items():
+        s = prof.skill_ratings.get(k, UNRATED)
+        score = s.score
         note = f"{_num(score, '.0f'):>3}" if score is not None else "  ?"
-        print(
-            f"  {s['label']:<32} {_bar(score)} {note}  ({s.get('n', 0)} notes"
-            + (", too few misses to tell)" if s.get("too_few_misses") else ")")
-        )
-    print("Strengths: " + (", ".join(prof.skills[k]["label"] for k in prof.strengths) or "–"))
-    print("Work on:   " + (", ".join(prof.skills[k]["label"] for k in prof.weaknesses) or "–"))
+        why = f"{s.maps} map/mod setups" if score is not None else (message(s.reason) or "not enough data")
+        print(f"  {label:<32} {_bar(score)} {note}  ({why})")
+    print("Strengths: " + (", ".join(SKILL_LABELS[k] for k in prof.strengths) or "–"))
+    print("Work on:   " + (", ".join(SKILL_LABELS[k] for k in prof.weaknesses) or "–"))
     total = sum(prof.miss_breakdown.values())
     if total:
         raw = prof.miss_breakdown_raw
         print(f"\nWhy you miss ({sum(raw.values())} misses; shares weighted by difficulty)")
         for reason, n in sorted(prof.miss_breakdown.items(), key=lambda kv: -kv[1]):
             print(f"  {raw.get(reason, 0):>5}  {n / total:4.0%}  {MISS_LABELS.get(reason, reason)}")
-    fb = prof.fall_behind or {}
+    fb = frames.fall_behind(prof)
     if fb.get("start_note"):
         secs = f" (≈ {fb['start_seconds']:.1f} s at {fb['bpm']:.0f} BPM)" if fb.get("start_seconds") is not None else ""
         print(
@@ -332,12 +353,12 @@ def cmd_analyze(args) -> int:
 def cmd_playlist(args) -> int:
     pool = load_pool()
     if pool.empty:
-        raise SystemExit("Map pool is missing (osu_coach/data/pool.json.gz).")
+        raise SystemExit("Map pool is missing (osu_coach/infra/data/pool.json.gz).")
     lib = None
     if args.comfort:
         t = Targets(comfort=args.comfort, stream_bpm=args.stream_bpm)
     else:
-        lib, *_, prof = _analyse(args, _log(args.quiet))
+        lib, *_, prof = _analyze(args, _log(args.quiet))
         t = targets_from_profile(prof)
         if args.stream_bpm:
             t.stream_bpm = args.stream_bpm
@@ -354,22 +375,28 @@ def cmd_playlist(args) -> int:
             )
     hashes = list(pl["md5"])
     if args.lazer:
-        dest = Path(args.lazer) if isinstance(args.lazer, str) else lazer_import.default_pack_dir(name)
+        exe = lazer_import.find_lazer()
+        if exe is None:
+            raise SystemExit("osu!lazer wasn't found on this computer.")
         if lib is not None and lib.has_unread_maps("lazer"):
             lib.find_maps(set(hashes))  # which playlist maps lazer already has
         have = lib.installed["lazer"] if lib is not None else set()
-        sets = [] if args.no_maps else sets_to_download(zip(pl["md5"], pl["beatmapset_id"]), have)
+        sets = sets_to_download(zip(pl["md5"], pl["beatmapset_id"]), have)
         log = _log(args.quiet)
-        res = lazer_import.build_pack(dest, {name: hashes}, sets, progress=lambda i, n, msg: log(msg))
-        print(f"\nlazer import folder: {res['path']}  ({len(res['maps'])} map set(s) + the collection)")
+        folder = Path(args.cache or default_cache_dir()) / lazer_import.MAPS_DIR
+        res = lazer_import.download_and_send(exe, sets, folder, progress=lambda i, n, msg: log(msg))
+        if not sets:
+            print("\nlazer already has every map")
+        else:
+            print(f"\nlazer imported {len(res['imported'])} of the {len(sets)} map set(s) it didn't have")
+        if res["not_imported"]:
+            print(f"  not taken yet: {', '.join(map(str, res['not_imported']))} — see lazer's notifications")
         if res["failed"]:
             print(f"  couldn't download set(s) {', '.join(map(str, res['failed']))} — use the links above")
-        for i, step in enumerate(lazer_import.INSTRUCTIONS, 1):
-            print(f"  {i}. {step.replace('**', '').replace('*', '')}")
     if args.collection:
         p = write_collection_db(args.collection, {name: hashes})
         print(
-            f"\nwrote {p}\n  lazer: use --lazer instead (lazer can't open a collection.db on its own)\n"
+            f"\nwrote {p}\n  lazer can't open a collection.db: --lazer sends it the maps instead\n"
             "  stable: use --merge (with osu! closed) or Collection Manager"
         )
     if args.merge:
@@ -382,7 +409,7 @@ def cmd_playlist(args) -> int:
         print(f"\nadded to {info['path']} (backup: {info['backup']})")
     if args.download:
         dest = Path(args.download)
-        sets = list(dict.fromkeys(int(s) for s in pl["beatmapset_id"]))
+        sets = list(dict.fromkeys(int(s) for s in pl["beatmapset_id"] if int(s) > 0))
         ok = 0
         for i, sid in enumerate(sets, 1):
             got = sources.download_osz(sid, dest)
@@ -456,7 +483,7 @@ def cmd_progress(args) -> int:
 EVENTS_SHOWN = 40
 
 
-def _main_player(lib: Library, cache) -> str | None:
+def _main_player(cache) -> str | None:
     """Whose newest replay to check: the player saved in the settings or with the most saved plays."""
     saved = load_settings(cache).get("player")
     if saved and saved != "*":
@@ -477,7 +504,7 @@ def cmd_check(args) -> int:
         if not path.is_file():
             raise SystemExit(f"File not found: {path}")
         lib.add_files([path], source="file")
-    player = args.player or (None if path else _main_player(lib, args.cache))
+    player = args.player or (None if path else _main_player(args.cache))
     latest = 1 if player or path else 20  # unknown player: read a few replays to see who plays here
     if not args.no_auto:
         for inst in detect.find_installs():
@@ -532,7 +559,7 @@ def cmd_check(args) -> int:
 def _print_check(a, cmp: dict) -> None:
     ev = check.events(a)
     s = check.summary(a, ev)
-    m = a.meta
+    m = a.meta.to_dict()
     length = s["length_s"] or 0
     rate = s["rate"] or 1.0
     mods = check.mods_label(s["mods"], rate)
@@ -653,6 +680,11 @@ def build_parser() -> argparse.ArgumentParser:
             help="your level for the difficulty weighting (default: detected from your recent replays)",
         )
         p.add_argument(
+            "--engine",
+            choices=ENGINES,
+            help="the rating engine for the skill ratings (default: the one chosen in the app)",
+        )
+        p.add_argument(
             "--only",
             action="append",
             metavar="REPLAY.osr",
@@ -684,15 +716,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--comfort", type=float, help="your comfortable star rating (skips replay analysis)")
     p.add_argument("--stream-bpm", type=float, help="stream speed to train at")
     p.add_argument("--maps", type=int, default=15)
-    p.add_argument(
-        "--lazer",
-        nargs="?",
-        const=True,
-        metavar="DIR",
-        help="make a folder for lazer's 'import from previous version' with the maps and the collection "
-        "(default: Downloads/osu-coach lazer import/<playlist>)",
-    )
-    p.add_argument("--no-maps", action="store_true", help="with --lazer: only the collection, no map downloads")
+    p.add_argument("--lazer", action="store_true", help="send the maps you don't have to osu!lazer (it imports them)")
     p.add_argument("--collection", help="write a collection.db with the playlist")
     p.add_argument("--merge", action="store_true", help="add the playlist to your osu!stable collections")
     p.add_argument("--download", help="download the maps (.osz) into this folder")

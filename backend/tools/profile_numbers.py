@@ -1,12 +1,13 @@
 """Key numbers of the local player's profile, for before/after comparisons of the analysis.
 
-    python dev_tools/numbers.py [OUT.json]
+    python tools/numbers.py [OUT.json]
 
 Analyses the replays of the osu! installs on this computer (cached analyses are reused) and prints, for
 four selections (all replays / best replays, all time / last 7 days): the detected level, miss-cause shares,
 stamina, stream comfort BPM and the skill scores. The selections are made here (not with the app's own
 filters), so the same replays go into the old and the new profile code.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -14,9 +15,9 @@ import json
 import math
 import sys
 
-from osu_coach.replays import detect, locate
-from osu_coach.library.repository import Library
-from osu_coach.profile.domain import build_profile
+from osu_coach.domain.player import build_profile
+from osu_coach.infra.library import Library
+from osu_coach.infra.replays import detect
 
 
 def best_of(analyses):
@@ -27,8 +28,10 @@ def best_of(analyses):
             continue
         k = (m.get("beatmap_md5"), round(float(m.get("rate") or 1.0), 3))
         cur = best.get(k)
-        if cur is None or (m.get("score") or 0, m.get("accuracy") or 0) > (cur.meta.get("score") or 0,
-                                                                         cur.meta.get("accuracy") or 0):
+        if cur is None or (m.get("score") or 0, m.get("accuracy") or 0) > (
+            cur.meta.get("score") or 0,
+            cur.meta.get("accuracy") or 0,
+        ):
             best[k] = a
     return list(best.values())
 
@@ -49,17 +52,17 @@ def _r(v, d=1):
 def numbers(p) -> dict:
     total = sum(p.miss_breakdown.values()) or 1
     lv = p.levels
-    st = p.skills.get("stamina", {})
+    st = p.skill_ratings.get("stamina", {})
     return {
-        "replays": p.overview["replays"],
-        "level": _r(lv.get("level_stars", lv.get("comfort_stars")), 2),
-        "comfort_stars": _r(lv.get("comfort_stars"), 2),
+        "replays": p.overview.replays,
+        "level": _r(lv.level_stars, 2),
+        "comfort_stars": _r(lv.comfort_stars, 2),
         "miss_shares": {k: round(v / total * 100) for k, v in sorted(p.miss_breakdown.items(), key=lambda kv: -kv[1])},
-        "stamina": {"score": _r(st.get("score"), 0), "n": _r(st.get("n"), 0),
-                    "early": _r(st.get("early_miss_rate"), 3), "late": _r(st.get("late_miss_rate"), 3)},
-        "stream_comfort_bpm": p.tapping.get("comfort_bpm"), "stream_limit_bpm": p.tapping.get("limit_bpm"),
-        "ur": _r(p.overview.get("ur"), 0),
-        "skills": {k: _r(v.get("score"), 0) for k, v in p.skills.items()},
+        "stamina": {"score": _r(st.get("score"), 0), "maps": _r(st.get("maps"), 0)},
+        "stream_comfort_bpm": p.tapping.comfort_bpm,
+        "stream_limit_bpm": p.tapping.limit_bpm,
+        "ur": _r(p.overview.ur, 0),
+        "skills": {k: _r(v.get("score"), 0) for k, v in p.skill_ratings.items()},
     }
 
 
@@ -72,8 +75,12 @@ def main():
     lib.fetch_missing(lib.missing_maps(refs))
     analyses, errors = lib.analyze(refs)
     out = {"player": player, "analysed": len(analyses), "skipped": len(errors)}
-    for name, sel in (("all", analyses), ("best", best_of(analyses)), ("all_7d", recent(analyses, 7)),
-                      ("best_7d", best_of(recent(analyses, 7)))):
+    for name, sel in (
+        ("all", analyses),
+        ("best", best_of(analyses)),
+        ("all_7d", recent(analyses, 7)),
+        ("best_7d", best_of(recent(analyses, 7))),
+    ):
         out[name] = numbers(build_profile(sel))
     text = json.dumps(out, indent=1, default=str)
     print(text)

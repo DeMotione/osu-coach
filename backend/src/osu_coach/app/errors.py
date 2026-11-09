@@ -1,86 +1,13 @@
-"""API errors: every error response is ``{"detail": <message>, "code": <machine-readable code>}``."""
+"""Turning errors into ``{"detail", "code"}`` responses (the error types: :mod:`osu_coach.common.errors`)."""
 
 from __future__ import annotations
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-
-class ErrorBody(BaseModel):
-    detail: str
-    code: str
-
-
-class ApiError(Exception):
-    """An error the client can act on, with an HTTP status and a stable ``code``."""
-
-    def __init__(self, status: int, code: str, message: str):
-        super().__init__(message)
-        self.status, self.code, self.message = status, code, message
-
-
-class NoProfile(ApiError):
-    def __init__(
-        self, message: str = "No replays analysed yet. Scan your replays on the Replays page and press Analyse replays."
-    ):
-        super().__init__(409, "no_profile", message)
-
-
-class Busy(ApiError):
-    def __init__(self, running: str):
-        super().__init__(409, "busy", f"Another task is still running ({running}). Wait until it has finished.")
-
-
-class NotCancellable(ApiError):
-    def __init__(self):
-        super().__init__(409, "not_cancellable", "This task can't be stopped; wait until it has finished.")
-
-
-class NotFound(ApiError):
-    def __init__(self, message: str, code: str = "not_found"):
-        super().__init__(404, code, message)
-
-
-class Invalid(ApiError):
-    def __init__(self, message: str, code: str = "invalid"):
-        super().__init__(422, code, message)
-
-
-# spelled out: FastAPI's default is the standard library's reason phrase, which changes between Python versions
-# (422 is "Unprocessable Entity" up to 3.12, "Unprocessable Content" from 3.13) and with it the OpenAPI document
-DESCRIPTIONS = {
-    404: "Not found; `code` says what is missing.",
-    409: "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
-    422: "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
-    503: "Required local data is unavailable or incompatible; `code` identifies it.",
-}
-_ERROR_BODY_REF = "#/components/schemas/ErrorBody"
-_FASTAPI_422_REF = "#/components/schemas/HTTPValidationError"
-
-
-def responses(*statuses: int) -> dict:
-    """OpenAPI ``responses`` entry documenting the error body for these statuses."""
-    return {s: {"model": ErrorBody, "description": DESCRIPTIONS[s]} for s in statuses}
-
-
-def document_validation_errors(schema: dict) -> dict:
-    """FastAPI documents request validation errors with its own body (``detail`` as a list), but ``install`` answers
-    them with ``ErrorBody`` like every other error: point those responses at it and drop FastAPI's schemas."""
-    for operations in schema.get("paths", {}).values():
-        for op in operations.values():
-            answer = op.get("responses", {}).get("422", {})
-            if answer.get("content", {}).get("application/json", {}).get("schema", {}).get("$ref") == _FASTAPI_422_REF:
-                op["responses"]["422"] = {
-                    "description": DESCRIPTIONS[422],
-                    "content": {"application/json": {"schema": {"$ref": _ERROR_BODY_REF}}},
-                }
-    components = schema.get("components", {}).get("schemas", {})
-    for name in ("HTTPValidationError", "ValidationError"):
-        components.pop(name, None)
-    return schema
+from osu_coach.common.errors import ApiError
 
 
 def install(app: FastAPI) -> None:

@@ -34,7 +34,7 @@ def _is_osu_coach(port: int) -> bool:
 def serve(port: int = DEFAULT_PORT, open_browser: bool = True) -> int:
     import uvicorn
 
-    from osu_coach.main import create_app
+    from osu_coach.app.factory import create_app
 
     url = f"http://localhost:{port}"
     if _port_in_use(port):

@@ -5,19 +5,23 @@ import { useMeta } from "../api/queries";
 import { breakdownLines } from "../lib/breakdown";
 import { clock, fmt, mapName, NONE } from "../lib/format";
 import { DataTable, type Column } from "./DataTable";
+import { IconExternal } from "./icons";
+import { ModsIcons } from "./ModsIcons";
+import { OpenInLazer } from "./OpenInLazer";
 import { EmptyState } from "./states";
 
 type MapRow = Schemas["MapRow"];
 
-/** The F(m) terms of a map as a short list behind a "Calculation" toggle. */
-function Breakdown({ map }: { map: MapRow }) {
+/** A map's F(m); clicking it shows how it adds up, its terms as a short list. */
+function Score({ map }: { map: MapRow }) {
   const meta = useMeta();
   const label = (key: string) => meta.data?.skills.find((s) => s.key === key)?.label ?? key;
   const lines = breakdownLines(map.breakdown, map.stars, map.skill_demand, label);
-  if (!lines.length) return NONE;
+  const score = fmt(map.formula_score, 4);
+  if (!lines.length) return score;
   return (
     <details className="map-breakdown">
-      <summary>Calculation</summary>
+      <summary title="How it adds up">{score}</summary>
       <dl>
         {lines.map((line) => (
           <div key={line.label}>
@@ -32,29 +36,38 @@ function Breakdown({ map }: { map: MapRow }) {
 }
 
 const COLUMNS: Column<MapRow>[] = [
-  { key: "map", header: "Map", cell: mapName, strong: true, wrap: true },
+  { key: "map", header: "Map", cell: (m) => mapName(m), strong: true, wrap: true },
+  { key: "mods", header: "Mods", cell: (m) => <ModsIcons mods={m.mods} rate={m.rate} />, value: (m) => `${m.mods}:${m.rate}` },
   { key: "stars", header: "Difficulty", cell: (m) => fmt(m.stars, 2, " ★"), value: (m) => m.stars, align: "right",
-    title: "Star rating (no mod)." },
+    title: "Star rating for the displayed mods and playback rate." },
   { key: "bpm", header: "BPM", cell: (m) => fmt(m.bpm, 0), value: (m) => m.bpm, align: "right" },
   { key: "ar", header: "AR", cell: (m) => fmt(m.ar, 1), value: (m) => m.ar, align: "right" },
   { key: "length", header: "Length", cell: (m) => clock(m.length_s), value: (m) => m.length_s, align: "right" },
   { key: "why", header: "Why this map", cell: (m) => m.why, wrap: true, title: "The patterns it has for the skill." },
-  { key: "demand", header: "Skill demand", cell: (m) => fmt(m.skill_demand, 1), value: (m) => m.skill_demand, align: "right",
+  { key: "demand", header: "Skill demand", cell: (m) => fmt(m.skill_demand, 1), value: (m) => m.skill_demand, align: "center",
     title: "How much the map asks of the target skill, 0–100." },
-  { key: "score", header: "F(m)", cell: (m) => fmt(m.formula_score, 4), value: (m) => m.formula_score, align: "right",
-    title: "Goal-conditioned ranking score; higher is better within this goal." },
-  { key: "breakdown", header: "Breakdown", value: () => null, cell: (m) => <Breakdown map={m} />,
-    title: "How F(m) adds up: each term is 0 at best and lower the further the map is from what this goal asks." },
+  { key: "score", header: "F(m)", cell: (m) => <Score map={m} />, value: (m) => m.formula_score, align: "right",
+    title: "Goal-conditioned ranking score; higher is better within this goal. Click a value to see how it adds up: each " +
+      "term is 0 at best and lower the further the map is from what this goal asks." },
   {
     key: "link",
     header: "Link",
-    cell: (m) => (m.url ? <a href={m.url} target="_blank" rel="noreferrer noopener">open ↗</a> : "–"),
+    cell: (m) =>
+      m.url ? (
+        <span className="map-links">
+          <a className="btn btn--sm btn--ghost btn--icon" href={m.url} target="_blank" rel="noreferrer noopener"
+            aria-label="Open on the osu! website" title="Open on the osu! website">
+            <IconExternal width={16} height={16} />
+          </a>
+          <OpenInLazer beatmapId={m.beatmap_id} iconOnly />
+        </span>
+      ) : NONE,
     value: () => null,
   },
 ];
 
-/** For narrow cards: preserve the compact map columns and add formula details. */
-const COMPACT = COLUMNS.filter((c) => ["map", "stars", "bpm", "length", "demand", "score", "breakdown", "link"].includes(c.key));
+/** For narrow cards: the map columns that matter most, with F(m) and its calculation. */
+const COMPACT = COLUMNS.filter((c) => ["map", "mods", "stars", "bpm", "length", "demand", "score", "link"].includes(c.key));
 
 type PageItem = number | "left-gap" | "right-gap";
 
@@ -151,7 +164,7 @@ export function MapTable({ maps, maxHeight, onHide, compact = false }: {
       label="Maps"
       rows={maps.slice((shownPage - 1) * 5, shownPage * 5)}
       columns={columns}
-      rowKey={(m) => m.md5}
+      rowKey={(m) => m.configuration_id ?? m.md5}
       maxHeight={maxHeight}
       empty={<EmptyState title="No maps found for this." />}
     />

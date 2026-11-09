@@ -1,7 +1,7 @@
 import shutil
 
 from osu_coach.cli import main
-from osu_coach.exports.collection_db import read_collection_db
+from osu_coach.infra.exports.collection_db import read_collection_db
 from tests.conftest import replay_and_map
 
 
@@ -59,7 +59,7 @@ def test_playlist_from_comfort_level_writes_collection(tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 0 and "Warm-up" in out and "https://osu.ppy.sh/beatmapsets/" in out
     _, cols = read_collection_db(db)
-    assert len(cols) == 1 and cols[0][0].startswith("osu-coach: Jump aim") and len(cols[0][1]) == 6
+    assert len(cols) == 1 and cols[0][0].startswith("osu-coach: Jumps") and len(cols[0][1]) == 6
 
 
 def test_locate_runs(capsys):
@@ -68,7 +68,7 @@ def test_locate_runs(capsys):
 
 
 def test_analyze_only_these_files_best_and_level(tmp_path, capsys):
-    from osu_coach.settings.repository import load_settings
+    from osu_coach.infra.settings import load_settings
 
     folder = _folder(tmp_path, ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr"])
     cache = tmp_path / "cache"

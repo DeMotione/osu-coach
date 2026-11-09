@@ -3,7 +3,7 @@ import { esc } from "../lib/format";
 import { changeLabel, starLabel } from "../lib/starCompare";
 import { base, categoryAxis, grid, niceMax, responsive, tooltip, valueAxis } from "./base";
 import type { Option } from "./echarts";
-import { C, alpha, scoreColor, type ChartTheme } from "./palette";
+import { C, alpha, faded, scoreColor, type ChartTheme } from "./palette";
 import { params } from "./types";
 
 type Skill = Schemas["SkillScore"];
@@ -35,7 +35,12 @@ type CompareTarget = Schemas["CompareTarget"];
 
 /** The hover of a bar on the comparison chart: the score at the star rating picked, how it comes from the comfort-level
  * score, the player's numbers and (with the skill's help text) what the skill is and what raises it. */
-export function compareHover(s: Skill, target: CompareTarget, comfort: number, help?: SkillMeta): string {
+/** A skill's one-line summary under its name in a hover ("" without one). */
+const lead = (help?: SkillMeta) => (help?.summary ? `<div style="opacity:0.75">${esc(help.summary)}</div>` : "");
+
+export function compareHover(s: Skill, target: CompareTarget, comfort: number, help?: SkillMeta, engine = "comfort"): string {
+  // what the skill measures depends on the engine (Star-Scale IRT: the notes failed against their difficulty)
+  if (help && engine === "irt" && help.irt_what) help = { ...help, what: help.irt_what };
   const p = (text: string) => `<div style="margin-top:6px">${esc(text)}</div>`;
   const at = starLabel(target.stars);
   const row = target.skills.find((k) => k.key === s.key);
@@ -44,7 +49,7 @@ export function compareHover(s: Skill, target: CompareTarget, comfort: number, h
     if (row.score === null)
       return `<b>${esc(s.label)} at ${esc(at)}: Not enough data</b>${row.needs ? p(`To get a score: ${row.needs}`) : ""}${help ? p(help.what) : ""}`;
     const vs = s.score === null || target.comfort ? "" : ` (${changeLabel(row.change ?? 0)} against your comfort level)`;
-    let html = `<b>${esc(s.label)} at ${esc(at)}: ${row.score.toFixed(0)}${esc(vs)}</b>`;
+    let html = `<b>${esc(s.label)} at ${esc(at)}: ${row.score.toFixed(0)}${esc(vs)}</b>${lead(help)}`;
     if (help) html += p(help.what);
     html += p(`Measured on your ${row.maps} different maps from ${starLabel(target.stars - 1)} to ${at} (the closer to ${at}, the more a map counts); the more maps you play there, the more reliable it is.`);
     if (help) html += p(`To raise it: ${help.practise}`);
@@ -56,10 +61,15 @@ export function compareHover(s: Skill, target: CompareTarget, comfort: number, h
     return `<b>${esc(s.label)} at ${esc(at)}: ${esc(s.score_text)}</b>${needs}${help ? p(help.what) : ""}`;
   }
   const change = row.change ?? 0;
-  let html = `<b>${esc(s.label)} at ${esc(at)}: ${row.score.toFixed(0)}${target.comfort ? "" : ` (${esc(changeLabel(change))})`}</b>`;
+  let html = `<b>${esc(s.label)} at ${esc(at)}: ${row.score.toFixed(0)}${target.comfort ? "" : ` (${esc(changeLabel(change))})`}</b>${lead(help)}`;
   if (help) html += p(help.what);
+  html += p(`Points from 0 to 100: 50 = what maps at your ${starLabel(comfort)} comfort level ask for (assumed from ranked maps, not compared with other players), higher = stronger.`);
+  const bound = row.at_least !== null; // a lower bound: everything played of the skill was held
+  if (bound) html += p(`You almost never fail it on any map you played, so it is at least this${row.score < 100 ? ": harder maps could show it's higher" : ""}.`);
   if (target.comfort) html += p(`${at} is your comfort level: the score above.`);
-  else if (row.demand !== null) {
+  else if (engine === "irt" && !bound) {
+    html += p(`Harder maps take points off, about 20 a star around 50 (Star Levels): ${s.score.toFixed(0)} on maps of your ${starLabel(comfort)} level, ${row.score.toFixed(0)} on ${at} maps.`);
+  } else if (engine !== "irt" && row.demand !== null) {
     const more = Math.round(Math.abs(row.demand - 1) * 100);
     const what = `Typical ${at} maps demand ${more}% ${row.demand >= 1 ? "more" : "less"} of this skill than maps of your ${starLabel(comfort)} comfort level`;
     html += p(
@@ -74,20 +84,33 @@ export function compareHover(s: Skill, target: CompareTarget, comfort: number, h
 }
 
 /** The comfort-level scores (faded) and the scores at the star rating picked, with the change between them. */
-export function compareBars(skills: Skill[], target: CompareTarget, comfort: number, t: ChartTheme, help: SkillMeta[] = []): Option {
+export function compareBars(
+  skills: Skill[],
+  target: CompareTarget,
+  comfort: number,
+  t: ChartTheme,
+  help: SkillMeta[] = [],
+  engine = "comfort",
+): Option {
   const helpOf = Object.fromEntries(help.map((h) => [h.key, h]));
   const rowOf = Object.fromEntries(target.skills.map((k) => [k.key, k]));
   const here = skills.map((s) => rowOf[s.key]?.score ?? null);
   // a skill measured at this star rating that has no score yet (consistency): a grey bar saying so, nothing faded
   const missing = skills.map((s, i) => here[i] === null && !!rowOf[s.key]?.needs);
   const before = skills.map((s, i) => (target.comfort || missing[i] ? null : s.score));
-  // at the comfort level, a skill the maps haven't tested to its limit shows its lower bound as a light bar
-  const atLeast = skills.map((s, i) => (target.comfort && here[i] === null ? s.at_least : null));
+  // a skill the maps haven't tested to its limit shows its lower bound as a light bar: at the comfort level its own,
+  // elsewhere the one the engine moved there (IRT: the hardest held, against that star rating)
+  const atLeast = skills.map((s, i) =>
+    here[i] !== null ? null : (rowOf[s.key]?.at_least ?? (target.comfort ? s.at_least : null)),
+  );
   const text = (i: number) => {
     const v = here[i];
-    if (v === null) return atLeast[i] !== null ? `≥ ${atLeast[i]!.toFixed(0)}` : "–";
+    // a bound at the top of the scale says nothing more than "not tested"
+    if (v === null) return atLeast[i] !== null ? (atLeast[i]! >= 100 ? "not tested" : `≥ ${atLeast[i]!.toFixed(0)}`) : "–";
     const change = rowOf[skills[i].key]?.change ?? 0;
-    return target.comfort ? v.toFixed(0) : `${v.toFixed(0)} (${changeLabel(change)})`;
+    // a lower bound (held everything played) gets "≥" — but nothing is above 100
+    const bound = rowOf[skills[i].key]?.at_least != null && v < 100 ? "≥ " : "";
+    return target.comfort ? `${bound}${v.toFixed(0)}` : `${bound}${v.toFixed(0)} (${changeLabel(change)})`;
   };
   // the label goes after the longer of the two bars
   const label = (show: boolean) => ({ show });
@@ -101,8 +124,8 @@ export function compareBars(skills: Skill[], target: CompareTarget, comfort: num
         max: 100,
         interval: 25,
         name: target.comfort
-          ? `Your scores at your ${starLabel(comfort)} comfort level · 50 = expected there`
-          : `Your scores at ${starLabel(target.stars)} · faded = at your ${starLabel(comfort)} comfort level`,
+          ? `Score, 0–100 · 50 = what maps at your ${starLabel(comfort)} comfort level ask for (assumed)`
+          : `Score on ${starLabel(target.stars)} maps, 0–100 points · faded = on ${starLabel(comfort)} maps (your level)`,
         nameGap: 26,
       }),
       yAxis: SKILL_AXIS(
@@ -115,7 +138,7 @@ export function compareBars(skills: Skill[], target: CompareTarget, comfort: num
         axisPointer: { type: "shadow", shadowStyle: { color: t.split } },
         formatter: (p: unknown) => {
           const s = skills[params(p)[0].dataIndex];
-          return compareHover(s, target, comfort, helpOf[s.key]);
+          return compareHover(s, target, comfort, helpOf[s.key], engine);
         },
       }),
       series: [
@@ -155,6 +178,159 @@ export function compareBars(skills: Skill[], target: CompareTarget, comfort: num
       ],
     }),
     { ...NARROW_SKILLS(80), series: [{ label: { fontSize: 11 } }, { label: { fontSize: 11 } }] },
+  );
+}
+
+/** Star-Scale IRT: what "holds up on X★ maps" means for a skill. */
+export function holdsUpMeaning(key: string, at: string): string {
+  return key === "accuracy"
+    ? `you'd hit about 90 in 100 of its single notes as 300s on typical ${at} maps made like the ones you play`
+    : `you'd fail only about 2 in 100 of its notes on typical ${at} maps made like the ones you play`;
+}
+
+/** An IRT ability in units players know: "≈ 221 BPM", "≈ 90% 300s at OD 8.0", "≈ AR 9.6"; "" without one. */
+export function naturalLabel(s: Skill): string {
+  const n = s.natural;
+  if (n === null || n === undefined || !(s.state === "measured" || s.state === "provisional")) return "";
+  if (s.natural_unit === "BPM") return `≈ ${n.toFixed(0)} BPM`;
+  if (s.natural_unit === "OD") return `≈ 90% 300s at OD ${n.toFixed(1)}`;
+  if (s.natural_unit === "AR") return `≈ AR ${n.toFixed(1)}`;
+  return "";
+}
+
+const star1 = (v: number) => `${v.toFixed(1)}★`;
+const finite = (v: number | null | undefined): v is number => v !== null && v !== undefined && Number.isFinite(v);
+
+/** Where an IRT skill stands against the star rating compared with: holds up there, within its range, or short. */
+export function levelTone(s: Skill, target: number): "good" | "info" | "bad" | "none" {
+  if (!finite(s.stars)) return "none";
+  const low = s.stars_low ?? s.stars;
+  const high = s.state === "untested" ? Infinity : (s.stars_high ?? s.stars);
+  return low >= target ? "good" : high < target ? "bad" : "info";
+}
+
+/** The hover of a skill on the IRT star chart: the map star rating it holds up on and what that means, its range, how
+ * it stands against the star rating compared with, the player's numbers and what raises it. */
+export function starLevelHover(s: Skill, target: CompareTarget, help?: SkillMeta): string {
+  if (help?.irt_what) help = { ...help, what: help.irt_what };
+  const p = (text: string) => `<div style="margin-top:6px">${esc(text)}</div>`;
+  const at = starLabel(target.stars);
+  const where = target.comfort ? `${at} maps (your comfort level)` : `${at} maps`;
+  if (!finite(s.stars)) {
+    const needs = s.needs ? p(`To get a level: ${s.needs}`) : "";
+    return `<b>${esc(s.label)}: ${esc(s.score_text)}</b>${needs}${help ? p(help.what) : ""}`;
+  }
+  const bound = s.state === "untested";
+  const title = bound ? `${star1(s.stars)}+ (limit not found yet)` : `holds up on ${star1(s.stars)} maps`;
+  let html = `<b>${esc(s.label)}: ${title}</b>${lead(help)}`;
+  html += p(`"Holds up": ${holdsUpMeaning(s.key, star1(s.stars))}.`);
+  const nat = naturalLabel(s);
+  if (!bound && finite(s.stars_low) && finite(s.stars_high)) {
+    const provisional = s.state === "provisional" ? " (a rough estimate: not many of its notes near your limit yet)" : "";
+    html += p(`Likely between ${star1(s.stars_low)} and ${star1(s.stars_high)}${provisional}${nat ? `; ${nat}` : ""}.`);
+  }
+  const tone = levelTone(s, target.stars);
+  if (bound)
+    html += p(
+      `You almost never fail it on any map you played, so its limit isn't found yet: it holds up on ${star1(s.stars)} maps and maybe much harder ones.${tone === "good" ? ` It holds up on ${where}.` : ""}`,
+    );
+  else if (tone === "good") html += p(`It holds up on ${where}.`);
+  else if (tone === "bad") html += p(`Not yet on ${where}: ${(target.stars - s.stars).toFixed(1)}★ short, so there you'd miss more of its notes.`);
+  else html += p(`Close on ${where}: within its likely range.`);
+  html += p(`You: ${s.facts.join("; ")}`);
+  if (bound && s.needs) html += p(`To find its limit: ${s.needs}`);
+  if (help) html += p(help.what);
+  if (help) html += p(`To raise it: ${help.practise}`);
+  return html;
+}
+
+/** Star Levels: each skill as a bar to the map star rating it holds up on, coloured by how it stands against the star
+ * rating compared with. Its likely range is a faded bar behind it, reaching to the range's top; nothing is drawn over
+ * the bars. Consistency isn't on this scale and is left out. */
+export function starLevels(skills: Skill[], target: CompareTarget, t: ChartTheme, help: SkillMeta[] = []): Option {
+  const helpOf = Object.fromEntries(help.map((h) => [h.key, h]));
+  const rows = skills.filter((s) => s.key !== "consistency");
+  const seen = [target.stars, ...rows.flatMap((s) => [s.stars, s.stars_low, s.stars_high]).filter(finite)];
+  const min = Math.max(0, Math.floor(Math.min(...seen) - 1));
+  const max = Math.ceil(Math.max(...seen) + 0.75);
+  const colour = { good: C.good, info: C.info, bad: C.bad, none: C.muted };
+  // just the stars on the bar; BPM, OD and AR are in the hover
+  const text = (s: Skill) =>
+    !finite(s.stars) ? "" : s.state === "untested" ? `${star1(s.stars)}+ · limit not found yet` : star1(s.stars);
+  const hasRange = (s: Skill) =>
+    s.state !== "untested" && finite(s.stars) && finite(s.stars_high) && s.stars_high > s.stars;
+  // the label sits after whichever bar is longer, so nothing crosses it
+  const label = (s: Skill) => ({ show: true, position: "right", color: t.text, fontSize: 12, formatter: text(s) });
+  const radius = [0, 3, 3, 0];
+  const at = starLabel(target.stars);
+  const against = target.comfort ? `your comfort level (${at})` : `${at} maps`;
+  return responsive(
+    base(t, {
+      grid: grid({ right: 150, bottom: 8 }),
+      xAxis: valueAxis(t, {
+        min,
+        max,
+        interval: 1,
+        name: `Map star rating each skill holds up on · faded = likely range · colour = against ${against}`,
+        nameGap: 26,
+        axisLabel: { formatter: (v: number) => `${v}★` },
+      }),
+      yAxis: SKILL_AXIS(
+        t,
+        rows.map((s) => s.label),
+        230,
+      ),
+      tooltip: tooltip(t, {
+        trigger: "axis",
+        axisPointer: { type: "shadow", shadowStyle: { color: t.split } },
+        formatter: (p: unknown) => {
+          const s = rows[params(p)[0].dataIndex];
+          return starLevelHover(s, target, helpOf[s.key]);
+        },
+      }),
+      series: [
+        {
+          // the likely range: a faded bar to its top, behind the skill's bar
+          type: "bar",
+          barMaxWidth: 22,
+          barGap: "-100%",
+          silent: true,
+          z: 1,
+          data: rows.map((s) =>
+            hasRange(s)
+              ? {
+                  value: s.stars_high,
+                  // opaque, so no grid line shows through it
+                  itemStyle: { color: faded(colour[levelTone(s, target.stars)], 0.25, t.surface), borderRadius: radius },
+                  label: label(s),
+                }
+              : { value: null },
+          ),
+        },
+        {
+          type: "bar",
+          barMaxWidth: 22,
+          barGap: "-100%",
+          z: 2,
+          data: rows.map((s) => {
+            const tone = levelTone(s, target.stars);
+            if (tone === "none")
+              return {
+                value: max,
+                itemStyle: { color: faded(C.muted, 0.18, t.surface), borderRadius: radius },
+                label: { show: true, position: "insideLeft", color: t.muted, formatter: "Not enough data" },
+              };
+            // a skill whose limit wasn't found yet is drawn like the others; its label says "7.2★+ · limit not found yet"
+            return {
+              value: s.stars,
+              itemStyle: { color: colour[tone], borderRadius: radius },
+              label: hasRange(s) ? { show: false } : label(s),
+            };
+          }),
+        },
+      ],
+    }),
+    { ...NARROW_SKILLS(110), series: [{ label: { fontSize: 11 } }, { label: { fontSize: 11 } }] },
   );
 }
 

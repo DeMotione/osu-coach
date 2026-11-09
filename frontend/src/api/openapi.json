@@ -647,13 +647,16 @@
                         "$ref": "#/components/schemas/AnalysisJob"
                       },
                       {
-                        "$ref": "#/components/schemas/LazerPackJob"
+                        "$ref": "#/components/schemas/LazerSendJob"
                       },
                       {
                         "$ref": "#/components/schemas/OszJob"
                       },
                       {
                         "$ref": "#/components/schemas/PlayGoalJob"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PlaylistJob"
                       }
                     ],
                     "discriminator": {
@@ -661,9 +664,10 @@
                       "mapping": {
                         "scan": "#/components/schemas/ScanJob",
                         "analysis": "#/components/schemas/AnalysisJob",
-                        "lazer_pack": "#/components/schemas/LazerPackJob",
+                        "lazer_send": "#/components/schemas/LazerSendJob",
                         "osz_download": "#/components/schemas/OszJob",
-                        "play_goal": "#/components/schemas/PlayGoalJob"
+                        "play_goal": "#/components/schemas/PlayGoalJob",
+                        "playlist": "#/components/schemas/PlaylistJob"
                       }
                     }
                   },
@@ -717,13 +721,16 @@
                       "$ref": "#/components/schemas/AnalysisJob"
                     },
                     {
-                      "$ref": "#/components/schemas/LazerPackJob"
+                      "$ref": "#/components/schemas/LazerSendJob"
                     },
                     {
                       "$ref": "#/components/schemas/OszJob"
                     },
                     {
                       "$ref": "#/components/schemas/PlayGoalJob"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PlaylistJob"
                     }
                   ],
                   "discriminator": {
@@ -731,9 +738,10 @@
                     "mapping": {
                       "scan": "#/components/schemas/ScanJob",
                       "analysis": "#/components/schemas/AnalysisJob",
-                      "lazer_pack": "#/components/schemas/LazerPackJob",
+                      "lazer_send": "#/components/schemas/LazerSendJob",
                       "osz_download": "#/components/schemas/OszJob",
-                      "play_goal": "#/components/schemas/PlayGoalJob"
+                      "play_goal": "#/components/schemas/PlayGoalJob",
+                      "playlist": "#/components/schemas/PlaylistJob"
                     }
                   },
                   "title": "Response Get Job Api Jobs  Job Id  Get"
@@ -797,13 +805,16 @@
                       "$ref": "#/components/schemas/AnalysisJob"
                     },
                     {
-                      "$ref": "#/components/schemas/LazerPackJob"
+                      "$ref": "#/components/schemas/LazerSendJob"
                     },
                     {
                       "$ref": "#/components/schemas/OszJob"
                     },
                     {
                       "$ref": "#/components/schemas/PlayGoalJob"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PlaylistJob"
                     }
                   ],
                   "discriminator": {
@@ -811,9 +822,10 @@
                     "mapping": {
                       "scan": "#/components/schemas/ScanJob",
                       "analysis": "#/components/schemas/AnalysisJob",
-                      "lazer_pack": "#/components/schemas/LazerPackJob",
+                      "lazer_send": "#/components/schemas/LazerSendJob",
                       "osz_download": "#/components/schemas/OszJob",
-                      "play_goal": "#/components/schemas/PlayGoalJob"
+                      "play_goal": "#/components/schemas/PlayGoalJob",
+                      "playlist": "#/components/schemas/PlaylistJob"
                     }
                   },
                   "title": "Response Cancel Job Api Jobs  Job Id  Cancel Post"
@@ -1406,7 +1418,7 @@
           "Progress & goals"
         ],
         "summary": "Progress by month, week or day",
-        "description": "Not weighted by difficulty, so periods stay comparable. ``since`` / ``until``: days on this computer's\nclock, both included.",
+        "description": "Not weighted by difficulty, so periods stay comparable. ``since`` / ``until``: days on this computer's\nclock, both included. ``replays``: analysed = only the replays of the last analysis (what the Overview shows,\nrated at its comfort level; every saved play when none of the player's is analysed), all = the whole history.",
         "operationId": "by_period_api_progress_get",
         "parameters": [
           {
@@ -1472,6 +1484,20 @@
                 }
               ],
               "title": "Until"
+            }
+          },
+          {
+            "name": "replays",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "analysed",
+                "all"
+              ],
+              "type": "string",
+              "default": "analysed",
+              "title": "Replays"
             }
           }
         ],
@@ -1555,6 +1581,20 @@
               "type": "string",
               "default": "month",
               "title": "Period"
+            }
+          },
+          {
+            "name": "replays",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "analysed",
+                "all"
+              ],
+              "type": "string",
+              "default": "analysed",
+              "title": "Replays"
             }
           }
         ],
@@ -1802,6 +1842,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required local data is unavailable or incompatible; `code` identifies it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -2007,6 +2057,67 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required local data is unavailable or incompatible; `code` identifies it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playlists/search": {
+      "post": {
+        "tags": [
+          "Maps"
+        ],
+        "summary": "Search exact mod and rate configurations",
+        "operationId": "search_api_playlists_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistJob"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -2089,52 +2200,14 @@
         }
       }
     },
-    "/api/exports/lazer-zip": {
+    "/api/exports/lazer-send": {
       "post": {
         "tags": [
           "Get maps into osu!"
         ],
-        "summary": "lazer import folder without maps (.zip)",
-        "description": "Just the collection, e.g. for lazer on another computer: unzip it and import the folder.",
-        "operationId": "lazer_zip_api_exports_lazer_zip_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExportRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/zip": {}
-            }
-          },
-          "422": {
-            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/exports/lazer-pack": {
-      "post": {
-        "tags": [
-          "Get maps into osu!"
-        ],
-        "summary": "Make the lazer import folder (background job)",
-        "description": "In Downloads/osu-coach lazer import/<name>: the collection plus the maps lazer doesn't have yet.",
-        "operationId": "lazer_pack_api_exports_lazer_pack_post",
+        "summary": "Send the maps to osu!lazer (background job)",
+        "description": "The maps lazer doesn't have yet are downloaded into osu! coach's data folder (``lazer-maps``) and handed to\nlazer, which imports them and deletes the files (it starts if it's closed). 404 ``no_lazer`` without lazer.",
+        "operationId": "lazer_send_api_exports_lazer_send_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2151,13 +2224,75 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LazerPackJob"
+                  "$ref": "#/components/schemas/LazerSendJob"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found; `code` says what is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
           },
           "409": {
             "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/exports/lazer-open": {
+      "post": {
+        "tags": [
+          "Get maps into osu!"
+        ],
+        "summary": "Open a map in osu!lazer",
+        "description": "Shows the map's page in lazer with this difficulty picked (lazer starts if it's closed); lazer's \"Go to\nbeatmap\" button there jumps to it in song select. 404 ``no_lazer`` without lazer.",
+        "operationId": "lazer_open_api_exports_lazer_open_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LazerOpenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LazerOpened"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found; `code` says what is missing.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2728,6 +2863,18 @@
             ],
             "title": "Error"
           },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "A failed job's error code (stable, like an error response's)."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -2944,6 +3091,12 @@
           "skipped_total": {
             "type": "integer",
             "title": "Skipped Total"
+          },
+          "restoring": {
+            "type": "boolean",
+            "title": "Restoring",
+            "description": "The analysed replays of the last session are still being brought back (at start-up); the profile pages answer 409 no_profile until then.",
+            "default": false
           }
         },
         "type": "object",
@@ -3054,6 +3207,16 @@
             ],
             "title": "Replay Set",
             "default": "all"
+          },
+          "rating_engine": {
+            "type": "string",
+            "enum": [
+              "comfort",
+              "irt"
+            ],
+            "title": "Rating Engine",
+            "description": "The engine that makes the skill ratings; irt (Star-Scale IRT) is experimental.",
+            "default": "comfort"
           },
           "level_override": {
             "anyOf": [
@@ -3940,6 +4103,18 @@
             "title": "Change",
             "description": "This score minus the comfort-level score (points)."
           },
+          "at_least": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At Least",
+            "description": "Without a score: the skill is at least this good on these maps (untested, 0–100)."
+          },
           "demand": {
             "anyOf": [
               {
@@ -4174,8 +4349,8 @@
           },
           "beatmapset_id": {
             "type": "integer",
-            "minimum": 1.0,
-            "title": "Beatmapset Id"
+            "title": "Beatmapset Id",
+            "description": "The map's beatmap set on the osu! website; 0 (or less) when it isn't known, e.g. a map that isn't on the website. Such a map is still put in the collection."
           }
         },
         "additionalProperties": false,
@@ -4207,16 +4382,12 @@
           "lazer_sets": {
             "type": "integer",
             "title": "Lazer Sets",
-            "description": "Map sets the lazer import folder would download."
+            "description": "Map sets that would be downloaded and sent to lazer."
           },
           "lazer_approximate": {
             "type": "boolean",
             "title": "Lazer Approximate",
-            "description": "Not all of lazer's files were read yet: an upper bound."
-          },
-          "lazer_folder": {
-            "type": "string",
-            "title": "Lazer Folder"
+            "description": "An upper bound: not all of lazer's files were read yet, or some maps' sets are only looked up when they are sent."
           },
           "stable_available": {
             "type": "boolean",
@@ -4236,7 +4407,6 @@
           "total_sets",
           "lazer_sets",
           "lazer_approximate",
-          "lazer_folder",
           "stable_available",
           "osz_folder"
         ],
@@ -5410,7 +5580,38 @@
         "title": "Latest",
         "description": "How many of the newest found replays to analyse; 0 = all of them."
       },
-      "LazerPackJob": {
+      "LazerOpenRequest": {
+        "properties": {
+          "beatmap_id": {
+            "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
+            "title": "Beatmap Id",
+            "description": "The difficulty on the osu! website."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "beatmap_id"
+        ],
+        "title": "LazerOpenRequest"
+      },
+      "LazerOpened": {
+        "properties": {
+          "link": {
+            "type": "string",
+            "title": "Link",
+            "description": "The link lazer was given, ``osu://b/<beatmap id>``."
+          }
+        },
+        "type": "object",
+        "required": [
+          "link"
+        ],
+        "title": "LazerOpened"
+      },
+      "LazerSendJob": {
         "properties": {
           "id": {
             "type": "string",
@@ -5453,6 +5654,18 @@
             ],
             "title": "Error"
           },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "A failed job's error code (stable, like an error response's)."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -5477,13 +5690,13 @@
           },
           "kind": {
             "type": "string",
-            "const": "lazer_pack",
+            "const": "lazer_send",
             "title": "Kind"
           },
           "result": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/LazerPackResult"
+                "$ref": "#/components/schemas/LazerSendResult"
               },
               {
                 "type": "null"
@@ -5504,36 +5717,51 @@
           "kind",
           "result"
         ],
-        "title": "LazerPackJob"
+        "title": "LazerSendJob"
       },
-      "LazerPackResult": {
+      "LazerSendResult": {
         "properties": {
-          "path": {
-            "type": "string",
-            "title": "Path"
-          },
           "maps": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "Maps"
+            "title": "Maps",
+            "description": "Map sets downloaded and handed to lazer."
           },
           "failed": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "Failed"
+            "title": "Failed",
+            "description": "Map sets that couldn't be downloaded."
+          },
+          "not_found": {
+            "type": "integer",
+            "title": "Not Found",
+            "description": "Maps you don't have whose beatmap set couldn't be found online.",
+            "default": 0
+          },
+          "imported": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Imported",
+            "description": "Map sets lazer took (it deletes each .osz)."
+          },
+          "not_imported": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Not Imported",
+            "description": "Map sets lazer hadn't taken when osu! coach stopped waiting: it may still be busy with them."
           }
         },
         "type": "object",
-        "required": [
-          "path",
-          "maps",
-          "failed"
-        ],
-        "title": "LazerPackResult"
+        "title": "LazerSendResult"
       },
       "LevelInfo": {
         "properties": {
@@ -5982,7 +6210,29 @@
               }
             ],
             "title": "Stars",
-            "description": "Star rating (no mod)."
+            "description": "Star rating for the exact map configuration."
+          },
+          "configuration_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configuration Id",
+            "description": "Complete map, mods, rate, client, and settings identity."
+          },
+          "mods": {
+            "type": "string",
+            "title": "Mods",
+            "default": "NM"
+          },
+          "rate": {
+            "type": "number",
+            "title": "Rate",
+            "default": 1.0
           },
           "bpm": {
             "anyOf": [
@@ -6171,6 +6421,13 @@
             "type": "array",
             "title": "Replay Sets"
           },
+          "rating_engines": {
+            "items": {
+              "$ref": "#/components/schemas/Choice"
+            },
+            "type": "array",
+            "title": "Rating Engines"
+          },
           "best_definition": {
             "type": "string",
             "title": "Best Definition"
@@ -6190,13 +6447,10 @@
             "type": "array",
             "title": "Periods"
           },
-          "lazer_instructions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Lazer Instructions",
-            "description": "Steps to import a lazer import folder (Markdown)."
+          "lazer_found": {
+            "type": "boolean",
+            "title": "Lazer Found",
+            "description": "osu!lazer's program was found: maps can be sent to lazer and opened there."
           },
           "level_band": {
             "type": "number",
@@ -6220,10 +6474,11 @@
           "miss_causes",
           "date_choices",
           "replay_sets",
+          "rating_engines",
           "best_definition",
           "latest_choices",
           "periods",
-          "lazer_instructions",
+          "lazer_found",
           "level_band",
           "level_sigma",
           "api_docs"
@@ -6334,6 +6589,18 @@
               }
             ],
             "title": "Error"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "A failed job's error code (stable, like an error response's)."
           },
           "created_at": {
             "type": "string",
@@ -6530,6 +6797,18 @@
               }
             ],
             "title": "Sim Agreement"
+          },
+          "engine": {
+            "type": "string",
+            "title": "Engine",
+            "description": "The rating engine that made the skill scores (comfort | irt).",
+            "default": "comfort"
+          },
+          "engine_label": {
+            "type": "string",
+            "title": "Engine Label",
+            "description": "Its name to show.",
+            "default": "Comfort Score"
           }
         },
         "type": "object",
@@ -6669,6 +6948,18 @@
             ],
             "title": "Max Stars Passed"
           },
+          "max_stars_passed_map": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Stars Passed Map",
+            "description": "The hardest clean pass: 'Artist - Title [Difficulty] +MODS' (no '+…' without mods)."
+          },
           "max_stars_fc": {
             "anyOf": [
               {
@@ -6806,6 +7097,18 @@
               }
             ],
             "title": "Error"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "A failed job's error code (stable, like an error response's)."
           },
           "created_at": {
             "type": "string",
@@ -7395,6 +7698,66 @@
             "type": "object",
             "title": "Measured Abilities",
             "description": "Replay-derived skill ratings before manual overrides."
+          },
+          "coverage_maps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Maps",
+            "description": "Maps with verified .osu data searched for modified configurations."
+          },
+          "unavailable_maps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Maps",
+            "description": "Pool maps whose verified .osu data was unavailable."
+          },
+          "calculator_unavailable_maps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculator Unavailable Maps",
+            "description": "Verified maps whose supported difficulty calculation was unavailable."
+          },
+          "unavailable_configurations": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Configurations",
+            "description": "Configurations on verified maps whose exact calculation was unavailable, including partial maps."
+          },
+          "result_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Limit",
+            "description": "Maximum distinct ranked maps returned per stage; eligible counts include all selected maps."
           }
         },
         "type": "object",
@@ -7412,6 +7775,213 @@
           "preferred_client"
         ],
         "title": "Playlist"
+      },
+      "PlaylistJob": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress",
+            "description": "0–1 when known."
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "A failed job's error code (stable, like an error response's)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "cancellable": {
+            "type": "boolean",
+            "title": "Cancellable",
+            "description": "Whether POST /api/jobs/{id}/cancel can stop it."
+          },
+          "kind": {
+            "type": "string",
+            "const": "playlist",
+            "title": "Kind"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Playlist"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "progress",
+          "message",
+          "error",
+          "created_at",
+          "finished_at",
+          "cancellable",
+          "kind",
+          "result"
+        ],
+        "title": "PlaylistJob"
+      },
+      "PlaylistSearchRequest": {
+        "properties": {
+          "skill": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill"
+          },
+          "comfort": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comfort"
+          },
+          "assessed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessed"
+          },
+          "ratings": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratings"
+          },
+          "kappa": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Kappa",
+            "default": 0.5
+          },
+          "min_relevance": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Min Relevance",
+            "default": 0.3
+          },
+          "exclude_played": {
+            "type": "boolean",
+            "title": "Exclude Played",
+            "default": true
+          },
+          "allow_hr": {
+            "type": "boolean",
+            "title": "Allow Hr",
+            "default": false
+          },
+          "allow_hd": {
+            "type": "boolean",
+            "title": "Allow Hd",
+            "default": false
+          },
+          "adjustable_dt": {
+            "type": "boolean",
+            "title": "Adjustable Dt",
+            "default": false
+          },
+          "min_rate": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 1.1,
+            "title": "Min Rate",
+            "default": 1.1
+          },
+          "max_rate": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 1.1,
+            "title": "Max Rate",
+            "default": 2.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PlaylistSearchRequest"
       },
       "PlaylistSkill": {
         "properties": {
@@ -7617,6 +8187,28 @@
               "day"
             ],
             "title": "Period"
+          },
+          "replays": {
+            "type": "string",
+            "enum": [
+              "analysed",
+              "all"
+            ],
+            "title": "Replays",
+            "description": "analysed = only the replays of the last analysis (the ones the Overview shows, rated at its comfort level); all = every play saved for the player.",
+            "default": "all"
+          },
+          "analysed_plays": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysed Plays",
+            "description": "How many of the player's replays the last analysis holds; null = none."
           },
           "first_day": {
             "anyOf": [
@@ -7936,6 +8528,18 @@
               }
             ],
             "title": "Error"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "A failed job's error code (stable, like an error response's)."
           },
           "created_at": {
             "type": "string",
@@ -8294,6 +8898,21 @@
               }
             ],
             "title": "Replay Set"
+          },
+          "rating_engine": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "comfort",
+                  "irt"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating Engine"
           },
           "level_override": {
             "anyOf": [
@@ -9073,6 +9692,12 @@
             "type": "string",
             "title": "Label"
           },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "One plain line: what the skill is.",
+            "default": ""
+          },
           "what": {
             "type": "string",
             "title": "What",
@@ -9087,6 +9712,18 @@
             "type": "string",
             "title": "Practise",
             "description": "What raises it."
+          },
+          "irt_what": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Irt What",
+            "description": "What the skill measures under Star Levels (null: as `what`)."
           }
         },
         "type": "object",
@@ -9135,7 +9772,8 @@
           },
           "n": {
             "type": "integer",
-            "title": "N"
+            "title": "N",
+            "description": "How much the score is measured on: hit single notes for accuracy, map and mod setups for the other skills; 0 without data."
           },
           "facts": {
             "items": {
@@ -9168,6 +9806,77 @@
             ],
             "title": "At Least",
             "description": "Without a score because nothing played was demanding enough (and nearly all of it was held): the score that much shows, a lower bound (0–100). null otherwise."
+          },
+          "stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars",
+            "description": "Star-Scale IRT: the map star rating the skill holds up on (about 2 in 100 of its notes failed there; accuracy: 90% 300s); untested: at least this."
+          },
+          "stars_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars Low",
+            "description": "Star-Scale IRT: the low end of its 90% range."
+          },
+          "stars_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars High",
+            "description": "Star-Scale IRT: the high end (null: open, untested)."
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State",
+            "description": "Star-Scale IRT: measured | provisional | untested | not_enough_data | failed."
+          },
+          "natural": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Natural",
+            "description": "Star-Scale IRT: the ability in natural units (natural_unit)."
+          },
+          "natural_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Natural Unit"
           }
         },
         "type": "object",
@@ -10385,7 +11094,7 @@
     },
     {
       "name": "Get maps into osu!",
-      "description": "collection.db, lazer import folder, .osz downloads."
+      "description": "Maps straight into lazer, collection.db, .osz downloads."
     }
   ]
 }

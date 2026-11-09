@@ -10,35 +10,61 @@ export interface RecommendationOptions {
   kappa?: number;
   min_relevance?: number;
   exclude_played?: boolean;
+  allow_hr?: boolean;
+  allow_hd?: boolean;
+  adjustable_dt?: boolean;
+  min_rate?: number;
+  max_rate?: number;
 }
 
 const SKILLS = [
-  ["aim", "Jump aim"], ["flow_aim", "Flow aim"], ["speed", "Tapping speed"],
-  ["stamina", "Stamina"], ["accuracy", "Accuracy"], ["sliders", "Slider control"],
+  ["aim", "Jumps"], ["flow_aim", "Spaced streams"], ["speed", "Tapping speed"],
+  ["stamina", "Stamina"], ["accuracy", "Accuracy"], ["sliders", "Sliders"],
   ["reading", "Reading"], ["consistency", "Consistency"],
 ] as const;
 
-/** Draft every control locally; the one Show maps action applies the complete selection. */
-export function RecommendationControls({ current, measured, comfort, onApply }: {
+/** Manual ratings as applied (a JSON object of numbers) back into the fields' texts. */
+function ratingTexts(applied: string | undefined): Record<string, string> {
+  try {
+    const v: unknown = applied ? JSON.parse(applied) : null;
+    if (typeof v !== "object" || v === null) return {};
+    return Object.fromEntries(Object.entries(v).filter(([, n]) => typeof n === "number").map(([k, n]) => [k, String(n)]));
+  } catch {
+    return {};
+  }
+}
+
+/** Draft every control locally; the one Show maps action applies the complete selection. The draft starts from
+ * ``initial``, the selection applied last (a playlist come back to, #107). */
+export function RecommendationControls({ current, measured, comfort, initial = {}, onApply }: {
   current: string;
   measured: Record<string, number>;
   comfort: number;
+  initial?: RecommendationOptions;
   onApply: (options: RecommendationOptions) => void;
 }) {
-  const [skill, setSkill] = useState(current);
+  const [skill, setSkill] = useState(initial.skill ?? current);
   const [panel, setPanel] = useState<"fine" | "ratings" | null>(null);
   const panelId = useId();
-  const [assessed, setAssessed] = useState<string[] | null>(null);
-  const [ratings, setRatings] = useState<Record<string, string>>({});
-  const [starsOverride, setStarsOverride] = useState<string | null>(null);
+  const [assessed, setAssessed] = useState<string[] | null>(initial.assessed ? initial.assessed.split(",") : null);
+  const [ratings, setRatings] = useState<Record<string, string>>(() => ratingTexts(initial.ratings));
+  const [starsOverride, setStarsOverride] = useState<string | null>(initial.comfort !== undefined ? String(initial.comfort) : null);
   const stars = starsOverride ?? comfort.toFixed(2);
-  const [kappa, setKappa] = useState("0.5");
-  const [relevance, setRelevance] = useState("0.3");
-  const [excludePlayed, setExcludePlayed] = useState(true);
+  const [kappa, setKappa] = useState(String(initial.kappa ?? 0.5));
+  const [relevance, setRelevance] = useState(String(initial.min_relevance ?? 0.3));
+  const [excludePlayed, setExcludePlayed] = useState(initial.exclude_played ?? true);
+  const [allowHr, setAllowHr] = useState(!!initial.allow_hr);
+  const [allowHd, setAllowHd] = useState(!!initial.allow_hd);
+  const [adjustableDt, setAdjustableDt] = useState(!!initial.adjustable_dt);
+  const [minRate, setMinRate] = useState((initial.min_rate ?? 1.1).toFixed(2));
+  const [maxRate, setMaxRate] = useState((initial.max_rate ?? 2).toFixed(2));
   const selected = [skill, ...(assessed ?? []).filter((id) => id !== skill)];
   const valid = Number(stars) > 0 && Number(kappa) >= 0 && Number(relevance) >= 0 && Number(relevance) <= 1 &&
     [stars, kappa, relevance].every((n) => n.trim() !== "" && Number.isFinite(Number(n))) &&
-    Object.values(ratings).every((n) => n.trim() === "" || (Number.isFinite(Number(n)) && Number(n) >= 0 && Number(n) <= 100));
+    Object.values(ratings).every((n) => n.trim() === "" || (Number.isFinite(Number(n)) && Number(n) >= 0 && Number(n) <= 100)) &&
+    (!adjustableDt || (Number(minRate) >= 1.10 && Number(maxRate) <= 2.00 && Number(minRate) <= Number(maxRate) &&
+      [minRate, maxRate].every((n) => n.trim() !== "" &&
+        Math.abs(Number(n) * 100 - Math.round(Number(n) * 100)) < 1e-8)));
 
   const showMaps = () => {
     const manual = Object.fromEntries(Object.entries(ratings).filter(([, value]) => value.trim() !== "")
@@ -51,6 +77,11 @@ export function RecommendationControls({ current, measured, comfort, onApply }: 
       kappa: Number(kappa),
       min_relevance: Number(relevance),
       exclude_played: excludePlayed,
+      allow_hr: allowHr,
+      allow_hd: allowHd,
+      adjustable_dt: adjustableDt,
+      min_rate: Number(minRate),
+      max_rate: Number(maxRate),
     });
   };
 
@@ -96,6 +127,15 @@ export function RecommendationControls({ current, measured, comfort, onApply }: 
             <input type="checkbox" checked={excludePlayed} onChange={(event) => setExcludePlayed(event.target.checked)} />
             Hide maps I have already completed
           </label>
+          <div className="recommendation-grid">
+            <label className="recommendation-check"><input type="checkbox" checked={allowHr} onChange={(event) => setAllowHr(event.target.checked)} />Allow Hard Rock</label>
+            <label className="recommendation-check"><input type="checkbox" checked={allowHd} onChange={(event) => setAllowHd(event.target.checked)} />Allow Hidden</label>
+            <label className="recommendation-check"><input type="checkbox" checked={adjustableDt} onChange={(event) => setAdjustableDt(event.target.checked)} />Search adjustable DT</label>
+          </div>
+          {adjustableDt && <div className="recommendation-grid">
+            <Field label="Minimum DT rate"><input className="input" type="number" min="1.10" max="2.00" step="0.01" value={minRate} onChange={(event) => setMinRate(event.target.value)} /></Field>
+            <Field label="Maximum DT rate"><input className="input" type="number" min="1.10" max="2.00" step="0.01" value={maxRate} onChange={(event) => setMaxRate(event.target.value)} /></Field>
+          </div>}
           <div className="recommendation-assessed">
             <h4>Skills to assess</h4>
             <p className="small muted">The target skill is always included. Unchecked demands are unassessed; a checked skill with unknown player ability excludes the map.</p>

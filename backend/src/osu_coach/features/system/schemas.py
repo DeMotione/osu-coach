@@ -1,0 +1,49 @@
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+from osu_coach.common.schemas import Choice
+
+
+class Health(BaseModel):
+    status: Literal["ok"] = "ok"
+    version: str
+    core_version: str
+    web_app: bool = Field(description="Whether the built web app is served at /.")
+    data_dir: str = Field(description="osu! coach data folder: settings, analysis cache, progress.")
+
+
+class SkillMeta(BaseModel):
+    key: str
+    label: str
+    summary: str = Field("", description="One plain line: what the skill is.")
+    what: str = Field(description="What the skill measures.")
+    how: str = Field(description="How the score is worked out.")
+    practise: str = Field(description="What raises it.")
+    irt_what: str | None = Field(None, description="What the skill measures under Star Levels (null: as `what`).")
+
+
+class MissCauseMeta(BaseModel):
+    key: str
+    description: str
+
+
+class Meta(BaseModel):
+    """Labels and choices shared by every page."""
+
+    version: str
+    skills: list[SkillMeta]
+    playlist_skills: list[Choice]
+    miss_causes: list[MissCauseMeta]
+    date_choices: list[Choice]
+    replay_sets: list[Choice]
+    rating_engines: list[Choice]
+    best_definition: str
+    latest_choices: list[int] = Field(description="Replay counts to analyse; 0 = all.")
+    periods: list[str]
+    lazer_found: bool = Field(description="osu!lazer's program was found: maps can be sent to lazer and opened there.")
+    level_band: float
+    level_sigma: float
+    api_docs: bool = Field(description="Whether the API reference is served at /docs.")

@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 
-import type { Schemas } from "../api/client";
+import { api, unwrap, type Schemas } from "../api/client";
+import { useJob } from "../api/jobs";
 import { useAddPlan, useGoals, usePlaylist, useRemoveGoal } from "../api/queries";
 import { Chart } from "../charts/Chart";
 import type { ChartTheme } from "../charts/palette";
@@ -12,10 +13,10 @@ import { IconTrash } from "../components/icons";
 import { MapTable } from "../components/MapTable";
 import { RecommendationControls, type RecommendationOptions } from "../components/RecommendationControls";
 import { StageNav } from "../components/StageNav";
-import { EmptyState, ErrorCard, LoadingPage } from "../components/states";
+import { EmptyState, ErrorCard, JobStatus, LoadingPage } from "../components/states";
 import { Alert, Badge, Card, Page, Progress, Stat, Tabs, Tiles } from "../components/ui";
 import { fmt } from "../lib/format";
-import { STAGE_SIZE, stageMaps, useRounds } from "../lib/playlist";
+import { loadPlaylist, playlistKey, savePlaylist, STAGE_SIZE, stageMaps, useRounds, type PlaylistControls } from "../lib/playlist";
 import { speedFitNotice } from "../lib/recommendationFit";
 
 type Tab = "goals" | "playlist";
@@ -168,28 +169,87 @@ function PlanCard({ goals }: { goals: Schemas["GoalsOut"] }) {
 }
 
 // ------------------------------------------------------------------ playlist
+const isModified = (o: RecommendationOptions) => !!(o.allow_hr || o.allow_hd || o.adjustable_dt);
+const controlsOf = (p: Schemas["Playlist"] | null | undefined): PlaylistControls | null =>
+  p ? { skill: p.skill, measured: p.measured_abilities ?? {}, comfort: p.comfort } : null;
+const searchPlaylist = (next: RecommendationOptions) => unwrap(api.POST("/api/playlists/search", { body: {
+  skill: next.skill, assessed: next.assessed, ratings: next.ratings, comfort: next.comfort,
+  kappa: next.kappa ?? 0.5, min_relevance: next.min_relevance ?? 0.3, exclude_played: next.exclude_played ?? true,
+  allow_hr: !!next.allow_hr, allow_hd: !!next.allow_hd, adjustable_dt: !!next.adjustable_dt,
+  min_rate: next.min_rate ?? 1.10, max_rate: next.max_rate ?? 2.00,
+} }));
+
 function PlaylistTab() {
-  const [options, setOptions] = useState<RecommendationOptions>({});
-  const q = usePlaylist(options);
-  const pl = q.data;
+  // the playlist as it was left on another tab or page (#107)
+  const [saved] = useState(loadPlaylist);
+  const [options, setOptions] = useState<RecommendationOptions>(saved.options);
+  const modified = isModified(options);
+  const q = usePlaylist(options, !modified);
+  const search = useJob("playlist");
+  // the search that makes the playlist with mods applied last (not one another window started)
+  const [jobId, setJobId] = useState<string | null>(saved.job);
+  const searched = search.job?.kind === "playlist" && search.job.id === jobId && search.job.status === "succeeded" ? search.job.result : null;
+  // the newest answer for the selection applied
+  const fresh = modified ? searched : q.isPlaceholderData ? null : (q.data ?? null);
+  // the playlist on screen keeps its maps until Show maps asks for new ones, also when a new play is analysed (#107)
+  const [kept, setKept] = useState<Schemas["Playlist"] | null>(saved.playlist);
+  const [waiting, setWaiting] = useState(!saved.playlist);
+  if (waiting && fresh) {
+    setKept(fresh);
+    setWaiting(false);
+  }
+  const pl = waiting ? (fresh ?? (modified ? null : kept)) : kept;
+  const [controls, setControls] = useState<PlaylistControls | null>(saved.controls);
+  const controlData = controls ?? controlsOf(q.data ?? pl);
+  const apply = (next: RecommendationOptions) => {
+    if (!controls && q.data) setControls(controlsOf(q.data));
+    setOptions(next);
+    setWaiting(true);
+    setJobId(null);
+    if (isModified(next)) void search.run(() => searchPlaylist(next)).then((job) => setJobId(job?.id ?? null));
+  };
+  // a playlist with mods still being made when this window lost its search (a reload, or another window's search in
+  // its place): follow that search again, and run it again if the server no longer has it
+  const { run } = search;
+  const lost = useRef(modified && waiting && search.job?.id !== jobId);
+  useEffect(() => {
+    if (!lost.current) return;
+    lost.current = false;
+    const again = () => searchPlaylist(options);
+    const request = saved.job ? unwrap(api.GET("/api/jobs/{job_id}", { params: { path: { job_id: saved.job } } })).catch(again) : again();
+    void run(() => request).then((job) => setJobId(job?.id ?? null));
+  }, [run, options, saved.job]);
   // which group of five each stage shows; a new playlist starts again with the best ones
-  const { rounds, move } = useRounds(pl);
+  const key = playlistKey(pl);
+  const { rounds, move, by } = useRounds(key, { of: saved.maps, by: saved.rounds });
+  useEffect(() => {
+    // while a new playlist loads (no key yet), the groups of the one left stay kept
+    savePlaylist({
+      options, controls, job: modified ? jobId : null, playlist: waiting ? null : kept, maps: key ?? saved.maps, rounds: key ? by : saved.rounds,
+    });
+  }, [options, controls, modified, jobId, waiting, kept, key, by, saved]);
+  // plays analysed since it was made would change it: say so, Show maps makes it again
+  const newer = !waiting && !modified && !!fresh && playlistKey(fresh) !== key;
   const shown = useMemo(
     () => new Map((pl?.stages ?? []).map((st) => [st.stage, stageMaps(st.maps, rounds(st.stage).at)])),
     [pl, rounds],
   );
   // the export takes the maps on screen: five per stage
   const all = useMemo(
-    () => [...new Map([...shown.values()].flatMap((s) => s.maps).map((m) => [m.md5, m])).values()],
+    () => [...new Map([...shown.values()].flatMap((s) => s.maps).map((m) => [m.configuration_id ?? m.md5, m])).values()],
     [shown],
   );
 
-  if (q.isPending) return <LoadingPage tiles={2} />;
+  if (!pl && q.isPending && !modified) return <LoadingPage tiles={2} />;
   if (q.error && !pl) return <ErrorCard error={q.error} onRetry={() => void q.refetch()} />;
-  if (!pl) return null;
   return (
     <>
-      <RecommendationControls current={pl.skill} measured={pl.measured_abilities ?? {}} comfort={pl.comfort} onApply={setOptions} />
+      {controlData && <RecommendationControls current={controlData.skill} measured={controlData.measured} comfort={controlData.comfort} initial={options} onApply={apply} />}
+      {modified && <><JobStatus job={search.job} error={search.error} onCancel={search.cancel} />
+        {pl ? <p className="small muted">Searched {pl.coverage_maps ?? 0} maps with verified data; {pl.unavailable_maps ?? 0} missing files; {pl.calculator_unavailable_maps ?? 0} without any supported calculation; {pl.unavailable_configurations ?? 0} individual configurations could not be calculated. Showing up to {pl.result_limit ?? 0} distinct maps per stage.</p>
+          : <Alert tone="info">Searching exact map configurations. Available maps and exclusions will be shown when the search finishes.</Alert>}</>}
+      {pl && <>
+      {newer && <Alert tone="info">This playlist was made before your latest plays were analysed. Press Show maps to make it again with them.</Alert>}
       <Card>
         {!pl.has_profile && <Alert tone="info">No replays analysed yet — enter comfort stars and player ratings to get a personal playlist.</Alert>}
         <p className="muted">
@@ -218,7 +278,7 @@ function PlaylistTab() {
               }
             >
               {fitNotice && <Alert tone="warn">{fitNotice}</Alert>}
-              <MapTable key={`${st.stage}:${st.eligible}:${maps[0]?.md5 ?? ""}:${pl.skill_adjusted_stars}`} maps={maps} />
+              <MapTable key={`${st.stage}:${st.eligible}:${maps[0]?.configuration_id ?? maps[0]?.md5 ?? ""}:${pl.skill_adjusted_stars}`} maps={maps} />
               {!st.eligible && <p className="small muted">{Object.entries(st.excluded ?? {}).map(([reason, count]) => `${reason}: ${count}`).join(" · ")}</p>}
             </Card>
           );
@@ -235,6 +295,7 @@ function PlaylistTab() {
           sub="lazer: one folder to import maps and collection; stable: add the collection and download the maps."
         />
       )}
+      </>}
     </>
   );
 }

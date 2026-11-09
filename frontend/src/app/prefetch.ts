@@ -11,6 +11,7 @@ const loaders: Record<string, () => Promise<unknown>> = {
   "/maps": () => import("../pages/MapsPage"),
   "/skills": () => import("../pages/SkillsPage"),
   "/play-goals": () => import("../pages/PlayGoalsPage"),
+  "/settings": () => import("../pages/SettingsPage"),
 };
 
 /** Starts loading a page's code before it is opened; the module cache makes repeats free. */

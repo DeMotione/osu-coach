@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+import datetime as dt
+from typing import Annotated
+
+from fastapi import APIRouter, File, Query, UploadFile
+
+from osu_coach.app.deps import WorkspaceDep
+from osu_coach.common.errors import responses
+from osu_coach.common.jobs import job_view
+from osu_coach.domain.replays.selection import DateRange, Latest
+from osu_coach.features.library import service as svc
+from osu_coach.features.library import session
+from osu_coach.features.library.schemas import (
+    AnalysisJob,
+    AnalysisRequest,
+    AnalysisStatus,
+    InstallOut,
+    InstallPath,
+    LibraryOut,
+    ScanJob,
+    ScanRequest,
+    SelectionOut,
+    UploadedFile,
+)
+from osu_coach.infra.uploads import MAX_UPLOAD_BYTES
+
+router = APIRouter(tags=["Replays"])
+
+
+@router.get("/installs", summary="osu! installs found on this computer")
+def installs(ws: WorkspaceDep, refresh: bool = False) -> list[InstallOut]:
+    return [svc.install_out(i) for i in ws.installs(refresh=refresh)]
+
+
+@router.post(
+    "/installs", summary="Add an osu! folder that wasn't found automatically", status_code=201, responses=responses(422)
+)
+def add_install(req: InstallPath, ws: WorkspaceDep) -> InstallOut:
+    """The folder is remembered: from now on it is listed in ``GET /api/installs`` and scanned like the others."""
+    return svc.install_out(svc.add_install_path(ws, req.path))
+
+
+@router.post("/uploads", summary="Add replay (.osr) / beatmap (.osu) files", status_code=201, responses=responses(422))
+def upload(
+    files: Annotated[list[UploadFile], File(description=".osr replays and .osu beatmaps")], ws: WorkspaceDep
+) -> list[UploadedFile]:
+    return [svc.save_upload(ws, f.filename or "upload", f.file.read(MAX_UPLOAD_BYTES + 1)) for f in files]
+
+
+@router.post(
+    "/library/scan", summary="Find replays (background job)", status_code=202, responses=responses(404, 409, 422)
+)
+def scan(req: ScanRequest, ws: WorkspaceDep) -> ScanJob:
+    """Every replay of the sources is read; how many of them to analyse is chosen afterwards (``latest`` of
+    ``GET /api/library/selection`` and ``POST /api/analysis``)."""
+    args = svc.scan_args(ws, req)
+    if not args.only:
+        ws.update_settings(source_mode=req.mode, folders="\n".join(req.folders))
+    else:
+        ws.update_settings(source_mode=req.mode)
+    return job_view(
+        ScanJob,
+        ws.jobs.start("scan", "Scanning for replays", lambda report: session.run_scan(ws, args, report)),
+    )
+
+
+@router.get("/library", summary="What the last scan found")
+def library(ws: WorkspaceDep) -> LibraryOut:
+    return svc.library_out(ws)
+
+
+@router.delete("/library/files", summary="Forget the replay files added by hand", responses=responses(409))
+def forget_files(ws: WorkspaceDep) -> LibraryOut:
+    """Their replays leave the library now; analyse again to leave them out of the analysis too."""
+    with ws.gate.hold("Forgetting the added files"):
+        session.forget_files(ws)
+    return svc.library_out(ws)
+
+
+@router.get("/library/selection", summary="Which replays an analysis would read", responses=responses(409, 422))
+def selection(
+    ws: WorkspaceDep,
+    player: str | None = None,
+    latest: Annotated[Latest, Query()] = Latest.newest_500,
+    date_range: Annotated[DateRange, Query()] = "all",
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+) -> SelectionOut:
+    with ws.gate.hold("Checking the replays"):
+        sel = svc.select(ws, player, int(latest), date_range, date_from, date_to)
+        return svc.selection_out(ws, sel)
+
+
+@router.post("/analysis", summary="Analyse replays (background job)", status_code=202, responses=responses(409, 422))
+def analyse(req: AnalysisRequest, ws: WorkspaceDep) -> AnalysisJob:
+    svc.require_library(ws)
+    return job_view(
+        AnalysisJob,
+        ws.jobs.start("analysis", "Analysing replays", lambda report: session.run_analysis(ws, req, report)),
+    )
+
+
+@router.get("/analysis", summary="The analysed replays")
+def analysis(ws: WorkspaceDep) -> AnalysisStatus:
+    return session.analysis_status(ws)

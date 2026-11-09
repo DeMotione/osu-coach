@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { Link } from "react-router";
 
 import type { Schemas } from "../api/client";
 import { useMeta, useOverview, usePatchSettings, useSettings } from "../api/queries";
 import { Chart } from "../charts/Chart";
-import { compareBars, missCauses } from "../charts/overview";
+import { compareBars, missCauses, starLevels } from "../charts/overview";
 import type { ChartTheme } from "../charts/palette";
 import { IconCheck } from "../components/icons";
 import { StarPicker } from "../components/StarPicker";
@@ -46,7 +47,7 @@ function OverviewBody({ ov }: { ov: Overview }) {
         <Stat label="Misses / 100 notes" value={fmt(k.misses_per_100, 1)} />
         <Stat label="Accuracy" value={pct(k.accuracy)} />
       </Tiles>
-      <CompareCard compare={ov.compare} skills={ov.skills} help={help} height={skillsHeight} />
+      <CompareCard compare={ov.compare} skills={ov.skills} help={help} height={skillsHeight} engine={ov} />
       <Row>
         <Card
           title="Why you miss"
@@ -79,6 +80,8 @@ const tenth = (v: number) => Math.round(v * 10) / 10;
 
 function LevelCard({ ov }: { ov: Overview }) {
   const lv = ov.level;
+  // Star Levels needs no level set by hand (the backend ignores a saved one): only Comfort Score offers it
+  const irt = ov.engine === "irt";
   const settings = useSettings();
   const patch = usePatchSettings();
   const applied = settings.data?.level_override ?? null; // null = the detected level
@@ -144,52 +147,61 @@ function LevelCard({ ov }: { ov: Overview }) {
             distort your numbers: your {lv.replays} replays count as {fmt(lv.weighted_replays, 1)}.
           </p>
           <div className="grow" />
-          <div className="controls">
-            <Switch
-              checked={byHand}
-              disabled={patch.isPending}
-              label="Set my level by hand"
-              hint="If the detected level is off (e.g. you only played easy maps lately). Type a level and press Apply: every number is recalculated with it."
-              onChange={(on) => {
-                setByHand(on);
-                setDraft(null);
-                setDone(null);
-                if (!on && applied !== null) apply(null);
-              }}
-            />
-            {byHand ? (
-              <form
-                className="apply-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (changed && !patch.isPending) apply(value);
-                }}
-              >
-                <input
-                  className="input"
-                  aria-label="My level (★)"
-                  aria-invalid={value === null}
-                  type="number"
-                  min={1}
-                  max={12}
-                  step={0.1}
-                  value={draft}
-                  onChange={(e) => {
-                    setDraft(e.target.value);
+          {irt ? (
+            <p className="muted small">
+              Star Levels measures each skill against the maps themselves, so your level isn't set by hand here. To set
+              it, switch to Comfort Score in Settings.
+            </p>
+          ) : (
+            <>
+              <div className="controls">
+                <Switch
+                  checked={byHand}
+                  disabled={patch.isPending}
+                  label="Set my level by hand"
+                  hint="If the detected level is off (e.g. you only played easy maps lately). Type a level and press Apply: every number is recalculated with it."
+                  onChange={(on) => {
+                    setByHand(on);
+                    setDraft(null);
                     setDone(null);
+                    if (!on && applied !== null) apply(null);
                   }}
                 />
-                <button type="submit" className="btn btn--primary" disabled={!changed || patch.isPending}>
-                  Apply
-                </button>
-              </form>
-            ) : (
-              lv.detected !== null && <span className="muted small">Detected: {stars(lv.detected)}</span>
-            )}
-          </div>
-          <p className={`apply-status${tone}`} role="status">
-            {status}
-          </p>
+                {byHand ? (
+                  <form
+                    className="apply-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (changed && !patch.isPending) apply(value);
+                    }}
+                  >
+                    <input
+                      className="input"
+                      aria-label="My level (★)"
+                      aria-invalid={value === null}
+                      type="number"
+                      min={1}
+                      max={12}
+                      step={0.1}
+                      value={draft}
+                      onChange={(e) => {
+                        setDraft(e.target.value);
+                        setDone(null);
+                      }}
+                    />
+                    <button type="submit" className="btn btn--primary" disabled={!changed || patch.isPending}>
+                      Apply
+                    </button>
+                  </form>
+                ) : (
+                  lv.detected !== null && <span className="muted small">Detected: {stars(lv.detected)}</span>
+                )}
+              </div>
+              <p className={`apply-status${tone}`} role="status">
+                {status}
+              </p>
+            </>
+          )}
         </div>
         <Tiles n={4}>
           {lv.weights.slice(0, 4).map((w) => (
@@ -213,34 +225,76 @@ function CompareCard({
   skills,
   help,
   height,
+  engine,
 }: {
   compare: Schemas["StarCompare"];
   skills: Schemas["SkillScore"][];
   help?: Schemas["SkillMeta"][];
   height: number;
+  engine: Pick<Overview, "engine" | "engine_label">;
 }) {
   const [picked, setPicked] = useState<number | null>(null);
   const options = useMemo(() => targetOptions(compare), [compare]);
   const target = pickTarget(compare, picked);
   const comfort = compare.comfort ?? 0;
+  const irt = engine.engine === "irt";
   const build = useCallback(
-    (t: ChartTheme) => (target ? compareBars(skills, target, comfort, t, help ?? []) : {}),
-    [skills, target, comfort, help],
+    (t: ChartTheme) =>
+      target ? (irt ? starLevels(skills, target, t, help ?? []) : compareBars(skills, target, comfort, t, help ?? [], engine.engine)) : {},
+    [skills, target, comfort, help, engine.engine, irt],
   );
+  const consistency = skills.find((s) => s.key === "consistency");
+  // skills whose limit wasn't found yet: what to play to find it
+  const noLimit = skills.filter((s) => s.state === "untested" && s.stars !== null && s.stars !== undefined);
+  const consistencyAt = target?.skills.find((k) => k.key === "consistency");
+  const comfortHint = `Comfort Score: each skill gets points from 0 to 100. 50 = what maps at your ${starLabel(comfort)} comfort level ask for (assumed from ranked maps, not compared with other players); higher = stronger, lower = weaker. Most skills use your best play on each map; accuracy uses all your hit single notes. Pick another star rating to see the scores on easier or harder maps: on harder ones they drop, by how much more those maps ask of the skill (measured on ranked maps). Consistency is measured on your own maps from a star below the star rating up to it. You can pick any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level. Grey = not measured yet: point at a bar to see what to play.`;
+  const irtHint = `Star Levels: each skill shown as the map star rating it holds up on. On maps that hard you'd miss only about 2 in 100 of that skill's notes (accuracy: about 90 in 100 single notes are 300s), on maps like the ones you play. It's about you and maps, not a comparison with other players. The faded part behind a bar is how far it likely reaches. A + after the number (like 7.2★+) means you haven't failed that skill on any map you played, so its limit isn't found yet. The colours compare each skill with the star rating picked above: green = holds up there, blue = close (within its likely range), red = not yet. The star values rest on constants not yet fitted on other players, so they can be a few tenths of a star off. Consistency isn't on this scale: it's shown below the chart.`;
   return (
     <Card
       title="Current skill level"
-      hint={`Your skill scores from 0 to 100: 50 = what is expected at your ${starLabel(comfort)} comfort level. Most skills use your best play per map; timing accuracy uses all hit single notes. Pick another star rating to see the scores on easier or harder maps: on harder ones they drop, each by how much more typical maps of that star rating demand of the skill (measured on ranked maps). Consistency is measured on your own maps from a star below the star rating up to it. You can pick any easier star rating and up to ${starLabel(compare.max_gap)} above your comfort level. Grey = not measured yet: point at a bar to see what to play.`}
+      actions={<EngineBadge current={engine} />}
+      hint={irt ? irtHint : comfortHint}
     >
       {target === null || compare.comfort === null ? (
         <Alert>Your comfort level isn't known yet: analyse at least 3 recent maps you finished cleanly.</Alert>
       ) : (
         <div className="stack" style={{ gap: 14 }}>
           <StarPicker label="Compare with" options={options} value={target.stars} onChange={setPicked} />
-          <Chart build={build} height={height} label={`Skill scores at ${starLabel(target.stars)}`} />
+          <Chart
+            build={build}
+            height={irt ? Math.max(300, height - 44) : height}
+            label={irt ? `Skill levels in map stars, compared with ${starLabel(target.stars)}` : `Skill scores at ${starLabel(target.stars)}`}
+          />
+          {irt &&
+            noLimit.map((s) => (
+              <p key={s.key} className="small muted">
+                {s.label}: {s.stars!.toFixed(1)}★+, limit not found yet.{" "}
+                {s.needs ?? "Play harder maps with plenty of it to find it."}
+              </p>
+            ))}
+          {irt && consistency && (
+            <p className="small muted">
+              {consistency.label} (not on the star scale):{" "}
+              {consistencyAt?.maps != null
+                ? consistencyAt.score !== null
+                  ? `${consistencyAt.score.toFixed(0)} of 100 on your ${consistencyAt.maps} maps around ${starLabel(target.stars)}`
+                  : (consistencyAt.needs ?? "not enough data")
+                : consistency.score_text}
+              .
+            </p>
+          )}
         </div>
       )}
     </Card>
+  );
+}
+
+/** Which rating engine made the skill scores; it is chosen on the Settings page. */
+function EngineBadge({ current }: { current: Pick<Overview, "engine" | "engine_label"> }) {
+  return (
+    <Link to="/settings" className="engine-badge" title="Change the rating engine in Settings">
+      <Badge tone={current.engine === "comfort" ? "muted" : "info"}>{current.engine_label}</Badge>
+    </Link>
   );
 }
 
@@ -277,7 +331,7 @@ function StrengthsCard({ ov }: { ov: Overview }) {
       {(ov.sliders_scored || ov.few_data.length > 0) && (
         <p className="small muted">
           {ov.sliders_scored &&
-            "Slider control counts how hard the sliders are that you follow to the end: speed, length, shape, speed changes and how soon the next note follows. "}
+            "The Sliders score counts how hard the sliders are that you follow to the end: speed, length, shape, speed changes and how soon the next note comes. "}
           {ov.few_data.length > 0 &&
             `Unmeasured (${ov.few_data.join(", ")}): comfort, relevant map coverage, or tested challenge is insufficient.`}
         </p>
