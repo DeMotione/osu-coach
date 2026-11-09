@@ -719,9 +719,31 @@ export interface paths {
         put?: never;
         /**
          * Make the lazer import folder (background job)
-         * @description In Downloads/osu-coach lazer import/<name>: the collection plus the maps lazer doesn't have yet.
+         * @description The maps lazer doesn't have yet go straight into lazer (it starts if it's closed); the collection goes into an
+         *     import folder in osu! coach's data folder (``lazer-import/<name>``). Without lazer's program, the maps go into
+         *     that folder too.
          */
         post: operations["lazer_pack_api_exports_lazer_pack_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/exports/lazer-pack/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete the lazer import folder
+         * @description Once the collection is in lazer. Only a folder osu! coach made is deleted.
+         */
+        post: operations["delete_lazer_pack_api_exports_lazer_pack_delete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1478,8 +1500,16 @@ export interface components {
              * @description An upper bound: not all of lazer's files were read yet, or some maps' sets are only looked up when the folder is made.
              */
             lazer_approximate: boolean;
-            /** Lazer Folder */
+            /**
+             * Lazer Folder
+             * @description The import folder for the collection (in osu! coach's data folder).
+             */
             lazer_folder: string;
+            /**
+             * Lazer Auto
+             * @description lazer's program was found: the maps are handed straight to lazer instead of going into the folder.
+             */
+            lazer_auto: boolean;
             /**
              * Stable Available
              * @description An osu!stable install to add the collection to was found.
@@ -1877,6 +1907,21 @@ export interface components {
          * @enum {integer}
          */
         Latest: 100 | 500 | 1000 | 0;
+        /** LazerFolderRemoved */
+        LazerFolderRemoved: {
+            /** Path */
+            path: string;
+            /** Removed */
+            removed: boolean;
+        };
+        /** LazerFolderRequest */
+        LazerFolderRequest: {
+            /**
+             * Name
+             * @description Collection name.
+             */
+            name: string;
+        };
         /** LazerPackJob */
         LazerPackJob: {
             /** Id */
@@ -1933,6 +1978,22 @@ export interface components {
              * @default 0
              */
             not_found: number;
+            /**
+             * Sent To Lazer
+             * @description The maps were handed straight to lazer (``maps``), not put into the folder.
+             * @default false
+             */
+            sent_to_lazer: boolean;
+            /**
+             * Imported
+             * @description Map sets lazer took (it deletes each .osz).
+             */
+            imported?: number[];
+            /**
+             * Not Imported
+             * @description Map sets lazer hadn't taken when osu! coach stopped waiting: it may still be busy with them.
+             */
+            not_imported?: number[];
         };
         /** LevelInfo */
         LevelInfo: {
@@ -5256,6 +5317,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_lazer_pack_api_exports_lazer_pack_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LazerFolderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LazerFolderRemoved"];
                 };
             };
             /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */

@@ -2244,7 +2244,7 @@
           "Get maps into osu!"
         ],
         "summary": "Make the lazer import folder (background job)",
-        "description": "In Downloads/osu-coach lazer import/<name>: the collection plus the maps lazer doesn't have yet.",
+        "description": "The maps lazer doesn't have yet go straight into lazer (it starts if it's closed); the collection goes into an\nimport folder in osu! coach's data folder (``lazer-import/<name>``). Without lazer's program, the maps go into\nthat folder too.",
         "operationId": "lazer_pack_api_exports_lazer_pack_post",
         "requestBody": {
           "content": {
@@ -2273,6 +2273,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/exports/lazer-pack/delete": {
+      "post": {
+        "tags": [
+          "Get maps into osu!"
+        ],
+        "summary": "Delete the lazer import folder",
+        "description": "Once the collection is in lazer. Only a folder osu! coach made is deleted.",
+        "operationId": "delete_lazer_pack_api_exports_lazer_pack_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LazerFolderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LazerFolderRemoved"
                 }
               }
             }
@@ -4367,7 +4409,13 @@
           },
           "lazer_folder": {
             "type": "string",
-            "title": "Lazer Folder"
+            "title": "Lazer Folder",
+            "description": "The import folder for the collection (in osu! coach's data folder)."
+          },
+          "lazer_auto": {
+            "type": "boolean",
+            "title": "Lazer Auto",
+            "description": "lazer's program was found: the maps are handed straight to lazer instead of going into the folder."
           },
           "stable_available": {
             "type": "boolean",
@@ -4388,6 +4436,7 @@
           "lazer_sets",
           "lazer_approximate",
           "lazer_folder",
+          "lazer_auto",
           "stable_available",
           "osz_folder"
         ],
@@ -5561,6 +5610,41 @@
         "title": "Latest",
         "description": "How many of the newest found replays to analyse; 0 = all of them."
       },
+      "LazerFolderRemoved": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "removed": {
+            "type": "boolean",
+            "title": "Removed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "removed"
+        ],
+        "title": "LazerFolderRemoved"
+      },
+      "LazerFolderRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Collection name."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "LazerFolderRequest"
+      },
       "LazerPackJob": {
         "properties": {
           "id": {
@@ -5694,6 +5778,28 @@
             "title": "Not Found",
             "description": "Maps you don't have whose beatmap set couldn't be found online: they are in the collection but not in the folder.",
             "default": 0
+          },
+          "sent_to_lazer": {
+            "type": "boolean",
+            "title": "Sent To Lazer",
+            "description": "The maps were handed straight to lazer (``maps``), not put into the folder.",
+            "default": false
+          },
+          "imported": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Imported",
+            "description": "Map sets lazer took (it deletes each .osz)."
+          },
+          "not_imported": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Not Imported",
+            "description": "Map sets lazer hadn't taken when osu! coach stopped waiting: it may still be busy with them."
           }
         },
         "type": "object",

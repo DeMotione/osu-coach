@@ -78,21 +78,43 @@ function LazerTab({ body, preview, onZip }: {
 }) {
   const meta = useMeta();
   const pack = useJob("lazer_pack");
+  const auto = preview?.lazer_auto ?? false;
+  // what Delete the folder did, for the job it belongs to (a new run starts without it)
+  const [removal, setRemoval] = useState<{ job: string; text: string; ok: boolean } | null>(null);
+  const jobId = pack.job?.id ?? "";
+  const removed = removal && removal.job === jobId ? removal : null;
+  const removeFolder = () => {
+    unwrap(api.POST("/api/exports/lazer-pack/delete", { body: { name: body.name } }))
+      .then((r) => setRemoval({ job: jobId, ok: true, text: r.removed ? r.path : `${r.path} (already gone)` }))
+      .catch((e: Error) => setRemoval({ job: jobId, ok: false, text: e.message }));
+  };
   const count = preview
-    ? preview.lazer_approximate
-      ? `Up to ${preview.lazer_sets} of ${preview.total_sets} beatmap sets will be downloaded (maps you already have are skipped)`
-      : `${preview.lazer_sets} of ${preview.total_sets} beatmap sets will be downloaded` +
-        (preview.lazer_sets < preview.total_sets ? " (you already have the others)" : "")
+    ? (preview.lazer_approximate
+      ? `Up to ${preview.lazer_sets} of ${preview.total_sets} beatmap sets will be downloaded`
+      : `${preview.lazer_sets} of ${preview.total_sets} beatmap sets will be downloaded`) +
+      (auto ? " and sent to lazer" : "") +
+      (preview.lazer_approximate
+        ? " (maps you already have are skipped)"
+        : preview.lazer_sets < preview.total_sets ? " (you already have the others)" : "")
     : "…";
   return (
     <div className="split">
-      <Section title="One folder with the maps and the collection">
-        <p className="muted">
-          lazer can't open a collection file by itself, but its <strong>import from a previous osu! version</strong> takes maps{" "}
-          <em>and</em> collections from any folder that looks like an osu!stable install. osu! coach makes that folder for you.
-        </p>
+      <Section title={auto ? "Maps straight into lazer, then the collection" : "One folder with the maps and the collection"}>
+        {auto ? (
+          <p className="muted">
+            osu! coach downloads the maps you don't have and hands them to lazer, which imports them and deletes the
+            downloads (lazer opens if it's closed). lazer only takes a collection through its <strong>import from a previous
+            osu! version</strong>, so osu! coach also makes a small folder with the collection, in its own data folder.
+          </p>
+        ) : (
+          <p className="muted">
+            lazer can't open a collection file by itself, but its <strong>import from a previous osu! version</strong> takes maps{" "}
+            <em>and</em> collections from any folder that looks like an osu!stable install. osu! coach makes that folder for you
+            (osu!lazer's program wasn't found, so the maps go into the folder too).
+          </p>
+        )}
         <p className="small muted">
-          {count} · folder: <code>{preview?.lazer_folder ?? "…"}</code>
+          {count} · collection folder: <code>{preview?.lazer_folder ?? "…"}</code>
         </p>
         <div className="btn-row">
           <button
@@ -101,7 +123,7 @@ function LazerTab({ body, preview, onZip }: {
             disabled={pack.running}
             onClick={() => void pack.run(() => unwrap(api.POST("/api/exports/lazer-pack", { body })))}
           >
-            <IconFolder /> Make lazer import folder
+            <IconFolder /> {auto ? "Send to lazer" : "Make lazer import folder"}
           </button>
           <button type="button" className="btn" onClick={onZip} title="Just the collection, e.g. for lazer on another computer.">
             <IconDownload /> Folder without maps (.zip)
@@ -111,21 +133,50 @@ function LazerTab({ body, preview, onZip }: {
           job={pack.job}
           error={pack.error}
           onCancel={pack.cancel}
-          cancelled="Cancelled. The map sets downloaded so far stay in the folder; making it again picks up where it stopped."
+          cancelled="Cancelled. Making it again picks up where it stopped."
           done={(j) =>
             j.kind === "lazer_pack" && j.result ? (
-              <Alert tone="good">
-                Ready: <code>{j.result.path}</code> with {j.result.maps.length} map set(s) and the collection.
-                {j.result.failed.length > 0 &&
-                  ` Couldn't download set(s) ${j.result.failed.join(", ")}: use the links in the map list.`}
-                {j.result.not_found > 0 &&
-                  ` ${j.result.not_found} map(s) you don't have weren't found online: they're in the collection, but you need to get them yourself.`}
-              </Alert>
+              <>
+                <Alert tone={j.result.not_imported?.length || j.result.failed.length ? "warn" : "good"}>
+                  {j.result.sent_to_lazer ? (
+                    <>
+                      {j.result.maps.length === 0
+                        ? "lazer already has every map. "
+                        : `lazer imported ${j.result.imported?.length ?? 0} of ${j.result.maps.length} map set(s). `}
+                      {(j.result.not_imported?.length ?? 0) > 0 &&
+                        `It hadn't taken set(s) ${j.result.not_imported?.join(", ")} yet: check lazer's notifications. `}
+                      Now add the collection from <code>{j.result.path}</code> (steps on the right).
+                    </>
+                  ) : (
+                    <>
+                      Ready: <code>{j.result.path}</code> with {j.result.maps.length} map set(s) and the collection.
+                    </>
+                  )}
+                  {j.result.failed.length > 0 &&
+                    ` Couldn't download set(s) ${j.result.failed.join(", ")}: use the links in the map list.`}
+                  {j.result.not_found > 0 &&
+                    ` ${j.result.not_found} map(s) you don't have weren't found online: they're in the collection, but you need to get them yourself.`}
+                </Alert>
+                <div className="btn-row">
+                  <button type="button" className="btn btn--sm" onClick={removeFolder} disabled={removed?.ok === true}>
+                    Delete the folder
+                  </button>
+                  <span className="small muted">once the collection is in lazer</span>
+                </div>
+                {removed &&
+                  (removed.ok ? (
+                    <Alert tone="good">
+                      Deleted <code>{removed.text}</code>.
+                    </Alert>
+                  ) : (
+                    <Alert tone="bad">{removed.text}</Alert>
+                  ))}
+              </>
             ) : null
           }
         />
       </Section>
-      <Section title="Then, in lazer">
+      <Section title={auto ? "Then, for the collection, in lazer" : "Then, in lazer"}>
         <ol className="list list--steps">
           {(meta.data?.lazer_instructions ?? []).map((s) => (
             <li key={s}>

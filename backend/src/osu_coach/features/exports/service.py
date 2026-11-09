@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import zipfile
 from contextlib import closing
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -11,10 +12,12 @@ from osu_coach.domain.exports.downloads import sets_to_download, unknown_sets
 from osu_coach.features.exports.schemas import (
     ExportPreview,
     ExportRequest,
+    LazerFolderRemoved,
     LazerPackResult,
     OszResult,
     StableMergeResult,
 )
+from osu_coach.infra import clock
 from osu_coach.infra.beatmaps import sources
 from osu_coach.infra.exports import lazer_import
 from osu_coach.infra.exports.collection_db import dumps as collection_bytes
@@ -77,7 +80,8 @@ def export_preview(ws: Workspace, req: ExportRequest) -> ExportPreview:
         total_sets=_set_count(req),
         lazer_sets=len(sets) + len(unknown),
         lazer_approximate=bool(unknown) or bool(lib is not None and lib.has_unread_maps("lazer")),
-        lazer_folder=str(lazer_import.default_pack_dir(req.name)),
+        lazer_folder=str(lazer_import.default_pack_dir(req.name, ws.cache_dir)),
+        lazer_auto=lazer_import.find_lazer() is not None,
         stable_available=bool(stable),
         osz_folder=str(osz),
     )
@@ -91,8 +95,32 @@ def lazer_zip(req: ExportRequest) -> tuple[bytes, str]:
     return lazer_import.pack_zip({req.name: _hashes(req)}, req.name), f"{lazer_import.safe_name(req.name)}.zip"
 
 
+def _download_for_lazer(ws: Workspace, sets: list[int], report: Reporter) -> tuple[list[int], list[int], list[Path]]:
+    """The map sets as .osz files in the data folder's ``lazer-maps``: (downloaded, failed, files)."""
+    folder = ws.cache_dir / lazer_import.MAPS_DIR
+    folder.mkdir(parents=True, exist_ok=True)
+    for old in folder.glob("*.osz"):  # left from an earlier run; lazer waits with imports while you play, so a day
+        try:
+            if clock.timestamp() - old.stat().st_mtime > 24 * 3600:
+                old.unlink()
+        except OSError:
+            pass
+    ok, failed = [], []
+    with closing(sources.download_many(sets, folder, report)) as done:
+        for sid, path in done:
+            if path and zipfile.is_zipfile(path):
+                ok.append((sid, Path(path)))
+            else:
+                failed.append(sid)
+                if path:
+                    Path(path).unlink(missing_ok=True)
+    ok.sort(key=lambda pair: sets.index(pair[0]))
+    return [sid for sid, _ in ok], sorted(failed, key=sets.index), [path for _, path in ok]
+
+
 def build_lazer_pack(ws: Workspace, req: ExportRequest, report: Reporter) -> LazerPackResult:
-    """The lazer import folder: the collection plus the maps lazer doesn't have yet."""
+    """The maps lazer doesn't have yet, handed straight to lazer (it imports them and deletes the .osz), and the
+    import folder for the collection. Without lazer's program, the maps go into the folder too."""
     hashes, rows = _hashes(req), _set_rows(req)
     lib = ws.library
     if lib is not None and lib.has_unread_maps("lazer"):
@@ -104,12 +132,38 @@ def build_lazer_pack(ws: Workspace, req: ExportRequest, report: Reporter) -> Laz
     sets = sets_to_download(rows, have)
     looked_up, not_found = _look_up_sets(unknown_sets(rows, have), report)
     sets += [s for s in looked_up if s not in sets]
-    res = lazer_import.build_pack(lazer_import.default_pack_dir(req.name), {req.name: hashes}, sets, progress=report)
+    dest = lazer_import.default_pack_dir(req.name, ws.cache_dir)
+    lazer_import.remove_old_packs(dest.parent, keep=dest)
+    exe = lazer_import.find_lazer()
+    if exe is None:
+        res = lazer_import.build_pack(dest, {req.name: hashes}, sets, progress=report)
+        result = LazerPackResult(
+            path=str(res["path"]), maps=list(res["maps"]), failed=list(res["failed"]), not_found=not_found
+        )
+    else:
+        res = lazer_import.build_pack(dest, {req.name: hashes}, [], progress=report)  # just the collection
+        got, failed, files = _download_for_lazer(ws, sets, report) if sets else ([], [], [])
+        imported, left = lazer_import.send_to_lazer(exe, files, progress=report) if files else ([], [])
+        by_file = dict(zip(files, got, strict=True))
+        result = LazerPackResult(
+            path=str(res["path"]),
+            maps=got,
+            failed=failed,
+            not_found=not_found,
+            sent_to_lazer=True,
+            imported=[by_file[f] for f in imported],
+            not_imported=[by_file[f] for f in left],
+        )
     if ws.config.reveal_folders:
         lazer_import.reveal(res["path"])
-    return LazerPackResult(
-        path=str(res["path"]), maps=list(res["maps"]), failed=list(res["failed"]), not_found=not_found
-    )
+    return result
+
+
+def remove_lazer_folder(ws: Workspace, name: str) -> LazerFolderRemoved:
+    """Delete the playlist's import folder once its collection is in lazer."""
+    folder = lazer_import.default_pack_dir(name, ws.cache_dir)
+    existed = lazer_import.is_pack(folder)
+    return LazerFolderRemoved(path=str(folder), removed=existed and lazer_import.remove_pack(folder))
 
 
 def merge_stable(ws: Workspace, req: ExportRequest) -> StableMergeResult:

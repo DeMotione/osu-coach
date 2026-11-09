@@ -374,7 +374,7 @@ def cmd_playlist(args) -> int:
             )
     hashes = list(pl["md5"])
     if args.lazer:
-        dest = Path(args.lazer) if isinstance(args.lazer, str) else lazer_import.default_pack_dir(name)
+        dest = Path(args.lazer) if isinstance(args.lazer, str) else lazer_import.default_pack_dir(name, args.cache)
         if lib is not None and lib.has_unread_maps("lazer"):
             lib.find_maps(set(hashes))  # which playlist maps lazer already has
         have = lib.installed["lazer"] if lib is not None else set()
@@ -715,7 +715,7 @@ def build_parser() -> argparse.ArgumentParser:
         const=True,
         metavar="DIR",
         help="make a folder for lazer's 'import from previous version' with the maps and the collection "
-        "(default: Downloads/osu-coach lazer import/<playlist>)",
+        "(default: <osu! coach's data folder>/lazer-import/<playlist>)",
     )
     p.add_argument("--no-maps", action="store_true", help="with --lazer: only the collection, no map downloads")
     p.add_argument("--collection", help="write a collection.db with the playlist")

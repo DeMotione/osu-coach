@@ -1,14 +1,18 @@
-"""Get a playlist into osu!lazer with a single import.
+"""Get a playlist into osu!lazer.
 
-lazer has no file import for collections. Its "import from a previous osu! version"
-(Settings → General → Run setup wizard → Import) accepts any folder that looks like an
-osu!stable install — one with an ``osu!.*.cfg`` file or a ``Songs`` folder — imports the
-beatmap folders inside ``Songs`` first and ``collection.db`` after that.  So one prepared
-folder brings the playlist's maps *and* its collection in together:
+Maps go in by themselves: lazer imports an .osz passed to its program (``osu!.exe <file.osz>``). A running lazer
+gets it through its IPC channel; a closed one starts and imports it. lazer deletes each .osz once it is imported,
+so the downloads are handed over from osu! coach's own data folder (``lazer-maps``) and nothing is left behind.
+
+Collections can't go in that way: lazer only takes them from "import from a previous osu! version" (Settings →
+General → Run setup wizard → Import), which accepts any folder that looks like an osu!stable install — one with an
+``osu!.*.cfg`` file or a ``Songs`` folder — and imports the beatmap folders inside ``Songs`` first and
+``collection.db`` after that. osu! coach makes that folder in its data folder (``lazer-import/<playlist>``):
 
     <folder>/osu!.user.cfg     empty, marks the folder as a stable install
     <folder>/collection.db     the playlist
-    <folder>/Songs/<set id>/   maps you don't have yet, unpacked from their .osz
+    <folder>/Songs/<set id>/   maps you don't have yet, unpacked from their .osz, when lazer's program
+                               wasn't found to hand them to
 """
 
 from __future__ import annotations
@@ -19,14 +23,22 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import zipfile
+from collections.abc import Callable, Sequence
 from contextlib import closing
 from pathlib import Path
 
+from osu_coach.config import default_cache_dir
+from osu_coach.infra import clock
 from osu_coach.infra.beatmaps import sources
 from osu_coach.infra.exports.collection_db import dumps, write_collection_db
 
 STABLE_MARKER = "osu!.user.cfg"
+PACK_DIR = "lazer-import"  # in the data folder: one folder per playlist, for lazer's import screen
+MAPS_DIR = "lazer-maps"  # in the data folder: .osz files on their way into lazer
+KEEP_PACKS_S = 24 * 3600  # older import folders are removed when a new one is made
+COMMAND_LINE_CHARS = 30000  # Windows allows 32,767 characters on a command line
 
 
 def safe_name(name: str) -> str:
@@ -36,12 +48,133 @@ def safe_name(name: str) -> str:
     return re.sub(r"\s+", " ", s)[:80].strip() or "osu-coach playlist"
 
 
-def default_pack_dir(name: str) -> Path:
-    """A visible place (lazer's folder picker hides hidden folders such as AppData):
-    ``Downloads/osu-coach lazer import/<playlist>``, or the home folder without Downloads."""
-    home = Path.home()
-    base = home / "Downloads" if (home / "Downloads").is_dir() else home
-    return base / "osu-coach lazer import" / safe_name(name)
+def default_pack_dir(name: str, data_dir: Path | str | None = None) -> Path:
+    """``<data folder>/lazer-import/<playlist>``. The data folder is in AppData, which lazer's own folder picker
+    hides, so the folder is opened in the file manager to be dragged onto lazer."""
+    return Path(data_dir or default_cache_dir()) / PACK_DIR / safe_name(name)
+
+
+def is_pack(folder: Path) -> bool:
+    return folder.is_dir() and (folder / STABLE_MARKER).is_file()
+
+
+def remove_pack(folder: Path) -> bool:
+    """Delete an import folder osu! coach made (one with its marker file); anything else is left alone."""
+    if not is_pack(folder):
+        return False
+    shutil.rmtree(folder, ignore_errors=True)
+    return not folder.exists()
+
+
+def remove_old_packs(base: Path, keep: Path | None = None, older_than_s: float = KEEP_PACKS_S) -> list[Path]:
+    """Import folders in ``base`` made more than ``older_than_s`` ago (except ``keep``), removed."""
+    gone = []
+    if not base.is_dir():
+        return gone
+    now = clock.timestamp()
+    for folder in base.iterdir():
+        if keep is not None and folder == keep:
+            continue
+        try:
+            old = now - (folder / STABLE_MARKER).stat().st_mtime > older_than_s
+        except OSError:
+            continue
+        if old and remove_pack(folder):
+            gone.append(folder)
+    return gone
+
+
+# ------------------------------------------------------------------ handing maps to lazer
+def is_lazer(exe: Path) -> bool:
+    """lazer's program (osu!stable's is also called osu!.exe, but has no osu.Game.dll next to it)."""
+    return exe.is_file() and (exe.parent / "osu.Game.dll").is_file()
+
+
+def _registered_osz_program() -> Path | None:
+    """The program Windows opens .osz files with as lazer (lazer registers ``osu.File.osz`` for itself)."""
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\osu.File.osz\shell\open\command") as k:
+            command = winreg.QueryValue(k, None)
+    except (ImportError, OSError):
+        return None
+    m = re.match(r'\s*"([^"]+)"|\s*(\S+)', command or "")
+    return Path(m.group(1) or m.group(2)) if m else None
+
+
+def find_lazer(candidates: Sequence[Path] | None = None) -> Path | None:
+    """osu!lazer's program: the one registered for .osz files, else the default install
+    (``%LOCALAPPDATA%/osulazer/current/osu!.exe``). None with ``OSU_COACH_NO_AUTODETECT`` (tests) or when not
+    found."""
+    if candidates is None:
+        if os.environ.get("OSU_COACH_NO_AUTODETECT", "").strip() not in ("", "0") or os.name != "nt":
+            return None
+        candidates = [p for p in (_registered_osz_program(),) if p]
+        if os.environ.get("LOCALAPPDATA"):
+            candidates.append(Path(os.environ["LOCALAPPDATA"]) / "osulazer" / "current" / "osu!.exe")
+    return next((Path(c) for c in candidates if is_lazer(Path(c))), None)
+
+
+def launch(exe: Path, files: Sequence[Path]) -> None:
+    """Run lazer's program with the files: it hands them to a running lazer, or starts lazer with them. lazer
+    keeps running on its own (not as a child that ends with osu! coach)."""
+    args = [str(exe), *(str(f) for f in files)]
+    flags = 0
+    if os.name == "nt":
+        flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    kw = {
+        "cwd": str(Path(exe).parent),
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "close_fds": True,
+    }
+    try:
+        subprocess.Popen(args, creationflags=flags | (0x01000000 if os.name == "nt" else 0), **kw)  # breakaway
+    except OSError:
+        subprocess.Popen(args, creationflags=flags, **kw)  # a job that doesn't allow breaking away
+
+
+def batches(files: Sequence[Path], limit: int = COMMAND_LINE_CHARS) -> list[list[Path]]:
+    """The files in groups that fit on one command line."""
+    out: list[list[Path]] = []
+    size = 0
+    for f in files:
+        n = len(str(f)) + 3
+        if not out or size + n > limit:
+            out.append([])
+            size = 0
+        out[-1].append(f)
+        size += n
+    return out
+
+
+def send_to_lazer(
+    exe: Path,
+    files: Sequence[Path],
+    progress: Callable[[int, int, str], None] | None = None,
+    run: Callable[[Path, Sequence[Path]], None] | None = None,
+    wait_s: Callable[[int], float] = lambda n: 60.0 + 3.0 * n,
+    poll_s: float = 0.5,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> tuple[list[Path], list[Path]]:
+    """Hand the .osz files to lazer, a command line at a time, and wait for lazer to take them: it deletes each
+    one it has imported. Returns (imported, still there after ``wait_s(files in the group)`` seconds: lazer may
+    still be busy with them, or couldn't import them). ``progress`` raises to stop a cancelled job. ``run`` defaults
+    to :func:`launch`."""
+    run = run or launch
+    files = [Path(f) for f in files]
+    for group in batches(files):
+        run(exe, group)
+        deadline = clock() + wait_s(len(group))
+        while any(f.exists() for f in group) and clock() < deadline:
+            done = sum(not f.exists() for f in files)
+            if progress:
+                progress(done, len(files), f"lazer is importing the maps: {done} of {len(files)}")
+            sleep(poll_s)
+    return [f for f in files if not f.exists()], [f for f in files if f.exists()]
 
 
 def _extract_osz(osz: Path, target: Path) -> Path:
@@ -139,7 +272,8 @@ def reveal(path) -> bool:
 
 INSTRUCTIONS = [
     "In osu!lazer open **Settings → General → Run setup wizard** and press **Next** until the **Import** step.",
-    "Drag the folder onto the lazer window (or click the *previous osu! install* box and pick the folder).",
-    "Press **Import content from previous version**. Maps and the collection show up in song select; the "
-    "folder can be deleted afterwards.",
+    "Drag the folder osu! coach opened onto the lazer window (lazer's own folder picker can't see the AppData "
+    "folder it is in).",
+    "Press **Import content from previous version**. The collection (and any maps in the folder) shows up in song "
+    "select; then press **Delete the folder** here.",
 ]

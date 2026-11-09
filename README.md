@@ -228,22 +228,26 @@ in Detailed Map Analysis. Failed or quit plays have no replay, so they aren't an
 
 ### Playlists in osu!lazer
 
-lazer can't open a `collection.db` by itself, but *Settings → General → Run setup wizard → Import*
-("import from a previous osu! version") takes maps **and** collections from any folder that looks like an
-osu!stable install. **Make lazer import folder** (Goals & Training or Skill Development → osu!lazer tab, or
-`osu-coach playlist SKILL --lazer`) builds exactly that, in `Downloads/osu-coach lazer import/<playlist>`:
+**Send to lazer** (Goals & Training or Skill Development → osu!lazer tab) downloads the maps you don't have into
+osu! coach's data folder (`lazer-maps`) and hands them to lazer's program (`osu!.exe <file.osz>`, the one Windows
+opens .osz files with). A running lazer imports them at once (it waits while you're in gameplay); a closed one
+starts and imports them. lazer deletes each .osz once it's in, so nothing is left in Downloads or elsewhere.
+
+lazer can't take a collection that way. Its *Settings → General → Run setup wizard → Import* ("import from a
+previous osu! version") takes collections from any folder that looks like an osu!stable install, so osu! coach
+also makes that folder, in its data folder (`lazer-import/<playlist>`), and opens it in the file manager:
 
 ```
 osu!.user.cfg      empty: marks the folder as a stable install
 collection.db      the playlist
-Songs/<set id>/    the maps you don't have yet, downloaded and unpacked
+Songs/<set id>/    empty, unless lazer's program wasn't found: then the maps you don't have go here
 ```
 
 Then in lazer: open the setup wizard, press **Next** until **Import**, drag the folder onto the lazer
-window (or click *previous osu! install* and pick it) and press **Import content from previous version**.
-lazer imports the maps first and the collection after them; re-importing the same playlist only adds
-what's new. The folder can be deleted afterwards. *Folder without maps (.zip)* is the same folder with
-only the collection, for lazer on another computer.
+window (lazer's own folder picker can't see AppData) and press **Import content from previous version**.
+Re-importing the same playlist only adds what's new. **Delete the folder** removes it afterwards; folders older
+than a day go when the next one is made. *Folder without maps (.zip)* is the same folder with only the
+collection, for lazer on another computer. `osu-coach playlist SKILL --lazer` makes the folder with the maps in it.
 
 
 ### Progress by month, week or day

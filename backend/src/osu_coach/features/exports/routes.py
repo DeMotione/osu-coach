@@ -12,6 +12,8 @@ from osu_coach.features.exports import service as svc
 from osu_coach.features.exports.schemas import (
     ExportPreview,
     ExportRequest,
+    LazerFolderRemoved,
+    LazerFolderRequest,
     LazerPackJob,
     OszJob,
     OszRequest,
@@ -65,16 +67,24 @@ def lazer_zip(req: ExportRequest) -> Response:
     "/lazer-pack", summary="Make the lazer import folder (background job)", status_code=202, responses=responses(409)
 )
 def lazer_pack(req: ExportRequest, ws: WorkspaceDep) -> LazerPackJob:
-    """In Downloads/osu-coach lazer import/<name>: the collection plus the maps lazer doesn't have yet."""
+    """The maps lazer doesn't have yet go straight into lazer (it starts if it's closed); the collection goes into an
+    import folder in osu! coach's data folder (``lazer-import/<name>``). Without lazer's program, the maps go into
+    that folder too."""
     return job_view(
         LazerPackJob,
         ws.jobs.start(
             "lazer_pack",
-            "Making the lazer import folder",
+            "Getting the playlist into lazer",
             lambda report: svc.build_lazer_pack(ws, req, report),
             cancellable=True,
         ),
     )
+
+
+@router.post("/lazer-pack/delete", summary="Delete the lazer import folder")
+def delete_lazer_pack(req: LazerFolderRequest, ws: WorkspaceDep) -> LazerFolderRemoved:
+    """Once the collection is in lazer. Only a folder osu! coach made is deleted."""
+    return svc.remove_lazer_folder(ws, req.name)
 
 
 @router.post("/stable-collection", summary="Add the collection to osu!stable", responses=responses(404, 409))

@@ -55,6 +55,101 @@ def test_folder_names_have_no_dots_or_forbidden_characters():
     assert lazer_import.default_pack_dir("osu-coach: Aim (2.5★)").name == "osu-coach Aim (2,5★)"
 
 
+def test_the_folder_is_in_the_data_folder_not_downloads(tmp_path):
+    dest = lazer_import.default_pack_dir("osu-coach: Aim (2.5★)", tmp_path)
+    assert dest == tmp_path / "lazer-import" / "osu-coach Aim (2,5★)"
+
+
+def test_only_folders_osu_coach_made_are_removed(tmp_path, monkeypatch):
+    base = tmp_path / "lazer-import"
+    old, new, other = base / "old", base / "new", base / "mine"
+    for f in (old, new):
+        lazer_import.build_pack(f, {"x": MD5S})
+    other.mkdir()
+    (other / "keep.txt").write_text("not ours")
+    monkeypatch.setattr(lazer_import.clock, "timestamp", lambda: (old / "osu!.user.cfg").stat().st_mtime + 2 * 86400)
+    assert lazer_import.remove_old_packs(base, keep=new) == [old]
+    assert not old.exists() and new.exists() and other.exists()
+    assert not lazer_import.remove_pack(other) and other.exists()
+    assert lazer_import.remove_pack(new) and not new.exists()
+
+
+def fake_program(folder, lazer=True):
+    folder.mkdir(parents=True)
+    exe = folder / "osu!.exe"
+    exe.write_bytes(b"MZ")
+    if lazer:
+        (folder / "osu.Game.dll").write_bytes(b"MZ")
+    return exe
+
+
+def test_lazer_is_told_apart_from_stable(tmp_path, monkeypatch):
+    stable = fake_program(tmp_path / "osu!", lazer=False)
+    lazer = fake_program(tmp_path / "osulazer" / "current")
+    assert lazer_import.find_lazer([stable, lazer]) == lazer
+    assert lazer_import.find_lazer([stable]) is None
+    # tests (and a computer without lazer) never find the real one
+    monkeypatch.setenv("OSU_COACH_NO_AUTODETECT", "1")
+    assert lazer_import.find_lazer() is None
+
+
+def test_long_lists_are_split_to_fit_a_command_line(tmp_path):
+    files = [tmp_path / f"{i:04d} a long map set name.osz" for i in range(100)]
+    groups = lazer_import.batches(files, limit=1000)
+    assert [f for g in groups for f in g] == files and len(groups) > 1
+    assert all(sum(len(str(f)) + 3 for f in g) <= 1000 for g in groups)
+
+
+def osz_files(folder, n):
+    folder.mkdir(parents=True, exist_ok=True)
+    out = []
+    for i in range(n):
+        p = folder / f"{i + 1}.osz"
+        p.write_bytes(b"PK")
+        out.append(p)
+    return out
+
+
+def test_maps_are_handed_to_lazer_which_deletes_them(tmp_path):
+    files = osz_files(tmp_path / "lazer-maps", 3)
+    runs = []
+
+    def lazer(exe, group):  # like lazer: imports each file, then deletes it
+        runs.append((exe, list(group)))
+        for f in group:
+            f.unlink()
+
+    seen = []
+    imported, left = lazer_import.send_to_lazer(
+        tmp_path / "osu!.exe", files, progress=lambda d, n, m: seen.append(m), run=lazer, sleep=lambda s: None
+    )
+    assert imported == files and left == [] and runs == [(tmp_path / "osu!.exe", files)]
+
+
+def test_maps_lazer_doesnt_take_are_reported_after_the_wait(tmp_path):
+    files = osz_files(tmp_path / "lazer-maps", 3)
+    now = [0.0]
+
+    def lazer(exe, group):
+        group[0].unlink()  # takes one, not the others
+
+    def sleep(s):
+        now[0] += s
+
+    seen = []
+    imported, left = lazer_import.send_to_lazer(
+        tmp_path / "osu!.exe",
+        files,
+        progress=lambda d, n, m: seen.append(m),
+        run=lazer,
+        wait_s=lambda n: 5.0,
+        clock=lambda: now[0],
+        sleep=sleep,
+    )
+    assert imported == files[:1] and left == files[1:]
+    assert 4.5 <= now[0] <= 5.5 and seen[-1] == "lazer is importing the maps: 1 of 3"
+
+
 def test_zip_contains_the_folder_without_maps():
     data = lazer_import.pack_zip({"osu-coach: Speed (3.1★)": MD5S}, "osu-coach: Speed (3.1★)")
     with zipfile.ZipFile(io.BytesIO(data)) as z:

@@ -94,8 +94,55 @@ def test_lazer_import_folder_can_be_cancelled(client, export, monkeypatch):
     go.set()
     job = wait(client, job)
     assert job["status"] == "cancelled" and job["result"] is None
-    assert not (lazer_import.default_pack_dir(export["name"]) / "_downloading").exists()
+    assert not (lazer_import.default_pack_dir(export["name"], workspace(client).cache_dir) / "_downloading").exists()
     assert client.post("/api/exports/lazer-pack", json=export).status_code == 202  # not busy any more
+
+
+def test_without_lazers_program_the_maps_go_into_the_folder(client, export):
+    p = client.post("/api/exports/preview", json=export).json()
+    assert p["lazer_auto"] is False  # tests never find the computer's own lazer
+    assert Path(p["lazer_folder"]) == workspace(client).cache_dir / "lazer-import" / lazer_import.safe_name(
+        export["name"]
+    )
+
+
+def test_with_lazer_the_maps_go_straight_in_and_the_folder_holds_the_collection(client, export, monkeypatch, tmp_path):
+    exe = tmp_path / "osulazer" / "current" / "osu!.exe"
+    monkeypatch.setattr(lazer_import, "find_lazer", lambda candidates=None: exe)
+    handed = []
+
+    def lazer(program, files):  # lazer imports each .osz and deletes it
+        handed.append((program, [f.name for f in files]))
+        for f in files:
+            f.unlink()
+
+    def fake_download(set_id, dest, progress=None, stop=None):
+        dest = Path(dest)
+        dest.mkdir(parents=True, exist_ok=True)
+        osz = dest / f"{set_id} Artist - Title.osz"
+        with zipfile.ZipFile(osz, "w") as z:
+            z.writestr("map.osu", "osu file format v14\n")
+        return osz
+
+    monkeypatch.setattr(lazer_import, "launch", lazer)
+    monkeypatch.setattr(sources, "download_osz", fake_download)
+    assert client.post("/api/exports/preview", json=export).json()["lazer_auto"] is True
+    job = wait(client, client.post("/api/exports/lazer-pack", json=export).json())
+    assert job["status"] == "succeeded", job
+    res = job["result"]
+    sets = sorted({m["beatmapset_id"] for m in export["maps"]})
+    assert res["sent_to_lazer"] and sorted(res["imported"]) == sets and res["not_imported"] == []
+    assert len(handed) == 1 and handed[0][0] == exe and len(handed[0][1]) == len(sets)
+    cache = workspace(client).cache_dir
+    folder = Path(res["path"])
+    assert folder == cache / "lazer-import" / lazer_import.safe_name(export["name"])
+    assert (folder / "collection.db").is_file() and not any((folder / "Songs").iterdir())  # no maps in it
+    assert not list((cache / "lazer-maps").glob("*.osz"))  # lazer took them all
+    assert not (tmp_path / "home" / "Downloads").exists()
+
+    r = client.post("/api/exports/lazer-pack/delete", json={"name": export["name"]})
+    assert r.status_code == 200 and r.json() == {"path": str(folder), "removed": True} and not folder.exists()
+    assert client.post("/api/exports/lazer-pack/delete", json={"name": export["name"]}).json()["removed"] is False
 
 
 def test_cancelling_an_unknown_job(client):

@@ -32,7 +32,10 @@ class ExportPreview(BaseModel):
         description="An upper bound: not all of lazer's files were read yet, or some maps' sets are only looked up "
         "when the folder is made."
     )
-    lazer_folder: str
+    lazer_folder: str = Field(description="The import folder for the collection (in osu! coach's data folder).")
+    lazer_auto: bool = Field(
+        description="lazer's program was found: the maps are handed straight to lazer instead of going into the folder."
+    )
     stable_available: bool = Field(description="An osu!stable install to add the collection to was found.")
     osz_folder: str = Field(description="Default folder for .osz downloads (stable's Songs folder if found).")
 
@@ -46,6 +49,23 @@ class LazerPackResult(BaseModel):
         description="Maps you don't have whose beatmap set couldn't be found online: they are in the collection but "
         "not in the folder.",
     )
+    sent_to_lazer: bool = Field(
+        False, description="The maps were handed straight to lazer (``maps``), not put into the folder."
+    )
+    imported: list[int] = Field(default_factory=list, description="Map sets lazer took (it deletes each .osz).")
+    not_imported: list[int] = Field(
+        default_factory=list,
+        description="Map sets lazer hadn't taken when osu! coach stopped waiting: it may still be busy with them.",
+    )
+
+
+class LazerFolderRequest(Request):
+    name: str = Field(min_length=1, max_length=200, description="Collection name.")
+
+
+class LazerFolderRemoved(BaseModel):
+    path: str
+    removed: bool
 
 
 class StableMergeResult(BaseModel):
