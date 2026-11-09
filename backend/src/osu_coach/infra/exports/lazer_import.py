@@ -58,6 +58,16 @@ def is_pack(folder: Path) -> bool:
     return folder.is_dir() and (folder / STABLE_MARKER).is_file()
 
 
+def find_pack(name: str, data_dir: Path | str | None = None) -> Path | None:
+    """The import folder made for ``name``, taken from the ``lazer-import`` folder's own listing (never a path built
+    from the name, so it can't point anywhere else); None when there is none."""
+    base = Path(data_dir or default_cache_dir()) / PACK_DIR
+    wanted = safe_name(name)
+    if not base.is_dir():
+        return None
+    return next((p for p in base.iterdir() if p.name == wanted and is_pack(p)), None)
+
+
 def remove_pack(folder: Path) -> bool:
     """Delete an import folder osu! coach made (one with its marker file); anything else is left alone."""
     if not is_pack(folder):

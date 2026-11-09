@@ -71,6 +71,9 @@ def test_only_folders_osu_coach_made_are_removed(tmp_path, monkeypatch):
     assert lazer_import.remove_old_packs(base, keep=new) == [old]
     assert not old.exists() and new.exists() and other.exists()
     assert not lazer_import.remove_pack(other) and other.exists()
+    lazer_import.build_pack(base / "osu-coach Aim (2,5★)", {"x": MD5S})
+    assert lazer_import.find_pack("osu-coach: Aim (2.5★)", tmp_path) == base / "osu-coach Aim (2,5★)"
+    assert lazer_import.find_pack("../../mine", tmp_path) is None and lazer_import.find_pack("mine", tmp_path) is None
     assert lazer_import.remove_pack(new) and not new.exists()
 
 

@@ -161,9 +161,9 @@ def build_lazer_pack(ws: Workspace, req: ExportRequest, report: Reporter) -> Laz
 
 def remove_lazer_folder(ws: Workspace, name: str) -> LazerFolderRemoved:
     """Delete the playlist's import folder once its collection is in lazer."""
-    folder = lazer_import.default_pack_dir(name, ws.cache_dir)
-    existed = lazer_import.is_pack(folder)
-    return LazerFolderRemoved(path=str(folder), removed=existed and lazer_import.remove_pack(folder))
+    folder = lazer_import.find_pack(name, ws.cache_dir)
+    shown = folder or lazer_import.default_pack_dir(name, ws.cache_dir)
+    return LazerFolderRemoved(path=str(shown), removed=folder is not None and lazer_import.remove_pack(folder))
 
 
 def merge_stable(ws: Workspace, req: ExportRequest) -> StableMergeResult:
