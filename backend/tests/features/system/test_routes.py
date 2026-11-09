@@ -21,4 +21,4 @@ def test_meta_has_every_skill_with_its_explanation(client):
         assert (s["what"], s["how"], s["practise"]) == SKILL_HELP[s["key"]]
     assert m["latest_choices"] == [100, 500, 1000, 0]
     assert {c["key"] for c in m["date_choices"]} == {"all", "session", "7d", "30d", "custom"}
-    assert len(m["lazer_instructions"]) == 3
+    assert m["lazer_found"] is False  # tests never find the computer's own lazer

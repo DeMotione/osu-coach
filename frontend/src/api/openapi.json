@@ -647,7 +647,7 @@
                         "$ref": "#/components/schemas/AnalysisJob"
                       },
                       {
-                        "$ref": "#/components/schemas/LazerPackJob"
+                        "$ref": "#/components/schemas/LazerSendJob"
                       },
                       {
                         "$ref": "#/components/schemas/OszJob"
@@ -664,7 +664,7 @@
                       "mapping": {
                         "scan": "#/components/schemas/ScanJob",
                         "analysis": "#/components/schemas/AnalysisJob",
-                        "lazer_pack": "#/components/schemas/LazerPackJob",
+                        "lazer_send": "#/components/schemas/LazerSendJob",
                         "osz_download": "#/components/schemas/OszJob",
                         "play_goal": "#/components/schemas/PlayGoalJob",
                         "playlist": "#/components/schemas/PlaylistJob"
@@ -721,7 +721,7 @@
                       "$ref": "#/components/schemas/AnalysisJob"
                     },
                     {
-                      "$ref": "#/components/schemas/LazerPackJob"
+                      "$ref": "#/components/schemas/LazerSendJob"
                     },
                     {
                       "$ref": "#/components/schemas/OszJob"
@@ -738,7 +738,7 @@
                     "mapping": {
                       "scan": "#/components/schemas/ScanJob",
                       "analysis": "#/components/schemas/AnalysisJob",
-                      "lazer_pack": "#/components/schemas/LazerPackJob",
+                      "lazer_send": "#/components/schemas/LazerSendJob",
                       "osz_download": "#/components/schemas/OszJob",
                       "play_goal": "#/components/schemas/PlayGoalJob",
                       "playlist": "#/components/schemas/PlaylistJob"
@@ -805,7 +805,7 @@
                       "$ref": "#/components/schemas/AnalysisJob"
                     },
                     {
-                      "$ref": "#/components/schemas/LazerPackJob"
+                      "$ref": "#/components/schemas/LazerSendJob"
                     },
                     {
                       "$ref": "#/components/schemas/OszJob"
@@ -822,7 +822,7 @@
                     "mapping": {
                       "scan": "#/components/schemas/ScanJob",
                       "analysis": "#/components/schemas/AnalysisJob",
-                      "lazer_pack": "#/components/schemas/LazerPackJob",
+                      "lazer_send": "#/components/schemas/LazerSendJob",
                       "osz_download": "#/components/schemas/OszJob",
                       "play_goal": "#/components/schemas/PlayGoalJob",
                       "playlist": "#/components/schemas/PlaylistJob"
@@ -2200,52 +2200,14 @@
         }
       }
     },
-    "/api/exports/lazer-zip": {
+    "/api/exports/lazer-send": {
       "post": {
         "tags": [
           "Get maps into osu!"
         ],
-        "summary": "lazer import folder without maps (.zip)",
-        "description": "Just the collection, e.g. for lazer on another computer: unzip it and import the folder.",
-        "operationId": "lazer_zip_api_exports_lazer_zip_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExportRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/zip": {}
-            }
-          },
-          "422": {
-            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/exports/lazer-pack": {
-      "post": {
-        "tags": [
-          "Get maps into osu!"
-        ],
-        "summary": "Make the lazer import folder (background job)",
-        "description": "In Downloads/osu-coach lazer import/<name>: the collection plus the maps lazer doesn't have yet.",
-        "operationId": "lazer_pack_api_exports_lazer_pack_post",
+        "summary": "Send the maps to osu!lazer (background job)",
+        "description": "The maps lazer doesn't have yet are downloaded into osu! coach's data folder (``lazer-maps``) and handed to\nlazer, which imports them and deletes the files (it starts if it's closed). 404 ``no_lazer`` without lazer.",
+        "operationId": "lazer_send_api_exports_lazer_send_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2262,13 +2224,75 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LazerPackJob"
+                  "$ref": "#/components/schemas/LazerSendJob"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found; `code` says what is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
           },
           "409": {
             "description": "Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/exports/lazer-open": {
+      "post": {
+        "tags": [
+          "Get maps into osu!"
+        ],
+        "summary": "Open a map in osu!lazer",
+        "description": "Shows the map's page in lazer with this difficulty picked (lazer starts if it's closed); lazer's \"Go to\nbeatmap\" button there jumps to it in song select. 404 ``no_lazer`` without lazer.",
+        "operationId": "lazer_open_api_exports_lazer_open_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LazerOpenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LazerOpened"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found; `code` says what is missing.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4358,16 +4382,12 @@
           "lazer_sets": {
             "type": "integer",
             "title": "Lazer Sets",
-            "description": "Map sets the lazer import folder would download."
+            "description": "Map sets that would be downloaded and sent to lazer."
           },
           "lazer_approximate": {
             "type": "boolean",
             "title": "Lazer Approximate",
-            "description": "An upper bound: not all of lazer's files were read yet, or some maps' sets are only looked up when the folder is made."
-          },
-          "lazer_folder": {
-            "type": "string",
-            "title": "Lazer Folder"
+            "description": "An upper bound: not all of lazer's files were read yet, or some maps' sets are only looked up when they are sent."
           },
           "stable_available": {
             "type": "boolean",
@@ -4387,7 +4407,6 @@
           "total_sets",
           "lazer_sets",
           "lazer_approximate",
-          "lazer_folder",
           "stable_available",
           "osz_folder"
         ],
@@ -5561,7 +5580,38 @@
         "title": "Latest",
         "description": "How many of the newest found replays to analyse; 0 = all of them."
       },
-      "LazerPackJob": {
+      "LazerOpenRequest": {
+        "properties": {
+          "beatmap_id": {
+            "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
+            "title": "Beatmap Id",
+            "description": "The difficulty on the osu! website."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "beatmap_id"
+        ],
+        "title": "LazerOpenRequest"
+      },
+      "LazerOpened": {
+        "properties": {
+          "link": {
+            "type": "string",
+            "title": "Link",
+            "description": "The link lazer was given, ``osu://b/<beatmap id>``."
+          }
+        },
+        "type": "object",
+        "required": [
+          "link"
+        ],
+        "title": "LazerOpened"
+      },
+      "LazerSendJob": {
         "properties": {
           "id": {
             "type": "string",
@@ -5640,13 +5690,13 @@
           },
           "kind": {
             "type": "string",
-            "const": "lazer_pack",
+            "const": "lazer_send",
             "title": "Kind"
           },
           "result": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/LazerPackResult"
+                "$ref": "#/components/schemas/LazerSendResult"
               },
               {
                 "type": "null"
@@ -5667,42 +5717,51 @@
           "kind",
           "result"
         ],
-        "title": "LazerPackJob"
+        "title": "LazerSendJob"
       },
-      "LazerPackResult": {
+      "LazerSendResult": {
         "properties": {
-          "path": {
-            "type": "string",
-            "title": "Path"
-          },
           "maps": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "Maps"
+            "title": "Maps",
+            "description": "Map sets downloaded and handed to lazer."
           },
           "failed": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "Failed"
+            "title": "Failed",
+            "description": "Map sets that couldn't be downloaded."
           },
           "not_found": {
             "type": "integer",
             "title": "Not Found",
-            "description": "Maps you don't have whose beatmap set couldn't be found online: they are in the collection but not in the folder.",
+            "description": "Maps you don't have whose beatmap set couldn't be found online.",
             "default": 0
+          },
+          "imported": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Imported",
+            "description": "Map sets lazer took (it deletes each .osz)."
+          },
+          "not_imported": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Not Imported",
+            "description": "Map sets lazer hadn't taken when osu! coach stopped waiting: it may still be busy with them."
           }
         },
         "type": "object",
-        "required": [
-          "path",
-          "maps",
-          "failed"
-        ],
-        "title": "LazerPackResult"
+        "title": "LazerSendResult"
       },
       "LevelInfo": {
         "properties": {
@@ -6388,13 +6447,10 @@
             "type": "array",
             "title": "Periods"
           },
-          "lazer_instructions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Lazer Instructions",
-            "description": "Steps to import a lazer import folder (Markdown)."
+          "lazer_found": {
+            "type": "boolean",
+            "title": "Lazer Found",
+            "description": "osu!lazer's program was found: maps can be sent to lazer and opened there."
           },
           "level_band": {
             "type": "number",
@@ -6422,7 +6478,7 @@
           "best_definition",
           "latest_choices",
           "periods",
-          "lazer_instructions",
+          "lazer_found",
           "level_band",
           "level_sigma",
           "api_docs"
@@ -11038,7 +11094,7 @@
     },
     {
       "name": "Get maps into osu!",
-      "description": "collection.db, lazer import folder, .osz downloads."
+      "description": "Maps straight into lazer, collection.db, .osz downloads."
     }
   ]
 }

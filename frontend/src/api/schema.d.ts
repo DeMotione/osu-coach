@@ -688,7 +688,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/exports/lazer-zip": {
+    "/api/exports/lazer-send": {
         parameters: {
             query?: never;
             header?: never;
@@ -698,17 +698,18 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * lazer import folder without maps (.zip)
-         * @description Just the collection, e.g. for lazer on another computer: unzip it and import the folder.
+         * Send the maps to osu!lazer (background job)
+         * @description The maps lazer doesn't have yet are downloaded into osu! coach's data folder (``lazer-maps``) and handed to
+         *     lazer, which imports them and deletes the files (it starts if it's closed). 404 ``no_lazer`` without lazer.
          */
-        post: operations["lazer_zip_api_exports_lazer_zip_post"];
+        post: operations["lazer_send_api_exports_lazer_send_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/exports/lazer-pack": {
+    "/api/exports/lazer-open": {
         parameters: {
             query?: never;
             header?: never;
@@ -718,10 +719,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Make the lazer import folder (background job)
-         * @description In Downloads/osu-coach lazer import/<name>: the collection plus the maps lazer doesn't have yet.
+         * Open a map in osu!lazer
+         * @description Shows the map's page in lazer with this difficulty picked (lazer starts if it's closed); lazer's "Go to
+         *     beatmap" button there jumps to it in song select. 404 ``no_lazer`` without lazer.
          */
-        post: operations["lazer_pack_api_exports_lazer_pack_post"];
+        post: operations["lazer_open_api_exports_lazer_open_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1470,16 +1472,14 @@ export interface components {
             total_sets: number;
             /**
              * Lazer Sets
-             * @description Map sets the lazer import folder would download.
+             * @description Map sets that would be downloaded and sent to lazer.
              */
             lazer_sets: number;
             /**
              * Lazer Approximate
-             * @description An upper bound: not all of lazer's files were read yet, or some maps' sets are only looked up when the folder is made.
+             * @description An upper bound: not all of lazer's files were read yet, or some maps' sets are only looked up when they are sent.
              */
             lazer_approximate: boolean;
-            /** Lazer Folder */
-            lazer_folder: string;
             /**
              * Stable Available
              * @description An osu!stable install to add the collection to was found.
@@ -1877,8 +1877,24 @@ export interface components {
          * @enum {integer}
          */
         Latest: 100 | 500 | 1000 | 0;
-        /** LazerPackJob */
-        LazerPackJob: {
+        /** LazerOpenRequest */
+        LazerOpenRequest: {
+            /**
+             * Beatmap Id
+             * @description The difficulty on the osu! website.
+             */
+            beatmap_id: number;
+        };
+        /** LazerOpened */
+        LazerOpened: {
+            /**
+             * Link
+             * @description The link lazer was given, ``osu://b/<beatmap id>``.
+             */
+            link: string;
+        };
+        /** LazerSendJob */
+        LazerSendJob: {
             /** Id */
             id: string;
             /**
@@ -1916,23 +1932,37 @@ export interface components {
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
-            kind: "lazer_pack";
-            result: components["schemas"]["LazerPackResult"] | null;
+            kind: "lazer_send";
+            result: components["schemas"]["LazerSendResult"] | null;
         };
-        /** LazerPackResult */
-        LazerPackResult: {
-            /** Path */
-            path: string;
-            /** Maps */
-            maps: number[];
-            /** Failed */
-            failed: number[];
+        /** LazerSendResult */
+        LazerSendResult: {
+            /**
+             * Maps
+             * @description Map sets downloaded and handed to lazer.
+             */
+            maps?: number[];
+            /**
+             * Failed
+             * @description Map sets that couldn't be downloaded.
+             */
+            failed?: number[];
             /**
              * Not Found
-             * @description Maps you don't have whose beatmap set couldn't be found online: they are in the collection but not in the folder.
+             * @description Maps you don't have whose beatmap set couldn't be found online.
              * @default 0
              */
             not_found: number;
+            /**
+             * Imported
+             * @description Map sets lazer took (it deletes each .osz).
+             */
+            imported?: number[];
+            /**
+             * Not Imported
+             * @description Map sets lazer hadn't taken when osu! coach stopped waiting: it may still be busy with them.
+             */
+            not_imported?: number[];
         };
         /** LevelInfo */
         LevelInfo: {
@@ -2170,10 +2200,10 @@ export interface components {
             /** Periods */
             periods: string[];
             /**
-             * Lazer Instructions
-             * @description Steps to import a lazer import folder (Markdown).
+             * Lazer Found
+             * @description osu!lazer's program was found: maps can be sent to lazer and opened there.
              */
-            lazer_instructions: string[];
+            lazer_found: boolean;
             /** Level Band */
             level_band: number;
             /** Level Sigma */
@@ -4219,7 +4249,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": (components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"] | components["schemas"]["PlaylistJob"])[];
+                    "application/json": (components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerSendJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"] | components["schemas"]["PlaylistJob"])[];
                 };
             };
             /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
@@ -4250,7 +4280,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"] | components["schemas"]["PlaylistJob"];
+                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerSendJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"] | components["schemas"]["PlaylistJob"];
                 };
             };
             /** @description Not found; `code` says what is missing. */
@@ -4290,7 +4320,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerPackJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"] | components["schemas"]["PlaylistJob"];
+                    "application/json": components["schemas"]["ScanJob"] | components["schemas"]["AnalysisJob"] | components["schemas"]["LazerSendJob"] | components["schemas"]["OszJob"] | components["schemas"]["PlayGoalJob"] | components["schemas"]["PlaylistJob"];
                 };
             };
             /** @description Not found; `code` says what is missing. */
@@ -5194,40 +5224,7 @@ export interface operations {
             };
         };
     };
-    lazer_zip_api_exports_lazer_zip_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ExportRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/zip": unknown;
-                };
-            };
-            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-        };
-    };
-    lazer_pack_api_exports_lazer_pack_post: {
+    lazer_send_api_exports_lazer_send_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5246,11 +5243,62 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LazerPackJob"];
+                    "application/json": components["schemas"]["LazerSendJob"];
+                };
+            };
+            /** @description Not found; `code` says what is missing. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Not possible right now, e.g. `no_profile` (nothing analysed yet) or `busy` (another task is running). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid request: `validation_error` for malformed parameters or body, otherwise a code naming the problem. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    lazer_open_api_exports_lazer_open_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LazerOpenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LazerOpened"];
+                };
+            };
+            /** @description Not found; `code` says what is missing. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

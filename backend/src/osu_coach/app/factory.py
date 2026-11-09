@@ -64,7 +64,7 @@ TAGS = [
     {"name": "Progress & goals", "description": "Your history by month / week / day and skill goals."},
     {"name": "Maps", "description": "Map suggestions and skill playlists from the bundled map pool."},
     {"name": "Play Goals", "description": "FC a map, find PP opportunities, or improve HD/DT with local evidence."},
-    {"name": "Get maps into osu!", "description": "collection.db, lazer import folder, .osz downloads."},
+    {"name": "Get maps into osu!", "description": "Maps straight into lazer, collection.db, .osz downloads."},
 ]
 
 

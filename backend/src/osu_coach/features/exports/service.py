@@ -1,4 +1,4 @@
-"""Getting maps into osu!: lazer import folder, stable collection, .osz downloads."""
+"""Getting maps into osu!: maps straight into lazer, stable collection, .osz downloads."""
 
 from __future__ import annotations
 
@@ -11,7 +11,8 @@ from osu_coach.domain.exports.downloads import sets_to_download, unknown_sets
 from osu_coach.features.exports.schemas import (
     ExportPreview,
     ExportRequest,
-    LazerPackResult,
+    LazerOpened,
+    LazerSendResult,
     OszResult,
     StableMergeResult,
 )
@@ -77,7 +78,6 @@ def export_preview(ws: Workspace, req: ExportRequest) -> ExportPreview:
         total_sets=_set_count(req),
         lazer_sets=len(sets) + len(unknown),
         lazer_approximate=bool(unknown) or bool(lib is not None and lib.has_unread_maps("lazer")),
-        lazer_folder=str(lazer_import.default_pack_dir(req.name)),
         stable_available=bool(stable),
         osz_folder=str(osz),
     )
@@ -87,12 +87,17 @@ def collection_db(req: ExportRequest) -> bytes:
     return collection_bytes({req.name: _hashes(req)})
 
 
-def lazer_zip(req: ExportRequest) -> tuple[bytes, str]:
-    return lazer_import.pack_zip({req.name: _hashes(req)}, req.name), f"{lazer_import.safe_name(req.name)}.zip"
+def lazer_program() -> Path:
+    """osu!lazer's program, or 404 ``no_lazer``."""
+    exe = lazer_import.find_lazer()
+    if exe is None:
+        raise NotFound("osu!lazer wasn't found on this computer.", "no_lazer")
+    return exe
 
 
-def build_lazer_pack(ws: Workspace, req: ExportRequest, report: Reporter) -> LazerPackResult:
-    """The lazer import folder: the collection plus the maps lazer doesn't have yet."""
+def send_to_lazer(ws: Workspace, req: ExportRequest, report: Reporter, exe: Path | None = None) -> LazerSendResult:
+    """The maps lazer doesn't have yet, downloaded and handed to lazer: it imports them and deletes the .osz."""
+    exe = exe or lazer_program()
     hashes, rows = _hashes(req), _set_rows(req)
     lib = ws.library
     if lib is not None and lib.has_unread_maps("lazer"):
@@ -104,12 +109,15 @@ def build_lazer_pack(ws: Workspace, req: ExportRequest, report: Reporter) -> Laz
     sets = sets_to_download(rows, have)
     looked_up, not_found = _look_up_sets(unknown_sets(rows, have), report)
     sets += [s for s in looked_up if s not in sets]
-    res = lazer_import.build_pack(lazer_import.default_pack_dir(req.name), {req.name: hashes}, sets, progress=report)
-    if ws.config.reveal_folders:
-        lazer_import.reveal(res["path"])
-    return LazerPackResult(
-        path=str(res["path"]), maps=list(res["maps"]), failed=list(res["failed"]), not_found=not_found
-    )
+    if not sets:
+        return LazerSendResult(not_found=not_found)
+    res = lazer_import.download_and_send(exe, sets, ws.cache_dir / lazer_import.MAPS_DIR, report)
+    return LazerSendResult(not_found=not_found, **res)
+
+
+def open_in_lazer(beatmap_id: int) -> LazerOpened:
+    """The map's page in lazer, with this difficulty picked."""
+    return LazerOpened(link=lazer_import.open_map(lazer_program(), beatmap_id))
 
 
 def merge_stable(ws: Workspace, req: ExportRequest) -> StableMergeResult:

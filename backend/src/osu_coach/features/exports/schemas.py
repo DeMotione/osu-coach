@@ -27,25 +27,32 @@ class ExportPreview(BaseModel):
     collection: str
     preferred_client: Literal["stable", "lazer"]
     total_sets: int
-    lazer_sets: int = Field(description="Map sets the lazer import folder would download.")
+    lazer_sets: int = Field(description="Map sets that would be downloaded and sent to lazer.")
     lazer_approximate: bool = Field(
         description="An upper bound: not all of lazer's files were read yet, or some maps' sets are only looked up "
-        "when the folder is made."
+        "when they are sent."
     )
-    lazer_folder: str
     stable_available: bool = Field(description="An osu!stable install to add the collection to was found.")
     osz_folder: str = Field(description="Default folder for .osz downloads (stable's Songs folder if found).")
 
 
-class LazerPackResult(BaseModel):
-    path: str
-    maps: list[int]
-    failed: list[int]
-    not_found: int = Field(
-        0,
-        description="Maps you don't have whose beatmap set couldn't be found online: they are in the collection but "
-        "not in the folder.",
+class LazerSendResult(BaseModel):
+    maps: list[int] = Field(default_factory=list, description="Map sets downloaded and handed to lazer.")
+    failed: list[int] = Field(default_factory=list, description="Map sets that couldn't be downloaded.")
+    not_found: int = Field(0, description="Maps you don't have whose beatmap set couldn't be found online.")
+    imported: list[int] = Field(default_factory=list, description="Map sets lazer took (it deletes each .osz).")
+    not_imported: list[int] = Field(
+        default_factory=list,
+        description="Map sets lazer hadn't taken when osu! coach stopped waiting: it may still be busy with them.",
     )
+
+
+class LazerOpenRequest(Request):
+    beatmap_id: int = Field(ge=1, le=2**31 - 1, description="The difficulty on the osu! website.")
+
+
+class LazerOpened(BaseModel):
+    link: str = Field(description="The link lazer was given, ``osu://b/<beatmap id>``.")
 
 
 class StableMergeResult(BaseModel):
@@ -64,9 +71,9 @@ class OszResult(BaseModel):
     failed: list[int]
 
 
-class LazerPackJob(JobBase):
-    kind: Literal["lazer_pack"]
-    result: LazerPackResult | None
+class LazerSendJob(JobBase):
+    kind: Literal["lazer_send"]
+    result: LazerSendResult | None
 
 
 class OszJob(JobBase):

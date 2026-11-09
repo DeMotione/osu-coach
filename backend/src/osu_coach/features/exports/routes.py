@@ -12,7 +12,9 @@ from osu_coach.features.exports import service as svc
 from osu_coach.features.exports.schemas import (
     ExportPreview,
     ExportRequest,
-    LazerPackJob,
+    LazerOpened,
+    LazerOpenRequest,
+    LazerSendJob,
     OszJob,
     OszRequest,
     StableMergeResult,
@@ -50,31 +52,31 @@ def collection_db(req: ExportRequest) -> Response:
 
 
 @router.post(
-    "/lazer-zip",
-    summary="lazer import folder without maps (.zip)",
-    response_class=Response,
-    responses={200: {"content": {"application/zip": {}}}},
+    "/lazer-send",
+    summary="Send the maps to osu!lazer (background job)",
+    status_code=202,
+    responses=responses(404, 409),
 )
-def lazer_zip(req: ExportRequest) -> Response:
-    """Just the collection, e.g. for lazer on another computer: unzip it and import the folder."""
-    data, name = svc.lazer_zip(req)
-    return _attachment(data, name, "application/zip")
-
-
-@router.post(
-    "/lazer-pack", summary="Make the lazer import folder (background job)", status_code=202, responses=responses(409)
-)
-def lazer_pack(req: ExportRequest, ws: WorkspaceDep) -> LazerPackJob:
-    """In Downloads/osu-coach lazer import/<name>: the collection plus the maps lazer doesn't have yet."""
+def lazer_send(req: ExportRequest, ws: WorkspaceDep) -> LazerSendJob:
+    """The maps lazer doesn't have yet are downloaded into osu! coach's data folder (``lazer-maps``) and handed to
+    lazer, which imports them and deletes the files (it starts if it's closed). 404 ``no_lazer`` without lazer."""
+    exe = svc.lazer_program()  # refused before a job starts
     return job_view(
-        LazerPackJob,
+        LazerSendJob,
         ws.jobs.start(
-            "lazer_pack",
-            "Making the lazer import folder",
-            lambda report: svc.build_lazer_pack(ws, req, report),
+            "lazer_send",
+            "Sending the maps to lazer",
+            lambda report: svc.send_to_lazer(ws, req, report, exe),
             cancellable=True,
         ),
     )
+
+
+@router.post("/lazer-open", summary="Open a map in osu!lazer", responses=responses(404))
+def lazer_open(req: LazerOpenRequest) -> LazerOpened:
+    """Shows the map's page in lazer with this difficulty picked (lazer starts if it's closed); lazer's "Go to
+    beatmap" button there jumps to it in song select. 404 ``no_lazer`` without lazer."""
+    return svc.open_in_lazer(req.beatmap_id)
 
 
 @router.post("/stable-collection", summary="Add the collection to osu!stable", responses=responses(404, 409))

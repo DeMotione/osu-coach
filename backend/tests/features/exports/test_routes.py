@@ -1,6 +1,5 @@
-"""Getting maps into osu!: collection.db, lazer import folder, stable collection, .osz downloads (routes)."""
+"""Getting maps into osu!: collection.db, maps straight into lazer, stable collection, .osz downloads (routes)."""
 
-import io
 import threading
 import zipfile
 from pathlib import Path
@@ -32,11 +31,37 @@ def export(client):
     }
 
 
+@pytest.fixture
+def lazer(monkeypatch, tmp_path):
+    """A lazer on this computer that imports each .osz it is handed and deletes it, as the real one does; and map
+    downloads that work."""
+    exe = tmp_path / "osulazer" / "current" / "osu!.exe"
+    handed = []
+
+    def run(program, args):
+        handed.append((program, list(args)))
+        for a in args:
+            if str(a).endswith(".osz"):
+                Path(a).unlink()
+
+    def fake_download(set_id, dest, progress=None, stop=None):
+        dest = Path(dest)
+        dest.mkdir(parents=True, exist_ok=True)
+        osz = dest / f"{set_id} Artist - Title.osz"
+        with zipfile.ZipFile(osz, "w") as z:
+            z.writestr("map.osu", "osu file format v14\n")
+        return osz
+
+    monkeypatch.setattr(lazer_import, "find_lazer", lambda candidates=None: exe)
+    monkeypatch.setattr(lazer_import, "launch", run)
+    monkeypatch.setattr(sources, "download_osz", fake_download)
+    return exe, handed
+
+
 def test_export_preview(client, export):
     p = client.post("/api/exports/preview", json=export).json()
     assert p["total_sets"] == len({m["beatmapset_id"] for m in export["maps"]}) == p["lazer_sets"]
     assert not p["stable_available"] and p["preferred_client"] == "stable"
-    assert p["lazer_folder"].endswith(lazer_import.safe_name(export["name"]))
 
 
 def test_collection_db_download(client, export):
@@ -46,38 +71,24 @@ def test_collection_db_download(client, export):
     assert collections == [(export["name"], [m["md5"] for m in export["maps"]])]
 
 
-def test_lazer_zip_download(client, export):
-    r = client.post("/api/exports/lazer-zip", json=export)
-    assert r.status_code == 200 and r.headers["content-type"] == "application/zip"
-    disposition = r.headers["content-disposition"]  # the name has a ★: ASCII fallback + UTF-8 name
+def test_download_names_with_a_star_get_an_ascii_fallback():
+    from osu_coach.features.exports.routes import content_disposition
+
+    disposition = content_disposition("osu-coach Jumps (4,0★).zip")
     assert disposition.startswith("attachment; filename=\"osu-coach Jumps (4,0_).zip\"; filename*=UTF-8''")
     assert "%E2%98%85" in disposition
-    names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
-    folder = lazer_import.safe_name(export["name"])
-    assert sorted(names) == sorted([f"{folder}/osu!.user.cfg", f"{folder}/collection.db"])
 
 
-def test_lazer_import_folder(client, export, monkeypatch):
-    def fake_download(set_id, dest, progress=None, stop=None):
-        dest = Path(dest)
-        dest.mkdir(parents=True, exist_ok=True)
-        osz = dest / f"{set_id}.osz"
-        with zipfile.ZipFile(osz, "w") as z:
-            z.writestr("map.osu", "osu file format v14\n")
-        return osz
-
-    monkeypatch.setattr(sources, "download_osz", fake_download)
-    r = client.post("/api/exports/lazer-pack", json=export)
-    assert r.status_code == 202
-    job = wait(client, r.json())
-    assert job["status"] == "succeeded", job
-    res = job["result"]
-    folder = Path(res["path"])
-    assert (folder / "collection.db").is_file() and (folder / "osu!.user.cfg").is_file()
-    assert sorted(res["maps"]) == sorted({m["beatmapset_id"] for m in export["maps"]}) and res["failed"] == []
+def test_without_lazer_nothing_is_sent_or_opened(client, export):
+    # tests never find the computer's own lazer
+    assert client.get("/api/meta").json()["lazer_found"] is False
+    r = client.post("/api/exports/lazer-send", json=export)
+    assert r.status_code == 404 and r.json()["code"] == "no_lazer"
+    r = client.post("/api/exports/lazer-open", json={"beatmap_id": 2768184})
+    assert r.status_code == 404 and r.json()["code"] == "no_lazer"
 
 
-def test_lazer_import_folder_can_be_cancelled(client, export, monkeypatch):
+def test_sending_to_lazer_can_be_cancelled(client, export, monkeypatch, lazer):
     first, go = threading.Event(), threading.Event()
 
     def slow_download(set_id, dest, progress=None, stop=None):
@@ -86,7 +97,7 @@ def test_lazer_import_folder_can_be_cancelled(client, export, monkeypatch):
         return None
 
     monkeypatch.setattr(sources, "download_osz", slow_download)
-    job = client.post("/api/exports/lazer-pack", json=export).json()
+    job = client.post("/api/exports/lazer-send", json=export).json()
     assert job["cancellable"] is True
     assert first.wait(5)
     r = client.post(f"/api/jobs/{job['id']}/cancel")
@@ -94,8 +105,33 @@ def test_lazer_import_folder_can_be_cancelled(client, export, monkeypatch):
     go.set()
     job = wait(client, job)
     assert job["status"] == "cancelled" and job["result"] is None
-    assert not (lazer_import.default_pack_dir(export["name"]) / "_downloading").exists()
-    assert client.post("/api/exports/lazer-pack", json=export).status_code == 202  # not busy any more
+    assert lazer[1] == []  # lazer got nothing
+    assert client.post("/api/exports/lazer-send", json=export).status_code == 202  # not busy any more
+
+
+def test_the_maps_go_straight_into_lazer(client, export, lazer, tmp_path):
+    exe, handed = lazer
+    assert client.get("/api/meta").json()["lazer_found"] is True
+    job = wait(client, client.post("/api/exports/lazer-send", json=export).json())
+    assert job["status"] == "succeeded", job
+    res = job["result"]
+    sets = sorted({m["beatmapset_id"] for m in export["maps"]})
+    assert sorted(res["maps"]) == sorted(res["imported"]) == sets and res["not_imported"] == res["failed"] == []
+    assert len(handed) == 1 and handed[0][0] == exe and len(handed[0][1]) == len(sets)
+    cache = workspace(client).cache_dir
+    assert all(Path(f).parent == cache / "lazer-maps" for f in handed[0][1])
+    assert not list((cache / "lazer-maps").glob("*.osz"))  # lazer took them all
+    assert not (cache / "lazer-import").exists() and not (tmp_path / "home" / "Downloads").exists()
+
+
+def test_a_map_is_opened_in_lazer(client, lazer):
+    exe, handed = lazer
+    r = client.post("/api/exports/lazer-open", json={"beatmap_id": 2768184})
+    assert r.status_code == 200 and r.json() == {"link": "osu://b/2768184"}
+    assert handed == [(exe, ["osu://b/2768184"])]
+    for bad in (0, -1, "1; calc", 2**31):
+        assert client.post("/api/exports/lazer-open", json={"beatmap_id": bad}).status_code == 422
+    assert len(handed) == 1
 
 
 def test_cancelling_an_unknown_job(client):
@@ -154,7 +190,7 @@ def test_a_map_without_a_known_set_doesnt_break_the_export(client, export):
     assert r.status_code == 200 and loads(r.content)[1][0][1] == [m["md5"] for m in body["maps"]]
 
 
-def test_the_lazer_folder_looks_up_a_maps_unknown_set(client, export, monkeypatch):
+def test_sending_to_lazer_looks_up_a_maps_unknown_set(client, export, monkeypatch, lazer):
     body, md5 = _without_set(export)
     looked_up = []
 
@@ -162,23 +198,14 @@ def test_the_lazer_folder_looks_up_a_maps_unknown_set(client, export, monkeypatc
         looked_up.append(m)
         return {"id": 999, "beatmapset_id": 4242}
 
-    def fake_download(set_id, dest, progress=None, stop=None):
-        dest = Path(dest)
-        dest.mkdir(parents=True, exist_ok=True)
-        osz = dest / f"{set_id}.osz"
-        with zipfile.ZipFile(osz, "w") as z:
-            z.writestr("map.osu", "osu file format v14\n")
-        return osz
-
     monkeypatch.setattr(sources, "lookup_md5", lookup)
-    monkeypatch.setattr(sources, "download_osz", fake_download)
-    job = wait(client, client.post("/api/exports/lazer-pack", json=body).json())
+    job = wait(client, client.post("/api/exports/lazer-send", json=body).json())
     assert job["status"] == "succeeded", job
     assert looked_up == [md5]
     assert 4242 in job["result"]["maps"] and 0 not in job["result"]["maps"] and job["result"]["not_found"] == 0
 
     monkeypatch.setattr(sources, "lookup_md5", lambda m: None)
-    job = wait(client, client.post("/api/exports/lazer-pack", json=body).json())
+    job = wait(client, client.post("/api/exports/lazer-send", json=body).json())
     assert job["status"] == "succeeded" and job["result"]["not_found"] == 1 and 0 not in job["result"]["maps"]
 
 

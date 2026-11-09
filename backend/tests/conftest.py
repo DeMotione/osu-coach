@@ -75,7 +75,6 @@ def make_client(cache: Path, web_dir: Path | None = None, api_docs: bool = True)
         cache_dir=cache,
         web_dir=web_dir,
         allowed_hosts=LOCAL_HOSTS + ("testserver",),
-        reveal_folders=False,
         analysis_workers=1,
         api_docs=api_docs,
     )

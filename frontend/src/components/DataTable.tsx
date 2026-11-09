@@ -6,7 +6,9 @@ export interface Column<T> {
   /** The cell; ``value`` (for sorting) defaults to what ``cell`` returns when it is a string or number. */
   cell: (row: T) => ReactNode;
   value?: (row: T) => string | number | null | undefined;
-  align?: "left" | "right";
+  /** ``right`` and ``center``: numbers (tabular figures); a ``center`` header may wrap, so the column is as narrow as
+   * its numbers. */
+  align?: "left" | "right" | "center";
   wrap?: boolean;
   strong?: boolean;
   title?: string;
@@ -58,7 +60,7 @@ export function DataTable<T>({ rows, columns, rowKey, selected, onSelect, maxHei
               return (
                 <th
                   key={c.key}
-                  className={c.align === "right" ? "num" : undefined}
+                  className={c.align === "right" ? "num" : c.align === "center" ? "center" : undefined}
                   title={c.title}
                   aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : undefined}
                 >
@@ -89,7 +91,11 @@ export function DataTable<T>({ rows, columns, rowKey, selected, onSelect, maxHei
                   <td
                     key={c.key}
                     data-label={typeof c.header === "string" ? c.header : undefined}
-                    className={[c.align === "right" ? "num" : "", c.wrap ? "wrap" : "", c.strong ? "strong" : ""]
+                    className={[
+                      c.align === "right" ? "num" : c.align === "center" ? "center" : "",
+                      c.wrap ? "wrap" : "",
+                      c.strong ? "strong" : "",
+                    ]
                       .join(" ")
                       .trim() || undefined}
                   >

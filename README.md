@@ -24,8 +24,8 @@ Analyses your own osu!standard replays and tells you what to work on:
   the most played per 0.25★ step), each analysed for
   its patterns, with a one-click download of all suggested maps.
 - **Goals & Training.** Builds a staged playlist (warm-up / core / push) for one skill and gets it into
-  the game: for **lazer**, one click makes an import folder with the maps and the collection (see
-  below); for **stable**, it adds the collection to your `collection.db` and downloads the maps (.osz).
+  the game: for **lazer**, one click sends the maps straight into lazer and each map opens there with one more
+  (see below); for **stable**, it adds the collection to your `collection.db` and downloads the maps (.osz).
 
 Everything runs locally. The only network use is downloading beatmaps you don't have, by MD5 from
 osu.direct and osu.ppy.sh (verified), and downloading playlist maps from public mirrors.
@@ -228,22 +228,16 @@ in Detailed Map Analysis. Failed or quit plays have no replay, so they aren't an
 
 ### Playlists in osu!lazer
 
-lazer can't open a `collection.db` by itself, but *Settings → General → Run setup wizard → Import*
-("import from a previous osu! version") takes maps **and** collections from any folder that looks like an
-osu!stable install. **Make lazer import folder** (Goals & Training or Skill Development → osu!lazer tab, or
-`osu-coach playlist SKILL --lazer`) builds exactly that, in `Downloads/osu-coach lazer import/<playlist>`:
+**Send the maps to lazer** (Goals & Training or Skill Development → osu!lazer tab) downloads the maps you don't
+have into osu! coach's data folder (`lazer-maps`) and hands them to lazer's program (`osu!.exe <file.osz>`, found
+through the .osz file association lazer registers, else `%LOCALAPPDATA%\osulazer\current`). A running lazer
+imports them at once (it waits while you're in gameplay); a closed one starts and imports them. lazer deletes each
+.osz once it's in, so nothing is left in Downloads or elsewhere. `osu-coach playlist SKILL --lazer` does the same.
 
-```
-osu!.user.cfg      empty: marks the folder as a stable install
-collection.db      the playlist
-Songs/<set id>/    the maps you don't have yet, downloaded and unpacked
-```
-
-Then in lazer: open the setup wizard, press **Next** until **Import**, drag the folder onto the lazer
-window (or click *previous osu! install* and pick it) and press **Import content from previous version**.
-lazer imports the maps first and the collection after them; re-importing the same playlist only adds
-what's new. The folder can be deleted afterwards. *Folder without maps (.zip)* is the same folder with
-only the collection, for lazer on another computer.
+**in lazer**, next to every map in the app, gives lazer the map's link (`osu!.exe osu://b/<beatmap id>`): lazer shows
+the map's page with that difficulty picked, and its **Go to beatmap** button (») there opens it in song select.
+lazer has no way in from outside straight to song select, and none for collections (only its "import from a
+previous osu! version"), so there is no lazer collection: set the mods and speed shown in the list yourself.
 
 
 ### Progress by month, week or day
@@ -312,7 +306,7 @@ osu-coach analyze --level 6.2                      # weight replays around 6.2�
 osu-coach analyze --only a.osr --only b.osr        # only these replay files
 osu-coach progress [--player NAME]                 # your progress by month (saved by every analysis)
 osu-coach check [REPLAY.osr]                       # one replay on its own (default: your newest)
-osu-coach playlist aim --lazer                     # Goals & Training: playlist + lazer import folder
+osu-coach playlist aim --lazer                     # Goals & Training: playlist, maps sent to lazer
 osu-coach playlist aim --merge                     # ... added to your osu!stable collections instead
 osu-coach playlist speed --comfort 3 --download ~/maps   # without replays: give your level
 ```

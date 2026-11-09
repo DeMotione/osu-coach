@@ -43,7 +43,7 @@ class Meta(BaseModel):
     best_definition: str
     latest_choices: list[int] = Field(description="Replay counts to analyse; 0 = all.")
     periods: list[str]
-    lazer_instructions: list[str] = Field(description="Steps to import a lazer import folder (Markdown).")
+    lazer_found: bool = Field(description="osu!lazer's program was found: maps can be sent to lazer and opened there.")
     level_band: float
     level_sigma: float
     api_docs: bool = Field(description="Whether the API reference is served at /docs.")

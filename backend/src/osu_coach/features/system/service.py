@@ -47,7 +47,7 @@ def meta(api_docs: bool) -> Meta:
         best_definition=scope.BEST_DEFINITION,
         latest_choices=LATEST_CHOICES,
         periods=list(PERIODS),
-        lazer_instructions=list(lazer_import.INSTRUCTIONS),
+        lazer_found=lazer_import.find_lazer() is not None,
         level_band=LEVEL_BAND,
         level_sigma=LEVEL_SIGMA,
     )
