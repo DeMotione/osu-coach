@@ -1,18 +1,27 @@
 """Build the bundled practice pool from raw .osu files.
 
-Usage: python dev_tools/build_pool.py RAW_DIR [OUT]
-RAW_DIR is the output of dev_tools/fetch_pool_raw.py (chosen.json + osu/<id>.osu).
+Usage: python tools/build_pool.py RAW_DIR [OUT]
+RAW_DIR is the output of tools/fetch_pool_raw.py (chosen.json + osu/<id>.osu).
 """
+
 import json
 import multiprocessing as mp
 import sys
 import time
 from pathlib import Path
 
-from osu_coach.maps.repository import POOL_PATH, save_pool, stats_from_osu
+from osu_coach.infra.map_pool import POOL_PATH, save_pool, stats_from_osu
 
-META_KEYS = ("beatmap_id", "beatmapset_id", "status", "playcount", "passcount", "favourites", "set_playcount",
-             "ranked_date")
+META_KEYS = (
+    "beatmap_id",
+    "beatmapset_id",
+    "status",
+    "playcount",
+    "passcount",
+    "favourites",
+    "set_playcount",
+    "ranked_date",
+)
 
 
 def work(args):
@@ -41,6 +50,6 @@ if __name__ == "__main__":
                 rows.append(r)
             if i % 250 == 0:
                 print(f"{i}/{len(chosen)} ok={len(rows)} {time.time() - t0:.0f}s", flush=True)
-    rows.sort(key=lambda r: (r.get("stars") or 0))
+    rows.sort(key=lambda r: r.get("stars") or 0)
     p = save_pool(rows, out)
     print(f"wrote {len(rows)} maps to {p} ({p.stat().st_size / 1024:.0f} KiB) in {time.time() - t0:.0f}s")

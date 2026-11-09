@@ -16,8 +16,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from osu_coach.beatmaps import sources
 from osu_coach.config import LOCAL_HOSTS, Settings
+from osu_coach.infra.beatmaps import sources
 from osu_coach.main import create_app
 
 RES = pathlib.Path(__file__).parent / "resources"
@@ -75,7 +75,6 @@ def make_client(cache: Path, web_dir: Path | None = None, api_docs: bool = True)
         cache_dir=cache,
         web_dir=web_dir,
         allowed_hosts=LOCAL_HOSTS + ("testserver",),
-        reveal_folders=False,
         analysis_workers=1,
         api_docs=api_docs,
     )
@@ -137,3 +136,31 @@ def analysed(tmp_path, client) -> TestClient:
     scan(client, plays_folder(tmp_path))
     analyse(client, player="Mot1one")
     return client
+
+
+# ------------------------------------------------------------------ building plays in tests
+def play_of(meta: dict, notes=None, presses=None):
+    """A :class:`Play` from a meta dict and note / key-press rows (anything indexable by field name; missing
+    fields get their defaults)."""
+    from osu_coach.domain.analysis.models import Play, ReplayMeta
+    from osu_coach.domain.analysis.notes import HitObjects, KeyPresses
+
+    return Play(
+        ReplayMeta.from_dict(meta),
+        HitObjects.from_columns(notes if notes is not None else {}, n=None if notes is not None else 0),
+        KeyPresses.from_columns(presses if presses is not None else {}, n=None if presses is not None else 0),
+    )
+
+
+def notes_frame(play):
+    """A play's notes as a data frame (tests compare with pandas)."""
+    import pandas as pd
+
+    return pd.DataFrame(play.notes.to_columns())
+
+
+def with_meta(play, **changes):
+    """The play with some meta fields changed."""
+    import dataclasses
+
+    return dataclasses.replace(play, meta=dataclasses.replace(play.meta, **changes))

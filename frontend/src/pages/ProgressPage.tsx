@@ -15,6 +15,7 @@ import { fmt, int, isoDay, localTime, pct, shortLabel, stars as starsText } from
 
 type Period = Schemas["ProgressOut"]["period"];
 type PRow = Schemas["PeriodRow"];
+type Replays = Schemas["ProgressOut"]["replays"];
 
 const WORD: Record<Period, string> = { month: "month", week: "week", day: "day" };
 
@@ -25,10 +26,11 @@ export default function ProgressPage() {
   const [period, setPeriod] = useState<Period>("month");
   const [since, setSince] = useState<string | undefined>(undefined);
   const [until, setUntil] = useState<string | undefined>(undefined);
+  const [replays, setReplays] = useState<Replays>("analysed");
   const names = players.data ?? [];
   const pref = settings.data?.player;
   const chosen = player ?? (pref && names.some((n) => n.name === pref) ? pref : names[0]?.name);
-  const q = useProgress({ player: chosen, period, since, until }, names.length > 0);
+  const q = useProgress({ player: chosen, period, since, until, replays }, names.length > 0);
 
   let body;
   if (players.isPending || (names.length > 0 && q.isPending)) body = <LoadingPage tiles={6} />;
@@ -63,6 +65,20 @@ export default function ProgressPage() {
                 ))}
               </select>
             </Field>
+            {q.data.analysed_plays !== null && q.data.analysed_plays !== undefined ? (
+              <Field label="Replays">
+                <Segmented
+                  label="Replays"
+                  block
+                  value={q.data.replays}
+                  onChange={setReplays}
+                  options={[
+                    { value: "analysed", label: `Analysed (${int(q.data.analysed_plays)})` },
+                    { value: "all", label: "All saved" },
+                  ]}
+                />
+              </Field>
+            ) : null}
             <Field label="Group by">
               <Segmented
                 label="Group by"
@@ -87,7 +103,13 @@ export default function ProgressPage() {
           </div>
         </Card>
         {q.data.rows.length ? (
-          <ProgressBody rows={q.data.rows} period={period} player={q.data.player} reference={q.data.skill_reference_stars} />
+          <ProgressBody
+            rows={q.data.rows}
+            period={period}
+            player={q.data.player}
+            reference={q.data.skill_reference_stars}
+            replays={q.data.replays}
+          />
         ) : (
           <Card>
             <EmptyState icon={<IconTrend />} title="No plays saved in that range" />
@@ -111,7 +133,19 @@ function delta(last: PRow, prev: PRow | undefined, key: keyof PRow, digits: numb
   return <Delta value={d} text={`${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(digits)}`} />;
 }
 
-function ProgressBody({ rows, period, player, reference }: { rows: PRow[]; period: Period; player: string; reference: number | null }) {
+function ProgressBody({
+  rows,
+  period,
+  player,
+  reference,
+  replays,
+}: {
+  rows: PRow[];
+  period: Period;
+  player: string;
+  reference: number | null;
+  replays: Replays;
+}) {
   const meta = useMeta();
   const word = WORD[period];
   const last = rows[rows.length - 1];
@@ -127,6 +161,7 @@ function ProgressBody({ rows, period, player, reference }: { rows: PRow[]; perio
         <Stat label="Comfort ★" value={fmt(last.comfort_stars, 2)} note={delta(last, prev, "comfort_stars", 2)}
           hint="75% of your clean, finished plays (≤ 2 misses per 100 notes) are at or below this." />
         <Stat label="Hardest clean pass ★" value={fmt(last.max_stars_passed, 2)} note={delta(last, prev, "max_stars_passed", 2)}
+          valueHint={last.max_stars_passed_map ?? undefined}
           hint="Hardest map finished with at most 5 misses per 100 notes." />
         <Stat label="Plays" value={int(last.plays)} note={delta(last, prev, "plays", 0)} />
         <Stat label="New maps" value={int(last.new_maps)} note={delta(last, prev, "new_maps", 0)} hint={`Maps played for the first time that ${word}.`} />
@@ -151,7 +186,7 @@ function ProgressBody({ rows, period, player, reference }: { rows: PRow[]; perio
       </Row>
       <Card
         title={`Skills by ${word}`}
-        hint={`The same skill ratings as the Overview's chart, every ${word} rated at your comfort level${reference !== null ? ` (${starsText(reference, 1)})` : ""}: 50 = what that level expects, higher = you played the skill better that ${word}. Click a skill in the legend to hide or show it. Hollow points: fewer than 5 plays.`}
+        hint={`The same skill ratings as the Overview's chart, every ${word} rated at ${replays === "analysed" ? "the Overview's" : "your"} comfort level${reference !== null ? ` (${starsText(reference, 1)})` : ""}: 50 = what maps of that level demand (not a typical player), higher = you played the skill better that ${word}. ${replays === "analysed" ? "Only the replays of your last analysis (the ones the Overview shows); pick All saved for your whole history." : "Every play saved, also from earlier analyses."} Click a skill in the legend to hide or show it. Hollow points: fewer than 5 plays.`}
       >
         {hasSkills ? (
           <Chart build={skillChart} height={360} label="Skill scores by period" />
@@ -161,16 +196,16 @@ function ProgressBody({ rows, period, player, reference }: { rows: PRow[]; perio
           </EmptyState>
         )}
       </Card>
-      <PlaysCard rows={rows} period={period} player={player} />
+      <PlaysCard rows={rows} period={period} player={player} replays={replays} />
     </>
   );
 }
 
-function PlaysCard({ rows, period, player }: { rows: PRow[]; period: Period; player: string }) {
+function PlaysCard({ rows, period, player, replays }: { rows: PRow[]; period: Period; player: string; replays: Replays }) {
   const keys = useMemo(() => rows.map((r) => r.key).reverse(), [rows]);
   const [picked, setPicked] = useState<string | null>(null);
   const key = picked && keys.includes(picked) ? picked : keys[0] ?? null;
-  const plays = useProgressPlays({ player, period, key });
+  const plays = useProgressPlays({ player, period, key, replays });
   return (
     <Card
       title={`Plays of one ${WORD[period]}`}

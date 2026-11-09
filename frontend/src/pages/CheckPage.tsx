@@ -10,6 +10,7 @@ import type { echarts } from "../charts/echarts";
 import { ClicksView } from "../components/Clicks";
 import { DataTable } from "../components/DataTable";
 import { IconArrowLeft, IconExternal, IconMagnify, IconPlay } from "../components/icons";
+import { OpenInLazer } from "../components/OpenInLazer";
 import { EmptyState, ErrorCard } from "../components/states";
 import { Alert, Card, Dropzone, Field, Page, Row, Stat, Switch, Tiles } from "../components/ui";
 import { clicksCaption } from "../lib/clicks";
@@ -145,7 +146,8 @@ function SummaryCard({ report, pending, current }: { report?: Report; pending: b
               ·{" "}
               <a href={`https://osu.ppy.sh/b/${s.beatmap_id}`} target="_blank" rel="noreferrer noopener">
                 beatmap page <IconExternal width={12} height={12} />
-              </a>
+              </a>{" "}
+              <OpenInLazer beatmapId={s.beatmap_id} />
             </>
           )}
         </>

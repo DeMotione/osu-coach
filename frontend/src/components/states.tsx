@@ -1,9 +1,10 @@
-import type { UseQueryResult } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { ApiError, OFFLINE, type Job } from "../api/client";
 import { useJobs } from "../api/jobs";
+import { invalidateResults, useAnalysisStatus } from "../api/queries";
 import { IconFolder, IconInfo, IconWarn } from "./icons";
 import { Alert, Card, Progress } from "./ui";
 
@@ -39,8 +40,31 @@ export function LoadingPage({ tiles = 4 }: { tiles?: number }) {
 }
 
 const NO_ANALYSIS = "No replays analysed yet";
+const RESTORING = "Restoring your last session"; // the start of the API's 409 no_profile message meanwhile
+
+/** The page was asked for while the last session was being restored: fetched again once that is over. */
+function Restoring() {
+  const qc = useQueryClient();
+  const restoring = useAnalysisStatus().data?.restoring;
+  const asked = useRef(false);
+  useEffect(() => {
+    if (restoring === false && !asked.current) {
+      asked.current = true;
+      void invalidateResults(qc);
+    }
+  }, [restoring, qc]);
+  return (
+    <Card>
+      <EmptyState icon={<IconFolder />} title={RESTORING}>
+        Your analysed replays are being loaded. This page fills in by itself in a moment.
+      </EmptyState>
+    </Card>
+  );
+}
 
 function NoAnalysis({ message }: { message?: string }) {
+  // at start-up the last session's plays come back in a background job; the page refetches when it ends
+  if (message?.startsWith(RESTORING)) return <Restoring />;
   // the API's message repeats the title unless it says something else (e.g. Best replays is empty)
   const text = message && !message.startsWith(NO_ANALYSIS) ? message : undefined;
   return (

@@ -27,7 +27,8 @@ for pkg in ("fastapi", "starlette", "pydantic", "pydantic_core", "uvicorn", "pan
 for pkg in ("osu_coach", "uvicorn", "python_multipart", "pydantic_settings"):
     hiddenimports += collect_submodules(pkg)
 # the map pool is read from disk; the web app is served from osu_coach/web (see osu_coach.config)
-datas += [(os.path.join(SRC, "osu_coach", "maps", "data"), "osu_coach/maps/data"),
+datas += [(os.path.join(SRC, "osu_coach", "infra", "data"), "osu_coach/infra/data"),
+          (os.path.join(SRC, "osu_coach", "features", "play_goals", "data"), "osu_coach/features/play_goals/data"),
           (WEB, "osu_coach/web")]
 
 a = Analysis([os.path.join(HERE, "osu_coach_app.py")], pathex=[SRC], binaries=binaries, datas=datas,

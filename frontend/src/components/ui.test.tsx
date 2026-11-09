@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { FileChips } from "./ui";
+import { FileChips, Stat } from "./ui";
 
 const files = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `f${i}`, name: `replay ${i + 1}.osr`, path: `/r/${i}.osr` }));
 
@@ -23,5 +23,21 @@ describe("FileChips", () => {
   it("shows nothing before files are added", () => {
     const { container } = render(<FileChips files={[]} />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("Stat", () => {
+  it("explains its value on hover when given a valueHint (#99)", () => {
+    const label = "kessoku band - Himitsu Kichi [It's Time To Take The Stage Again] +HDHR";
+    const { container } = render(<Stat label="Hardest clean pass ★" value="8.82" valueHint={label} />);
+    const target = container.querySelector(".stat__value .hint--inline");
+    expect(target).not.toBeNull();
+    expect(target).toHaveTextContent("8.82");
+    expect(target?.querySelector(".hint__bubble")).toHaveTextContent(label);
+  });
+
+  it("shows a plain value without one", () => {
+    const { container } = render(<Stat label="Plays" value="404" />);
+    expect(container.querySelector(".stat__value .hint")).toBeNull();
   });
 });

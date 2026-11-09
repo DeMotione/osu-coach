@@ -68,6 +68,14 @@ export function scoreColor(score: number | null | undefined): string {
   return score >= 55 ? C.good : score <= 45 ? C.bad : C.info;
 }
 
+/** A ``#rrggbb`` colour faded to ``a`` (0–1) over the background ``bg`` (``#rrggbb``), as an opaque ``rgb()``: looks like
+ * ``alpha(hex, a)`` on that background, but nothing behind it (grid lines) shows through. */
+export function faded(hex: string, a: number, bg: string): string {
+  const ch = (h: string, i: number) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+  const mix = [0, 1, 2].map((i) => Math.round(ch(hex, i) * a + ch(bg, i) * (1 - a)));
+  return `rgb(${mix.join(",")})`;
+}
+
 /** A ``#rrggbb`` colour at opacity ``a`` (0–1) as ``rgba()``. */
 export function alpha(hex: string, a: number): string {
   const n = parseInt(hex.slice(1), 16);

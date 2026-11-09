@@ -11,6 +11,7 @@ __pycache__/
 /backend/dist/
 
 # data that stays local
+/docs/plans/
 dev_data/
 .osu_coach_cache/
 /exports/
@@ -32,3 +33,6 @@ desktop/src-tauri/target/
 desktop/src-tauri/gen/
 desktop/src-tauri/resources/
 desktop/src-tauri/server.zip
+
+# codex
+.codex

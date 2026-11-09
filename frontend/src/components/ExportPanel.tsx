@@ -3,15 +3,14 @@ import { useMemo, useState } from "react";
 import { api, downloadFile, saveBlob, unwrap, type Schemas } from "../api/client";
 import { useJob } from "../api/jobs";
 import { useExportPreview, useMergeStable, useMeta } from "../api/queries";
-import { Md } from "../lib/markdown";
-import { IconDownload, IconFolder, IconList } from "./icons";
+import { IconDownload, IconList, IconPlay } from "./icons";
 import { JobStatus } from "./states";
 import { Alert, Card, Field, Section, Tabs } from "./ui";
 
 type MapRow = Schemas["MapRow"];
 type Client = "lazer" | "stable";
 
-/** Get a list of pool maps into osu!: lazer import folder, stable collection + .osz, or a map list. */
+/** Get a list of pool maps into osu!: maps straight into lazer, stable collection + .osz, or a map list. */
 export function ExportPanel({ maps, name, preferred, title, sub }: {
   maps: MapRow[];
   name: string;
@@ -30,7 +29,7 @@ export function ExportPanel({ maps, name, preferred, title, sub }: {
   const order: Client[] = preferred === "lazer" ? ["lazer", "stable"] : ["stable", "lazer"];
   const mapList = () => {
     const text = maps
-      .map((m) => `[${m.stage ?? ""}] ${m.stars !== null ? `${m.stars.toFixed(2)}* ` : ""}${m.artist} - ${m.title} [${m.version}]  ${m.url}${m.goal ? `  ${m.goal}` : ""}`)
+      .map((m) => `[${m.stage ?? ""}] ${m.stars !== null ? `${m.stars.toFixed(2)}* ` : ""}${m.artist} - ${m.title} [${m.version}] · ${m.mods} · ${m.rate.toFixed(2)}×  ${m.url}${m.goal ? `  ${m.goal}` : ""}`)
       .join("\n");
     saveBlob(new Blob([`${name}\n\n${text}\n`], { type: "text/plain" }), "playlist.txt");
   };
@@ -49,6 +48,7 @@ export function ExportPanel({ maps, name, preferred, title, sub }: {
         </button>
       }
     >
+      <p className="small muted">The .txt list includes exact mods and speed. Collection and map downloads contain maps only; set the shown mods and speed in osu! before playing.</p>
       <Tabs
         tabs={order.map((c) => ({ value: c, label: c === "lazer" ? "osu!lazer" : "osu!stable" }))}
         value={tab}
@@ -56,12 +56,13 @@ export function ExportPanel({ maps, name, preferred, title, sub }: {
       />
       {downloadError && <Alert tone="bad">{downloadError}</Alert>}
       {tab === "lazer" ? (
-        <LazerTab body={body} preview={preview.data} onZip={() => download("/api/exports/lazer-zip", "playlist.zip")} />
+        <LazerTab body={body} preview={preview.data} />
       ) : (
         <StableTab
           body={body}
           preview={preview.data}
-          setIds={[...new Set(maps.map((m) => m.beatmapset_id))]}
+          setIds={[...new Set(maps.map((m) => m.beatmapset_id).filter((s) => s > 0))]}
+          unknownSets={maps.filter((m) => m.beatmapset_id <= 0).length}
           onCollection={() => download("/api/exports/collection-db", "collection.db")}
         />
       )}
@@ -69,53 +70,59 @@ export function ExportPanel({ maps, name, preferred, title, sub }: {
   );
 }
 
-function LazerTab({ body, preview, onZip }: {
+function LazerTab({ body, preview }: {
   body: Schemas["ExportRequest"];
   preview?: Schemas["ExportPreview"];
-  onZip: () => void;
 }) {
   const meta = useMeta();
-  const pack = useJob("lazer_pack");
+  const send = useJob("lazer_send");
+  const found = meta.data?.lazer_found ?? false;
   const count = preview
-    ? preview.lazer_approximate
+    ? (preview.lazer_approximate
       ? `Up to ${preview.lazer_sets} of ${preview.total_sets} beatmap sets will be downloaded (maps you already have are skipped)`
       : `${preview.lazer_sets} of ${preview.total_sets} beatmap sets will be downloaded` +
-        (preview.lazer_sets < preview.total_sets ? " (you already have the others)" : "")
+        (preview.lazer_sets < preview.total_sets ? " (you already have the others)" : ""))
     : "…";
   return (
     <div className="split">
-      <Section title="One folder with the maps and the collection">
+      <Section title="The maps, straight into lazer">
         <p className="muted">
-          lazer can't open a collection file by itself, but its <strong>import from a previous osu! version</strong> takes maps{" "}
-          <em>and</em> collections from any folder that looks like an osu!stable install. osu! coach makes that folder for you.
+          osu! coach downloads the maps you don't have and hands them to lazer, which imports them and deletes the
+          downloads (lazer opens if it's closed). Nothing is left in your Downloads.
         </p>
-        <p className="small muted">
-          {count} · folder: <code>{preview?.lazer_folder ?? "…"}</code>
-        </p>
+        <p className="small muted">{count}</p>
         <div className="btn-row">
           <button
             type="button"
             className="btn btn--primary"
-            disabled={pack.running}
-            onClick={() => void pack.run(() => unwrap(api.POST("/api/exports/lazer-pack", { body })))}
+            disabled={!found || send.running}
+            onClick={() => void send.run(() => unwrap(api.POST("/api/exports/lazer-send", { body })))}
           >
-            <IconFolder /> Make lazer import folder
-          </button>
-          <button type="button" className="btn" onClick={onZip} title="Just the collection, e.g. for lazer on another computer.">
-            <IconDownload /> Folder without maps (.zip)
+            <IconDownload /> Send the maps to lazer
           </button>
         </div>
+        {meta.data && !found && (
+          <Alert tone="warn">
+            osu!lazer wasn't found on this computer. Use the links in the map list, or the osu!stable tab's .osz download.
+          </Alert>
+        )}
         <JobStatus
-          job={pack.job}
-          error={pack.error}
-          onCancel={pack.cancel}
-          cancelled="Cancelled. The map sets downloaded so far stay in the folder; making it again picks up where it stopped."
+          job={send.job}
+          error={send.error}
+          onCancel={send.cancel}
+          cancelled="Cancelled. The maps lazer already took stay in lazer."
           done={(j) =>
-            j.kind === "lazer_pack" && j.result ? (
-              <Alert tone="good">
-                Ready: <code>{j.result.path}</code> with {j.result.maps.length} map set(s) and the collection.
-                {j.result.failed.length > 0 &&
-                  ` Couldn't download set(s) ${j.result.failed.join(", ")}: use the links in the map list.`}
+            j.kind === "lazer_send" && j.result ? (
+              <Alert tone={j.result.not_imported?.length || j.result.failed?.length ? "warn" : "good"}>
+                {(j.result.maps?.length ?? 0) === 0
+                  ? "lazer already has every map."
+                  : `lazer imported ${j.result.imported?.length ?? 0} of ${j.result.maps?.length ?? 0} map set(s).`}
+                {(j.result.not_imported?.length ?? 0) > 0 &&
+                  ` It hadn't taken set(s) ${j.result.not_imported?.join(", ")} yet: check lazer's notifications.`}
+                {(j.result.failed?.length ?? 0) > 0 &&
+                  ` Couldn't download set(s) ${j.result.failed?.join(", ")}: use the links in the map list.`}
+                {(j.result.not_found ?? 0) > 0 &&
+                  ` ${j.result.not_found} map(s) you don't have weren't found online: you need to get them yourself.`}
               </Alert>
             ) : null
           }
@@ -123,21 +130,25 @@ function LazerTab({ body, preview, onZip }: {
       </Section>
       <Section title="Then, in lazer">
         <ol className="list list--steps">
-          {(meta.data?.lazer_instructions ?? []).map((s) => (
-            <li key={s}>
-              <Md>{s}</Md>
-            </li>
-          ))}
+          <li>
+            Press <IconPlay width={12} height={12} /> <strong>in lazer</strong> next to a map in the list: lazer shows that
+            map with its difficulty picked.
+          </li>
+          <li>
+            Press lazer's <strong>Go to beatmap</strong> button (») there: the map opens in song select.
+          </li>
+          <li>Set the mods and speed shown in the list, then play.</li>
         </ol>
       </Section>
     </div>
   );
 }
 
-function StableTab({ body, preview, setIds, onCollection }: {
+function StableTab({ body, preview, setIds, unknownSets, onCollection }: {
   body: Schemas["ExportRequest"];
   preview?: Schemas["ExportPreview"];
   setIds: number[];
+  unknownSets: number;
   onCollection: () => void;
 }) {
   const merge = useMergeStable();
@@ -179,13 +190,19 @@ function StableTab({ body, preview, setIds, onCollection }: {
         <button
           type="button"
           className="btn"
-          disabled={osz.running || !dest.trim()}
+          disabled={osz.running || !dest.trim() || !setIds.length}
           onClick={() =>
             void osz.run(() => unwrap(api.POST("/api/exports/osz", { body: { folder: dest.trim(), set_ids: setIds } })))
           }
         >
           <IconDownload /> Download all {setIds.length} maps
         </button>
+        {unknownSets > 0 && (
+          <p className="small muted">
+            {unknownSets} map(s) have no known beatmap set, so they can't be downloaded here (sending them to lazer looks them up).
+            They're still in the collection.
+          </p>
+        )}
         <JobStatus
           job={osz.job}
           error={osz.error}

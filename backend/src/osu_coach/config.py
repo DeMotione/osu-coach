@@ -26,8 +26,6 @@ class Settings(BaseSettings):
     """Built web app to serve at ``/``; None = :func:`find_web_dir`."""
     allowed_hosts: tuple[str, ...] = LOCAL_HOSTS
     """Host names the API answers to (without port)."""
-    reveal_folders: bool = True
-    """Open the file manager on folders the app creates (lazer import folder)."""
     api_docs: bool = True
     """Serve the API reference at ``/docs`` and ``/api/openapi.json``; the installed desktop app turns it off."""
     analysis_workers: int | None = None

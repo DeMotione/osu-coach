@@ -22,6 +22,8 @@ const keys = {
   playGoals: ["play-goals"] as const,
 };
 
+const RESTORE_POLL_MS = 700;
+
 /** Everything that is built from the analysed replays. */
 export function invalidateResults(qc: QueryClient): Promise<void> {
   return Promise.all(
@@ -75,7 +77,7 @@ export function usePatchSettings() {
       qc.setQueryData(keys.settings, settings);
       if ("player" in patch || "client" in patch) void qc.invalidateQueries({ queryKey: keys.playGoals });
       // the change is done once the pages built from the profile have been recalculated: until then it is pending
-      if ("replay_set" in patch || "level_override" in patch) return invalidateResults(qc);
+      if ("replay_set" in patch || "level_override" in patch || "rating_engine" in patch) return invalidateResults(qc);
     },
   });
 }
@@ -154,8 +156,13 @@ export const useSelection = (params: SelectionParams, enabled: boolean) =>
     placeholderData: keepPreviousData,
   });
 
+/** Polled while the last session is being restored at start-up, so its end is seen quickly (see ``JobsProvider``). */
 export const useAnalysisStatus = () =>
-  useQuery({ queryKey: keys.analysis, queryFn: () => unwrap(api.GET("/api/analysis")) });
+  useQuery({
+    queryKey: keys.analysis,
+    queryFn: () => unwrap(api.GET("/api/analysis")),
+    refetchInterval: (q) => (q.state.data?.restoring ? RESTORE_POLL_MS : false),
+  });
 
 export async function uploadFiles(files: File[]): Promise<Schemas["UploadedFile"][]> {
   const form = new FormData();
@@ -227,6 +234,7 @@ type ProgressParams = {
   period: Schemas["ProgressOut"]["period"];
   since?: string;
   until?: string;
+  replays?: Schemas["ProgressOut"]["replays"];
 };
 
 export const useProgress = (params: ProgressParams, enabled = true) =>
@@ -237,13 +245,20 @@ export const useProgress = (params: ProgressParams, enabled = true) =>
     placeholderData: keepPreviousData,
   });
 
-export const useProgressPlays = (params: { player?: string; period: ProgressParams["period"]; key: string | null }) =>
+export const useProgressPlays = (params: {
+  player?: string;
+  period: ProgressParams["period"];
+  key: string | null;
+  replays?: ProgressParams["replays"];
+}) =>
   useQuery({
     queryKey: [...keys.progress, "plays", params],
     queryFn: () =>
       unwrap(
         api.GET("/api/progress/plays", {
-          params: { query: { player: params.player, period: params.period, key: params.key as string } },
+          params: {
+            query: { player: params.player, period: params.period, key: params.key as string, replays: params.replays },
+          },
         }),
       ),
     enabled: !!params.key,
@@ -275,11 +290,12 @@ export function useHideMaps() {
   });
 }
 
-export const usePlaylist = (params: { skill?: string; assessed?: string; ratings?: string; comfort?: number; kappa?: number; min_relevance?: number; exclude_played?: boolean }) =>
+export const usePlaylist = (params: { skill?: string; assessed?: string; ratings?: string; comfort?: number; kappa?: number; min_relevance?: number; exclude_played?: boolean }, enabled = true) =>
   useQuery({
     queryKey: [...keys.playlists, params],
     queryFn: () => unwrap(api.GET("/api/playlists", { params: { query: params } })),
     placeholderData: keepPreviousData,
+    enabled,
   });
 
 export const useExportPreview = (body: Schemas["ExportRequest"] | null) =>

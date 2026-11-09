@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, HTMLResponse
 
-from osu_coach.app.errors import NotFound
+from osu_coach.common.errors import NotFound
 
 # Content types of the web app's files, fixed here: Python guesses them from the system (the Windows registry
 # often maps .js to text/plain, and browsers then refuse to run the app's module scripts).

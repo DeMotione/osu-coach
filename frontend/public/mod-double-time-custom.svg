@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 36" aria-hidden="true">
+  <defs>
+    <linearGradient id="rate" x2="0" y2="1">
+      <stop stop-color="#461113"/>
+      <stop offset="1" stop-color="#330b0d"/>
+    </linearGradient>
+    <linearGradient id="emblem" x2="0" y2="1">
+      <stop stop-color="#ff6365"/>
+      <stop offset="1" stop-color="#ff5355"/>
+    </linearGradient>
+  </defs>
+  <path d="M15 5h78c3 0 5 1 7 4l7 12-7 11c-2 3-4 4-7 4H15c-3 0-5-1-7-4L1 21 8 9c2-3 4-4 7-4Z" fill="url(#rate)" stroke="#671b1e" stroke-width=".7"/>
+  <path d="M15 5h26l10 15c1 2 1 3 0 5l-7 8c-2 2-4 3-7 3H15c-3 0-5-1-7-4L1 21 8 9c2-3 4-4 7-4Z" fill="url(#emblem)"/>
+  <g fill="none" stroke="#491315" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15 16a13 13 0 0 1 23 5M37 25a13 13 0 0 1-23-1" stroke-width="2.6"/>
+    <path d="m12 20 2 5 4-2m20-6 1 5-4-2" stroke-width="2.5"/>
+  </g>
+  <path d="m20 17 6 4-6 4zm8 0 6 4-6 4z" fill="#491315"/>
+  <circle cx="43" cy="6" r="6" fill="#491315"/>
+  <circle cx="43" cy="6" r="3.5" fill="#ff6264"/>
+  <circle cx="43" cy="6" r="1.5" fill="#491315"/>
+</svg>
