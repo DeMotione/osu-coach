@@ -1453,6 +1453,7 @@ input[type="range"] {
 @container (max-width: 1120px) {
   .map-table:not(.map-table--compact) .table th,
   .map-table:not(.map-table--compact) .table td { padding-inline: var(--s-2); }
+  .map-table:not(.map-table--compact) .table td.wrap { min-width: 130px; }
 }
 
 @container (min-width: 880px) and (max-width: 1120px) {
