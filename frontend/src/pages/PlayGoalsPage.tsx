@@ -234,7 +234,7 @@ function playColumns(farm: boolean, estimates: boolean): Column<Recommendation>[
       cell: (r) => <>
         <a href={`https://osu.ppy.sh/beatmaps/${r.map.beatmap_id}`} target="_blank" rel="noreferrer noopener">
           {r.map.artist} - {r.map.title} [{r.map.version}]</a>{" "}
-        <OpenInLazer beatmapId={r.map.beatmap_id} />
+        <OpenInLazer beatmapId={r.map.beatmap_id} iconOnly />
       </> },
     { key: "mods", header: "Mods", cell: (r) => <Badge tone="info">+{r.map.mods}</Badge>, value: (r) => r.map.mods },
     { key: "type", header: "Type", cell: (r) => r.map.dynamics ?? "", wrap: true, title: "The map's overall character." },

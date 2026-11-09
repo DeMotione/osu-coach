@@ -21,6 +21,11 @@ beforeEach(() => {
   post.mockReset();
 });
 
+it("can be just an icon", () => {
+  render(<OpenInLazer beatmapId={5} iconOnly />);
+  expect(screen.getByRole("button", { name: "Open in osu!lazer" })).toHaveTextContent(/^$/);
+});
+
 it("asks osu! coach to open the map in lazer", async () => {
   post.mockResolvedValue({ data: { link: "osu://b/2768184" } });
   render(<OpenInLazer beatmapId={2768184} />);

@@ -1228,6 +1228,17 @@ input[type="range"] {
   font-variant-numeric: tabular-nums;
 }
 
+.table td.center,
+.table th.center {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* a centred number column's header wraps ("Skill / demand"), so the column is as narrow as its numbers */
+.table th.center {
+  white-space: normal;
+}
+
 .table td.wrap {
   white-space: normal;
   min-width: 220px;
@@ -1238,6 +1249,11 @@ input[type="range"] {
 }
 
 .map-table { container-type: inline-size; min-width: 0; }
+
+/* map tables fit their card instead of scrolling sideways: headers may wrap and the two text columns give way
+ * first (they still get their full width when there is room) */
+.map-table .table th { white-space: normal; }
+.map-table .table td.wrap { min-width: 150px; }
 
 .map-mods { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; vertical-align: middle; }
 .map-mods img { display: block; width: 25px; height: auto; max-height: 18px; flex: none; }
@@ -1428,17 +1444,15 @@ input[type="range"] {
   height: var(--chart-h, 320px);
 }
 
-/* The map tables of Skill Development and Goals & Training (11 columns; 12 with Hide), by the width they get:
+/* The map tables of Skill Development and Goals & Training (10 columns; 11 with Hide), by the width they get:
  * - over 1120 px: the table as it is;
- * - 880–1120 px (the desktop app's window as it opens): still a table, a tighter one (less padding, the two text
- *   columns narrower, headers wrapping), so it fits instead of falling apart into cards (#31);
+ * - 880–1120 px (the desktop app's window as it opens): still a table, a tighter one (less padding), so it fits
+ *   instead of falling apart into cards (#31);
  * - narrower: a card per map on a fixed grid where every row is filled: name · Mods (and Hide), difficulty · BPM · AR ·
- *   length, why, demand · F(m) · breakdown · link; two columns on a phone. */
+ *   length, why, demand · F(m) · link; two columns on a phone. */
 @container (max-width: 1120px) {
   .map-table:not(.map-table--compact) .table th,
   .map-table:not(.map-table--compact) .table td { padding-inline: var(--s-2); }
-  .map-table:not(.map-table--compact) .table th { white-space: normal; }
-  .map-table:not(.map-table--compact) .table td.wrap { min-width: 150px; }
 }
 
 @container (min-width: 880px) and (max-width: 1120px) {
@@ -1458,17 +1472,17 @@ input[type="range"] {
       "map map map mods"
       "stars bpm ar length"
       "why why why why"
-      "demand score breakdown link";
+      "demand score score link";
     margin-bottom: var(--s-3);
     border: 1px solid var(--border);
     border-radius: var(--radius-btn);
   }
-  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(12)) {
+  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(11)) {
     grid-template-areas:
       "map map mods hide"
       "stars bpm ar length"
       "why why why why"
-      "demand score breakdown link";
+      "demand score score link";
   }
   /* lines between the rows of a card: on top of each cell but the first row's */
   .map-table:not(.map-table--compact) .table td {
@@ -1491,16 +1505,15 @@ input[type="range"] {
   .map-table:not(.map-table--compact) .table td:nth-child(7) { grid-area: why; }
   .map-table:not(.map-table--compact) .table td:nth-child(8) { grid-area: demand; }
   .map-table:not(.map-table--compact) .table td:nth-child(9) { grid-area: score; }
-  .map-table:not(.map-table--compact) .table td:nth-child(10) { grid-area: breakdown; }
-  .map-table:not(.map-table--compact) .table td:nth-child(11) { grid-area: link; }
-  .map-table:not(.map-table--compact) .table td:nth-child(12) {
+  .map-table:not(.map-table--compact) .table td:nth-child(10) { grid-area: link; }
+  .map-table:not(.map-table--compact) .table td:nth-child(11) {
     grid-area: hide;
     display: flex;
     align-items: flex-start;
     justify-content: flex-end;
     border-top: 0;
   }
-  .map-table:not(.map-table--compact) .table td:nth-child(12)::before { display: none; }
+  .map-table:not(.map-table--compact) .table td:nth-child(11)::before { display: none; }
 }
 
 @container (max-width: 480px) {
@@ -1511,17 +1524,17 @@ input[type="range"] {
       "stars stars bpm bpm"
       "ar ar length length"
       "why why why why"
-      "demand demand score score"
-      "breakdown breakdown link link";
+      "demand demand link link"
+      "score score score score";
   }
-  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(12)) {
+  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(11)) {
     grid-template-areas:
       "map map mods hide"
       "stars stars bpm bpm"
       "ar ar length length"
       "why why why why"
-      "demand demand score score"
-      "breakdown breakdown link link";
+      "demand demand link link"
+      "score score score score";
   }
   .map-table:not(.map-table--compact) .map-mods img { width: clamp(12px, calc((100cqw / 4 - 20px) / 3), 25px); }
 }
@@ -1533,15 +1546,15 @@ input[type="range"] {
       "mods mods mods mods"
       "stars bpm ar length"
       "why why why why"
-      "demand score breakdown link";
+      "demand score score link";
   }
-  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(12)):has(.map-mods__badge, .map-mods__rate-only) {
+  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(11)):has(.map-mods__badge, .map-mods__rate-only) {
     grid-template-areas:
       "map map map hide"
       "mods mods mods mods"
       "stars bpm ar length"
       "why why why why"
-      "demand score breakdown link";
+      "demand score score link";
   }
 }
 
@@ -1553,18 +1566,18 @@ input[type="range"] {
       "stars stars bpm bpm"
       "ar ar length length"
       "why why why why"
-      "demand demand score score"
-      "breakdown breakdown link link";
+      "demand demand link link"
+      "score score score score";
   }
-  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(12)):has(.map-mods__badge, .map-mods__rate-only) {
+  .map-table:not(.map-table--compact) .table tr:has(> td:nth-child(11)):has(.map-mods__badge, .map-mods__rate-only) {
     grid-template-areas:
       "map map map hide"
       "mods mods mods mods"
       "stars stars bpm bpm"
       "ar ar length length"
       "why why why why"
-      "demand demand score score"
-      "breakdown breakdown link link";
+      "demand demand link link"
+      "score score score score";
   }
 }
 
@@ -1583,11 +1596,14 @@ input[type="range"] {
   }
   .map-table--compact td:first-child { grid-column: 1 / -1; }
   .map-table--compact tr:has(.map-mods__badge, .map-mods__rate-only) td:nth-child(2) { grid-column: 1 / -1; }
-  .map-table--compact tr:not(:has(> td:nth-child(10))):has(.map-mods__badge, .map-mods__rate-only) td:last-child { grid-column: 1 / -1; }
+  /* a lone last cell takes the whole row: 7 cells after the name (8 columns) or after the name and a mods row (9) */
+  .map-table--compact tr:not(:has(> td:nth-child(9))):not(:has(.map-mods__badge, .map-mods__rate-only)) td:last-child,
+  .map-table--compact tr:has(> td:nth-child(9)):not(:has(> td:nth-child(10))):has(.map-mods__badge, .map-mods__rate-only) td:last-child { grid-column: 1 / -1; }
   .map-table--compact td { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
   .map-table--compact td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--t-xs); margin-bottom: 3px; }
   .map-table--compact td:nth-child(2):empty::before { display: none; }
-  .map-table--compact td.num { text-align: left; }
+  .map-table--compact td.num,
+  .map-table--compact td.center { text-align: left; }
 }
 
 .cell-bar {
@@ -2254,11 +2270,13 @@ details.disclosure > .disclosure__body {
 }
 
 /* F(m) terms in a map table cell: "Stars  −0.03" over a muted "5.47★ vs 5.56★" */
+/* a map's website link and its "Open in osu!lazer" button, as two small icon buttons */
 .map-links {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   white-space: nowrap;
+  vertical-align: middle;
 }
 
 .map-breakdown > summary {
