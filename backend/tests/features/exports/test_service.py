@@ -1,5 +1,6 @@
-"""Exports as background work: the lazer import folder can be stopped while it looks for the maps you have."""
+"""Exports as background work: sending maps to lazer can be stopped while it looks for the maps you have."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -10,7 +11,7 @@ from osu_coach.infra.jobs import Cancelled, Job, Reporter
 
 
 def test_looking_for_installed_maps_reports_progress_and_can_be_cancelled():
-    job = Job(kind="lazer_pack")
+    job = Job(kind="lazer_send")
     seen = []
 
     def find_maps(md5s, progress=None):
@@ -24,5 +25,5 @@ def test_looking_for_installed_maps_reports_progress_and_can_be_cancelled():
     ws = SimpleNamespace(library=lib)
     req = ExportRequest(name="x", maps=[{"md5": "0" * 32, "beatmapset_id": 1}])
     with pytest.raises(Cancelled):
-        service.build_lazer_pack(ws, req, Reporter(job))
+        service.send_to_lazer(ws, req, Reporter(job), exe=Path("osu!.exe"))
     assert seen == ["Checking which of these maps you already have (looking for beatmaps in lazer's files: 500)…"]

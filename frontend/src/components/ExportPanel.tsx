@@ -3,15 +3,14 @@ import { useMemo, useState } from "react";
 import { api, downloadFile, saveBlob, unwrap, type Schemas } from "../api/client";
 import { useJob } from "../api/jobs";
 import { useExportPreview, useMergeStable, useMeta } from "../api/queries";
-import { Md } from "../lib/markdown";
-import { IconDownload, IconFolder, IconList } from "./icons";
+import { IconDownload, IconList, IconPlay } from "./icons";
 import { JobStatus } from "./states";
 import { Alert, Card, Field, Section, Tabs } from "./ui";
 
 type MapRow = Schemas["MapRow"];
 type Client = "lazer" | "stable";
 
-/** Get a list of pool maps into osu!: lazer import folder, stable collection + .osz, or a map list. */
+/** Get a list of pool maps into osu!: maps straight into lazer, stable collection + .osz, or a map list. */
 export function ExportPanel({ maps, name, preferred, title, sub }: {
   maps: MapRow[];
   name: string;
@@ -57,7 +56,7 @@ export function ExportPanel({ maps, name, preferred, title, sub }: {
       />
       {downloadError && <Alert tone="bad">{downloadError}</Alert>}
       {tab === "lazer" ? (
-        <LazerTab body={body} preview={preview.data} onZip={() => download("/api/exports/lazer-zip", "playlist.zip")} />
+        <LazerTab body={body} preview={preview.data} />
       ) : (
         <StableTab
           body={body}
@@ -71,118 +70,74 @@ export function ExportPanel({ maps, name, preferred, title, sub }: {
   );
 }
 
-function LazerTab({ body, preview, onZip }: {
+function LazerTab({ body, preview }: {
   body: Schemas["ExportRequest"];
   preview?: Schemas["ExportPreview"];
-  onZip: () => void;
 }) {
   const meta = useMeta();
-  const pack = useJob("lazer_pack");
-  const auto = preview?.lazer_auto ?? false;
-  // what Delete the folder did, for the job it belongs to (a new run starts without it)
-  const [removal, setRemoval] = useState<{ job: string; text: string; ok: boolean } | null>(null);
-  const jobId = pack.job?.id ?? "";
-  const removed = removal && removal.job === jobId ? removal : null;
-  const removeFolder = () => {
-    unwrap(api.POST("/api/exports/lazer-pack/delete", { body: { name: body.name } }))
-      .then((r) => setRemoval({ job: jobId, ok: true, text: r.removed ? r.path : `${r.path} (already gone)` }))
-      .catch((e: Error) => setRemoval({ job: jobId, ok: false, text: e.message }));
-  };
+  const send = useJob("lazer_send");
+  const found = meta.data?.lazer_found ?? false;
   const count = preview
     ? (preview.lazer_approximate
-      ? `Up to ${preview.lazer_sets} of ${preview.total_sets} beatmap sets will be downloaded`
-      : `${preview.lazer_sets} of ${preview.total_sets} beatmap sets will be downloaded`) +
-      (auto ? " and sent to lazer" : "") +
-      (preview.lazer_approximate
-        ? " (maps you already have are skipped)"
-        : preview.lazer_sets < preview.total_sets ? " (you already have the others)" : "")
+      ? `Up to ${preview.lazer_sets} of ${preview.total_sets} beatmap sets will be downloaded (maps you already have are skipped)`
+      : `${preview.lazer_sets} of ${preview.total_sets} beatmap sets will be downloaded` +
+        (preview.lazer_sets < preview.total_sets ? " (you already have the others)" : ""))
     : "…";
   return (
     <div className="split">
-      <Section title={auto ? "Maps straight into lazer, then the collection" : "One folder with the maps and the collection"}>
-        {auto ? (
-          <p className="muted">
-            osu! coach downloads the maps you don't have and hands them to lazer, which imports them and deletes the
-            downloads (lazer opens if it's closed). lazer only takes a collection through its <strong>import from a previous
-            osu! version</strong>, so osu! coach also makes a small folder with the collection, in its own data folder.
-          </p>
-        ) : (
-          <p className="muted">
-            lazer can't open a collection file by itself, but its <strong>import from a previous osu! version</strong> takes maps{" "}
-            <em>and</em> collections from any folder that looks like an osu!stable install. osu! coach makes that folder for you
-            (osu!lazer's program wasn't found, so the maps go into the folder too).
-          </p>
-        )}
-        <p className="small muted">
-          {count} · collection folder: <code>{preview?.lazer_folder ?? "…"}</code>
+      <Section title="The maps, straight into lazer">
+        <p className="muted">
+          osu! coach downloads the maps you don't have and hands them to lazer, which imports them and deletes the
+          downloads (lazer opens if it's closed). Nothing is left in your Downloads.
         </p>
+        <p className="small muted">{count}</p>
         <div className="btn-row">
           <button
             type="button"
             className="btn btn--primary"
-            disabled={pack.running}
-            onClick={() => void pack.run(() => unwrap(api.POST("/api/exports/lazer-pack", { body })))}
+            disabled={!found || send.running}
+            onClick={() => void send.run(() => unwrap(api.POST("/api/exports/lazer-send", { body })))}
           >
-            <IconFolder /> {auto ? "Send to lazer" : "Make lazer import folder"}
-          </button>
-          <button type="button" className="btn" onClick={onZip} title="Just the collection, e.g. for lazer on another computer.">
-            <IconDownload /> Folder without maps (.zip)
+            <IconDownload /> Send the maps to lazer
           </button>
         </div>
+        {meta.data && !found && (
+          <Alert tone="warn">
+            osu!lazer wasn't found on this computer. Use the links in the map list, or the osu!stable tab's .osz download.
+          </Alert>
+        )}
         <JobStatus
-          job={pack.job}
-          error={pack.error}
-          onCancel={pack.cancel}
-          cancelled="Cancelled. Making it again picks up where it stopped."
+          job={send.job}
+          error={send.error}
+          onCancel={send.cancel}
+          cancelled="Cancelled. The maps lazer already took stay in lazer."
           done={(j) =>
-            j.kind === "lazer_pack" && j.result ? (
-              <>
-                <Alert tone={j.result.not_imported?.length || j.result.failed.length ? "warn" : "good"}>
-                  {j.result.sent_to_lazer ? (
-                    <>
-                      {j.result.maps.length === 0
-                        ? "lazer already has every map. "
-                        : `lazer imported ${j.result.imported?.length ?? 0} of ${j.result.maps.length} map set(s). `}
-                      {(j.result.not_imported?.length ?? 0) > 0 &&
-                        `It hadn't taken set(s) ${j.result.not_imported?.join(", ")} yet: check lazer's notifications. `}
-                      Now add the collection from <code>{j.result.path}</code> (steps on the right).
-                    </>
-                  ) : (
-                    <>
-                      Ready: <code>{j.result.path}</code> with {j.result.maps.length} map set(s) and the collection.
-                    </>
-                  )}
-                  {j.result.failed.length > 0 &&
-                    ` Couldn't download set(s) ${j.result.failed.join(", ")}: use the links in the map list.`}
-                  {j.result.not_found > 0 &&
-                    ` ${j.result.not_found} map(s) you don't have weren't found online: they're in the collection, but you need to get them yourself.`}
-                </Alert>
-                <div className="btn-row">
-                  <button type="button" className="btn btn--sm" onClick={removeFolder} disabled={removed?.ok === true}>
-                    Delete the folder
-                  </button>
-                  <span className="small muted">once the collection is in lazer</span>
-                </div>
-                {removed &&
-                  (removed.ok ? (
-                    <Alert tone="good">
-                      Deleted <code>{removed.text}</code>.
-                    </Alert>
-                  ) : (
-                    <Alert tone="bad">{removed.text}</Alert>
-                  ))}
-              </>
+            j.kind === "lazer_send" && j.result ? (
+              <Alert tone={j.result.not_imported?.length || j.result.failed?.length ? "warn" : "good"}>
+                {(j.result.maps?.length ?? 0) === 0
+                  ? "lazer already has every map."
+                  : `lazer imported ${j.result.imported?.length ?? 0} of ${j.result.maps?.length ?? 0} map set(s).`}
+                {(j.result.not_imported?.length ?? 0) > 0 &&
+                  ` It hadn't taken set(s) ${j.result.not_imported?.join(", ")} yet: check lazer's notifications.`}
+                {(j.result.failed?.length ?? 0) > 0 &&
+                  ` Couldn't download set(s) ${j.result.failed?.join(", ")}: use the links in the map list.`}
+                {(j.result.not_found ?? 0) > 0 &&
+                  ` ${j.result.not_found} map(s) you don't have weren't found online: you need to get them yourself.`}
+              </Alert>
             ) : null
           }
         />
       </Section>
-      <Section title={auto ? "Then, for the collection, in lazer" : "Then, in lazer"}>
+      <Section title="Then, in lazer">
         <ol className="list list--steps">
-          {(meta.data?.lazer_instructions ?? []).map((s) => (
-            <li key={s}>
-              <Md>{s}</Md>
-            </li>
-          ))}
+          <li>
+            Press <IconPlay width={12} height={12} /> <strong>in lazer</strong> next to a map in the list: lazer shows that
+            map with its difficulty picked.
+          </li>
+          <li>
+            Press lazer's <strong>Go to beatmap</strong> button (») there: the map opens in song select.
+          </li>
+          <li>Set the mods and speed shown in the list, then play.</li>
         </ol>
       </Section>
     </div>
@@ -244,7 +199,7 @@ function StableTab({ body, preview, setIds, unknownSets, onCollection }: {
         </button>
         {unknownSets > 0 && (
           <p className="small muted">
-            {unknownSets} map(s) have no known beatmap set, so they can't be downloaded here (the lazer folder looks them up).
+            {unknownSets} map(s) have no known beatmap set, so they can't be downloaded here (sending them to lazer looks them up).
             They're still in the collection.
           </p>
         )}

@@ -113,7 +113,7 @@ def test_a_cancelled_job_stops_at_its_next_report_and_frees_the_gate():
             go.wait(5)
         return "all done"
 
-    job = jobs.start("lazer_pack", "Downloading", work, cancellable=True)
+    job = jobs.start("lazer_send", "Downloading", work, cancellable=True)
     assert started.wait(5)
     assert jobs.cancel(job.id) is job and job.message == "Stopping…"
     go.set()

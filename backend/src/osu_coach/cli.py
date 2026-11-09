@@ -3,7 +3,7 @@
 osu-coach ui                         open the app in your browser
 osu-coach locate                     show detected osu! installs
 osu-coach analyze [--folder DIR]     analyse your replays, print stats + tips
-osu-coach playlist SKILL [...]       practice playlist (+ lazer import folder, collection.db, .osz)
+osu-coach playlist SKILL [...]       practice playlist (+ maps into lazer, collection.db, .osz)
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from pathlib import Path
 
 from osu_coach.common import frames
 from osu_coach.common.texts import MISS_LABELS, SKILL_LABELS, message
+from osu_coach.config import default_cache_dir
 from osu_coach.domain.exports.downloads import sets_to_download
 from osu_coach.domain.maps.suggestions import (
     PLAYLIST_SKILLS,
@@ -374,22 +375,28 @@ def cmd_playlist(args) -> int:
             )
     hashes = list(pl["md5"])
     if args.lazer:
-        dest = Path(args.lazer) if isinstance(args.lazer, str) else lazer_import.default_pack_dir(name, args.cache)
+        exe = lazer_import.find_lazer()
+        if exe is None:
+            raise SystemExit("osu!lazer wasn't found on this computer.")
         if lib is not None and lib.has_unread_maps("lazer"):
             lib.find_maps(set(hashes))  # which playlist maps lazer already has
         have = lib.installed["lazer"] if lib is not None else set()
-        sets = [] if args.no_maps else sets_to_download(zip(pl["md5"], pl["beatmapset_id"]), have)
+        sets = sets_to_download(zip(pl["md5"], pl["beatmapset_id"]), have)
         log = _log(args.quiet)
-        res = lazer_import.build_pack(dest, {name: hashes}, sets, progress=lambda i, n, msg: log(msg))
-        print(f"\nlazer import folder: {res['path']}  ({len(res['maps'])} map set(s) + the collection)")
+        folder = Path(args.cache or default_cache_dir()) / lazer_import.MAPS_DIR
+        res = lazer_import.download_and_send(exe, sets, folder, progress=lambda i, n, msg: log(msg))
+        if not sets:
+            print("\nlazer already has every map")
+        else:
+            print(f"\nlazer imported {len(res['imported'])} of the {len(sets)} map set(s) it didn't have")
+        if res["not_imported"]:
+            print(f"  not taken yet: {', '.join(map(str, res['not_imported']))} — see lazer's notifications")
         if res["failed"]:
             print(f"  couldn't download set(s) {', '.join(map(str, res['failed']))} — use the links above")
-        for i, step in enumerate(lazer_import.INSTRUCTIONS, 1):
-            print(f"  {i}. {step.replace('**', '').replace('*', '')}")
     if args.collection:
         p = write_collection_db(args.collection, {name: hashes})
         print(
-            f"\nwrote {p}\n  lazer: use --lazer instead (lazer can't open a collection.db on its own)\n"
+            f"\nwrote {p}\n  lazer can't open a collection.db: --lazer sends it the maps instead\n"
             "  stable: use --merge (with osu! closed) or Collection Manager"
         )
     if args.merge:
@@ -709,15 +716,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--comfort", type=float, help="your comfortable star rating (skips replay analysis)")
     p.add_argument("--stream-bpm", type=float, help="stream speed to train at")
     p.add_argument("--maps", type=int, default=15)
-    p.add_argument(
-        "--lazer",
-        nargs="?",
-        const=True,
-        metavar="DIR",
-        help="make a folder for lazer's 'import from previous version' with the maps and the collection "
-        "(default: <osu! coach's data folder>/lazer-import/<playlist>)",
-    )
-    p.add_argument("--no-maps", action="store_true", help="with --lazer: only the collection, no map downloads")
+    p.add_argument("--lazer", action="store_true", help="send the maps you don't have to osu!lazer (it imports them)")
     p.add_argument("--collection", help="write a collection.db with the playlist")
     p.add_argument("--merge", action="store_true", help="add the playlist to your osu!stable collections")
     p.add_argument("--download", help="download the maps (.osz) into this folder")

@@ -6,6 +6,7 @@ import { breakdownLines } from "../lib/breakdown";
 import { clock, fmt, mapName, NONE } from "../lib/format";
 import { DataTable, type Column } from "./DataTable";
 import { ModsIcons } from "./ModsIcons";
+import { OpenInLazer } from "./OpenInLazer";
 import { EmptyState } from "./states";
 
 type MapRow = Schemas["MapRow"];
@@ -50,7 +51,12 @@ const COLUMNS: Column<MapRow>[] = [
   {
     key: "link",
     header: "Link",
-    cell: (m) => (m.url ? <a href={m.url} target="_blank" rel="noreferrer noopener">open ↗</a> : "–"),
+    cell: (m) => (
+      <span className="map-links">
+        {m.url ? <a href={m.url} target="_blank" rel="noreferrer noopener">open ↗</a> : "–"}
+        <OpenInLazer beatmapId={m.beatmap_id} />
+      </span>
+    ),
     value: () => null,
   },
 ];

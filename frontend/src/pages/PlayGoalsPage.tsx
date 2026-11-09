@@ -8,6 +8,7 @@ import { Combobox } from "../components/Combobox";
 import { DataTable, type Column } from "../components/DataTable";
 import { ExportPanel } from "../components/ExportPanel";
 import { ModPicker } from "../components/ModPicker";
+import { OpenInLazer } from "../components/OpenInLazer";
 import { StageNav } from "../components/StageNav";
 import { EmptyState, ErrorCard, JobStatus, LoadingPage } from "../components/states";
 import { Alert, Badge, Card, Dropzone, Field, Page, Segmented, Switch, Tabs } from "../components/ui";
@@ -230,8 +231,11 @@ function playColumns(farm: boolean, estimates: boolean): Column<Recommendation>[
   return [
     { key: "map", header: "Map", strong: true, wrap: true,
       value: (r) => `${r.map.artist} - ${r.map.title} [${r.map.version}]`,
-      cell: (r) => <a href={`https://osu.ppy.sh/beatmaps/${r.map.beatmap_id}`} target="_blank" rel="noreferrer noopener">
-        {r.map.artist} - {r.map.title} [{r.map.version}]</a> },
+      cell: (r) => <>
+        <a href={`https://osu.ppy.sh/beatmaps/${r.map.beatmap_id}`} target="_blank" rel="noreferrer noopener">
+          {r.map.artist} - {r.map.title} [{r.map.version}]</a>{" "}
+        <OpenInLazer beatmapId={r.map.beatmap_id} />
+      </> },
     { key: "mods", header: "Mods", cell: (r) => <Badge tone="info">+{r.map.mods}</Badge>, value: (r) => r.map.mods },
     { key: "type", header: "Type", cell: (r) => r.map.dynamics ?? "", wrap: true, title: "The map's overall character." },
     { key: "stage", header: "Stage", cell: (r) => r.stage, title: "Starter: no data yet. Core: your level. Stretch: a bit above it." },

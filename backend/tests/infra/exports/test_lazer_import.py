@@ -1,50 +1,15 @@
-"""The one-click lazer import folder (lazer_import)."""
+"""Getting maps into osu!lazer and opening them there (lazer_import)."""
 
-import io
+import os
 import zipfile
 from pathlib import Path
 
+import pytest
+
 from osu_coach.cli import main
 from osu_coach.domain.exports.downloads import sets_to_download
+from osu_coach.infra.beatmaps import sources
 from osu_coach.infra.exports import lazer_import
-from osu_coach.infra.exports.collection_db import loads, read_collection_db
-
-MD5S = ["0" * 32, "1" * 32]
-
-
-def fake_osz(tmp_path: Path, sid: int, evil: bool = False) -> Path:
-    p = tmp_path / f"{sid} Artist - Title.osz"
-    with zipfile.ZipFile(p, "w") as z:
-        z.writestr("Artist - Title (mapper) [Easy].osu", "osu file format v14\n")
-        z.writestr("audio.mp3", b"ID3")
-        z.writestr("sb/bg.png", b"\x89PNG")
-        if evil:
-            z.writestr("../../escaped.txt", "nope")
-    return p
-
-
-def test_pack_looks_like_a_stable_install_with_maps_and_collection(tmp_path):
-    calls = []
-
-    def download(sid, folder):
-        calls.append(sid)
-        folder.mkdir(parents=True, exist_ok=True)
-        return None if sid == 3 else fake_osz(folder, sid, evil=(sid == 2))
-
-    dest = tmp_path / "pack"
-    res = lazer_import.build_pack(dest, {"osu-coach: Aim (2.5★)": MD5S}, [1, 2, 2, 3], download=download)
-    assert res["path"] == dest and res["maps"] == [1, 2] and res["failed"] == [3]
-    assert sorted(calls) == [1, 2, 3]
-    assert (dest / "osu!.user.cfg").read_bytes() == b""  # lazer: "osu!.*.cfg" marks a stable install
-    assert read_collection_db(dest / "collection.db")[1] == [("osu-coach: Aim (2.5★)", MD5S)]
-    assert (dest / "Songs" / "1" / "Artist - Title (mapper) [Easy].osu").exists()
-    assert (dest / "Songs" / "2" / "sb" / "bg.png").exists()
-    assert not (tmp_path / "escaped.txt").exists() and not (dest / "escaped.txt").exists()
-    assert not (dest / "_downloading").exists()  # .osz files are removed after unpacking
-    # a second run keeps the unpacked sets instead of downloading them again
-    calls.clear()
-    res = lazer_import.build_pack(dest, {"x": MD5S}, [1, 2], download=download)
-    assert calls == [] and res["maps"] == [1, 2]
 
 
 def test_folder_names_have_no_dots_or_forbidden_characters():
@@ -52,29 +17,6 @@ def test_folder_names_have_no_dots_or_forbidden_characters():
     assert "." not in name and not set(name) & set('\\/:*?"<>|')
     assert name.startswith("osu-coach Aim (2,5★)")
     assert lazer_import.safe_name(":::") == "osu-coach playlist"
-    assert lazer_import.default_pack_dir("osu-coach: Aim (2.5★)").name == "osu-coach Aim (2,5★)"
-
-
-def test_the_folder_is_in_the_data_folder_not_downloads(tmp_path):
-    dest = lazer_import.default_pack_dir("osu-coach: Aim (2.5★)", tmp_path)
-    assert dest == tmp_path / "lazer-import" / "osu-coach Aim (2,5★)"
-
-
-def test_only_folders_osu_coach_made_are_removed(tmp_path, monkeypatch):
-    base = tmp_path / "lazer-import"
-    old, new, other = base / "old", base / "new", base / "mine"
-    for f in (old, new):
-        lazer_import.build_pack(f, {"x": MD5S})
-    other.mkdir()
-    (other / "keep.txt").write_text("not ours")
-    monkeypatch.setattr(lazer_import.clock, "timestamp", lambda: (old / "osu!.user.cfg").stat().st_mtime + 2 * 86400)
-    assert lazer_import.remove_old_packs(base, keep=new) == [old]
-    assert not old.exists() and new.exists() and other.exists()
-    assert not lazer_import.remove_pack(other) and other.exists()
-    lazer_import.build_pack(base / "osu-coach Aim (2,5★)", {"x": MD5S})
-    assert lazer_import.find_pack("osu-coach: Aim (2.5★)", tmp_path) == base / "osu-coach Aim (2,5★)"
-    assert lazer_import.find_pack("../../mine", tmp_path) is None and lazer_import.find_pack("mine", tmp_path) is None
-    assert lazer_import.remove_pack(new) and not new.exists()
 
 
 def fake_program(folder, lazer=True):
@@ -153,12 +95,57 @@ def test_maps_lazer_doesnt_take_are_reported_after_the_wait(tmp_path):
     assert 4.5 <= now[0] <= 5.5 and seen[-1] == "lazer is importing the maps: 1 of 3"
 
 
-def test_zip_contains_the_folder_without_maps():
-    data = lazer_import.pack_zip({"osu-coach: Speed (3.1★)": MD5S}, "osu-coach: Speed (3.1★)")
-    with zipfile.ZipFile(io.BytesIO(data)) as z:
-        names = set(z.namelist())
-        assert names == {"osu-coach Speed (3,1★)/osu!.user.cfg", "osu-coach Speed (3,1★)/collection.db"}
-        assert loads(z.read("osu-coach Speed (3,1★)/collection.db"))[1] == [("osu-coach: Speed (3.1★)", MD5S)]
+def fake_download(set_id, dest, progress=None, stop=None):
+    """An .osz for every set but 3, which can't be downloaded."""
+    if set_id == 3:
+        return None
+    dest = Path(dest)
+    dest.mkdir(parents=True, exist_ok=True)
+    osz = dest / f"{set_id} Artist - Title.osz"
+    with zipfile.ZipFile(osz, "w") as z:
+        z.writestr("Artist - Title (mapper) [Easy].osu", "osu file format v14\n")
+    return osz
+
+
+@pytest.fixture
+def lazer(monkeypatch, tmp_path):
+    """A lazer that imports each .osz it is handed and deletes it, as the real one does."""
+    handed = []
+
+    def run(exe, args):
+        handed.append((exe, list(args)))
+        for a in args:
+            if str(a).endswith(".osz"):
+                Path(a).unlink()
+
+    monkeypatch.setattr(lazer_import, "launch", run)
+    monkeypatch.setattr(sources, "download_osz", fake_download)
+    return handed
+
+
+def test_downloads_go_to_lazer_and_nothing_stays_behind(tmp_path, lazer):
+    folder = tmp_path / "lazer-maps"
+    folder.mkdir()
+    stale, busy = folder / "old.osz", folder / "busy.osz"
+    for f in (stale, busy):
+        f.write_bytes(b"PK")
+    os.utime(stale, (0, 0))  # left from long ago; ``busy`` lazer may still be taking
+    res = lazer_import.download_and_send(tmp_path / "osu!.exe", [1, 3, 2, 2], folder)
+    assert res == {"maps": [1, 2], "failed": [3], "imported": [1, 2], "not_imported": []}
+    assert [Path(f).name for f in lazer[0][1]] == ["1 Artist - Title.osz", "2 Artist - Title.osz"]
+    assert sorted(p.name for p in folder.iterdir()) == ["busy.osz"]
+
+
+def test_a_map_is_opened_with_its_link(tmp_path, lazer):
+    assert lazer_import.open_map(tmp_path / "osu!.exe", 2768184) == "osu://b/2768184"
+    assert lazer == [(tmp_path / "osu!.exe", ["osu://b/2768184"])]
+
+
+def test_the_link_reaches_lazer_as_it_is(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(lazer_import.subprocess, "Popen", lambda args, **kw: calls.append(args))
+    lazer_import.open_map(tmp_path / "osu!.exe", 5)
+    assert calls == [[str(tmp_path / "osu!.exe"), "osu://b/5"]]  # not turned into a path (osu:\\b\\5)
 
 
 def test_only_sets_with_missing_difficulties_are_downloaded():
@@ -167,27 +154,16 @@ def test_only_sets_with_missing_difficulties_are_downloaded():
     assert sets_to_download(rows, set()) == [10, 11, 12]
 
 
-def test_cli_makes_the_lazer_folder(tmp_path, capsys):
-    dest = tmp_path / "lazer pack"
-    assert (
-        main(
-            [
-                "playlist",
-                "aim",
-                "--comfort",
-                "3.0",
-                "--lazer",
-                str(dest),
-                "--no-maps",
-                "--cache",
-                str(tmp_path / "cache"),
-                "-q",
-            ]
-        )
-        == 0
-    )
-    out = capsys.readouterr().out
-    assert "lazer import folder" in out and "Run setup wizard" in out
-    assert (dest / "osu!.user.cfg").exists()
-    name, hashes = read_collection_db(dest / "collection.db")[1][0]
-    assert name.startswith("osu-coach:") and len(hashes) >= 6
+def test_cli_sends_the_playlist_maps_to_lazer(tmp_path, capsys, monkeypatch, lazer):
+    exe = tmp_path / "osu!.exe"
+    monkeypatch.setattr(lazer_import, "find_lazer", lambda candidates=None: exe)
+    cache = tmp_path / "cache"
+    assert main(["playlist", "aim", "--comfort", "3.0", "--lazer", "--cache", str(cache), "-q"]) == 0
+    assert "lazer imported" in capsys.readouterr().out
+    sent = [Path(f) for _, files in lazer for f in files]
+    assert sent and all(f.parent == cache / "lazer-maps" for f in sent)
+    assert not list((cache / "lazer-maps").glob("*.osz"))
+
+    monkeypatch.setattr(lazer_import, "find_lazer", lambda candidates=None: None)
+    with pytest.raises(SystemExit, match="osu!lazer wasn't found"):
+        main(["playlist", "aim", "--comfort", "3.0", "--lazer", "--cache", str(cache), "-q"])

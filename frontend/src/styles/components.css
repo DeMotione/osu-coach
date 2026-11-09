@@ -2254,6 +2254,13 @@ details.disclosure > .disclosure__body {
 }
 
 /* F(m) terms in a map table cell: "Stars  −0.03" over a muted "5.47★ vs 5.56★" */
+.map-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
 .map-breakdown > summary {
   cursor: pointer;
 }

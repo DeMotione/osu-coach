@@ -9,7 +9,7 @@ from pydantic import Field
 from osu_coach.app.deps import WorkspaceDep
 from osu_coach.common.errors import responses
 from osu_coach.common.jobs import job_view
-from osu_coach.features.exports.schemas import LazerPackJob, OszJob
+from osu_coach.features.exports.schemas import LazerSendJob, OszJob
 from osu_coach.features.library.schemas import AnalysisJob, ScanJob
 from osu_coach.features.maps.schemas import PlaylistJob
 from osu_coach.features.play_goals.schemas import PlayGoalJob
@@ -17,11 +17,11 @@ from osu_coach.features.play_goals.schemas import PlayGoalJob
 router = APIRouter(tags=["Jobs"])
 
 # The one place that knows every kind of job: ``kind`` picks the model (and so the type of ``result``).
-Job = Annotated[ScanJob | AnalysisJob | LazerPackJob | OszJob | PlayGoalJob | PlaylistJob, Field(discriminator="kind")]
+Job = Annotated[ScanJob | AnalysisJob | LazerSendJob | OszJob | PlayGoalJob | PlaylistJob, Field(discriminator="kind")]
 JOB_MODELS = {
     "scan": ScanJob,
     "analysis": AnalysisJob,
-    "lazer_pack": LazerPackJob,
+    "lazer_send": LazerSendJob,
     "osz_download": OszJob,
     "play_goal": PlayGoalJob,
     "playlist": PlaylistJob,
