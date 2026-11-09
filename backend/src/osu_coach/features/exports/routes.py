@@ -87,12 +87,13 @@ def stable_collection(req: ExportRequest, ws: WorkspaceDep) -> StableMergeResult
     "/osz", summary="Download the maps (.osz) into a folder (background job)", status_code=202, responses=responses(422)
 )
 def osz(req: OszRequest, ws: WorkspaceDep) -> OszJob:
+    sets = svc.known_sets(req.set_ids)  # refused before a job starts
     return job_view(
         OszJob,
         ws.jobs.start(
             "osz_download",
             "Downloading maps",
-            lambda report: svc.download_osz(req.folder, req.set_ids, report),
+            lambda report: svc.download_osz(req.folder, sets, report),
             exclusive=False,
             cancellable=True,
         ),

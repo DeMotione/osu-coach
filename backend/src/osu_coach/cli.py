@@ -402,7 +402,7 @@ def cmd_playlist(args) -> int:
         print(f"\nadded to {info['path']} (backup: {info['backup']})")
     if args.download:
         dest = Path(args.download)
-        sets = list(dict.fromkeys(int(s) for s in pl["beatmapset_id"]))
+        sets = list(dict.fromkeys(int(s) for s in pl["beatmapset_id"] if int(s) > 0))
         ok = 0
         for i, sid in enumerate(sets, 1):
             got = sources.download_osz(sid, dest)

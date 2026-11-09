@@ -12,7 +12,10 @@ MD5 = Field(pattern=r"^[0-9a-f]{32}$")
 
 class ExportMap(Request):
     md5: str = MD5
-    beatmapset_id: int = Field(ge=1)
+    beatmapset_id: int = Field(
+        description="The map's beatmap set on the osu! website; 0 (or less) when it isn't known, e.g. a map that "
+        "isn't on the website. Such a map is still put in the collection.",
+    )
 
 
 class ExportRequest(Request):
@@ -25,7 +28,10 @@ class ExportPreview(BaseModel):
     preferred_client: Literal["stable", "lazer"]
     total_sets: int
     lazer_sets: int = Field(description="Map sets the lazer import folder would download.")
-    lazer_approximate: bool = Field(description="Not all of lazer's files were read yet: an upper bound.")
+    lazer_approximate: bool = Field(
+        description="An upper bound: not all of lazer's files were read yet, or some maps' sets are only looked up "
+        "when the folder is made."
+    )
     lazer_folder: str
     stable_available: bool = Field(description="An osu!stable install to add the collection to was found.")
     osz_folder: str = Field(description="Default folder for .osz downloads (stable's Songs folder if found).")
@@ -35,6 +41,11 @@ class LazerPackResult(BaseModel):
     path: str
     maps: list[int]
     failed: list[int]
+    not_found: int = Field(
+        0,
+        description="Maps you don't have whose beatmap set couldn't be found online: they are in the collection but "
+        "not in the folder.",
+    )
 
 
 class StableMergeResult(BaseModel):

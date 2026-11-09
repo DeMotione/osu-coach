@@ -18,10 +18,21 @@ def merge_collections(existing: list[tuple[str, list[str]]], new: list[tuple[str
 
 
 def sets_to_download(playlist_rows, have_md5) -> list[int]:
-    """Beatmap sets of the playlist with at least one difficulty that isn't installed."""
+    """Beatmap sets of the playlist with at least one difficulty that isn't installed (known sets only)."""
     have = set(have_md5 or ())
     out = []
     for md5, sid in playlist_rows:
-        if str(md5) not in have and int(sid) not in out:
+        if str(md5) not in have and int(sid) > 0 and int(sid) not in out:
             out.append(int(sid))
+    return out
+
+
+def unknown_sets(playlist_rows, have_md5) -> list[str]:
+    """Maps of the playlist that aren't installed and whose beatmap set isn't known (0 or less): their set has to be
+    looked up before it can be downloaded."""
+    have = set(have_md5 or ())
+    out = []
+    for md5, sid in playlist_rows:
+        if int(sid) <= 0 and str(md5) not in have and str(md5) not in out:
+            out.append(str(md5))
     return out

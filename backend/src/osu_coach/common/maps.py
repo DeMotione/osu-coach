@@ -45,8 +45,8 @@ def map_rows(maps: Iterable[RankedMap], stage: str | None = None, goal: str | No
         rows.append(
             MapRow(
                 md5=m.md5,
-                beatmap_id=integer(r.get("beatmap_id")) or 0,
-                beatmapset_id=integer(r.get("beatmapset_id")) or 0,
+                beatmap_id=max(0, integer(r.get("beatmap_id")) or 0),
+                beatmapset_id=max(0, integer(r.get("beatmapset_id")) or 0),
                 artist=text(r.get("artist")) or "",
                 title=text(r.get("title")) or "",
                 version=text(r.get("version")) or "",

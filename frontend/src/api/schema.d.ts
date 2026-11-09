@@ -1451,7 +1451,10 @@ export interface components {
         ExportMap: {
             /** Md5 */
             md5: string;
-            /** Beatmapset Id */
+            /**
+             * Beatmapset Id
+             * @description The map's beatmap set on the osu! website; 0 (or less) when it isn't known, e.g. a map that isn't on the website. Such a map is still put in the collection.
+             */
             beatmapset_id: number;
         };
         /** ExportPreview */
@@ -1472,7 +1475,7 @@ export interface components {
             lazer_sets: number;
             /**
              * Lazer Approximate
-             * @description Not all of lazer's files were read yet: an upper bound.
+             * @description An upper bound: not all of lazer's files were read yet, or some maps' sets are only looked up when the folder is made.
              */
             lazer_approximate: boolean;
             /** Lazer Folder */
@@ -1924,6 +1927,12 @@ export interface components {
             maps: number[];
             /** Failed */
             failed: number[];
+            /**
+             * Not Found
+             * @description Maps you don't have whose beatmap set couldn't be found online: they are in the collection but not in the folder.
+             * @default 0
+             */
+            not_found: number;
         };
         /** LevelInfo */
         LevelInfo: {

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from osu_coach.common.errors import ApiError, Invalid, NotFound
-from osu_coach.domain.exports.downloads import sets_to_download
+from osu_coach.domain.exports.downloads import sets_to_download, unknown_sets
 from osu_coach.features.exports.schemas import (
     ExportPreview,
     ExportRequest,
@@ -35,6 +35,27 @@ def _set_rows(req: ExportRequest) -> list[tuple[str, int]]:
     return [(m.md5, m.beatmapset_id) for m in req.maps]
 
 
+def _set_count(req: ExportRequest) -> int:
+    """Beatmap sets in the request: the known ones, and each map without a known set as one."""
+    known = {m.beatmapset_id for m in req.maps if m.beatmapset_id > 0}
+    return len(known) + len({m.md5 for m in req.maps if m.beatmapset_id <= 0})
+
+
+def _look_up_sets(md5s: list[str], report: Reporter) -> tuple[list[int], int]:
+    """The beatmap sets of maps whose set isn't known, from osu.direct; and how many couldn't be found."""
+    found, missing = [], 0
+    for i, md5 in enumerate(md5s):
+        report.note(f"Looking up maps without a known beatmap set ({i + 1} of {len(md5s)})…")
+        meta = sources.lookup_md5(md5)
+        sid = int((meta or {}).get("beatmapset_id") or 0)
+        if sid > 0:
+            if sid not in found:
+                found.append(sid)
+        else:
+            missing += 1
+    return found, missing
+
+
 def _stable_installs(ws: Workspace) -> list[detect.Install]:
     return [i for i in ws.installs() if i.kind == "stable"]
 
@@ -43,6 +64,7 @@ def export_preview(ws: Workspace, req: ExportRequest) -> ExportPreview:
     lib = ws.library
     have = lib.installed["lazer"] if lib is not None else set()
     sets = sets_to_download(_set_rows(req), have)
+    unknown = unknown_sets(_set_rows(req), have)
     stable = _stable_installs(ws)
     osz = (
         stable[0].songs
@@ -52,9 +74,9 @@ def export_preview(ws: Workspace, req: ExportRequest) -> ExportPreview:
     return ExportPreview(
         collection=req.name,
         preferred_client=ws.preferred_client(),
-        total_sets=len({m.beatmapset_id for m in req.maps}),
-        lazer_sets=len(sets),
-        lazer_approximate=bool(lib is not None and lib.has_unread_maps("lazer")),
+        total_sets=_set_count(req),
+        lazer_sets=len(sets) + len(unknown),
+        lazer_approximate=bool(unknown) or bool(lib is not None and lib.has_unread_maps("lazer")),
         lazer_folder=str(lazer_import.default_pack_dir(req.name)),
         stable_available=bool(stable),
         osz_folder=str(osz),
@@ -78,11 +100,16 @@ def build_lazer_pack(ws: Workspace, req: ExportRequest, report: Reporter) -> Laz
         # reads every file of the install a limited scan skipped when a map isn't there: the reports along the way
         # show that it is still going, and let a cancel stop it
         lib.find_maps(set(hashes), lambda msg: report.note(f"Checking which of these maps you already have ({msg})…"))
-    sets = sets_to_download(rows, lib.installed["lazer"] if lib is not None else set())
+    have = lib.installed["lazer"] if lib is not None else set()
+    sets = sets_to_download(rows, have)
+    looked_up, not_found = _look_up_sets(unknown_sets(rows, have), report)
+    sets += [s for s in looked_up if s not in sets]
     res = lazer_import.build_pack(lazer_import.default_pack_dir(req.name), {req.name: hashes}, sets, progress=report)
     if ws.config.reveal_folders:
         lazer_import.reveal(res["path"])
-    return LazerPackResult(path=str(res["path"]), maps=list(res["maps"]), failed=list(res["failed"]))
+    return LazerPackResult(
+        path=str(res["path"]), maps=list(res["maps"]), failed=list(res["failed"]), not_found=not_found
+    )
 
 
 def merge_stable(ws: Workspace, req: ExportRequest) -> StableMergeResult:
@@ -95,13 +122,21 @@ def merge_stable(ws: Workspace, req: ExportRequest) -> StableMergeResult:
     return StableMergeResult(path=str(res["path"]), backup=str(res["backup"]) if res.get("backup") else None)
 
 
+def known_sets(set_ids: list[int]) -> list[int]:
+    """The beatmap sets that can be downloaded: known ones (above 0), each once."""
+    sets = list(dict.fromkeys(int(s) for s in set_ids if int(s) > 0))
+    if not sets:
+        raise Invalid("None of these maps has a known beatmap set to download.", "no_sets")
+    return sets
+
+
 def download_osz(folder: str, set_ids: list[int], report: Reporter) -> OszResult:
+    sets = known_sets(set_ids)
     dest = Path(folder).expanduser()
     try:
         dest.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise Invalid(f"Can't use {folder}: {exc}", "bad_folder") from exc
-    sets = list(dict.fromkeys(int(s) for s in set_ids))
     ok, failed = 0, []
     with closing(sources.download_many(sets, dest, report)) as done:
         for sid, path in done:

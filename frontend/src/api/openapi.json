@@ -4325,8 +4325,8 @@
           },
           "beatmapset_id": {
             "type": "integer",
-            "minimum": 1.0,
-            "title": "Beatmapset Id"
+            "title": "Beatmapset Id",
+            "description": "The map's beatmap set on the osu! website; 0 (or less) when it isn't known, e.g. a map that isn't on the website. Such a map is still put in the collection."
           }
         },
         "additionalProperties": false,
@@ -4363,7 +4363,7 @@
           "lazer_approximate": {
             "type": "boolean",
             "title": "Lazer Approximate",
-            "description": "Not all of lazer's files were read yet: an upper bound."
+            "description": "An upper bound: not all of lazer's files were read yet, or some maps' sets are only looked up when the folder is made."
           },
           "lazer_folder": {
             "type": "string",
@@ -5688,6 +5688,12 @@
             },
             "type": "array",
             "title": "Failed"
+          },
+          "not_found": {
+            "type": "integer",
+            "title": "Not Found",
+            "description": "Maps you don't have whose beatmap set couldn't be found online: they are in the collection but not in the folder.",
+            "default": 0
           }
         },
         "type": "object",
