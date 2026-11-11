@@ -71,9 +71,36 @@ describe("the playlist kept while away (#107)", () => {
       playlist: pl("stamina", ["a", "b"]) as unknown as Schemas["Playlist"],
       maps: "stamina:abc:12",
       rounds: { Comfort: { at: 1, latest: 2 } },
+      done: ["b"],
     };
     savePlaylist(saved, storage);
-    expect(loadPlaylist(storage)).toEqual(saved);
+    // later in the same session (another tab and back), the checked maps stay
+    const session = memory();
+    session.setItem("osu-coach:skill-playlist-session", "1");
+    expect(loadPlaylist(storage, session)).toEqual(saved);
+  });
+
+  it("drops the maps checked as completed when osu! coach is started again, and keeps the rest where it was", () => {
+    const storage = memory();
+    const playlist = pl("stamina", ["a", "b", "c"]) as unknown as Schemas["Playlist"];
+    const saved = { ...NO_PLAYLIST, options: { skill: "stamina" }, playlist, maps: playlistKey(playlist), rounds: { Comfort: { at: 1, latest: 1 } }, done: ["b"] };
+    savePlaylist(saved, storage);
+    const session = memory();
+    const restarted = loadPlaylist(storage, session);
+    expect(restarted.playlist?.stages[0].maps.map((m) => m.md5)).toEqual(["a", "c"]);
+    expect(restarted.maps).toBe(playlistKey(restarted.playlist));
+    expect(restarted.rounds).toEqual({ Comfort: { at: 1, latest: 1 } });
+    expect(restarted.done).toEqual([]);
+    // the rest of that session (another tab and back): nothing more leaves
+    savePlaylist({ ...restarted, done: ["c"] }, storage);
+    expect(loadPlaylist(storage, session).playlist?.stages[0].maps.map((m) => m.md5)).toEqual(["a", "c"]);
+  });
+
+  it("keeps completed maps after a restart when played maps were asked for", () => {
+    const storage = memory();
+    const playlist = pl("stamina", ["a", "b"]) as unknown as Schemas["Playlist"];
+    savePlaylist({ ...NO_PLAYLIST, options: { skill: "stamina", exclude_played: false }, playlist, done: ["b"] }, storage);
+    expect(loadPlaylist(storage, memory()).playlist?.stages[0].maps).toHaveLength(2);
   });
 
   it("starts with the default playlist when nothing or something garbled is kept", () => {

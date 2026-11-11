@@ -43,6 +43,7 @@ vi.mock("../components/ExportPanel", () => ({ ExportPanel: () => null }));
 
 beforeEach(() => {
   sessionStorage.clear();
+  localStorage.clear();
   server.plays = 0;
   server.done = [];
 });
@@ -136,4 +137,29 @@ it("marks a map finished since the playlist was made; making it again leaves it 
   expect(table()).not.toHaveTextContent("Completed");
   expect(screen.queryByText(/You completed/)).toBeNull();
   expect(screen.getByRole("table", { name: "Completed maps" })).toHaveTextContent("Stamina map 7");
+});
+
+it("keeps the playlist when osu! coach is started again, without the maps checked as completed", () => {
+  const page = render(<MemoryRouter initialEntries={["/skills?tab=playlist"]}><SkillsPage /></MemoryRouter>);
+  fireEvent.change(screen.getByRole("combobox", { name: /Target skill/ }), { target: { value: "stamina" } });
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  fireEvent.click(screen.getByRole("button", { name: /Other maps/ }));
+  const [map] = playlist("stamina").stages[0].maps.slice(6, 7);
+  server.plays = 1;
+  server.done = [{ ...map, played_at: "2026-11-11T10:00:00Z" }];
+  page.unmount();
+
+  // another page and back in the same session: map 7 stays, checked
+  const again = render(<MemoryRouter initialEntries={["/skills?tab=playlist"]}><SkillsPage /></MemoryRouter>);
+  const table = () => screen.getByRole("table", { name: "Maps" });
+  expect(within(table()).getByText("Artist – Stamina map 7 [Hard]").closest("tr")).toHaveTextContent("Completed");
+  again.unmount();
+
+  sessionStorage.clear(); // osu! coach closed and started again
+  render(<MemoryRouter initialEntries={["/skills?tab=playlist"]}><SkillsPage /></MemoryRouter>);
+  expect(collection()).toBe("osu-coach: Stamina (6.3★)");
+  expect(screen.getByText(/showing 6–10 of 11/)).toBeInTheDocument();
+  expect(table()).not.toHaveTextContent("Stamina map 7 ");
+  expect(table()).toHaveTextContent("Stamina map 8 ");
+  expect(table()).not.toHaveTextContent("Completed");
 });
