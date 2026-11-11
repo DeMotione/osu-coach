@@ -1,11 +1,20 @@
 """Exact configuration search mechanics and deterministic ranking."""
 
+import gzip
+import json
 from types import SimpleNamespace
 
 import pytest
 
 from osu_coach.domain.maps.configuration import SearchOptions
-from osu_coach.domain.maps.skillset import _features, _finalize_modified_goals, _Stage, recommend_modified
+from osu_coach.domain.maps.skillset import (
+    Screened,
+    _features,
+    _finalize_modified_goals,
+    _Stage,
+    in_star_window,
+    recommend_modified,
+)
 from osu_coach.domain.player.algorithm import timing_evidence_eligible
 from osu_coach.domain.replays.configuration import Configuration, from_meta
 from osu_coach.features.maps.variant_repository import variant_rows
@@ -206,6 +215,34 @@ def test_modified_search_keeps_best_configuration_per_map_before_limit():
     assert comfort.maps[0].configuration_id == "dt@1.33"  # better score than 1.32, tie beats HD
 
 
+def test_screened_configurations_count_like_their_rows():
+    # the configurations no goal can rank arrive as one count a map, and are accounted for as their rows were
+    base = [_row(f"{i:032x}", 4.0) for i in range(20)]
+    other, played = "f" * 32, "d" * 32
+    inside = [
+        {**_row(other, 4.0), "configuration_id": "a", "mods": "DT", "rate": 1.2},
+        {**_row(played, 4.1), "configuration_id": "p", "mods": "DT", "rate": 1.2},
+    ]
+    outside = [
+        {**_row(other, 8.0), "configuration_id": "b", "mods": "DT", "rate": 1.9},
+        {**_row(other, 9.0), "configuration_id": "c", "mods": "DT", "rate": 2.0},
+        {**_row(other, None), "configuration_id": "d", "mods": "HR", "rate": 1.0},
+        {**_row(played, 7.0), "configuration_id": "q", "mods": "DT", "rate": 1.8},
+        {**_row(played, None), "configuration_id": "r", "mods": "HR", "rate": 1.0},
+    ]
+    counted = [Screened(other, outside=2, no_stars=1), Screened(played, outside=1, no_stars=1)]
+    rest = (4.0, {"aim": 50}, "aim", ("aim",), 0.5, 0.3, frozenset({played}), {})
+    listed = recommend_modified(base, inside + outside, *rest)
+    assert recommend_modified(base, inside + counted, *rest) == listed
+    assert listed.candidate_count == 7
+    assert [m.configuration_id for m in listed.goals["Comfort"].maps] == ["a"]
+    assert listed.goals["Comfort"].excluded == {
+        "Already played": 3,
+        "Outside star window": 2,
+        "Modified stars unavailable": 1,
+    }
+
+
 @pytest.mark.parametrize(
     ("rates", "expected"),
     [
@@ -354,3 +391,52 @@ def test_variant_cache_counts_failed_configurations_even_when_map_partly_availab
     assert counts == [1]
     assert len(list(variant_rows(tmp_path, raw, configs, on_unavailable=counts.append))) == 1
     assert counts == [1, 1]
+
+
+@pytest.mark.skipif(not difficulty.available(), reason="rosu-pp-py not installed")
+def test_star_first_search_makes_rows_only_inside_the_goals_star_windows(res, tmp_path, monkeypatch):
+    from osu_coach.features.maps import variant_repository as repository
+
+    raw = res("maps/e0d805c891bf0e18ecb543435c6625f7.osu").read_bytes()
+    md5 = "e0d805c891bf0e18ecb543435c6625f7"
+    options = SearchOptions(allow_hd=True, adjustable_dt=True, min_rate=1.10, max_rate=1.30)
+    configs = options.configurations(md5, "lazer")
+    full = list(variant_rows(tmp_path / "full", raw, configs))
+    assert len(full) == len(configs) == 44
+
+    def wanted(targets):
+        return [row for row in full if any(in_star_window(row["stars"], target) for target in targets)]
+
+    finished = []
+    finish = repository.finish_stats
+    monkeypatch.setattr(repository, "finish_stats", lambda *a, **k: finished.append(a[3]) or finish(*a, **k))
+    targets = (7.0, 7.5)
+    # a file of an earlier version has every row: they are only chosen from
+    old = list(variant_rows(tmp_path / "full", raw, configs, targets=targets))
+    assert old[:-1] == wanted(targets) and not finished
+
+    counts = []
+    first = list(variant_rows(tmp_path / "new", raw, configs, on_unavailable=counts.append, targets=targets))
+    assert first == old and 0 < len(first) - 1 < len(full)
+    assert first[-1] == Screened(md5, outside=len(full) - len(first) + 1)
+    assert len(finished) == len(first) - 1 and counts == [0]
+    path = next((tmp_path / "new" / "recommendations" / "variants").glob("*.json.gz"))
+
+    def stored():
+        with gzip.open(path, "rt", encoding="utf-8") as fh:
+            return json.load(fh)
+
+    kept = stored()
+    assert kept.pop("stars") == {row["configuration_id"]: row["stars"] for row in full if row not in first}
+    assert set(kept) == {row["configuration_id"] for row in first[:-1]}
+
+    # other goals: the known stars choose the rows still to make
+    finished.clear()
+    moved = (7.2, 8.0)
+    second = list(variant_rows(tmp_path / "new", raw, configs, targets=moved))
+    assert second[:-1] == wanted(moved)
+    assert len(finished) == sum(row not in first for row in wanted(moved)) > 0
+    assert list(variant_rows(tmp_path / "new", raw, configs, targets=moved)) == second
+    # and a search without goals has every row, as it always had
+    assert list(variant_rows(tmp_path / "new", raw, configs)) == full
+    assert "stars" not in stored()

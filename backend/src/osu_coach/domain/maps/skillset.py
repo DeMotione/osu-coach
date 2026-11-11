@@ -10,7 +10,7 @@ import math
 import re
 import statistics
 from bisect import bisect_left
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -60,47 +60,72 @@ def _speed_bpm(row: dict) -> float | None:
     return bpm if bpm > 0 else None
 
 
-def _features(row: dict) -> dict[str, float]:
-    """The Lab's coarse pool feature composites, in Coach skill names."""
-    radius = max(1.0, 54.4 - 4.48 * _get(row, "cs", 4))
-    bpm = max(_get(row, "stream_bpm"), _get(row, "burst_bpm"))
-    speed_bpm = _speed_bpm(row)
-    odd = _get(row, "odd_rhythm_share")
-    density = _get(row, "density_p90")
-    ar = _get(row, "ar", 9)
-    values = {
-        "aim": _get(row, "jump_velocity") * 1000 / (2 * radius) * (1 + 0.3 * _get(row, "sharp_share")),
-        "flow_aim": (
-            _get(row, "flow_velocity") * 1000 / (2 * radius)
+def _radius(row: dict) -> float:
+    return max(1.0, 54.4 - 4.48 * _get(row, "cs", 4))
+
+
+def _bpm(row: dict) -> float:
+    return max(_get(row, "stream_bpm"), _get(row, "burst_bpm"))
+
+
+def _aim(row: dict) -> float:
+    return _get(row, "jump_velocity") * 1000 / (2 * _radius(row)) * (1 + 0.3 * _get(row, "sharp_share"))
+
+
+def _flow_aim(row: dict) -> float:
+    return (
+        (
+            _get(row, "flow_velocity") * 1000 / (2 * _radius(row))
             if finite_or_none(row.get("flow_velocity")) is not None
-            else _get(row, "aim") * bpm / 180
+            else _get(row, "aim") * _bpm(row) / 180
         )
         * math.sqrt(max(0, _get(row, "spaced_stream_share")))
-        * (1 + 0.3 * _get(row, "flow_turn_share")),
-        "speed": speed_bpm or 0.0,
-        "stamina": bpm
+        * (1 + 0.3 * _get(row, "flow_turn_share"))
+    )
+
+
+def _stamina(row: dict) -> float:
+    return (
+        _bpm(row)
         * math.log1p(max(0, _get(row, "stream_notes")))
         / math.log(401)
         * math.sqrt(max(0, _get(row, "max_run")) / 32)
         * (max(0, _get(row, "drain_length")) / 120) ** 0.15
         * (max(0.1, _get(row, "run_duration_p90", 10)) / 10) ** 0.25
-        * (1 + 0.15 / (1 + max(0, _get(row, "run_rest_median", 2)))),
-        "accuracy": 20
+        * (1 + 0.15 / (1 + max(0, _get(row, "run_rest_median", 2))))
+    )
+
+
+def _accuracy(row: dict) -> float:
+    return (
+        20
         * (
             0.7 / max(1, _get(row, "hit300_ms", 80 - 6 * _get(row, "od", 8)))
             + 0.4 / max(1, _get(row, "hit100_ms", 140 - 8 * _get(row, "od", 8)))
             + 0.3 / max(1, _get(row, "hit50_ms", 200 - 10 * _get(row, "od", 8)))
         )
-        * (1 + 2 * odd)
-        * (1 + 0.03 * density),
-        "sliders": _get(row, "slider_velocity")
+        * (1 + 2 * _get(row, "odd_rhythm_share"))
+        * (1 + 0.03 * _get(row, "density_p90"))
+    )
+
+
+def _sliders(row: dict) -> float:
+    return (
+        _get(row, "slider_velocity")
         * 1000
-        / (2 * radius)
+        / (2 * _radius(row))
         * (1 + _get(row, "reverse_share"))
         * (1 + 10 * max(0, 1 - _get(row, "slider_factor", 1)))
         * (1 + 0.02 * _get(row, "slider_length_norm") + 0.03 * _get(row, "slider_turn"))
-        * (1 + 0.1 / max(0.1, _get(row, "slider_transition", 1000) / 1000)),
-        "reading": density * (1 + odd)
+        * (1 + 0.1 / max(0.1, _get(row, "slider_transition", 1000) / 1000))
+    )
+
+
+def _reading(row: dict) -> float:
+    density = _get(row, "density_p90")
+    ar = _get(row, "ar", 9)
+    return (
+        density * (1 + _get(row, "odd_rhythm_share"))
         + alg.READ_LOW_WEIGHT * max(0, alg.READ_LOW_AR - ar) ** 2
         + alg.READ_FAST_WEIGHT * max(0, ar - alg.READ_FAST_AR) ** 2
         + (1 if "HD" in str(row.get("mods") or "") else 0)
@@ -109,26 +134,39 @@ def _features(row: dict) -> dict[str, float]:
             + alg.READ_HD_LOW_WEIGHT * max(0, alg.READ_LOW_AR - ar) ** 2
             + alg.READ_HD_HIGH_WEIGHT * max(0, ar - alg.READ_HD_UPPER_AR) ** 2
         )
-        * (1 + alg.READ_HD_DENSITY_WEIGHT * density),
-        "consistency": math.sqrt(max(0, _get(row, "drain_length")) / 120)
-        * (0.5 + 0.5 * max(0, min(1, _get(row, "evenness", 1)))),
-    }
-    required = {
-        "aim": ("cs", "jump_velocity", "sharp_share"),
-        "flow_aim": ("aim", "spaced_stream_share"),
-        "stamina": ("stream_notes", "max_run", "drain_length"),
-        "accuracy": ("od", "odd_rhythm_share", "density_p90"),
-        "sliders": ("cs", "slider_velocity", "reverse_share", "slider_factor"),
-        "reading": ("density_p90", "odd_rhythm_share", "ar"),
-        "consistency": ("drain_length", "evenness"),
-    }
+        * (1 + alg.READ_HD_DENSITY_WEIGHT * density)
+    )
+
+
+def _consistency(row: dict) -> float:
+    return math.sqrt(max(0, _get(row, "drain_length")) / 120) * (0.5 + 0.5 * max(0, min(1, _get(row, "evenness", 1))))
+
+
+# A skill's composite and the pool values it cannot do without.
+_COMPOSITES: dict[str, tuple[Callable[[dict], float], tuple[str, ...]]] = {
+    "aim": (_aim, ("cs", "jump_velocity", "sharp_share")),
+    "flow_aim": (_flow_aim, ("aim", "spaced_stream_share")),
+    "speed": (lambda row: _speed_bpm(row) or 0.0, ()),
+    "stamina": (_stamina, ("stream_notes", "max_run", "drain_length")),
+    "accuracy": (_accuracy, ("od", "odd_rhythm_share", "density_p90")),
+    "sliders": (_sliders, ("cs", "slider_velocity", "reverse_share", "slider_factor")),
+    "reading": (_reading, ("density_p90", "odd_rhythm_share", "ar")),
+    "consistency": (_consistency, ("drain_length", "evenness")),
+}
+
+
+def _features(row: dict, skills: Collection[str] | None = None) -> dict[str, float]:
+    """The Lab's coarse pool feature composites, in Coach skill names (all of them, or only ``skills``)."""
     result = {}
-    for skill, value in values.items():
+    for skill, (composite, required) in _COMPOSITES.items():
+        if skills is not None and skill not in skills:
+            continue
         needs_bpm = skill in ("flow_aim", "stamina")
         if needs_bpm and finite_or_none(row.get("stream_bpm")) is None and finite_or_none(row.get("burst_bpm")) is None:
             continue
-        if any(finite_or_none(row.get(key)) is None for key in required.get(skill, ())):
+        if any(finite_or_none(row.get(key)) is None for key in required):
             continue
+        value = composite(row)
         if math.isfinite(value) and value > 0:
             result[skill] = value
     return result
@@ -157,6 +195,17 @@ def _check(
 def _adjusted_stars(theta: float, kappa: float, abilities: Mapping[str, float], skill: str) -> float | None:
     """The comfort level moved by how far the skill's rating is from typical (None: the skill has no rating)."""
     return theta + kappa * (abilities[skill] - 50) / 50 if skill in abilities else None
+
+
+def star_targets(theta: float, kappa: float, abilities: Mapping[str, float], skill: str) -> tuple[float, ...]:
+    """The target stars of the goals, in their order (none: the skill has no rating)."""
+    adjusted = _adjusted_stars(theta, kappa, abilities, skill)
+    return tuple(adjusted + star_offset for star_offset, _, _ in GOALS.values()) if adjusted is not None else ()
+
+
+def in_star_window(stars: float, target: float) -> bool:
+    """Whether a map of ``stars`` is near enough to a goal's target stars to be ranked for it."""
+    return abs(stars - target) <= STAR_WINDOW + 1e-12
 
 
 def _demand(skill: str, value: float, stars: float, theta: float, reference: float | None) -> float:
@@ -488,7 +537,7 @@ def recommend(
                 reason = "Assessed player rating unknown"
             elif low_accuracy and (finite_or_none(row.get("od")) is None or row["od"] < od_min):
                 reason = f"Timing OD below {od_min:g}"
-            elif target is None or abs(stars - target) > STAR_WINDOW + 1e-12:
+            elif target is None or not in_star_window(stars, target):
                 reason = "Outside star window"
             elif skill not in demands or skill not in relevance:
                 reason = "Target demand or relevance unknown"
@@ -571,6 +620,17 @@ class _Stage:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class Screened:
+    """Configurations of one map that no goal can rank, counted instead of listed: their exact stars are outside
+    every goal's window (:func:`star_targets`, :func:`in_star_window`) or unknown. Whoever makes the variants can
+    leave these out before working out their statistics; only their numbers matter to the result."""
+
+    md5: str
+    outside: int = 0
+    no_stars: int = 0
+
+
 def recommend_modified(
     base_pool: Sequence[Mapping[str, Any]],
     variants,
@@ -588,6 +648,8 @@ def recommend_modified(
 
     `limit` bounds the serialized job result; the best candidate still comes from
     the complete set of available configurations, never from a coarse shortlist.
+    ``variants`` holds a row per configuration, or a :class:`Screened` for those of
+    a map that are outside every goal's star window by their exact stars.
     """
     _check(theta, abilities, skill, assessed, kappa, min_relevance)
     # The mechanical-feature term is a residual relative to typical maps at the
@@ -637,44 +699,70 @@ def recommend_modified(
             stage.excluded[reason] = 1
         goals = {goal: stage.result() for goal, stage in stages.items()}
         return Recommendation(skill_adjusted_stars=adjusted, goals=goals, candidate_count=0, result_limit=limit)
-    count = 0
-    best: dict[str, dict[str, RankedMap]] = {goal: {} for goal in stages}
-    for row in variants:
-        count += 1
-        md5 = str(row.get("md5") or "")
-        config_id = str(row.get("configuration_id") or "")
-        stars = finite_or_none(row.get("stars"))
-        feature = _features(row)
+
+    def project(row: Mapping[str, Any], stars: float) -> tuple[dict[str, float], dict[str, DemandProjection]]:
+        """What the configuration demands of the assessed skills (worked out only for one a goal can rank)."""
+        feature = _features(row, assessed)
         demands = {}
         projections = {}
         for key in assessed:
             value = feature.get(key)
-            ref = reference(key, stars) if key != "speed" and stars is not None else None
-            if value is None or (key != "speed" and (ref is None or ref <= 0)) or stars is None:
+            ref = reference(key, stars) if key != "speed" else None
+            if value is None or (key != "speed" and (ref is None or ref <= 0)):
                 continue
             demands[key] = _demand(key, value, stars, theta, ref)
             projections[key] = DemandProjection(
                 raw_feature=value, reference_median=ref, star_points=20, feature_points=FEATURE_POINTS.get(key)
             )
+        return demands, projections
+
+    count = 0
+    best: dict[str, dict[str, RankedMap]] = {goal: {} for goal in stages}
+    target_bpms = {
+        goal: speed_bpm_for_rating(stage.target_demand, theta) if skill == "speed" else None
+        for goal, stage in stages.items()
+    }
+    for row in variants:
+        if isinstance(row, Screened):
+            count += row.outside + row.no_stars
+            reasons = (
+                (("Already played", row.outside + row.no_stars),)
+                if row.md5 in played
+                else (("Modified stars unavailable", row.no_stars), ("Outside star window", row.outside))
+            )
+            for stage in stages.values():
+                for reason, number in reasons:
+                    if number:
+                        stage.excluded[reason] = stage.excluded.get(reason, 0) + number
+            continue
+        count += 1
+        md5 = str(row.get("md5") or "")
+        config_id = str(row.get("configuration_id") or "")
+        stars = finite_or_none(row.get("stars"))
+        projected = None
         for goal, stage in stages.items():
             target = stage.target_stars
-            target_bpm = speed_bpm_for_rating(stage.target_demand, theta) if skill == "speed" else None
-            relevance = finite_or_none(row.get("s_" + skill))
             reason = None
             if md5 in played:
                 reason = "Already played"
             elif stars is None or stars <= 0:
                 reason = "Modified stars unavailable"
-            elif abs(stars - target) > STAR_WINDOW + 1e-12:
+            elif not in_star_window(stars, target):
                 reason = "Outside star window"
-            elif relevance is None or not 0 <= relevance <= 1 or skill not in demands:
-                reason = "Target demand or relevance unknown"
-            elif relevance < min_relevance:
-                reason = "Insufficient target relevance"
-            elif any(k not in demands for k in assessed):
-                reason = "Assessed map demand unknown"
-            elif target_bpm is not None and (_speed_bpm(row) or 0) < SPEED_MIN_TEMPO_RATIO * target_bpm:
-                reason = "Tapping tempo too far below target"
+            else:
+                if projected is None:
+                    projected = project(row, stars)
+                demands, projections = projected
+                target_bpm = target_bpms[goal]
+                relevance = finite_or_none(row.get("s_" + skill))
+                if relevance is None or not 0 <= relevance <= 1 or skill not in demands:
+                    reason = "Target demand or relevance unknown"
+                elif relevance < min_relevance:
+                    reason = "Insufficient target relevance"
+                elif any(k not in demands for k in assessed):
+                    reason = "Assessed map demand unknown"
+                elif target_bpm is not None and (_speed_bpm(row) or 0) < SPEED_MIN_TEMPO_RATIO * target_bpm:
+                    reason = "Tapping tempo too far below target"
             if reason:
                 stage.excluded[reason] = stage.excluded.get(reason, 0) + 1
                 continue

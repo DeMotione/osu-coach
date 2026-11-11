@@ -2,7 +2,7 @@
 
 import pytest
 
-from osu_coach.domain.maps.skillset import recommend
+from osu_coach.domain.maps.skillset import _features, recommend, recommend_modified, star_targets
 from osu_coach.infra.map_pool import POOL_PATH, load_pool
 
 pytestmark = pytest.mark.skipif(not POOL_PATH.exists(), reason="bundled pool not built")
@@ -52,3 +52,18 @@ def test_sparse_timing_stage_does_not_widen_star_window():
     assert warmup.maps == ()
     assert warmup.star_max - warmup.star_min == pytest.approx(0.4)
     assert warmup.excluded["Outside star window"] > 0
+
+
+def test_composites_of_chosen_skills_are_those_of_all():
+    for row in load_pool().to_dict("records")[::25]:
+        everything = _features(row)
+        for skills in (("aim",), ("speed", "reading"), ("flow_aim", "stamina", "accuracy", "sliders", "consistency")):
+            assert _features(row, skills) == {k: v for k, v in everything.items() if k in skills}
+
+
+def test_star_targets_are_the_goals_target_stars():
+    # a search leaves out configurations by these, so they must be the ranking's own numbers
+    abilities = {"accuracy": 71.0}
+    ranked = recommend_modified([], [], 4.39, abilities, "accuracy", ("accuracy",), 0.7, 0.3, frozenset(), {})
+    assert star_targets(4.39, 0.7, abilities, "accuracy") == tuple(s.target_stars for s in ranked.goals.values())
+    assert star_targets(4.39, 0.7, {}, "accuracy") == ()

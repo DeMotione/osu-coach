@@ -18,7 +18,7 @@ from osu_coach.common.errors import ApiError, Invalid
 from osu_coach.common.maps import map_rows
 from osu_coach.common.texts import explain
 from osu_coach.domain.maps.configuration import SearchOptions
-from osu_coach.domain.maps.skillset import recommend, recommend_modified
+from osu_coach.domain.maps.skillset import recommend, recommend_modified, star_targets
 from osu_coach.domain.maps.suggestions import (
     SKILLS,
     Targets,
@@ -318,31 +318,38 @@ def with_pool_ids(row: dict, record) -> dict:
     return {**row, **ids} if ids else row
 
 
-def _search_map_results(cache_dir, records, libraries, options, client, report, workers=None):
+def _calculate_map(cache_dir, raw, options, md5, client, *screen):
+    """One map's configurations, made where they are calculated: hundreds a map, slow to send to a worker."""
+    return calculate_variants(cache_dir, raw, options.configurations(md5, client), *screen)
+
+
+def _search_map_results(cache_dir, records, libraries, options, client, report, workers=None, targets=None):
     """Yield map results in pool order while calculating different maps in parallel.
 
     Retrieval stays on this thread: the download helper shares an HTTP session. At
     most one process owns a map's fixed cache temp path at a time. A cancelled job
     waits for active map calculations to finish before its exclusive gate opens.
+    ``targets`` (the goals' target stars): rows only for the configurations a goal
+    can rank, the rest of a map's counted (see ``variant_rows``).
     """
     total = len(records)
-    workers = workers if workers is not None else max(1, min(4, (os.cpu_count() or 2) - 1))
+    screen = () if targets is None else (targets,)
+    workers = workers if workers is not None else max(1, min(8, (os.cpu_count() or 2) - 1))
+    n_configs = len(options.configurations("", client))  # the same for every map
 
     def prepare(index):
         row = records[index]
-        raw = verified_bytes(cache_dir, row, libraries)
-        configs = options.configurations(str(row["md5"]), client) if raw is not None else ()
-        return index, str(row["md5"]), raw, configs
+        return index, str(row["md5"]), verified_bytes(cache_dir, row, libraries)
 
     def calculate(item):
-        index, _, raw, configs = item
+        index, md5, raw = item
         if raw is None:
             return index, False, [], 0, 0
         try:
-            rows, unavailable = calculate_variants(cache_dir, raw, configs)
+            rows, unavailable = _calculate_map(cache_dir, raw, options, md5, client, *screen)
         except (OSError, ValueError):
-            rows, unavailable = [], len(configs)
-        return index, True, rows, unavailable, len(configs)
+            rows, unavailable = [], n_configs
+        return index, True, rows, unavailable, n_configs
 
     if workers == 1:
         for index in range(total):
@@ -377,7 +384,7 @@ def _search_map_results(cache_dir, records, libraries, options, client, report, 
                 future = None
                 if item[2] is not None:
                     try:
-                        future = pool.submit(calculate_variants, cache_dir, item[2], item[3])
+                        future = pool.submit(_calculate_map, cache_dir, item[2], options, md5, client, *screen)
                     except (OSError, RuntimeError, cf.process.BrokenProcessPool):
                         broken = True
                 pending.append((item, future))
@@ -400,8 +407,8 @@ def _search_map_results(cache_dir, records, libraries, options, client, report, 
                     broken = True
                     break
                 except (OSError, ValueError):
-                    rows, unavailable = [], len(item[3])
-                result = item[0], True, rows, unavailable, len(item[3])
+                    rows, unavailable = [], n_configs
+                result = item[0], True, rows, unavailable, n_configs
             pending.popleft()
             active_md5.discard(item[1])
             completed += 1
@@ -452,11 +459,12 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
     calculator_unavailable = 0
     unavailable_configurations = 0
     records = pool.to_dict("records")
+    targets = star_targets(theta, req.kappa, abilities, target)
 
     def rows():
         nonlocal unavailable, coverage, calculator_unavailable, unavailable_configurations
         for index, found, calculated, failed_configs, _ in _search_map_results(
-            ws.cache_dir, records, libraries, options, client, report
+            ws.cache_dir, records, libraries, options, client, report, targets=targets
         ):
             if not found:
                 unavailable += 1
@@ -465,10 +473,10 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
             unavailable_configurations += failed_configs
             if not calculated:
                 calculator_unavailable += 1
-            yield from (with_pool_ids(row, records[index]) for row in calculated)
+            yield from (with_pool_ids(row, records[index]) if isinstance(row, dict) else row for row in calculated)
 
     ranked = recommend_modified(
-        pool.to_dict("records"),
+        records,
         rows(),
         theta,
         abilities,
