@@ -223,19 +223,25 @@ function PlaylistTab() {
   // which group of five each stage shows; a new playlist starts again with the best ones
   const key = playlistKey(pl);
   const { rounds, move, by } = useRounds(key, { of: saved.maps, by: saved.rounds });
-  useEffect(() => {
-    // while a new playlist loads (no key yet), the groups of the one left stay kept
-    savePlaylist({
-      options, controls, job: modified ? jobId : null, playlist: waiting ? null : kept, maps: key ?? saved.maps, rounds: key ? by : saved.rounds,
-    });
-  }, [options, controls, modified, jobId, waiting, kept, key, by, saved]);
   // plays analysed since it was made would change it: say so, Show maps makes it again
   const newer = !waiting && !modified && !!fresh && playlistKey(fresh) !== key;
   // maps finished since it was made keep their place with a check; making it again leaves them out (unless played
   // maps are asked for) and they are listed under Completed maps
   const completed = useCompletedMaps();
   const done = useMemo(() => new Set((completed.data ?? []).map((m) => m.md5)), [completed.data]);
-  const finished = new Set((pl?.stages ?? []).flatMap((st) => st.maps.map((m) => m.md5)).filter((md5) => done.has(md5))).size;
+  const checked = useMemo(
+    () => [...new Set((pl?.stages ?? []).flatMap((st) => st.maps.map((m) => m.md5)).filter((md5) => done.has(md5)))],
+    [pl, done],
+  );
+  const finished = checked.length;
+  useEffect(() => {
+    // while a new playlist loads (no key yet), the groups of the one left stay kept; the checked maps leave it when
+    // osu! coach is started again
+    savePlaylist({
+      options, controls, job: modified ? jobId : null, playlist: waiting ? null : kept, maps: key ?? saved.maps, rounds: key ? by : saved.rounds,
+      done: waiting ? [] : checked,
+    });
+  }, [options, controls, modified, jobId, waiting, kept, key, by, saved, checked]);
   const leavesOut = options.exclude_played !== false;
   const shown = useMemo(
     () => new Map((pl?.stages ?? []).map((st) => [st.stage, stageMaps(st.maps, rounds(st.stage).at)])),
@@ -258,8 +264,8 @@ function PlaylistTab() {
       {pl && <>
       {finished > 0 && leavesOut ? (
         <Alert tone="info">
-          You completed {finished} {finished === 1 ? "map" : "maps"} of this playlist (✓). Press Show maps to make it again without
-          {finished === 1 ? " it" : " them"}; completed maps are listed under Completed maps.
+          You completed {finished} {finished === 1 ? "map" : "maps"} of this playlist (✓). {finished === 1 ? "It leaves" : "They leave"} the
+          playlist when osu! coach is started again or Show maps makes a new one; completed maps are listed under Completed maps.
         </Alert>
       ) : newer && <Alert tone="info">This playlist was made before your latest plays were analysed. Press Show maps to make it again with them.</Alert>}
       <Card>

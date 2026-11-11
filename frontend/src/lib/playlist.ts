@@ -63,8 +63,9 @@ export interface PlaylistControls {
 
 /** The Playlist for a skill tab as it was left, so another tab or page and back shows the same playlist (#107): the
  * selection applied, the figures its controls started from, the search behind a playlist with mods, the playlist
- * itself (its maps stay until Show maps asks for new ones) and the group of five each stage shows for the playlist
- * ``maps`` names. Kept for the app window's session. */
+ * itself (its maps stay until Show maps asks for new ones), the group of five each stage shows for the playlist
+ * ``maps`` names, and ``done``: its maps checked as completed. Kept also when osu! coach is started again; the
+ * checked maps leave the playlist then. */
 export interface SavedPlaylist {
   options: RecommendationOptions;
   controls: PlaylistControls | null;
@@ -72,10 +73,15 @@ export interface SavedPlaylist {
   playlist: Schemas["Playlist"] | null;
   maps: string | null;
   rounds: Record<string, Rounds>;
+  done: string[];
 }
 
 const SAVED = "osu-coach:skill-playlist";
-export const NO_PLAYLIST: SavedPlaylist = { options: {}, controls: null, job: null, playlist: null, maps: null, rounds: {} };
+/** Set in the session storage once this session has taken the checked maps out of the saved playlist. */
+const SESSION = "osu-coach:skill-playlist-session";
+export const NO_PLAYLIST: SavedPlaylist = {
+  options: {}, controls: null, job: null, playlist: null, maps: null, rounds: {}, done: [],
+};
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isRounds = (v: unknown): v is Rounds => isRecord(v) && Number.isInteger(v.at) && Number.isInteger(v.latest);
@@ -103,7 +109,26 @@ function keep(name: string, value: unknown, smaller: unknown, storage: Pick<Stor
   }
 }
 
-export function loadPlaylist(storage: Pick<Storage, "getItem"> = sessionStorage): SavedPlaylist {
+type Session = Pick<Storage, "getItem" | "setItem">;
+
+/** The playlist as it was left. In a new session (osu! coach started again) the maps checked as completed leave it
+ * (unless played maps were asked for), and the rest stays where it was. */
+export function loadPlaylist(storage: Pick<Storage, "getItem"> = localStorage, session: Session = sessionStorage): SavedPlaylist {
+  const saved = readPlaylist(storage);
+  let started: boolean;
+  try {
+    started = session.getItem(SESSION) !== null;
+    session.setItem(SESSION, "1");
+  } catch {
+    started = true; // no session storage: keep the checks rather than lose maps on every visit
+  }
+  if (started || !saved.done.length || !saved.playlist || saved.options.exclude_played === false) return saved;
+  const done = new Set(saved.done);
+  const playlist = { ...saved.playlist, stages: saved.playlist.stages.map((st) => ({ ...st, maps: st.maps.filter((m) => !done.has(m.md5)) })) };
+  return { ...saved, playlist, maps: playlistKey(playlist), done: [] };
+}
+
+function readPlaylist(storage: Pick<Storage, "getItem">): SavedPlaylist {
   const v = load(SAVED, storage);
   if (!isRecord(v) || !isRecord(v.options)) return NO_PLAYLIST;
   const c = v.controls;
@@ -119,10 +144,11 @@ export function loadPlaylist(storage: Pick<Storage, "getItem"> = sessionStorage)
     playlist,
     maps: typeof v.maps === "string" ? v.maps : null,
     rounds: roundsOf(v.rounds),
+    done: Array.isArray(v.done) ? v.done.filter((d): d is string => typeof d === "string") : [],
   };
 }
 
-export function savePlaylist(saved: SavedPlaylist, storage: Pick<Storage, "setItem"> = sessionStorage) {
+export function savePlaylist(saved: SavedPlaylist, storage: Pick<Storage, "setItem"> = localStorage) {
   // without its maps, the selection still comes back and the playlist is made again from it
   keep(SAVED, saved, { ...saved, playlist: null }, storage);
 }
