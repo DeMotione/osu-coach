@@ -34,7 +34,8 @@ export function invalidateResults(qc: QueryClient): Promise<void> {
 }
 
 export function invalidateLibrary(qc: QueryClient): Promise<void> {
-  return Promise.all([keys.library, keys.selection, keys.check].map((queryKey) => qc.invalidateQueries({ queryKey }))).then(
+  // a scan finds replays of finished maps too: the completed maps follow it
+  return Promise.all([keys.library, keys.selection, keys.check, completedKey].map((queryKey) => qc.invalidateQueries({ queryKey }))).then(
     () => undefined,
   );
 }
@@ -289,6 +290,11 @@ export function useHideMaps() {
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.maps }),
   });
 }
+
+const completedKey = [...keys.playlists, "completed"] as const;
+/** The pool maps the player has finished, last finished first: playlists leave them out. */
+export const useCompletedMaps = () =>
+  useQuery({ queryKey: completedKey, queryFn: () => unwrap(api.GET("/api/maps/completed")), staleTime: 60_000 });
 
 export const usePlaylist = (params: { skill?: string; assessed?: string; ratings?: string; comfort?: number; kappa?: number; min_relevance?: number; exclude_played?: boolean }, enabled = true) =>
   useQuery({

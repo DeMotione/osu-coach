@@ -3,11 +3,12 @@ import { useSearchParams } from "react-router";
 
 import { api, unwrap, type Schemas } from "../api/client";
 import { useJob } from "../api/jobs";
-import { useAddPlan, useGoals, usePlaylist, useRemoveGoal } from "../api/queries";
+import { useAddPlan, useCompletedMaps, useGoals, usePlaylist, useRemoveGoal } from "../api/queries";
 import { Chart } from "../charts/Chart";
 import type { ChartTheme } from "../charts/palette";
 import { goalsChart } from "../charts/progress";
 import { AddGoal } from "../components/AddGoalDialog";
+import { CompletedMaps } from "../components/CompletedMaps";
 import { ExportPanel } from "../components/ExportPanel";
 import { IconTrash } from "../components/icons";
 import { MapTable } from "../components/MapTable";
@@ -230,6 +231,12 @@ function PlaylistTab() {
   }, [options, controls, modified, jobId, waiting, kept, key, by, saved]);
   // plays analysed since it was made would change it: say so, Show maps makes it again
   const newer = !waiting && !modified && !!fresh && playlistKey(fresh) !== key;
+  // maps finished since it was made keep their place with a check; making it again leaves them out (unless played
+  // maps are asked for) and they are listed under Completed maps
+  const completed = useCompletedMaps();
+  const done = useMemo(() => new Set((completed.data ?? []).map((m) => m.md5)), [completed.data]);
+  const finished = new Set((pl?.stages ?? []).flatMap((st) => st.maps.map((m) => m.md5)).filter((md5) => done.has(md5))).size;
+  const leavesOut = options.exclude_played !== false;
   const shown = useMemo(
     () => new Map((pl?.stages ?? []).map((st) => [st.stage, stageMaps(st.maps, rounds(st.stage).at)])),
     [pl, rounds],
@@ -249,7 +256,12 @@ function PlaylistTab() {
         {pl ? <p className="small muted">Searched {pl.coverage_maps ?? 0} maps with verified data; {pl.unavailable_maps ?? 0} missing files; {pl.calculator_unavailable_maps ?? 0} without any supported calculation; {pl.unavailable_configurations ?? 0} individual configurations could not be calculated. Showing up to {pl.result_limit ?? 0} distinct maps per stage.</p>
           : <Alert tone="info">Searching exact map configurations. Available maps and exclusions will be shown when the search finishes.</Alert>}</>}
       {pl && <>
-      {newer && <Alert tone="info">This playlist was made before your latest plays were analysed. Press Show maps to make it again with them.</Alert>}
+      {finished > 0 && leavesOut ? (
+        <Alert tone="info">
+          You completed {finished} {finished === 1 ? "map" : "maps"} of this playlist (✓). Press Show maps to make it again without
+          {finished === 1 ? " it" : " them"}; completed maps are listed under Completed maps.
+        </Alert>
+      ) : newer && <Alert tone="info">This playlist was made before your latest plays were analysed. Press Show maps to make it again with them.</Alert>}
       <Card>
         {!pl.has_profile && <Alert tone="info">No replays analysed yet — enter comfort stars and player ratings to get a personal playlist.</Alert>}
         <p className="muted">
@@ -278,7 +290,7 @@ function PlaylistTab() {
               }
             >
               {fitNotice && <Alert tone="warn">{fitNotice}</Alert>}
-              <MapTable key={`${st.stage}:${st.eligible}:${maps[0]?.configuration_id ?? maps[0]?.md5 ?? ""}:${pl.skill_adjusted_stars}`} maps={maps} />
+              <MapTable key={`${st.stage}:${st.eligible}:${maps[0]?.configuration_id ?? maps[0]?.md5 ?? ""}:${pl.skill_adjusted_stars}`} maps={maps} done={done} />
               {!st.eligible && <p className="small muted">{Object.entries(st.excluded ?? {}).map(([reason, count]) => `${reason}: ${count}`).join(" · ")}</p>}
             </Card>
           );
@@ -286,6 +298,7 @@ function PlaylistTab() {
       ) : (
         <Alert tone="warn">No maps found for this skill at your level.</Alert>
       )}
+      {!!completed.data?.length && <CompletedMaps maps={completed.data} />}
       {all.length > 0 && (
         <ExportPanel
           maps={all}

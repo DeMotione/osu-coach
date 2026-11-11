@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { beforeEach, expect, it, vi } from "vitest";
 
@@ -9,7 +9,7 @@ import SkillsPage from "./SkillsPage";
 const NAMES: Record<string, string> = { flow_aim: "Spaced streams", stamina: "Stamina" };
 
 /** The server's answers change when a new play is analysed. */
-const server = vi.hoisted(() => ({ plays: 0 }));
+const server = vi.hoisted(() => ({ plays: 0, done: [] as Schemas["CompletedMap"][] }));
 
 /** A playlist per skill: one stage of 12 maps, so it has a second group of five. */
 function playlist(skill: string): Schemas["Playlist"] {
@@ -32,6 +32,7 @@ vi.mock("../api/queries", () => ({
   useAddPlan: () => ({ mutate: vi.fn() }),
   useRemoveGoal: () => ({ mutate: vi.fn() }),
   useMeta: () => ({ data: null }),
+  useCompletedMaps: () => ({ data: server.done }),
 }));
 
 vi.mock("../api/jobs", () => ({
@@ -43,6 +44,7 @@ vi.mock("../components/ExportPanel", () => ({ ExportPanel: () => null }));
 beforeEach(() => {
   sessionStorage.clear();
   server.plays = 0;
+  server.done = [];
 });
 
 const collection = () => screen.getByText(/^osu-coach: /).textContent;
@@ -107,4 +109,31 @@ it("keeps the maps of a playlist made until Show maps is pressed again, and says
   expect(table()).toHaveTextContent("Stamina map 1 after 1 plays");
   expect(screen.getByText(/showing 1–5 of 12/)).toBeInTheDocument();
   expect(screen.queryByText(/made before your latest plays were analysed/)).toBeNull();
+});
+
+it("marks a map finished since the playlist was made; making it again leaves it out, under Completed maps", () => {
+  render(<MemoryRouter initialEntries={["/skills?tab=playlist"]}><SkillsPage /></MemoryRouter>);
+  fireEvent.change(screen.getByRole("combobox", { name: /Target skill/ }), { target: { value: "stamina" } });
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  fireEvent.click(screen.getByRole("button", { name: /Other maps/ }));
+  expect(screen.queryByText("Completed")).toBeNull();
+
+  // map 7 of the five on screen is finished and analysed
+  const [map] = playlist("stamina").stages[0].maps.slice(6, 7);
+  server.plays = 1;
+  server.done = [{ ...map, played_at: "2026-11-11T10:00:00Z" }];
+  fireEvent.click(screen.getByRole("tab", { name: "Training plan & goals" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Playlist for a skill" }));
+  const table = () => screen.getByRole("table", { name: "Maps" });
+  expect(screen.getByText(/showing 6–10 of 12/)).toBeInTheDocument();
+  const row = within(table()).getByText("Artist – Stamina map 7 [Hard]").closest("tr")!;
+  expect(row).toHaveTextContent("Completed");
+  expect(table().querySelectorAll(".map-done")).toHaveLength(1);
+  expect(screen.getByText(/You completed 1 map of this playlist/)).toBeInTheDocument();
+  expect(screen.getByRole("table", { name: "Completed maps" })).toHaveTextContent("Stamina map 7");
+
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  expect(table()).not.toHaveTextContent("Completed");
+  expect(screen.queryByText(/You completed/)).toBeNull();
+  expect(screen.getByRole("table", { name: "Completed maps" })).toHaveTextContent("Stamina map 7");
 });

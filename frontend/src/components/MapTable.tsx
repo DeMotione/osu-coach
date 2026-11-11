@@ -5,7 +5,7 @@ import { useMeta } from "../api/queries";
 import { breakdownLines } from "../lib/breakdown";
 import { clock, fmt, mapName, NONE } from "../lib/format";
 import { DataTable, type Column } from "./DataTable";
-import { IconExternal } from "./icons";
+import { IconCheck, IconExternal } from "./icons";
 import { ModsIcons } from "./ModsIcons";
 import { OpenInLazer } from "./OpenInLazer";
 import { EmptyState } from "./states";
@@ -65,6 +65,19 @@ const COLUMNS: Column<MapRow>[] = [
     value: () => null,
   },
 ];
+
+/** A map's name, with a check once it is finished. */
+function MapDone({ map, done }: { map: MapRow; done: boolean }) {
+  if (!done) return mapName(map);
+  return (
+    <span className="map-done">
+      <span className="badge badge--good" title="You finished this map: making the playlist again leaves it out">
+        <IconCheck width={12} height={12} /> Completed
+      </span>
+      {mapName(map)}
+    </span>
+  );
+}
 
 /** For narrow cards: the map columns that matter most, with F(m) and its calculation. */
 const COMPACT = COLUMNS.filter((c) => ["map", "mods", "stars", "bpm", "length", "demand", "score", "link"].includes(c.key));
@@ -133,16 +146,21 @@ function MapPagination({ page, pages, total, onPageChange }: {
 
 /** Maps with the same columns everywhere (``compact``: fewer, for half-width cards); ``onHide`` adds a button to
  * never suggest a map again. */
-export function MapTable({ maps, maxHeight, onHide, compact = false }: {
+export function MapTable({ maps, maxHeight, onHide, done, compact = false }: {
   maps: MapRow[];
   maxHeight?: number;
   onHide?: (m: MapRow) => void;
+  /** Maps finished since the list was made: marked with a check instead of leaving it. */
+  done?: ReadonlySet<string>;
   compact?: boolean;
 }) {
   const [page, setPage] = useState(1);
   const pages = Math.max(1, Math.ceil(maps.length / 5));
   const shownPage = Math.min(page, pages);
-  const base = compact ? COMPACT : COLUMNS;
+  const plain = compact ? COMPACT : COLUMNS;
+  const base = done?.size
+    ? plain.map((c) => (c.key === "map" ? { ...c, cell: (m: MapRow) => <MapDone map={m} done={done.has(m.md5)} /> } : c))
+    : plain;
   const columns: Column<MapRow>[] = onHide
     ? [
         ...base,

@@ -596,6 +596,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/maps/completed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The pool maps you have finished
+         * @description From your analysed and scanned replays, last finished first. Playlists and suggestions leave these out, so a
+         *     map isn't played twice.
+         */
+        get: operations["completed_api_maps_completed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/maps/hidden": {
         parameters: {
             query?: never;
@@ -1400,6 +1421,36 @@ export interface components {
              * @description Chance to pass a typical map of this star rating cleanly (completed, at most 2 misses per 100 notes, as for the comfort level), 0–1.
              */
             pass_chance: number | null;
+        };
+        /**
+         * CompletedMap
+         * @description A map of the practice pool the player has finished: playlists leave it out, so it isn't played twice.
+         */
+        CompletedMap: {
+            /** Md5 */
+            md5: string;
+            /** Beatmap Id */
+            beatmap_id: number;
+            /** Beatmapset Id */
+            beatmapset_id: number;
+            /** Artist */
+            artist: string;
+            /** Title */
+            title: string;
+            /** Version */
+            version: string;
+            /**
+             * Stars
+             * @description Star rating without mods.
+             */
+            stars: number | null;
+            /** Url */
+            url: string;
+            /**
+             * Played At
+             * @description When it was last finished, ISO 8601 UTC (null: unknown).
+             */
+            played_at: string | null;
         };
         /**
          * Count
@@ -4995,6 +5046,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Required local data is unavailable or incompatible; `code` identifies it. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    completed_api_maps_completed_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompletedMap"][];
                 };
             };
             /** @description Required local data is unavailable or incompatible; `code` identifies it. */
