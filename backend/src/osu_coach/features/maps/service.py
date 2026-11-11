@@ -13,17 +13,25 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from osu_coach.common.convert import integer, num
+from osu_coach.common.convert import integer, iso, num, text
 from osu_coach.common.errors import ApiError, Invalid
 from osu_coach.common.maps import map_rows
 from osu_coach.common.texts import explain
 from osu_coach.domain.maps.configuration import SearchOptions
 from osu_coach.domain.maps.skillset import recommend, recommend_modified
-from osu_coach.domain.maps.suggestions import SKILLS, Targets, collection_name, skill_label, targets_from_profile
+from osu_coach.domain.maps.suggestions import (
+    SKILLS,
+    Targets,
+    collection_name,
+    map_url,
+    skill_label,
+    targets_from_profile,
+)
 from osu_coach.domain.player import Profile
 from osu_coach.domain.player.engines import make_engine
 from osu_coach.domain.replays.configuration import from_meta
 from osu_coach.features.maps.schemas import (
+    CompletedMap,
     Playlist,
     PlaylistSearchRequest,
     PlaylistSkill,
@@ -37,18 +45,56 @@ if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
 
 
-def _played(ws: Workspace, t: Targets) -> frozenset[str]:
-    """Maps the player already finished: those of the analysed replays plus those of every osu!standard replay of the
-    player the scan found (osu! saves a replay only for a finished play), so a map completed outside the analysed set
-    (only the latest N analysed, or picked files) isn't suggested again (#47)."""
+def _scanned(ws: Workspace) -> list[dict]:
+    """The player's osu!standard replays the scan found (osu! saves a replay only for a finished play)."""
     player = ws.settings().player
     replays = ws.library.replays if ws.library is not None else []
-    scanned = {
-        str(r["beatmap_md5"])
+    return [
+        r
         for r in replays
         if r.get("mode") == 0 and r.get("beatmap_md5") and (not player or player == "*" or r.get("player") == player)
-    }
-    return t.played | frozenset(scanned)
+    ]
+
+
+def _played(ws: Workspace, t: Targets) -> frozenset[str]:
+    """Maps the player already finished: those of the analysed replays plus those of every osu!standard replay of the
+    player the scan found, so a map completed outside the analysed set (only the latest N analysed, or picked files)
+    isn't suggested again (#47)."""
+    return t.played | frozenset(str(r["beatmap_md5"]) for r in _scanned(ws))
+
+
+def completed(ws: Workspace) -> list[CompletedMap]:
+    """The pool maps the player has finished (what playlists leave out as already played), last finished first."""
+    pool = _pool(ws)
+    p = ws.profile()
+    last: dict[str, str | None] = {}
+
+    def seen(md5: str, when) -> None:
+        at = iso(when)
+        if md5 not in last or (at or "") > (last[md5] or ""):
+            last[md5] = at
+
+    for m in p.replays if p else ():
+        if m.beatmap_md5:
+            seen(str(m.beatmap_md5), m.date)
+    for r in _scanned(ws):
+        seen(str(r["beatmap_md5"]), r.get("timestamp"))
+    rows = pool[pool["md5"].isin(last.keys())].to_dict("records")
+    maps = [
+        CompletedMap(
+            md5=str(r["md5"]),
+            beatmap_id=max(0, integer(r.get("beatmap_id")) or 0),
+            beatmapset_id=max(0, integer(r.get("beatmapset_id")) or 0),
+            artist=text(r.get("artist")) or "",
+            title=text(r.get("title")) or "",
+            version=text(r.get("version")) or "",
+            stars=num(r.get("stars")),
+            url=map_url(r),
+            played_at=last[str(r["md5"])],
+        )
+        for r in rows
+    ]
+    return sorted(maps, key=lambda m: (m.played_at or "", m.md5), reverse=True)
 
 
 def _pool(ws: Workspace) -> pd.DataFrame:

@@ -1856,6 +1856,42 @@
         }
       }
     },
+    "/api/maps/completed": {
+      "get": {
+        "tags": [
+          "Maps"
+        ],
+        "summary": "The pool maps you have finished",
+        "description": "From your analysed and scanned replays, last finished first. Playlists and suggestions leave these out, so a\nmap isn't played twice.",
+        "operationId": "completed_api_maps_completed_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompletedMap"
+                  },
+                  "type": "array",
+                  "title": "Response Completed Api Maps Completed Get"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required local data is unavailable or incompatible; `code` identifies it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/maps/hidden": {
       "post": {
         "tags": [
@@ -4222,6 +4258,76 @@
           "pass_chance"
         ],
         "title": "CompareTarget"
+      },
+      "CompletedMap": {
+        "properties": {
+          "md5": {
+            "type": "string",
+            "title": "Md5"
+          },
+          "beatmap_id": {
+            "type": "integer",
+            "title": "Beatmap Id"
+          },
+          "beatmapset_id": {
+            "type": "integer",
+            "title": "Beatmapset Id"
+          },
+          "artist": {
+            "type": "string",
+            "title": "Artist"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars",
+            "description": "Star rating without mods."
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "played_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Played At",
+            "description": "When it was last finished, ISO 8601 UTC (null: unknown)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "md5",
+          "beatmap_id",
+          "beatmapset_id",
+          "artist",
+          "title",
+          "version",
+          "stars",
+          "url",
+          "played_at"
+        ],
+        "title": "CompletedMap",
+        "description": "A map of the practice pool the player has finished: playlists leave it out, so it isn't played twice."
       },
       "Count": {
         "properties": {

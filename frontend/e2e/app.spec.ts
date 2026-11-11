@@ -308,7 +308,7 @@ test.describe("after the setup", () => {
     await expect(dialog).toBeHidden();
   });
 
-  test("playlist stages show five maps each; Other maps shows the next five, Back and Forward go between them", async ({ page }) => {
+  test("playlist stages show five maps each; Other maps and Forward show the next five, Back goes to the ones before", async ({ page }) => {
     for (const path of ["/skills?tab=playlist", "/maps"]) {
       await page.goto(path);
       const tables = page.locator(".map-table");
@@ -322,20 +322,21 @@ test.describe("after the setup", () => {
         const forward = stage.getByRole("button", { name: "Forward" });
         const before = await firstMap();
         await expect(stage.getByText(/showing 1–5 of \d+/)).toBeVisible();
-        await expect(back).toHaveCount(0);
-        await expect(forward).toHaveCount(0);
-        await stage.getByRole("button", { name: "Other maps" }).click();
+        // both arrows stay in place: Back is off at the first group, Forward at the newest one brings a new group
+        await expect(back).toBeDisabled();
+        await forward.click();
         await expect(stage.getByText(/showing 6–\d+ of \d+/)).toBeVisible();
-        expect(await firstMap()).not.toBe(before);
-        // the newest group: Back and Other maps, no Forward
-        await expect(forward).toHaveCount(0);
+        const second = await firstMap();
+        expect(second).not.toBe(before);
         await back.click();
         await expect(stage.getByText(/showing 1–5 of \d+/)).toBeVisible();
         expect(await firstMap(), path).toBe(before);
-        await expect(back).toHaveCount(0);
+        await expect(back).toBeDisabled();
         await forward.click();
         await expect(stage.getByText(/showing 6–\d+ of \d+/)).toBeVisible();
-        await expect(forward).toHaveCount(0);
+        expect(await firstMap(), path).toBe(second);
+        await stage.getByRole("button", { name: "Other maps" }).click();
+        await expect(stage.getByText(/showing 11–\d+ of \d+|showing 1–5 of \d+/)).toBeVisible();
       }
       expect(await layoutProblems(page), path).toEqual([]);
     }

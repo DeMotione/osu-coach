@@ -926,6 +926,41 @@ input[type="range"] {
   white-space: nowrap;
 }
 
+/* Completed maps: a table, and on narrow cards a card per map (name, then difficulty · finished · link) */
+.completed-maps { container-type: inline-size; min-width: 0; }
+
+@container (max-width: 520px) {
+  .completed-maps .table,
+  .completed-maps .table tbody { display: block; width: 100%; }
+  .completed-maps .table thead { display: none; }
+  .completed-maps .table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+    grid-template-areas: "map map map" "stars played link";
+    border-bottom: 1px solid var(--border);
+  }
+  .completed-maps .table td { display: block; min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; border: 0; }
+  .completed-maps .table td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--t-xs); margin-bottom: 3px; }
+  .completed-maps .table td:nth-child(1) { grid-area: map; }
+  .completed-maps .table td:nth-child(1)::before { display: none; }
+  .completed-maps .table td:nth-child(2) { grid-area: stars; }
+  .completed-maps .table td:nth-child(3) { grid-area: played; }
+  .completed-maps .table td:nth-child(4) { grid-area: link; align-self: end; }
+  .completed-maps .table td:nth-child(4)::before { display: none; }
+}
+
+/* a finished map in a playlist: its name under a "Completed" check */
+.map-done {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.map-done .badge svg {
+  margin-right: 4px;
+}
+
 .badge--bad {
   background: var(--bad-soft);
   color: var(--bad);

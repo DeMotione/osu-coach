@@ -117,3 +117,15 @@ def test_modified_playlist_starts_cancellable_job_and_validates_rate_range(clien
     invalid = client.post("/api/playlists/search", json={**body, "min_rate": 1.8})
     assert invalid.status_code == 422
     assert invalid.json()["code"] == "invalid_recommendation_settings"
+
+
+def test_completed_maps(analysed):
+    """The sample plays include pool maps: they are listed as finished, and playlists leave them out."""
+    maps = analysed.get("/api/maps/completed").json()
+    assert maps
+    assert all(m["played_at"] for m in maps) and [m["played_at"] for m in maps] == sorted(
+        (m["played_at"] for m in maps), reverse=True
+    )
+    done = {m["md5"] for m in maps}
+    playlist = analysed.get("/api/playlists").json()
+    assert done.isdisjoint(m["md5"] for st in playlist["stages"] for m in st["maps"])

@@ -108,3 +108,17 @@ class PlaylistSearchRequest(Request):
 class PlaylistJob(JobBase):
     kind: Literal["playlist"]
     result: Playlist | None
+
+
+class CompletedMap(BaseModel):
+    """A map of the practice pool the player has finished: playlists leave it out, so it isn't played twice."""
+
+    md5: str
+    beatmap_id: int
+    beatmapset_id: int
+    artist: str
+    title: str
+    version: str
+    stars: float | None = Field(description="Star rating without mods.")
+    url: str
+    played_at: str | None = Field(description="When it was last finished, ISO 8601 UTC (null: unknown).")
