@@ -21,12 +21,21 @@ def map_stats(
 
 
 def finish_stats(
-    s: dict, osu_bytes: bytes, mods: int, rate: float | None, lazer: bool = False, parsed_map=None
+    s: dict,
+    osu_bytes: bytes,
+    mods: int,
+    rate: float | None,
+    lazer: bool = False,
+    parsed_map=None,
+    attributes: dict | None = None,
 ) -> dict:
-    """Calculate exact rosu difficulty and skill values for one configuration."""
+    """Calculate exact rosu difficulty and skill values for one configuration (``attributes``: its
+    :func:`difficulty.attributes`, when the caller has them already)."""
     s = s.copy()
     pb_rate = rate if rate is not None else (1.5 if mods & (MOD_DT | MOD_NC) else 0.75 if mods & MOD_HT else 1.0)
-    a = difficulty.attributes(osu_bytes, mods, rate=pb_rate, lazer=lazer, parsed_map=parsed_map)
+    a = attributes
+    if a is None:
+        a = difficulty.attributes(osu_bytes, mods, rate=pb_rate, lazer=lazer, parsed_map=parsed_map)
     s.update(
         {
             "stars": a.get("stars", math.nan),

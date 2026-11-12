@@ -9,11 +9,13 @@ import time
 import pytest
 
 from osu_coach.domain.maps.configuration import SearchOptions
+from osu_coach.domain.maps.skillset import Screened
 from osu_coach.features.maps import service
 from osu_coach.infra.jobs import Cancelled
 
 
-def test_parallel_map_results_match_serial_and_reuse_cache(res, tmp_path):
+@pytest.mark.parametrize("targets", [None, (8.2, 9.4)])  # with the target stars of goals: rows only near them
+def test_parallel_map_results_match_serial_and_reuse_cache(res, tmp_path, targets):
     names = (
         "0619c930348063c2a967a3af4d69cd6b",
         "e0d805c891bf0e18ecb543435c6625f7",
@@ -28,7 +30,9 @@ def test_parallel_map_results_match_serial_and_reuse_cache(res, tmp_path):
             (source / f"{name}.osu").write_bytes(res(f"maps/{name}.osu").read_bytes())
         progress = []
         result = list(
-            service._search_map_results(folder, records, [], options, "stable", lambda *p: progress.append(p), workers)
+            service._search_map_results(
+                folder, records, [], options, "stable", lambda *p: progress.append(p), workers, targets=targets
+            )
         )
         assert progress[-1] == (len(records), len(records), "Ranking complete")
         return result
@@ -40,10 +44,15 @@ def test_parallel_map_results_match_serial_and_reuse_cache(res, tmp_path):
     assert all(item[1] and item[4] == 4 for item in parallel)
     assert parallel[0][2] == parallel[2][2]  # duplicate pool rows keep their accounting and output
     assert len(list((tmp_path / "parallel" / "recommendations" / "variants").glob("*.json.gz"))) == 2
-    assert (
-        list(service._search_map_results(tmp_path / "parallel", records, [], options, "stable", lambda *_: None, 2))
-        == parallel
+    again = service._search_map_results(
+        tmp_path / "parallel", records, [], options, "stable", lambda *_: None, 2, targets=targets
     )
+    assert list(again) == parallel
+    # every configuration is a row or counted in the map's Screened
+    for _, _, rows, _, _ in parallel:
+        counted = [row for row in rows if isinstance(row, Screened)]
+        assert len(counted) == (0 if targets is None else 1)
+        assert len(rows) - len(counted) + sum(row.outside for row in counted) == 4
 
 
 def test_broken_pool_retries_unconsumed_maps_serially(monkeypatch, tmp_path):
