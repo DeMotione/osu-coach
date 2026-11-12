@@ -1,29 +1,45 @@
-"""Fetch raw material for the bundled map pool: popular ranked osu!standard
+"""Fetch raw material for the bundled map pool: ranked osu!standard
 difficulties (metadata via osu.direct search) + their .osu files.
 
-Usage: python tools/fetch_pool_raw.py OUT_DIR [pages] [total] [core_share]
+Usage: python tools/fetch_pool_raw.py OUT_DIR [pages] [total] [--select-only]
 
-pages: how many pages of 100 most-played ranked sets to search (default 120).
-total: difficulties to keep (default 5000). core_share (default 0.85) of them are 2-8 stars, split evenly
-over 0.25-star steps, most played first; the rest go to 0.8-2 and 8-8.5 stars. Steps short of maps are
-topped up with the next most played 2-8 star difficulties.
+pages: how many pages of 100 most-played ranked sets to search (default 500; the search stops at the last one).
+total: difficulties to keep (default 50000): every one of 6 stars and more, and the rest in two equal halves,
+under 5 stars and 5-6 stars, most played first. A half short of maps leaves its places to the other.
+--select-only: stop after the search and the choice (sets.json, chosen.json), without downloading .osu files.
 """
 
 import json
-import math
 import sys
 import time
 from pathlib import Path
 
 from osu_coach.infra.beatmaps import sources
 
-out = Path(sys.argv[1])
-pages = int(sys.argv[2]) if len(sys.argv) > 2 else 120
-total = int(sys.argv[3]) if len(sys.argv) > 3 else 5000
-core_share = float(sys.argv[4]) if len(sys.argv) > 4 else 0.85
-CORE = (2.0, 8.0)
+args = [a for a in sys.argv[1:] if not a.startswith("--")]
+select_only = "--select-only" in sys.argv
+out = Path(args[0])
+pages = int(args[1]) if len(args) > 1 else 500
+total = int(args[2]) if len(args) > 2 else 50000
+MIN_STARS = 0.8
+GROUPS = ("under 5*", "5-6*", "6* and more")
 (out / "osu").mkdir(parents=True, exist_ok=True)
 meta_path = out / "sets.json"
+
+
+def group(d) -> str:
+    return GROUPS[0] if d["stars"] < 5 else GROUPS[1] if d["stars"] < 6 else GROUPS[2]
+
+
+def shares(found: dict[str, int], total: int) -> dict[str, int]:
+    """How many difficulties of each group to keep: all of the top one, the rest of ``total`` in two halves."""
+    top = min(found[GROUPS[2]], total)
+    rest = total - top
+    low = min(found[GROUPS[0]], rest - rest // 2)
+    mid = min(found[GROUPS[1]], rest - low)
+    low = min(found[GROUPS[0]], rest - mid)  # what 5-6* could not fill
+    return {GROUPS[0]: low, GROUPS[1]: mid, GROUPS[2]: top}
+
 
 if meta_path.exists():
     sets = json.loads(meta_path.read_text())
@@ -39,13 +55,15 @@ else:
 print("sets:", len(sets), flush=True)
 
 diffs = []
+seen = set()
 for s in sets:
     for b in s.get("beatmaps", []):
-        if b.get("mode_int") != 0 or b.get("convert"):
+        if b.get("mode_int") != 0 or b.get("convert") or b["id"] in seen:
             continue
         sr = b.get("difficulty_rating") or 0
-        if not 0.8 <= sr <= 8.5:
+        if sr < MIN_STARS:
             continue
+        seen.add(b["id"])
         diffs.append(
             {
                 "beatmap_id": b["id"],
@@ -75,37 +93,22 @@ for s in sets:
                 "ranked_date": s.get("ranked_date"),
             }
         )
-# most played difficulties per 0.25* step: core steps (2-8*) share core_share of the total, the rest the remainder
-bins: dict[int, list] = {}
+# the most played difficulties of each group
+groups: dict[str, list] = {name: [] for name in GROUPS}
 for d in diffs:
-    bins.setdefault(int(d["stars"] * 4), []).append(d)
-is_core = {k: CORE[0] <= k / 4 < CORE[1] for k in bins}
-n_core = sum(is_core.values()) or 1
-n_outer = (len(bins) - n_core) or 1
-quota = {
-    k: math.ceil((core_share if is_core[k] else 1 - core_share) * total / (n_core if is_core[k] else n_outer))
-    for k in bins
-}
-chosen, spare = [], []
-for k, lst in sorted(bins.items()):
+    groups[group(d)].append(d)
+for lst in groups.values():
     lst.sort(key=lambda d: -d["playcount"])
-    chosen.extend(lst[: quota[k]])
-    if is_core[k]:
-        spare.extend(lst[quota[k] :])
-spare.sort(key=lambda d: -d["playcount"])
-chosen.extend(spare[: max(0, total - len(chosen))])
-extra = len(chosen) - total  # quotas are rounded up: drop the least played 2-8* ones
-if extra > 0:
-    core_idx = sorted(
-        (i for i, d in enumerate(chosen) if CORE[0] <= d["stars"] < CORE[1]), key=lambda i: chosen[i]["playcount"]
-    )[:extra]
-    drop = set(core_idx)
-    chosen = [d for i, d in enumerate(chosen) if i not in drop]
-core_n = sum(CORE[0] <= d["stars"] < CORE[1] for d in chosen)
-print("difficulties available", len(diffs), "chosen", len(chosen), f"({core_n} in 2-8*)", flush=True)
+keep = shares({name: len(lst) for name, lst in groups.items()}, total)
+chosen = [d for name in GROUPS for d in groups[name][: keep[name]]]
+print("difficulties available", len(diffs), "chosen", len(chosen), flush=True)
+for name in GROUPS:
+    print(f"  {name}: {keep[name]} of {len(groups[name])}", flush=True)
 (out / "chosen.json").write_text(json.dumps(chosen))
+if select_only:
+    sys.exit(0)
 
-t0 = time.time()
+t0 = time.monotonic()
 ok = fail = 0
 failed_path = out / "failed.json"
 failed = set(json.loads(failed_path.read_text())) if failed_path.exists() else set()
@@ -134,19 +137,21 @@ for i, d in enumerate(chosen):
     else:
         fail += 1
     if i % 100 == 0:
-        print(f"{i}/{len(chosen)} ok={ok} fail={fail} {time.time() - t0:.0f}s", flush=True)
+        print(f"{i}/{len(chosen)} ok={ok} fail={fail} {time.monotonic() - t0:.0f}s", flush=True)
+    if i % 1000 == 0:
+        failed_path.write_text(json.dumps(sorted(failed)))  # a stopped run starts again where it was
 print("done", ok, fail, flush=True)
 
-# replace what no mirror had by the next most played difficulty of the same 0.25* step
+# replace what no mirror had by the next most played difficulty of the same group
 have = [d for d in chosen if (out / "osu" / f"{d['beatmap_id']}.osu").exists()]
 have_ids = {d["beatmap_id"] for d in have}
 taken = {d["beatmap_id"] for d in chosen}
-missing: dict[int, int] = {}
+missing: dict[str, int] = {}
 for d in chosen:
     if d["beatmap_id"] not in have_ids:
-        missing[int(d["stars"] * 4)] = missing.get(int(d["stars"] * 4), 0) + 1
-for k, n in sorted(missing.items()):
-    for d in bins[k]:
+        missing[group(d)] = missing.get(group(d), 0) + 1
+for name, n in missing.items():
+    for d in groups[name]:
         if n <= 0:
             break
         if d["beatmap_id"] in taken:
@@ -157,7 +162,6 @@ for k, n in sorted(missing.items()):
             n -= 1
 failed_path.write_text(json.dumps(sorted(failed)))
 (out / "chosen.json").write_text(json.dumps(have))
-print(
-    f"final: {len(have)} difficulties with .osu files ({sum(CORE[0] <= d['stars'] < CORE[1] for d in have)} in 2-8*)",
-    flush=True,
-)
+print(f"final: {len(have)} difficulties with .osu files", flush=True)
+for name in GROUPS:
+    print(f"  {name}: {sum(group(d) == name for d in have)}", flush=True)

@@ -107,6 +107,23 @@ real player's library (154 lazer plays, comfort level ~6★). "Unfitted" means a
     change to the code that makes them rebuilds them, with no version to bump by hand. `ANALYSIS_VERSION` stays
     explicit (re-analysis is expensive).
 
+### The map pool behind the star scale
+
+25. **The anchors and the demand curves are fitted on the 50k pool** (49,785 ranked maps: every downloadable one the
+    website rates 6★ and more, and the most played under 5★ and at 5–6★ in equal numbers; by the app's own stars
+    14,445 / 17,735 / 17,605), no longer on the 4,968 most played. The examples of §6.1 (and §7's AR rows) are the proposal's,
+    on its own pool, and no longer the table's: S_aim(log₂ 3.0) 5.66 → 5.71★, S_spd(log₂ 2.5) 5.85 → 5.72★,
+    AR 9.3 / 10 / 10.33: 5.50 / 7.75 / 8.00 → 5.73 / 6.93 / 7.25★, OD 9.75 / 10: 7.75 / 8.25 → 7.25 / 7.92★. *Why:*
+    the pool the app suggests maps from is the pool the tables must match (`test_tables.py`, `test_demand.py`), and
+    the old one had almost no hard maps without mods: 2 no-mod rows around the 9★ knot and none from 10★ (now 289,
+    and 75 / 16 / 5 / 3 at 10–13★), so its scale above ~8★ was DT rows alone, and AR 10 read as 7.75★ because few
+    no-mod maps of 7–8★ stood against the DT rows of AR 10.33. *What moved:* between 2 and 9★ the same raw demand
+    reads on average 0.05★ (aim), 0.13★ (speed), 0.19★ (sliders), 0.21★ (accuracy) and 0.23★ (reading) differently,
+    at most 0.17 / 0.33 / 0.73 / 0.50 / 0.85★ (reading at 7★, sliders at 8.5★). The demand curves keep their shape
+    from 3 to 9★ within 0.04 (aim), 0.09 (flow aim, tapping, stamina, sliders), 0.11 (accuracy) and 0.15 log2
+    (reading); their level moved (flow aim +0.45…0.53) because the 1–2★ end did, and only differences are used. Not
+    checked on a player's library: the test player's scores under the new tables are not measured yet.
+
 ## Validation status
 
 Everything above was checked on one real player and on simulated players; none of it is fitted on a population.
@@ -119,8 +136,13 @@ Everything above was checked on one real player and on simulated players; none o
   slider speed term, the density term and the session drop.
 - Sliders read high for everyone who rarely breaks sliders (breaks are rare in osu!, more so on lazer): on the test
   player's clean passes sliders scored 89, not ~50. A population fit of the slider anchor is the fix.
-- Reading above ~AR 10.5 sits on the thin top of the reading anchor (few pool maps), so DT players' reading can read
+- Reading above ~AR 10.5 sits on the top of the reading anchor, which is DT rows almost alone (17,095 pool rows of
+  AR 10.5 and more since decision 25, 1,660 before; AR 10.8 still reads 11.3★), so DT players' reading can read
   high. The two engines also measure opposite things under "Reading" (Comfort-Based rewards *lower* AR).
+- The tables are fitted on the 50k pool (decision 25), but the numbers quoted in decisions 1–24 (the test player's
+  scores, `D_CLUSTER`, the split halves) were measured on the old tables and are not measured again. The pool's
+  maps under 6★ are the most played ones, not a sample of all ranked maps, and "6★ and more" was chosen by the
+  website's stars: maps only the app rates 6★ and more can be missing.
 - Before release (arena report §5): fit the constants on volunteer libraries (§11.2–11.4), validate on a real player
   with many plays, and switch the default only once IRT does better there.
 
