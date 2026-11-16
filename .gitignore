@@ -17,6 +17,10 @@ dev_data/
 /exports/
 reference_replays/
 
+# the pool's table of mod and rate configurations (tools/build_variants.py): tens of MiB, shipped with the
+# installers, not kept in git
+backend/src/osu_coach/infra/data/pool_variants.zip
+
 # frontend
 node_modules/
 frontend/dist/

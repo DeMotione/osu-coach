@@ -19,5 +19,7 @@ if [ ! -f frontend/dist/index.html ] || \
   echo "Building the web app..."
   (cd frontend && npm ci --no-audit --no-fund --loglevel=error && npm run build --silent)
 fi
+# the map pool's table for searches with mods: downloaded once (and again when the pool or its calculations change)
+.venv/bin/python packaging/fetch_variants.py || true
 if [ "${1:-}" = "--setup" ]; then exit 0; fi # only set up (the desktop dev/build scripts use this)
 exec .venv/bin/osu-coach ui "$@"

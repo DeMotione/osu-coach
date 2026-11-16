@@ -60,6 +60,9 @@ step "Python packages (.venv)"
 .venv/bin/python -m pip install --quiet --upgrade pip
 .venv/bin/python -m pip install --quiet -c constraints.txt -e ./backend pyinstaller
 
+step "Map pool's mod table"
+.venv/bin/python packaging/fetch_variants.py
+
 step "Cleaning previous build output"
 rm -rf build dist frontend/dist desktop/src-tauri/target desktop/src-tauri/server.zip
 

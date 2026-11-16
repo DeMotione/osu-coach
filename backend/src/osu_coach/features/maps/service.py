@@ -30,6 +30,7 @@ from osu_coach.domain.maps.suggestions import (
 from osu_coach.domain.player import Profile
 from osu_coach.domain.player.engines import make_engine
 from osu_coach.domain.replays.configuration import from_meta
+from osu_coach.features.maps import variant_table
 from osu_coach.features.maps.schemas import (
     CompletedMap,
     Playlist,
@@ -461,11 +462,18 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
     records = pool.to_dict("records")
     targets = star_targets(theta, req.kappa, abilities, target)
 
+    # the pool's table of configurations answers without a map file; without it, each map's file is read
+    table = variant_table.load()
+    not_ranked = t.played if req.exclude_played else frozenset()
+    results = (
+        table.results(records, options, client, targets, not_ranked, report)
+        if table is not None
+        else _search_map_results(ws.cache_dir, records, libraries, options, client, report, targets=targets)
+    )
+
     def rows():
         nonlocal unavailable, coverage, calculator_unavailable, unavailable_configurations
-        for index, found, calculated, failed_configs, _ in _search_map_results(
-            ws.cache_dir, records, libraries, options, client, report, targets=targets
-        ):
+        for index, found, calculated, failed_configs, _ in results:
             if not found:
                 unavailable += 1
                 continue
@@ -484,7 +492,7 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
         checked,
         req.kappa,
         req.min_relevance,
-        t.played if req.exclude_played else frozenset(),
+        not_ranked,
         history,
     )
     ranked = explain(ranked, target, t)

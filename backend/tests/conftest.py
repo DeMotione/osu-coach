@@ -33,6 +33,13 @@ def _no_real_osu(monkeypatch):
     monkeypatch.setenv("OSU_COACH_NO_AUTODETECT", "1")
 
 
+@pytest.fixture(autouse=True)
+def _no_variant_table(monkeypatch, tmp_path):
+    """Searches with mods work from the map files, also where the pool's table of configurations is installed
+    (tests of the table name their own)."""
+    monkeypatch.setenv("OSU_COACH_VARIANTS", str(tmp_path / "no-variants.zip"))
+
+
 @pytest.fixture
 def res():
     def _res(rel: str) -> pathlib.Path:

@@ -48,14 +48,12 @@ def finish_stats(
     )
     if not mods and pb_rate == 1.0:
         s["stars_dt"] = difficulty.attributes(osu_bytes, 64, parsed_map=parsed_map).get("stars", math.nan)
-    s["evenness"] = _evenness(osu_bytes, mods, pb_rate, lazer=lazer, parsed_map=parsed_map)
+    s["evenness"] = evenness(osu_bytes, mods, pb_rate, lazer=lazer, parsed_map=parsed_map)
     s.update(skill_scores(s))
     return s
 
 
-def _evenness(
-    osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer: bool = False, parsed_map=None
-) -> float:
+def evenness(osu_bytes: bytes, mods: int = 0, rate: float | None = None, lazer: bool = False, parsed_map=None) -> float:
     """Median / peak section difficulty in star units (1 = equally hard throughout)."""
     st = difficulty.strains(osu_bytes, mods, rate=rate, lazer=lazer, parsed_map=parsed_map)
     if not st or not st.get("aim"):

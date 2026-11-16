@@ -43,6 +43,8 @@ popd
 ".venv\Scripts\python.exe" packaging\web_build_check.py stamp
 
 :run
+rem the map pool's table for searches with mods: downloaded once (and again when the pool or its calculations change)
+".venv\Scripts\python.exe" packaging\fetch_variants.py
 if /i "%~1"=="--setup" exit /b 0
 ".venv\Scripts\osu-coach.exe" ui %*
 exit /b
