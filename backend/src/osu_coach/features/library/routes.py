@@ -87,7 +87,7 @@ def selection(
     date_from: dt.date | None = None,
     date_to: dt.date | None = None,
 ) -> SelectionOut:
-    with ws.gate.hold("Checking the replays"):
+    with ws.gate.hold("Checking the replays", brief=True):  # a scan or an analysis started meanwhile waits for it
         sel = svc.select(ws, player, int(latest), date_range, date_from, date_to)
         return svc.selection_out(ws, sel)
 

@@ -25,6 +25,7 @@ from osu_coach.infra import clock
 
 log = logging.getLogger("osu_coach.infra.jobs")
 KEEP_JOBS = 50
+BRIEF_WAIT_S = 30.0  # the longest a brief holder of the gate is waited for (see BusyGate)
 FAILED = "job_failed"  # the code of a failure that is no ApiError
 
 
@@ -37,24 +38,30 @@ class Cancelled(Exception):  # noqa: N818 - not an error: the user stopped the j
 
 
 class BusyGate:
-    """One holder at a time; ``holder`` says who (shown in the "busy" error)."""
+    """One holder at a time; ``holder`` says who (shown in the "busy" error). A ``brief`` holder (a check that holds
+    the gate a moment, e.g. which replays an analysis would read) is waited for, up to :data:`BRIEF_WAIT_S`, instead
+    of refusing: a scan started while the page behind asks such a question must not fail."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self.holder: str | None = None
+        self._brief = False
 
-    def acquire(self, label: str, wait: float = 0.0) -> None:
-        if not (self._lock.acquire(timeout=wait) if wait > 0 else self._lock.acquire(blocking=False)):
+    def acquire(self, label: str, wait: float = 0.0, brief: bool = False) -> None:
+        got = self._lock.acquire(timeout=wait) if wait > 0 else self._lock.acquire(blocking=False)
+        if not got and self._brief:
+            got = self._lock.acquire(timeout=BRIEF_WAIT_S)
+        if not got:
             raise Busy(self.holder or "a task")
-        self.holder = label
+        self.holder, self._brief = label, brief
 
     def release(self) -> None:
-        self.holder = None
+        self.holder, self._brief = None, False
         self._lock.release()
 
     @contextmanager
-    def hold(self, label: str, wait: float = 0.0) -> Iterator[None]:
-        self.acquire(label, wait)
+    def hold(self, label: str, wait: float = 0.0, brief: bool = False) -> Iterator[None]:
+        self.acquire(label, wait, brief)
         try:
             yield
         finally:

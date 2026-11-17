@@ -1,11 +1,14 @@
 """The background job runner and the busy gate."""
 
+import datetime as dt
+import itertools
 import threading
 import time
 
 import pytest
 
 from osu_coach.common.errors import ApiError, Busy, NotFound
+from osu_coach.infra import jobs as jobs_module
 from osu_coach.infra.jobs import BusyGate, JobManager
 
 
@@ -155,7 +158,30 @@ def test_gate_waits_when_asked():
         assert gate.holder == "second"
 
 
-def test_running_jobs_and_the_ones_finished_since_a_time():
+def test_a_brief_holder_is_waited_for_a_long_one_is_not():
+    # the setup guide's scan, started while the Replays page behind asked which replays an analysis would read
+    gate = BusyGate()
+    jobs = JobManager(gate)
+    gate.acquire("Checking the replays", brief=True)
+    threading.Timer(0.2, gate.release).start()
+    job = _finish(jobs.start("scan", "Scanning", lambda r: 1))
+    assert job.status == "succeeded"
+    gate.acquire("Analysing replays")  # a job: refused at once, as before
+    try:
+        with pytest.raises(Busy):
+            jobs.start("scan", "Scanning", lambda r: 1)
+        with pytest.raises(Busy):
+            gate.acquire("Checking the replays", brief=True)
+    finally:
+        gate.release()
+    assert gate.holder is None
+
+
+def test_running_jobs_and_the_ones_finished_since_a_time(monkeypatch):
+    # a clock a second further at every reading: two jobs finished one after the other never share a time, which the
+    # real clock (about 15 ms on Windows before Python 3.13) can't promise
+    start, tick = dt.datetime(2026, 1, 1, tzinfo=dt.UTC), itertools.count()
+    monkeypatch.setattr(jobs_module, "_now", lambda: start + dt.timedelta(seconds=next(tick)))
     jobs = JobManager(BusyGate())
     go = threading.Event()
     done = _finish(jobs.start("scan", "Scanning", lambda r: 1))
