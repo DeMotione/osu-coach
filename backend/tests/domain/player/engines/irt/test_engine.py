@@ -137,6 +137,40 @@ def test_an_untested_skill_keeps_its_lower_bound_at_every_star_rating():
         assert at.score == at.at_least == adapter(held, target)
 
 
+def test_plays_mostly_not_hit_are_left_out_of_the_fit():
+    # flailing on a map far too hard (NoFail): every note missed, many as no tap, which no skill explains
+    groups = simulate()
+    heads = groups.kind == K.HEAD
+    flailed = groups.replace(f_a=0 * groups.f_a, f_b=0 * groups.f_b, f_t=np.where(heads, groups.n, 0 * groups.f_t))
+    kept = plays([simulate(seed=s) for s in range(3)])
+    wild = Play(dataclasses.replace(kept[0].meta, key="nf", mods=1, accuracy=0.2, stars=10.5), flailed)
+    without = IrtEngine().rate(kept, [], comfort=6.0)
+    rated = IrtEngine().rate([*kept, wild], [], comfort=6.0)
+    for key in ("aim", "speed", "reading"):
+        assert rated.skills[key].stars == without.skills[key].stars, key
+    # a play without an accuracy, or one hit well enough, still counts
+    unknown = Play(dataclasses.replace(kept[0].meta, key="u"), flailed)
+    assert (
+        IrtEngine().rate([*kept, unknown], [], comfort=6.0).skills["reading"].stars != without.skills["reading"].stars
+    )
+
+
+def test_map_scores_and_playlist_level_are_on_the_star_scale():
+    rated = IrtEngine().rate(plays([simulate(seed=s) for s in range(4)]), [], comfort=6.0)
+    engine = IrtEngine()
+    aim = rated.skills["aim"]
+    assert engine.playlist_level(rated.skills, "aim") == aim.measured
+    assert engine.playlist_level(rated.skills, "consistency") is None  # not on the star scale
+    at_level = engine.map_scores(rated.skills, 6.0)
+    assert at_level["aim"] == pytest.approx(aim.score, abs=0.1)  # at the level: the scores shown
+    around_aim = engine.map_scores(rated.skills, aim.measured)
+    assert around_aim["aim"] == 50  # around the skill's own level, it is typical
+    harder = engine.map_scores(rated.skills, 7.0)
+    for key, row in rated.skills.items():
+        if key in harder and key != "speed" and row.measured is not None:  # speed: on the tempo scale
+            assert harder[key] == adapter(row.measured, 7.0), key
+
+
 def test_calibration_puts_each_skills_50_where_it_fails_its_anchor_share():
     from osu_coach.domain.player.engines.irt.engine import _fail_share, calibration
     from osu_coach.domain.player.engines.irt.merge import merge

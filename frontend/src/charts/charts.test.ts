@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Schemas } from "../api/client";
 import { circle, merge, niceMax, responsive } from "./base";
 import { mmss, playTimingChart, rangeStats } from "./check";
-import { MISS_SHORT, compareBars, compareHover, levelTone, missCauses, starLevelHover, starLevels } from "./overview";
+import { MISS_SHORT, compareBars, compareHover, missCauses, starLevelHover, starLevels } from "./overview";
 import { alpha, chartTheme, faded, heat, scoreColor, C } from "./palette";
 import { goalsChart, skillsChart, starsChart } from "./progress";
 import { timingChart } from "./tapping";
@@ -214,48 +214,36 @@ describe("IRT star levels", () => {
     irt("reading", null, null, null, "not_enough_data"),
     skill("consistency", 55),
   ];
-  const target = (stars: number, comfort = false): Schemas["CompareTarget"] => ({ stars, comfort, locked: false, skills: [], weakest: null, pass_chance: null });
-  const option = (at: number) => (starLevels(skills, target(at, at === 6), t) as { baseOption: AnyOption }).baseOption;
+  const option = () => (starLevels(skills, t) as { baseOption: AnyOption }).baseOption;
 
   it("draws each skill at the map star rating it holds up on, without consistency", () => {
-    const o = option(6);
-    const [range, bars] = [0, 1].map((k) => o.series![k].data as { value: number | null; label?: { show: boolean; formatter?: string } }[]);
+    const o = option();
+    const bars = o.series![0].data as { value: number | null; label?: { show: boolean; formatter?: string } }[];
     expect(bars.map((b) => b.value)).toEqual([6.6, 6.6, 5.4, 7.4, 9]); // the unmeasured one is a full grey bar
-    // the likely range is a faded bar behind, to its top; the label sits after it, so nothing crosses a bar or a label
-    expect(range.map((b) => b.value)).toEqual([6.9, 7.0, 5.8, null, null]);
-    expect(range.map((b) => (b.label?.show ? b.label.formatter : null))).toEqual(["6.6★", "6.6★", "5.4★", null, null]); // BPM/OD/AR: hover only
-    // the faded range is an opaque colour: no grid line shows through it
-    const rangeColours = (o.series![0].data as { itemStyle?: { color: string } }[]).filter((d) => d.itemStyle).map((d) => d.itemStyle!.color);
-    expect(rangeColours.every((c) => c.startsWith("rgb("))).toBe(true);
-    expect(faded("#ffffff", 0.25, "#000000")).toBe("rgb(64,64,64)");
-    expect(bars.map((b) => (b.label?.show ? b.label.formatter : null))).toEqual([null, null, null, "7.4★+ · limit not found yet", "Not enough data"]);
-    expect((o.series![1].data as { itemStyle: { color: string } }[])[3].itemStyle.color).toBe(C.good); // solid like the others
-    expect(o.series!.map((x) => x.type)).toEqual(["bar", "bar"]); // no lines drawn over the bars
+    // one bar a skill, no range drawn behind it (the range is in the hover); BPM/OD/AR: hover only
+    expect(o.series!.map((x) => x.type)).toEqual(["bar"]);
+    expect(bars.map((b) => (b.label?.show ? b.label.formatter : null))).toEqual(["6.6★", "6.6★", "5.4★", "7.4★+ · limit not found yet", "Not enough data"]);
+    // one colour: a skill is measured against the maps themselves, not compared with a star rating
+    const colours = (o.series![0].data as { itemStyle: { color: string } }[]).slice(0, 4).map((d) => d.itemStyle.color);
+    expect(colours).toEqual([C.accent, C.accent, C.accent, C.accent]);
     expect(o.series!.some((x) => "markLine" in x)).toBe(false);
-    expect((o.series![1].z as number) > (o.series![0].z as number)).toBe(true);
+    // the grey bar is an opaque colour: no grid line shows through it
+    expect(faded("#ffffff", 0.25, "#000000")).toBe("rgb(64,64,64)");
     expect((o.xAxis as { min: number; max: number }).min).toBe(4);
     expect(JSON.stringify(o)).not.toContain("typical");
+    expect(JSON.stringify(o)).not.toContain("against");
   });
 
-  it("colours a skill by whether it holds up at the star rating compared with", () => {
-    expect(levelTone(skills[0], 6)).toBe("good");
-    expect(levelTone(skills[0], 6.6)).toBe("info");
-    expect(levelTone(skills[2], 6)).toBe("bad");
-    expect(levelTone(skills[3], 9)).toBe("info"); // a lower bound is never short
-    expect(levelTone(skills[4], 6)).toBe("none");
-  });
-
-  it("explains what holding up means, against the star rating picked", () => {
-    const html = starLevelHover(skills[0], target(7));
+  it("explains what holding up means, without comparing with a star rating", () => {
+    const html = starLevelHover(skills[0]);
     expect(html).toContain("aim label: holds up on 6.6★ maps");
     expect(html).toContain("fail only about 2 in 100 of its notes on typical 6.6★ maps");
     expect(html).toContain("Likely between 6.3★ and 6.9★");
-    expect(html).toContain("Not yet on 7★ maps: 0.4★ short");
+    expect(html).not.toContain("short");
     const help = { key: "aim", label: "Jumps", summary: "Hitting notes that are far apart.", what: "W", how: "H", practise: "P" };
-    expect(starLevelHover(skills[0], target(7), help)).toContain("Hitting notes that are far apart.");
-    expect(starLevelHover(skills[2], target(6, true))).toContain("90 in 100 of its single notes as 300s");
-    expect(starLevelHover(skills[3], target(6, true))).toContain("sliders label: 7.4★+ (limit not found yet)");
-    expect(starLevelHover(skills[0], target(6, true))).toContain("It holds up on 6★ maps (your comfort level)");
+    expect(starLevelHover(skills[0], help)).toContain("Hitting notes that are far apart.");
+    expect(starLevelHover(skills[2])).toContain("90 in 100 of its single notes as 300s");
+    expect(starLevelHover(skills[3])).toContain("sliders label: 7.4★+ (limit not found yet)");
   });
 });
 

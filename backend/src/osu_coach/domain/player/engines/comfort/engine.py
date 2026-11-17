@@ -33,3 +33,6 @@ class ComfortEngine:
 
     def map_scores(self, skills: Mapping[str, SkillRating], theta: float) -> dict[str, float]:
         return {k: float(v) for k, v in measured_scores(skills).items() if v is not None}
+
+    def playlist_level(self, skills: Mapping[str, SkillRating], skill: str) -> float | None:
+        return None  # every playlist is made around the comfort level, moved by the skill's score (κ)

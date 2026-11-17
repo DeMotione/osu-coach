@@ -124,6 +124,29 @@ real player's library (154 lazer plays, comfort level ~6★). "Unfitted" means a
     (reading); their level moved (flow aim +0.45…0.53) because the 1–2★ end did, and only differences are used. Not
     checked on a player's library: the test player's scores under the new tables are not measured yet.
 
+### Later decisions
+
+26. **Plays under 50% accuracy are left out of the fit** (`MIN_ACCURACY`; a play without an accuracy counts). Such
+    a play was mostly not hit: flailing on a map far too hard, nearly always with NoFail (osu! keeps no replay of a
+    failed play). Its misses are largely "no tap" ones, which on jumps only reading and lapses can explain, so the
+    model puts them on reading. *Evidence:* the test player (602 plays) read reading as "not enough data" with 338k
+    reading notes from 550 plays. Reading's θ was 8.33 with a model SE of 0.10★, but its clustered SE was 2.9★, and
+    one HD DT NoFail play at 10.6★ (18.6% accuracy) caused 78% of that. Without the 6 NoFail plays under 50%
+    accuracy, reading came out at 7.55 ± 0.26★, and at 7.53 ± 0.22★ without all 16 plays under 50%. Cuts at 70%,
+    80% and 90% gave 7.5–7.9★, so the result doesn't hang on the threshold. The other skills moved by at most
+    0.13★ (aim 6.15 → 6.21, tapping 7.13 → 7.26, sliders 9.30 → 9.24, on the skills' own scale). Shown to the
+    player: reading 7.3★ (likely 6.9–7.7★), measured.
+27. **The Overview shows the star levels without comparing them with a star rating.** Each skill is already a star
+    rating (the maps it holds up on), so colouring it green, blue or red against a picked star rating added nothing
+    but a second scale. All bars are one colour, and the likely range is in the hover, not drawn as a faded bar
+    behind each one. Consistency, which isn't on the star scale, is still reported at the comfort level.
+28. **A skill's playlist is made around the skill's own star level** (`playlist_level`), not around the comfort
+    level moved by κ·(score − 50)/50. Around its own level the skill's score is 50 by definition, so κ moves
+    nothing and is 0. The other assessed skills are scored against maps of that level (`map_scores(θ)`, as the
+    Overview's comparison scored them). The comfort difficulty and κ are not offered under Star Levels, and the
+    relevance threshold keeps its default (0.3). Skills without a star level (consistency, or a skill not measured
+    yet) keep the comfort level.
+
 ## Validation status
 
 Everything above was checked on one real player and on simulated players; none of it is fitted on a population.
@@ -133,7 +156,8 @@ Everything above was checked on one real player and on simulated players; none o
   optimum.
 - Not fitted: the anchor shares (2%, accuracy 90%, timing 97%), the slopes a_k (on the test player the observed
   failure log-odds rise ~0.8 per ★ for jumps against a = 1.6, so hard bands are over-predicted), `D_CLUSTER`, the
-  slider speed term, the density term and the session drop.
+  slider speed term, the density term, the session drop and the 50% accuracy cut (decision 26: checked on one
+  player only).
 - Sliders read high for everyone who rarely breaks sliders (breaks are rare in osu!, more so on lazer): on the test
   player's clean passes sliders scored 89, not ~50. A population fit of the slider anchor is the fix.
 - Reading above ~AR 10.5 sits on the top of the reading anchor, which is DT rows almost alone (17,095 pool rows of

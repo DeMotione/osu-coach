@@ -2701,6 +2701,18 @@ export interface components {
                 [key: string]: number;
             };
             /**
+             * Engine
+             * @description The rating engine of the skill ratings (null: no replays analysed).
+             */
+            engine?: string | null;
+            /**
+             * Skill Levels
+             * @description Star Levels: each skill's own star level (★), which its playlist is made around instead of the comfort level moved by kappa; empty under Comfort Score.
+             */
+            skill_levels?: {
+                [key: string]: number;
+            };
+            /**
              * Coverage Maps
              * @description Maps with verified .osu data searched for modified configurations.
              */

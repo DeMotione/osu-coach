@@ -7834,6 +7834,26 @@
             "title": "Measured Abilities",
             "description": "Replay-derived skill ratings before manual overrides."
           },
+          "engine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine",
+            "description": "The rating engine of the skill ratings (null: no replays analysed)."
+          },
+          "skill_levels": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Skill Levels",
+            "description": "Star Levels: each skill's own star level (★), which its playlist is made around instead of the comfort level moved by kappa; empty under Comfort Score."
+          },
           "coverage_maps": {
             "anyOf": [
               {
