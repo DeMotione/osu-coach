@@ -631,6 +631,42 @@ class Screened:
     no_stars: int = 0
 
 
+@dataclass(frozen=True, slots=True)
+class Tally:
+    """Configurations counted by whoever screened them all (the variant table, :mod:`variants`), which hands over
+    only the rows that can be among a goal's best: how many there are, why each goal left them out (reason ->
+    number, by goal), and how many maps a goal keeps without them being among its best (``eligible``)."""
+
+    configurations: int
+    excluded: Mapping[str, Mapping[str, int]]
+    eligible: Mapping[str, int]
+
+
+REFERENCE_GRID = tuple(1.0 + i * 0.25 for i in range(57))  # ★: where the reference curves have their points
+
+
+def reference_curves(
+    base_pool: Sequence[Mapping[str, Any]], assessed: tuple[str, ...]
+) -> dict[str, list[float | None]]:
+    """The composite of typical pool maps around every star rating of :data:`REFERENCE_GRID`, for each assessed
+    skill but speed (None: fewer than 10 maps within half a star)."""
+    samples = [
+        (float(r["stars"]), _features(r))
+        for r in base_pool
+        if finite_or_none(r.get("stars")) is not None and float(r["stars"]) > 0
+    ]
+    references: dict[str, list[float | None]] = {}
+    for key in assessed:
+        if key == "speed":
+            continue
+        values = []
+        for point in REFERENCE_GRID:
+            near = [features[key] for stars, features in samples if abs(stars - point) <= 0.5 and key in features]
+            values.append(statistics.median(near) if len(near) >= 10 else None)
+        references[key] = values
+    return references
+
+
 def recommend_modified(
     base_pool: Sequence[Mapping[str, Any]],
     variants,
@@ -643,34 +679,25 @@ def recommend_modified(
     played: frozenset[str],
     history: dict[str, float],
     limit: int = 100,
+    references: Mapping[str, Sequence[float | None]] | None = None,
 ) -> Recommendation:
     """Stream exact variants through all goals, retaining their highest F values.
 
     `limit` bounds the serialized job result; the best candidate still comes from
     the complete set of available configurations, never from a coarse shortlist.
     ``variants`` holds a row per configuration, or a :class:`Screened` for those of
-    a map that are outside every goal's star window by their exact stars.
+    a map that are outside every goal's star window by their exact stars, or a
+    :class:`Tally` of configurations whose every goal's verdict is counted already.
+    ``references``: the :func:`reference_curves` of ``base_pool``, when the caller has them.
     """
     _check(theta, abilities, skill, assessed, kappa, min_relevance)
     # The mechanical-feature term is a residual relative to typical maps at the
     # *candidate's* modified stars. The 20-point star term supplies the overall
     # challenge, so a speed/precision effect captured by stars is not counted
     # again as a raw feature increase against a fixed comfort-star reference.
-    samples = [
-        (float(r["stars"]), _features(r))
-        for r in base_pool
-        if finite_or_none(r.get("stars")) is not None and float(r["stars"]) > 0
-    ]
-    grid = [1.0 + i * 0.25 for i in range(57)]
-    references: dict[str, list[float | None]] = {}
-    for key in assessed:
-        if key == "speed":
-            continue
-        values = []
-        for point in grid:
-            near = [features[key] for stars, features in samples if abs(stars - point) <= 0.5 and key in features]
-            values.append(statistics.median(near) if len(near) >= 10 else None)
-        references[key] = values
+    grid = REFERENCE_GRID
+    if references is None:
+        references = reference_curves(base_pool, assessed)
 
     def reference(key: str, stars: float) -> float | None:
         values = references.get(key)
@@ -722,7 +749,16 @@ def recommend_modified(
         goal: speed_bpm_for_rating(stage.target_demand, theta) if skill == "speed" else None
         for goal, stage in stages.items()
     }
+    kept = dict.fromkeys(stages, 0)  # maps a goal keeps that a Tally counted
     for row in variants:
+        if isinstance(row, Tally):
+            count += row.configurations
+            for goal, stage in stages.items():
+                for reason, number in row.excluded.get(goal, {}).items():
+                    if number:
+                        stage.excluded[reason] = stage.excluded.get(reason, 0) + number
+                kept[goal] += row.eligible.get(goal, 0)
+            continue
         if isinstance(row, Screened):
             count += row.outside + row.no_stars
             reasons = (
@@ -792,6 +828,8 @@ def recommend_modified(
             if previous is None or _modified_sort_key(result) < _modified_sort_key(previous):
                 best[goal][md5] = result
     _finalize_modified_goals(stages, best, limit)
+    for goal, stage in stages.items():
+        stage.eligible += kept[goal]
     goals = {goal: stage.result() for goal, stage in stages.items()}
     return Recommendation(skill_adjusted_stars=adjusted, goals=goals, candidate_count=count, result_limit=limit)
 
@@ -831,4 +869,4 @@ def _finalize_modified_goals(stages: Mapping[str, _Stage], best: dict[str, dict[
         # Qualification exclusions count configurations; this reason counts maps reassigned to another stage.
         reassigned = len(original[goal] - rows.keys())
         if reassigned:
-            stage.excluded["Shown in another stage"] = reassigned
+            stage.excluded["Shown in another stage"] = stage.excluded.get("Shown in another stage", 0) + reassigned

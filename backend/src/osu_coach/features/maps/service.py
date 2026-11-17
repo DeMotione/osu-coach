@@ -11,6 +11,7 @@ from collections import deque
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 
 from osu_coach.common.convert import integer, iso, num, text
@@ -27,6 +28,7 @@ from osu_coach.domain.maps.suggestions import (
     skill_label,
     targets_from_profile,
 )
+from osu_coach.domain.maps.variants import VariantTable, recommend_from_table
 from osu_coach.domain.player import Profile
 from osu_coach.domain.player.engines import make_engine
 from osu_coach.domain.replays.configuration import from_meta
@@ -40,6 +42,7 @@ from osu_coach.features.maps.schemas import (
     SuggestionSection,
 )
 from osu_coach.features.maps.variant_repository import calculate_variants, verified_bytes
+from osu_coach.infra.variant_table import load_table
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
@@ -434,6 +437,24 @@ def _search_map_results(cache_dir, records, libraries, options, client, report, 
     report(total, total, "Ranking complete")
 
 
+def _pool_table(pool: pd.DataFrame, cache_dir) -> VariantTable | None:
+    """The variant table, when it is this pool's (it lists every pool map): a search then reads the maps'
+    configurations from it, and needs no .osu file."""
+    table = load_table(cache_dir)
+    if table is None or not all(md5 in table.index for md5 in pool["md5"]):
+        return None
+    return table
+
+
+def _columns(pool: pd.DataFrame) -> dict[str, np.ndarray]:
+    """The pool's numbers as arrays by column (NaN: none)."""
+    return {
+        c: pool[c].to_numpy(dtype=float, na_value=np.nan)
+        for c in pool.columns
+        if pd.api.types.is_numeric_dtype(pool[c])
+    }
+
+
 def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
     """Exact available-map search, run only inside a cancellable background job."""
     options = SearchOptions(req.allow_hr, req.allow_hd, req.adjustable_dt, req.min_rate, req.max_rate)
@@ -475,18 +496,33 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
                 calculator_unavailable += 1
             yield from (with_pool_ids(row, records[index]) if isinstance(row, dict) else row for row in calculated)
 
-    ranked = recommend_modified(
-        records,
-        rows(),
-        theta,
-        abilities,
-        target,
-        checked,
-        req.kappa,
-        req.min_relevance,
-        t.played if req.exclude_played else frozenset(),
-        history,
-    )
+    played = t.played if req.exclude_played else frozenset()
+    table = _pool_table(pool, ws.cache_dir)
+    if table is not None:
+        report(0, len(records), "Reading the map table")
+        found = recommend_from_table(
+            table,
+            records,
+            _columns(pool),
+            options,
+            client,
+            theta,
+            abilities,
+            target,
+            checked,
+            req.kappa,
+            req.min_relevance,
+            played,
+            history,
+        )
+        ranked = found.recommendation
+        coverage, unavailable = found.maps, found.missing_maps
+        calculator_unavailable, unavailable_configurations = found.unusable_maps, found.unavailable_configurations
+        report(len(records), len(records), "Ranking complete")
+    else:
+        ranked = recommend_modified(
+            records, rows(), theta, abilities, target, checked, req.kappa, req.min_relevance, played, history
+        )
     ranked = explain(ranked, target, t)
     if ranked.candidate_count == 0 and all(key in abilities for key in checked):
         none = {"No available exact configurations": 1}
