@@ -1,9 +1,10 @@
 """Practice map pool file: load/save the bundled pool (``data/pool.json.gz``) and compute stats of .osu files.
 
-The pool holds ~5,000 popular ranked osu!standard difficulties, 9 in 10 of them between 2★ and 8★
-(most-played per 0.25★ step, from the 12,000 most-played ranked sets), each analysed with the same
-pattern detector used on the player's replays plus osu!'s own difficulty model (rosu-pp).
-Rebuild with ``tools/build_pool.py``. Map statistics: ``osu_coach.domain.maps.suggestions``; playlists: ``osu_coach.features.maps.playlists``.
+The pool holds ~50,000 ranked osu!standard difficulties: every one of 6★ and more, and the most played under 5★
+and at 5-6★ in equal numbers (``tools/fetch_pool_raw.py``), each analysed with the same pattern detector used on
+the player's replays plus osu!'s own difficulty model (rosu-pp).
+Rebuild with ``tools/build_pool.py``, then its variant table (the maps with mods: ``osu_coach.infra.variant_table``)
+with ``tools/build_variant_table.py``. Map statistics: ``osu_coach.domain.maps.suggestions``; playlists: ``osu_coach.features.maps.playlists``.
 """
 
 from __future__ import annotations

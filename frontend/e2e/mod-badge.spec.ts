@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("custom DT badge fits desktop rows and narrow map cards", async ({ page }) => {
   await page.goto("/maps"); // Load the app's production styles and public icon assets.
-  expect((await page.request.get("/mod-double-time-custom.svg")).ok()).toBe(true);
+  for (const icon of ["/mod-double-time.svg", "/mod-hidden.svg", "/mod-hard-rock.svg"]) expect((await page.request.get(icon)).ok()).toBe(true);
   const css = await page.locator('link[rel="stylesheet"]').first().getAttribute("href");
   expect(css).toBeTruthy();
 
@@ -14,7 +14,7 @@ test("custom DT badge fits desktop rows and narrow map cards", async ({ page }) 
   const head = ["Map", "Mods", "Difficulty", "BPM", "AR", "Length", "Why this map", "Skill demand", "F(m)", "Link", ""]
     .map((h, i) => `<th class="${i === 7 ? "center" : ""}"><button>${h}</button></th>`).join("");
   const cells = (custom: boolean, hide: boolean) => {
-    const badge = '<span class="map-mods__badge"><span class="map-mods__badge-rate">1.36×</span></span>';
+    const badge = '<span class="map-mods__badge"><img src="/mod-double-time.svg" alt=""><span class="map-mods__badge-rate">1.36×</span></span>';
     const regular = '<img src="/mod-double-time.svg" alt="">';
     const mods = `<span class="map-mods">${custom ? badge : regular}<img src="/mod-hidden.svg" alt=""><img src="/mod-hard-rock.svg" alt=""></span>`;
     return `<td class="wrap strong" data-label="Map">Pyxis – Koise yo Minna, Hai! (TV Size) [Hai!]</td>
@@ -33,7 +33,11 @@ test("custom DT badge fits desktop rows and narrow map cards", async ({ page }) 
   await page.setViewportSize({ width: 1280, height: 820 });
   const heights = await page.locator("#custom, #regular").evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
   expect(heights[0]).toBeLessThanOrEqual(heights[1] + 1);
-  expect(await page.locator(".map-mods__badge").first().evaluate((el) => getComputedStyle(el).height)).toBe("18px");
+  // the icons keep their 5:4 shape (not squashed), and the rate tab is no taller than the DT icon
+  const modIcon = await page.locator("#regular .map-mods img").first().boundingBox();
+  expect(modIcon!.width / modIcon!.height).toBeCloseTo(1.25, 1);
+  const badge = await page.locator(".map-mods__badge").first().boundingBox();
+  expect(badge!.height).toBeLessThanOrEqual(modIcon!.height + 0.5);
 
   // a table at every width down to the cards, without a sideways scrollbar (with Hide: the widest rows)
   for (const width of [1440, 1280, 1130, 1121, 1100, 900, 880]) {
@@ -70,7 +74,7 @@ test("custom DT badge fits desktop rows and narrow map cards", async ({ page }) 
   await page.setContent(`<link rel="stylesheet" href="${css}"><div class="map-table map-table--compact"><div class="table-wrap">
     <table class="table"><tbody><tr id="compact">
       <td data-label="Map">Pyxis – Koise yo Minna, Hai! (TV Size) [Hai!]</td>
-      <td data-label="Mods"><span class="map-mods"><span class="map-mods__badge"><span class="map-mods__badge-rate">1.36×</span></span><img src="/mod-hidden.svg" alt=""><img src="/mod-hard-rock.svg" alt=""></span></td>
+      <td data-label="Mods"><span class="map-mods"><span class="map-mods__badge"><img src="/mod-double-time.svg" alt=""><span class="map-mods__badge-rate">1.36×</span></span><img src="/mod-hidden.svg" alt=""><img src="/mod-hard-rock.svg" alt=""></span></td>
       <td data-label="Difficulty">6.94 ★</td><td data-label="BPM">218</td><td data-label="Length">0:22</td>
       <td class="center" data-label="Skill demand">61.4</td><td class="num" data-label="F(m)">-0.7844</td>
       <td data-label="Link">open ↗</td>

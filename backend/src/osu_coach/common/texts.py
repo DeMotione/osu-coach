@@ -274,12 +274,13 @@ def why(r, skill: str, t: Targets) -> str:
             return f"{kind} at ~{bpm:.0f} BPM (1/4){extra}"
         return f"{kind} at ~{bpm:.0f} BPM (1/4), longest {run} notes"
     if skill == "accuracy":
-        return f"OD {g('od'):g}, {g('circle_share'):.0%} circles"
+        # OD and AR at a rate other than 1 aren't round numbers (9.55435): one decimal, as the AR column shows them
+        return f"OD {round(g('od'), 1):g}, {g('circle_share'):.0%} circles"
     if skill == "sliders":
         tricky = ", tricky slider paths" if g("slider_factor", 1) < 0.97 else ""
         return f"{g('slider_share'):.0%} sliders, {g('reverse_share'):.0%} with repeats{tricky}"
     if skill == "reading":
-        return f"AR {g('ar'):g}, up to {g('density_p90', 0):.0f} notes on screen"
+        return f"AR {round(g('ar'), 1):g}, up to {g('density_p90', 0):.0f} notes on screen"
     if skill == "consistency":
         return f"evenly hard from start to end ({g('evenness', 0):.0%})"
     if skill == "quadrant" and t.quadrant:

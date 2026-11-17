@@ -21,6 +21,8 @@ describe("ModsIcons", () => {
       "/mod-double-time.svg", "/mod-hidden.svg", "/mod-hard-rock.svg",
     ]);
     expect(Array.from(icons, (icon) => icon.getAttribute("alt"))).toEqual(["", "", ""]);
+    // hovering an icon names its mod
+    expect(Array.from(icons, (icon) => icon.getAttribute("title"))).toEqual(["Double Time", "Hidden", "Hard Rock"]);
   });
 
   it("keeps unfamiliar mods visible", () => {
@@ -33,8 +35,10 @@ describe("ModsIcons", () => {
     const group = screen.getByRole("img", { name: "Double Time 1.36×, Hidden, Hard Rock" });
     expect(group.firstElementChild).toHaveClass("map-mods__badge");
     expect(group.querySelector(".map-mods__badge-rate")).toHaveTextContent("1.36×");
+    // the rate rides on the DT icon itself
+    expect(group.querySelector(".map-mods__badge img")?.getAttribute("src")).toBe("/mod-double-time.svg");
     expect(Array.from(group.querySelectorAll("img"), (icon) => icon.getAttribute("src"))).toEqual([
-      "/mod-hidden.svg", "/mod-hard-rock.svg",
+      "/mod-double-time.svg", "/mod-hidden.svg", "/mod-hard-rock.svg",
     ]);
   });
 

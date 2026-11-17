@@ -43,6 +43,20 @@ def res():
     return _res
 
 
+TABLE_MAPS = ("e0d805c891bf0e18ecb543435c6625f7", "0619c930348063c2a967a3af4d69cd6b")
+
+
+@pytest.fixture(scope="session")
+def resource_table(tmp_path_factory) -> tuple[Path, list[bytes]]:
+    """A variant table of two test maps, made from their .osu files: (its file, the files' bytes)."""
+    from osu_coach.infra.variant_table import map_variants, save_table
+
+    raws = [(RES / "maps" / f"{md5}.osu").read_bytes() for md5 in TABLE_MAPS]
+    path = tmp_path_factory.mktemp("variant-table") / "pool_variants.npz"
+    save_table(path, list(TABLE_MAPS), [map_variants(raw) for raw in raws])
+    return path, raws
+
+
 @pytest.fixture
 def index():
     """Header facts for the bundled sample replays (collected with osrparse)."""
