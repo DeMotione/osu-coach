@@ -1290,26 +1290,27 @@ input[type="range"] {
 .map-table .table th { white-space: normal; }
 .map-table .table td.wrap { min-width: 150px; }
 
-.map-mods { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; vertical-align: middle; }
-.map-mods img { display: block; width: 25px; height: auto; max-height: 18px; flex: none; }
-.map-mods__badge {
-  position: relative;
-  display: inline-block;
-  flex: none;
-  width: 54px;
-  height: 18px;
-  background: url("/mod-double-time-custom.svg") center / contain no-repeat;
-}
+.map-mods { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; vertical-align: middle; }
+/* the icons are drawn 5:4: the height follows the width, so a narrow table can shrink them without squashing */
+.map-mods img { display: block; width: 25px; height: auto; aspect-ratio: 5 / 4; flex: none; }
+/* a DT rate other than 1.50×: a tab on the DT icon's right */
+.map-mods__badge { display: inline-flex; align-items: center; flex: none; }
+.map-mods__badge img { position: relative; z-index: 1; }
 .map-mods__badge-rate {
-  position: absolute;
-  inset: 0 1px 0 47%;
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: #ff6264;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
+  height: 15px;
+  margin-left: -6px;
+  padding: 0 5px 0 8px;
+  border: 1px solid #6e2226;
+  border-left: 0;
+  border-radius: 0 4px 4px 0;
+  background: #3d1214;
+  color: #ff7072;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 .map-mods__rate-only { color: #ff6264; font-variant-numeric: tabular-nums; }
