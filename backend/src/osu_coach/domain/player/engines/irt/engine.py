@@ -35,6 +35,8 @@ POINTS_PER_STAR = 20.0  # around 50
 CURVE = 100 / (4 * POINTS_PER_STAR)  # ★: the S-curve's width for that slope at 50
 FALLBACK_STARS = 4.0
 CALIBRATION_RANGE = 30.0  # ★ either side of the level searched for a skill's reference
+# plays under it were mostly not hit: flailing far above one's level (often with NoFail), misses no skill explains
+MIN_ACCURACY = 0.5
 
 
 def adapter(stars: float, reference: float) -> float:
@@ -183,6 +185,11 @@ def hard_maps(summaries: Sequence[PlaySummary]) -> dict[str, float]:
     return {k: float(np.quantile(v, 0.9)) for k, v in stars_of.items()}
 
 
+def fitted(summaries: Sequence[PlaySummary]) -> list[PlaySummary]:
+    """The plays the fit uses: all but those under :data:`MIN_ACCURACY` (a play without an accuracy counts)."""
+    return [sm for sm in summaries if not (sm.meta.accuracy is not None and sm.meta.accuracy < MIN_ACCURACY)]
+
+
 class IrtEngine:
     """Star-Scale IRT (experimental)."""
 
@@ -190,7 +197,7 @@ class IrtEngine:
     uses_level = False  # each skill is measured against the maps themselves, not against a level
 
     def fit(self, summaries: Sequence[PlaySummary], prior: float) -> IrtFit:
-        return self.fit_merged(merge([(sm.meta, sm.irt) for sm in summaries]), prior)
+        return self.fit_merged(merge([(sm.meta, sm.irt) for sm in fitted(summaries)]), prior)
 
     @staticmethod
     def fit_merged(merged: Merged, prior: float) -> IrtFit:
@@ -198,6 +205,7 @@ class IrtEngine:
 
     def rate(self, summaries: Sequence[PlaySummary], replays: Sequence[ReplayMeta], comfort: float | None) -> Rated:
         level = prior_centre(replays, comfort)
+        summaries = fitted(summaries)
         merged = merge([(sm.meta, sm.irt) for sm in summaries])
         result = self.fit_merged(merged, level)
         references = calibration(merged, level)
@@ -233,8 +241,21 @@ class IrtEngine:
             skills[key] = SkillAt(score=score, change=round(score - row.score, 1), demand=demand, at_least=bound)
         return readiness(comfort, target, skills)
 
+    def playlist_level(self, skills: Mapping[str, SkillRating], skill: str) -> float | None:
+        """The skill's own star level: the map star rating it holds up on (None: not measured, or not on the star
+        scale, like consistency)."""
+        row = skills.get(skill)
+        if row is None or row.state not in ("measured", "provisional") or row.measured is None:
+            return None
+        return row.measured if math.isfinite(row.measured) else None
+
     def map_scores(self, skills: Mapping[str, SkillRating], theta: float) -> dict[str, float]:
-        out = {k: float(v) for k, v in measured_scores(skills).items() if v is not None}
+        # the scores against maps of theta ★, as compare_at gives them (consistency isn't on the star scale)
+        out = {
+            k: adapter(skills[k].measured, theta) if skills[k].measured is not None else float(v)
+            for k, v in measured_scores(skills).items()
+            if v is not None
+        }
         # the recommender reads tapping speed on the tempo scale, so it comes from the BPM measured
         speed = skills.get("speed")
         if "speed" in out and speed is not None and speed.natural is not None and math.isfinite(speed.natural):

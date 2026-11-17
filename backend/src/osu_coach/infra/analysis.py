@@ -100,30 +100,8 @@ def analyze(replay: Replay, bm: Beatmap, osu_bytes: bytes, raw_replay: bytes | N
     obj["err_dx"] = ex
     obj["err_dy"] = ey
     obj["aim_err"] = np.hypot(ex, ey) / radius
-    # movement start: cursor where the previous object was hit, else its end position
-    start_x = np.full(len(obj), np.nan)
-    start_y = np.full(len(obj), np.nan)
-    cx = obj["click_x"].to_numpy()
-    cy = obj["click_y"].to_numpy()
-    for i, p in enumerate(obj["prev_idx"].to_numpy()):
-        if p is None or (isinstance(p, float) and math.isnan(p)):
-            continue
-        p = int(p)
-        if obj.at[p, "head_hit"] and obj.at[p, "kind"] == "circle" and not math.isnan(cx[p]):
-            start_x[i], start_y[i] = cx[p], cy[p]
-        else:
-            start_x[i], start_y[i] = obj.at[p, "end_x"], obj.at[p, "end_y"]
-    obj["start_x"] = start_x
-    obj["start_y"] = start_y
-    along = np.full(len(obj), np.nan)
-    cross = np.full(len(obj), np.nan)
-    for i in range(len(obj)):
-        if math.isnan(ex[i]) or math.isnan(start_x[i]):
-            continue
-        a, c = along_cross(ex[i], ey[i], obj.at[i, "x"] - start_x[i], obj.at[i, "y"] - start_y[i])
-        along[i], cross[i] = a / radius, c / radius
-    obj["along"] = along
-    obj["cross"] = cross
+    obj["start_x"], obj["start_y"] = _movement_start(obj)
+    obj["along"], obj["cross"] = _along_cross(ex, ey, obj, radius)
 
     lazer_mods = (replay.lazer or {}).get("mods") or None
     attrs = difficulty.attributes(osu_bytes, replay.mods, rate, lazer_mods=lazer_mods, lazer=replay.is_lazer)
@@ -201,6 +179,39 @@ def analyze(replay: Replay, bm: Beatmap, osu_bytes: bytes, raw_replay: bytes | N
         if k in attrs:
             meta["map_max_combo" if k == "max_combo" else k] = attrs[k]
     return Play(ReplayMeta.from_dict(meta), HitObjects.from_columns(obj), KeyPresses.from_columns(presses))
+
+
+def _floats(obj: pd.DataFrame, col: str) -> np.ndarray:
+    return pd.to_numeric(obj[col], errors="coerce").to_numpy(dtype=float)
+
+
+def _movement_start(obj: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    """Where each note's movement started: the cursor where the previous note (a circle) was hit, else that note's
+    end position; NaN for the first note. Whole columns at once (a loop over the rows was a sixth of an analysis)."""
+    start_x = np.full(len(obj), np.nan)
+    start_y = np.full(len(obj), np.nan)
+    prev = _floats(obj, "prev_idx")
+    has = ~np.isnan(prev)
+    p = prev[has].astype(int)
+    cx, cy = _floats(obj, "click_x"), _floats(obj, "click_y")
+    clicked = obj["head_hit"].to_numpy(dtype=bool)[p] & (obj["kind"].to_numpy() == "circle")[p] & ~np.isnan(cx[p])
+    start_x[has] = np.where(clicked, cx[p], _floats(obj, "end_x")[p])
+    start_y[has] = np.where(clicked, cy[p], _floats(obj, "end_y")[p])
+    return start_x, start_y
+
+
+def _along_cross(ex: np.ndarray, ey: np.ndarray, obj: pd.DataFrame, radius: float) -> tuple[np.ndarray, np.ndarray]:
+    """``along_cross`` of every note's aim error against its movement, in radii (NaN without an error, a start or a
+    movement)."""
+    ex, ey = np.asarray(ex, dtype=float), np.asarray(ey, dtype=float)
+    mx = _floats(obj, "x") - obj["start_x"].to_numpy(dtype=float)
+    my = _floats(obj, "y") - obj["start_y"].to_numpy(dtype=float)
+    along = np.full(len(obj), np.nan)
+    cross = np.full(len(obj), np.nan)
+    for i in np.flatnonzero(~np.isnan(ex) & ~np.isnan(mx) & ~np.isnan(my)):
+        a, c = along_cross(float(ex[i]), float(ey[i]), float(mx[i]), float(my[i]))
+        along[i], cross[i] = a / radius, c / radius
+    return along, cross
 
 
 def _attach_strains(obj: pd.DataFrame, osu_bytes: bytes, replay: Replay, rate: float, attrs: dict | None = None):

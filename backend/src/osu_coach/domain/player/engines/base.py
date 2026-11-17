@@ -56,3 +56,7 @@ class RatingEngine(Protocol):
     def map_scores(self, skills: Mapping[str, SkillRating], theta: float) -> dict[str, float]:
         """The scores map suggestions work from: measurements only, on the recommender's scale at ``theta`` ★."""
         ...
+
+    def playlist_level(self, skills: Mapping[str, SkillRating], skill: str) -> float | None:
+        """The star rating a playlist for ``skill`` is made around (None: the comfort level)."""
+        ...

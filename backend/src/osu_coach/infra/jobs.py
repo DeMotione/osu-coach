@@ -25,6 +25,7 @@ from osu_coach.infra import clock
 
 log = logging.getLogger("osu_coach.infra.jobs")
 KEEP_JOBS = 50
+BRIEF_WAIT_S = 30.0  # the longest a brief holder of the gate is waited for (see BusyGate)
 FAILED = "job_failed"  # the code of a failure that is no ApiError
 
 
@@ -37,24 +38,30 @@ class Cancelled(Exception):  # noqa: N818 - not an error: the user stopped the j
 
 
 class BusyGate:
-    """One holder at a time; ``holder`` says who (shown in the "busy" error)."""
+    """One holder at a time; ``holder`` says who (shown in the "busy" error). A ``brief`` holder (a check that holds
+    the gate a moment, e.g. which replays an analysis would read) is waited for, up to :data:`BRIEF_WAIT_S`, instead
+    of refusing: a scan started while the page behind asks such a question must not fail."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self.holder: str | None = None
+        self._brief = False
 
-    def acquire(self, label: str, wait: float = 0.0) -> None:
-        if not (self._lock.acquire(timeout=wait) if wait > 0 else self._lock.acquire(blocking=False)):
+    def acquire(self, label: str, wait: float = 0.0, brief: bool = False) -> None:
+        got = self._lock.acquire(timeout=wait) if wait > 0 else self._lock.acquire(blocking=False)
+        if not got and self._brief:
+            got = self._lock.acquire(timeout=BRIEF_WAIT_S)
+        if not got:
             raise Busy(self.holder or "a task")
-        self.holder = label
+        self.holder, self._brief = label, brief
 
     def release(self) -> None:
-        self.holder = None
+        self.holder, self._brief = None, False
         self._lock.release()
 
     @contextmanager
-    def hold(self, label: str, wait: float = 0.0) -> Iterator[None]:
-        self.acquire(label, wait)
+    def hold(self, label: str, wait: float = 0.0, brief: bool = False) -> Iterator[None]:
+        self.acquire(label, wait, brief)
         try:
             yield
         finally:
@@ -74,6 +81,7 @@ class Job:
     created_at: dt.datetime = field(default_factory=_now)
     finished_at: dt.datetime | None = None
     cancellable: bool = False
+    details: dict[str, Any] = field(default_factory=dict)  # what the job's kind tells besides (its response model)
     stop: threading.Event = field(default_factory=threading.Event, repr=False, compare=False)
 
 
@@ -98,6 +106,10 @@ class Reporter:
         self._check()
         self._job.message = str(message)
 
+    def detail(self, **details: Any) -> None:
+        """Facts about the running job its kind's response shows (e.g. how many replays an analysis reads)."""
+        self._job.details.update(details)
+
 
 class JobManager:
     def __init__(self, gate: BusyGate, keep: int = KEEP_JOBS):
@@ -107,14 +119,20 @@ class JobManager:
         self._keep = keep
 
     def start(
-        self, kind: str, label: str, work: Callable[[Reporter], Any], exclusive: bool = True, cancellable: bool = False
+        self,
+        kind: str,
+        label: str,
+        work: Callable[[Reporter], Any],
+        exclusive: bool = True,
+        cancellable: bool = False,
+        details: dict[str, Any] | None = None,
     ) -> Job:
         """Run ``work(reporter)`` in a thread; its return value becomes the job's result. ``exclusive``: hold the
         busy gate for the whole run (refused with 409 while another holder has it). ``cancellable``: :meth:`cancel`
-        may stop it."""
+        may stop it. ``details``: what the job's response tells from the start (see :meth:`Reporter.detail`)."""
         if exclusive:
             self._gate.acquire(label)
-        job = Job(kind=kind, message=f"{label}…", cancellable=cancellable)
+        job = Job(kind=kind, message=f"{label}…", cancellable=cancellable, details=dict(details or {}))
         with self._lock:
             self._jobs[job.id] = job
             while len(self._jobs) > self._keep:

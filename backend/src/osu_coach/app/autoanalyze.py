@@ -95,7 +95,12 @@ class AutoAnalyzer:
             return None
         paths = list(self._ready)
         try:
-            job = ws.jobs.start("analysis", "Analysing your new play", lambda report: self._analyze(paths, report))
+            job = ws.jobs.start(
+                "analysis",
+                "Analysing your new play",
+                lambda report: self._analyze(paths, report),
+                details={"automatic": True},
+            )
         except Busy:
             return None
         self._ready = []

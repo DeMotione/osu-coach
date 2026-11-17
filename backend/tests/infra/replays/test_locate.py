@@ -362,6 +362,15 @@ def test_newest_replays_done_once_the_latest_plays_are_newer_than_the_unread_fil
     assert not picker.done(epoch(hours(5)))
 
 
+def test_newest_replays_done_at_files_older_than_the_oldest_play_wanted():
+    """A replay file is written when (or after) its play: past ``oldest`` (and a day's slack for odd clocks) no
+    unread file holds a play of the last year (#95)."""
+    picker = NewestReplays(1000, oldest=1_700_000_000)
+    assert not picker.done(1_700_000_000 - 1000)
+    assert picker.done(1_700_000_000 - DATE_SLACK_S - 1)
+    assert not NewestReplays(1000).done(0)
+
+
 def test_newest_replays_keeps_only_the_newest_plays():
     picker = NewestReplays(2)
     for h, score in ((5, 1), (1, 2), (9, 3), (3, 4)):
@@ -819,6 +828,17 @@ def test_songs_folder_scan_uses_and_fills_the_cache(tmp_path, monkeypatch):
     assert SongsFolder(tmp_path, index).scan() == first
 
 
+def test_songs_folder_scan_needs_no_stat_of_each_file(tmp_path, monkeypatch):
+    """The sizes and times come with the directory listing: a scan that finds nothing new opens and stats no file
+    (on Windows a stat of every file of a big Songs folder was most of a scan, #95)."""
+    put(tmp_path / "s" / "a.osu", osu_text())
+    index: dict = {}
+    first = SongsFolder(tmp_path, index).scan()
+    monkeypatch.setattr(locate, "file_md5", lambda p: pytest.fail("hashed again"))
+    monkeypatch.setattr(Path, "stat", lambda *a, **k: pytest.fail("stat of a file"))
+    assert SongsFolder(tmp_path, index).scan() == first
+
+
 def test_songs_folder_shares_its_cache_with_scan_folder(tmp_path, monkeypatch):
     put(tmp_path / "a.osu", osu_text())
     index: dict = {}
@@ -845,7 +865,7 @@ def test_songs_folder_find_hashes_newest_files_first_and_stops_when_found(tmp_pa
     found = songs.find([md5_of(osu_text("mid"))])
     assert found == {md5_of(osu_text("new")): str(new), md5_of(osu_text("mid")): str(mid)}
     assert str(old) not in index["files"]  # never hashed
-    assert [p for p, _ in songs.unread] == [str(old)]
+    assert [entry[0] for entry in songs.unread] == [str(old)]
     assert not songs.exhausted
     assert songs.find([md5_of(osu_text("old"))]) == {md5_of(osu_text("old")): str(old)}
     assert songs.exhausted

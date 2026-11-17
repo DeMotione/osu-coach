@@ -126,6 +126,35 @@ def measured_abilities(p: Profile | None, theta: float) -> dict[str, float]:
     return {k: v for k, v in scores.items() if k in SKILLS}
 
 
+def skill_levels(p: Profile | None) -> dict[str, float]:
+    """Each skill's own star level, which its playlist is made around (Star Levels; none under Comfort Score)."""
+    if p is None:
+        return {}
+    engine = make_engine(p.engine)
+    return {k: v for k in SKILLS if (v := engine.playlist_level(p.skill_ratings, k)) is not None}
+
+
+def _manual_ratings(ratings: str | None) -> dict[str, float]:
+    if not ratings:
+        return {}
+    try:
+        manual = json.loads(ratings)
+    except json.JSONDecodeError as exc:
+        raise Invalid("Manual ratings must be a JSON object.", "invalid_ratings") from exc
+    if not isinstance(manual, dict):
+        raise Invalid("Manual ratings must be a JSON object.", "invalid_ratings")
+    for key, value in manual.items():
+        if (
+            key not in SKILLS
+            or isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or not 0 <= value <= 100
+        ):
+            raise Invalid(f"Invalid 0–100 rating for {key}.", "invalid_ratings")
+    return {key: float(value) for key, value in manual.items()}
+
+
 def _options(
     p: Profile | None,
     skill: str | None,
@@ -134,7 +163,11 @@ def _options(
     comfort: float | None,
     kappa: float,
     min_relevance: float,
+    around_skill: bool = True,
 ):
+    """The search's target skill, assessed skills, abilities, star level (θ), where θ came from and κ. With
+    ``around_skill`` and no comfort given, a skill with its own star level (Star Levels) has its playlist made around
+    that level, where its score is 50: κ then has nothing to move, and is 0."""
     if comfort is not None and num(comfort) is None:
         raise Invalid("Comfort stars must be a finite positive number.", "invalid_recommendation_settings")
     theta = num(comfort) if comfort is not None else None
@@ -147,28 +180,15 @@ def _options(
     if theta is None:
         theta = 2.5  # Visible starting assumption until the user supplies comfort stars.
         source = "Unmeasured 2.5★ starting assumption"
-    measured = measured_abilities(p, theta)
-    abilities = dict(measured)
-    if ratings:
-        try:
-            manual = json.loads(ratings)
-        except json.JSONDecodeError as exc:
-            raise Invalid("Manual ratings must be a JSON object.", "invalid_ratings") from exc
-        if not isinstance(manual, dict):
-            raise Invalid("Manual ratings must be a JSON object.", "invalid_ratings")
-        for key, value in manual.items():
-            if (
-                key not in SKILLS
-                or isinstance(value, bool)
-                or not isinstance(value, (int, float))
-                or not math.isfinite(value)
-                or not 0 <= value <= 100
-            ):
-                raise Invalid(f"Invalid 0–100 rating for {key}.", "invalid_ratings")
-            abilities[key] = float(value)
+    manual = _manual_ratings(ratings)
+    abilities = {**measured_abilities(p, theta), **manual}
     target = skill or default_skill(p, abilities)
     if target not in SKILLS:
         raise Invalid(f"Unknown skill {target}.", "unknown_skill")
+    level = skill_levels(p).get(target) if around_skill and comfort is None else None
+    if level is not None:
+        theta, kappa, source = level, 0.0, f"Your {skill_label(target)} level"
+        abilities = {**measured_abilities(p, theta), **manual}
     checked = tuple(dict.fromkeys(assessed.split(",") if assessed is not None else [target]))
     if not checked or target not in checked or set(checked) - set(SKILLS):
         raise Invalid("Assessed skills must include the target skill.", "invalid_assessed_skills")
@@ -180,7 +200,7 @@ def _options(
         or not 0 <= min_relevance <= 1
     ):
         raise Invalid("Invalid recommendation settings.", "invalid_recommendation_settings")
-    return target, checked, abilities, theta, source
+    return target, checked, abilities, theta, source, kappa
 
 
 def suggestions(
@@ -190,7 +210,7 @@ def suggestions(
     min_relevance: float = 0.3,
 ) -> Suggestions:
     pool = _pool(ws)
-    _, _, abilities, theta, source = _options(p, None, None, None, None, kappa, min_relevance)
+    _, _, abilities, theta, source, _ = _options(p, None, None, None, None, kappa, min_relevance, around_skill=False)
     # Use the same measured <=45 scores and three-skill limit as Overview.
     weak = sorted(
         (key for key in SKILLS if abilities.get(key, 101) <= 45), key=lambda key: (abilities[key], SKILLS.index(key))
@@ -259,7 +279,9 @@ def playlist(
 ) -> Playlist:
     pool = _pool(ws)
     p = ws.profile()
-    target, checked, abilities, theta, source = _options(p, skill, assessed, ratings, comfort, kappa, min_relevance)
+    target, checked, abilities, theta, source, kappa = _options(
+        p, skill, assessed, ratings, comfort, kappa, min_relevance
+    )
     t = targets_from_profile(p) if p else Targets(comfort=theta)
     t.comfort = theta
     t.played = _played(ws, t)
@@ -306,7 +328,13 @@ def playlist(
         skill_adjusted_stars=ranked.skill_adjusted_stars,
         abilities=abilities,
         measured_abilities=measured_abilities(p, _comfort_of(p)),
+        engine=p.engine if p else None,
+        skill_levels=_levels(p),
     )
+
+
+def _levels(p: Profile | None) -> dict[str, float]:
+    return {k: round(v, 2) for k, v in skill_levels(p).items()}
 
 
 def validate_search(ws: Workspace, req: PlaylistSearchRequest) -> None:
@@ -460,7 +488,7 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
     options = SearchOptions(req.allow_hr, req.allow_hd, req.adjustable_dt, req.min_rate, req.max_rate)
     pool = _pool(ws)
     p = ws.profile()
-    target, checked, abilities, theta, source = _options(
+    target, checked, abilities, theta, source, kappa = _options(
         p, req.skill, req.assessed, req.ratings, req.comfort, req.kappa, req.min_relevance
     )
     t = targets_from_profile(p) if p else Targets(comfort=theta)
@@ -480,7 +508,7 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
     calculator_unavailable = 0
     unavailable_configurations = 0
     records = pool.to_dict("records")
-    targets = star_targets(theta, req.kappa, abilities, target)
+    targets = star_targets(theta, kappa, abilities, target)
 
     def rows():
         nonlocal unavailable, coverage, calculator_unavailable, unavailable_configurations
@@ -510,7 +538,7 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
             abilities,
             target,
             checked,
-            req.kappa,
+            kappa,
             req.min_relevance,
             played,
             history,
@@ -521,7 +549,7 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
         report(len(records), len(records), "Ranking complete")
     else:
         ranked = recommend_modified(
-            records, rows(), theta, abilities, target, checked, req.kappa, req.min_relevance, played, history
+            records, rows(), theta, abilities, target, checked, kappa, req.min_relevance, played, history
         )
     ranked = explain(ranked, target, t)
     if ranked.candidate_count == 0 and all(key in abilities for key in checked):
@@ -555,6 +583,8 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
         skill_adjusted_stars=ranked.skill_adjusted_stars,
         abilities=abilities,
         measured_abilities=measured_abilities(p, _comfort_of(p)),
+        engine=p.engine if p else None,
+        skill_levels=_levels(p),
         coverage_maps=coverage,
         unavailable_maps=unavailable,
         calculator_unavailable_maps=calculator_unavailable,

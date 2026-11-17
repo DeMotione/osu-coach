@@ -87,6 +87,12 @@ class SelectionOut(BaseModel):
     empty_range: bool = Field(description="No replays in the chosen time range.")
     left_out: list[Count] = Field(description="Replays that can't be analysed, by reason (top 3).")
     left_out_total: int
+    recent_days: int | None = Field(
+        None, description="Only replays of the last this many days are taken; null = any age."
+    )
+    already_analysed: int = Field(0, description="Of these replays, the ones analysed before (they take no time).")
+    estimate_seconds: float = Field(0.0, description="How long analysing them is expected to take on this computer.")
+    download_seconds: float = Field(0.0, description="And downloading their missing beatmaps (when online).")
 
 
 class ScanJob(JobBase):
@@ -96,7 +102,7 @@ class ScanJob(JobBase):
 
 class AnalysisRequest(Request):
     player: str | None = Field(None, description="Player to analyse; '*' = all; null = the one with most replays.")
-    latest: Latest = Field(Latest.newest_500, description="Analyse only the newest N of the found replays; 0 = all.")
+    latest: Latest = Field(Latest.newest_500, description="Analyse only the newest N of the found replays.")
     date_range: DateRange = "all"
     date_from: dt.date | None = None
     date_to: dt.date | None = None
@@ -142,3 +148,6 @@ class AnalysisStatus(BaseModel):
 class AnalysisJob(JobBase):
     kind: Literal["analysis"]
     result: AnalysisResult | None
+    automatic: bool = Field(False, description="Started by osu! coach for a play osu! just saved (auto-analyse).")
+    replays: int | None = Field(None, description="How many replays it reads, once they are chosen.")
+    estimate_seconds: float | None = Field(None, description="How long it was expected to take, when it started.")

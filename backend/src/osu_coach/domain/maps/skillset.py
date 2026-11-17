@@ -155,8 +155,22 @@ _COMPOSITES: dict[str, tuple[Callable[[dict], float], tuple[str, ...]]] = {
 }
 
 
+# a pool row may carry its composites, worked out once for the whole pool (``variants.pool_features``): read instead
+# of computed, as every recommendation scored every pool map again (most of a page that suggests maps). They are of
+# the map without mods, so a row with mods works them out itself.
+PRECOMPUTED = "feature_"
+
+
 def _features(row: dict, skills: Collection[str] | None = None) -> dict[str, float]:
     """The Lab's coarse pool feature composites, in Coach skill names (all of them, or only ``skills``)."""
+    if PRECOMPUTED + "aim" in row and str(row.get("mods") or "NM") == "NM":
+        stored = {}
+        for skill in _COMPOSITES:
+            if skills is None or skill in skills:
+                value = finite_or_none(row.get(PRECOMPUTED + skill))
+                if value is not None and value > 0:
+                    stored[skill] = value
+        return stored
     result = {}
     for skill, (composite, required) in _COMPOSITES.items():
         if skills is not None and skill not in skills:

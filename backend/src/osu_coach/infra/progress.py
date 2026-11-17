@@ -13,6 +13,7 @@ when replays or the analysis cache are deleted later. Per month and player:
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import math
 import sqlite3
 from collections.abc import Callable, Iterable, Sequence
@@ -37,6 +38,7 @@ from osu_coach.domain.progress.periods import (
     utc,
 )
 from osu_coach.infra import clock
+from osu_coach.infra.code_fingerprint import fingerprint
 
 DB_FILE = "progress.sqlite"
 SCHEMA_VERSION = 2  # 2: hp, path
@@ -84,6 +86,7 @@ CREATE TABLE IF NOT EXISTS replays (
     {", ".join(f"{c} {'TEXT' if c in TEXT_COLUMNS else 'REAL'}" for c in COLUMNS)}
 );
 CREATE INDEX IF NOT EXISTS replays_player_month ON replays (player, month);
+CREATE TABLE IF NOT EXISTS month_basis (player TEXT PRIMARY KEY, basis TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS month_metrics (
     player TEXT NOT NULL, month TEXT NOT NULL, name TEXT NOT NULL, value REAL, n INTEGER, updated_at TEXT,
     PRIMARY KEY (player, month, name)
@@ -176,6 +179,13 @@ def rebuild_months(conn: sqlite3.Connection, player: str, plays: Sequence[PlaySu
                 )
 
 
+def _basis(keys: Iterable[str], tz) -> str:
+    """What a player's months are made from: their plays, the code that rates them and the time zone of the months."""
+    digest = hashlib.sha256("\n".join(sorted(keys)).encode())
+    digest.update(f"|{fingerprint('osu_coach.domain')}|{tz}".encode())
+    return digest.hexdigest()
+
+
 def update(
     cache_dir,
     analyses: Sequence[PlaySummary],
@@ -185,14 +195,22 @@ def update(
     """Store new plays and recompute the months of their players. ``load_cached(keys)`` returns the summaries of
     plays stored before but not analysed this time."""
     conn = connect(cache_dir)
+    zone = tz or clock.local_tz()
     try:
-        record(conn, analyses, tz)
+        record(conn, analyses, zone)
         names = sorted({a.meta.player for a in analyses})
         for player in names:
             have = {a.key: a for a in analyses if a.meta.player == player}
             keys = [k for (k,) in conn.execute("SELECT key FROM replays WHERE player = ?", (player,))]
+            # every month is rated against all the player's plays: built again only when they (or the code) changed,
+            # not on every analysis of the same replays (it was most of a repeated analysis, #95)
+            basis = _basis(keys, zone)
+            if conn.execute("SELECT basis FROM month_basis WHERE player = ?", (player,)).fetchone() == (basis,):
+                continue
             older = load_cached([k for k in keys if k not in have]) if load_cached else []
-            rebuild_months(conn, player, list(have.values()) + list(older), tz)
+            rebuild_months(conn, player, list(have.values()) + list(older), zone)
+            with conn:
+                conn.execute("INSERT OR REPLACE INTO month_basis VALUES (?, ?)", (player, basis))
         return names
     finally:
         conn.close()

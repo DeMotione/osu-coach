@@ -302,3 +302,29 @@ def test_rolling_falls_back_to_day_scores_saved_before_it_existed(tmp_path):
         )
     rolling = progress.by_period(conn, "P", "day", tz=UTC, rolling=True).set_index("month")
     assert rolling.loc["2026-09-05", "skill_aim"] == 40.0
+
+
+def test_months_are_built_again_only_when_the_plays_change(tmp_path, monkeypatch):
+    """Every month is rated against all the player's plays, so a new play builds them all again; analysing the same
+    replays again doesn't (it was most of a repeated analysis, #95)."""
+    monkeypatch.setattr(domain_progress, "FEW_PLAYS", 3)
+    lib = Library(tmp_path / "cache")
+    lib.add_folder(_plays_folder(tmp_path))
+    plays, _ = lib.summarize_replays(lib.eligible("Mot1one"), workers=1)
+    first, newest = plays[1:], plays[0]
+    real = progress.period_metrics
+    built = []
+    monkeypatch.setattr(progress, "period_metrics", lambda a, tz: built.append(len(a)) or real(a, tz))
+
+    def older(keys):
+        return summaries.summaries_of(lib.cache, keys, lib.load_cached)
+
+    progress.update(lib.cache, first, older, UTC)
+    months = progress.monthly(progress.connect(lib.cache), "Mot1one")
+    progress.update(lib.cache, first, older, UTC)  # the same plays again: kept as they are
+    assert built == [2]
+    pd.testing.assert_frame_equal(progress.monthly(progress.connect(lib.cache), "Mot1one"), months)
+    progress.update(lib.cache, [newest], older, UTC)  # a new play: every month again, with all three
+    assert built == [2, 3]
+    progress.update(lib.cache, [newest], older, dt.timezone(dt.timedelta(hours=5)))  # months of another time zone
+    assert built == [2, 3, 3]

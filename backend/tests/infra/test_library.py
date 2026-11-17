@@ -1,6 +1,8 @@
 import hashlib
 import shutil
 
+import pytest
+
 from osu_coach.infra import library as libmod
 from osu_coach.infra.library import Library
 from osu_coach.infra.replays import detect
@@ -9,6 +11,7 @@ from tests.conftest import replay_and_map
 
 NAME = "circlecore__low_frametime_old__replay-osu_24722_433541214.osr"
 NAME2 = "circlecore__legit__legit-12.osr"
+REAL_READ = libmod.read_cached
 
 
 def test_parse_header_matches_full_parse():
@@ -171,3 +174,92 @@ def test_analyses_cached_under_the_old_module_path_still_load(tmp_path):
     with open(path, "rb") as fh:
         a = read_cached(fh)
     assert isinstance(a, Play) and a.key == "k" and a.meta.player == "p" and len(a.notes) == 1
+
+
+def test_summaries_are_made_once_and_the_notes_never_reach_the_job(tmp_path, monkeypatch):
+    """The analysis job gets each replay's summary: made when it is analysed (or from its cached analysis), stored,
+    and taken from the store the next time without reading the cached analysis, every note of it, again (#95)."""
+    from osu_coach.infra import summaries
+
+    folder = tmp_path / "plays"
+    folder.mkdir()
+    for n in (NAME, NAME2):
+        rp, mp, _ = replay_and_map(n)
+        shutil.copy(rp, folder / n)
+        shutil.copy(mp, folder / f"{n}.osu")
+    cache = tmp_path / "cache"
+    lib = Library(cache)
+    lib.add_folder(folder)
+    refs = lib.eligible("*")
+    made, errs = lib.summarize_replays(refs, workers=1)
+    assert not errs and len(made) == 2
+    keys = [s.key for s in made]
+    assert set(summaries.load(cache, keys)) == set(keys)  # stored
+    assert all((cache / "analyses" / f"{k}-v{libmod.ANALYSIS_VERSION}.pkl").exists() for k in keys)  # and cached
+
+    monkeypatch.setattr(libmod, "read_cached", lambda fh: pytest.fail("read a cached analysis again"))
+    monkeypatch.setattr(libmod, "_work", lambda *a: pytest.fail("analysed again"))
+    again, errs = lib.summarize_replays(refs, workers=1)
+    assert not errs and [s.key for s in again] == keys
+
+    # a summary lost (the app was updated): made from the cached analysis, not by analysing the replay again
+    monkeypatch.setattr(libmod, "read_cached", REAL_READ)
+    (cache / summaries.DB_FILE).unlink()
+    remade, errs = lib.summarize_replays(refs, workers=1)
+    assert not errs and [s.key for s in remade] == keys
+    assert [s.key for s in libmod.cached_summaries(cache, [keys[1], "gone", keys[0]], workers=1)] == [keys[1], keys[0]]
+
+
+def test_summaries_are_made_in_worker_processes(tmp_path):
+    folder = tmp_path / "plays"
+    folder.mkdir()
+    for n in (NAME, NAME2):
+        rp, mp, _ = replay_and_map(n)
+        shutil.copy(mp, folder / f"{n}.osu")
+        for copy in range(2):  # 4 replay files (2 alike) -> big enough to use the process pool
+            shutil.copy(rp, folder / f"{copy}-{n}")
+    seq = Library(tmp_path / "c1")
+    seq.add_folder(folder)
+    one, _ = seq.summarize_replays(seq.standard_replays(), workers=1)
+    par = Library(tmp_path / "c2")
+    par.add_folder(folder)
+    many, errs = par.summarize_replays(par.standard_replays(), workers=2)
+    assert not errs and len(many) == 4  # every replay, the copies too
+    assert sorted(s.key for s in many) == sorted(s.key for s in one)
+    assert sorted(s.meta.sim_counts for s in many) == sorted(s.meta.sim_counts for s in one)
+
+
+def test_a_replay_without_its_beatmap_has_no_summary(tmp_path):
+    rp, _, _ = replay_and_map(NAME)
+    lib = Library(tmp_path / "cache")
+    lib.add_files([rp])
+    made, errs = lib.summarize_replays(lib.eligible(), workers=1)
+    assert made == [] and "beatmap not found" in errs[0][1]
+
+
+def test_a_plan_says_what_an_analysis_will_have_to_do(tmp_path, monkeypatch):
+    """New replays (with their size), cached analyses to summarise again, and replays done already; the replay
+    files are read once for their keys, which the index keeps (#95)."""
+    from osu_coach.infra import summaries
+    from osu_coach.infra.replays import locate
+
+    folder = tmp_path / "plays"
+    folder.mkdir()
+    for n in (NAME, NAME2):
+        rp, mp, _ = replay_and_map(n)
+        shutil.copy(rp, folder / n)
+        shutil.copy(mp, folder / f"{n}.osu")
+    cache = tmp_path / "cache"
+    lib = Library(cache)
+    lib.add_folder(folder)
+    refs = lib.eligible("*")
+    plan = lib.plan(refs)
+    assert plan.stored == plan.from_cache == 0 and len(plan.new) == 2 and all(mb > 0 for mb, _ in plan.new)
+    lib.summarize_replays(refs, workers=1)
+    monkeypatch.setattr(locate, "file_md5", lambda p: pytest.fail(f"read {p} again"))
+    assert lib.plan(refs).stored == 2
+    (cache / summaries.DB_FILE).unlink()  # an update of the app: summarised again from the cache
+    again = Library(cache)  # the keys come from the saved index
+    again.add_folder(folder)
+    plan = again.plan(again.eligible("*"))
+    assert plan.from_cache == 2 and plan.stored == 0 and not plan.new

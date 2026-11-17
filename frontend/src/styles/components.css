@@ -2779,3 +2779,68 @@ details.disclosure-card[open] > summary .card__title::after {
     grid-column: 2;
   }
 }
+
+/* ------------------------------------------------------------------ the analysis screen (AnalysisLock) */
+.analysis-lock {
+  width: min(100% - 32px, 520px);
+  max-height: calc(100% - 32px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--grain), var(--sheen), var(--pane-dense);
+  backdrop-filter: var(--blur-glass);
+  color: var(--text);
+  box-shadow: var(--glass-edge), var(--elev-4);
+  overflow: auto;
+}
+
+.analysis-lock::backdrop {
+  background: var(--overlay);
+  backdrop-filter: blur(10px);
+}
+
+.analysis-lock__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.analysis-lock__body h2 { margin: 0; font-size: 1.35rem; }
+.analysis-lock__text { margin: 0; color: var(--text-2); }
+.analysis-lock__left { margin: 0; font-weight: 600; color: var(--accent-text); }
+.analysis-lock .progress__text { text-align: left; }
+
+.analysing-art { display: block; width: min(100%, 360px); height: auto; margin: 0 auto; }
+.analysing-art__head { transform-box: fill-box; transform-origin: 50% 90%; animation: aa-bob 2.4s ease-in-out infinite; }
+.analysing-art__note { animation: aa-float 3s ease-in-out infinite; }
+.analysing-art__sparkles path { transform-box: fill-box; transform-origin: center; animation: aa-twinkle 2.2s ease-in-out infinite; }
+.analysing-art__sparkles path:nth-child(2) { animation-delay: 0.7s; }
+.analysing-art__sparkles path:nth-child(3) { animation-delay: 1.4s; }
+.analysing-art__steam path { animation: aa-steam 2.4s ease-in infinite; }
+.analysing-art__steam path:nth-child(2) { animation-delay: 0.8s; }
+.analysing-art__steam path:nth-child(3) { animation-delay: 1.6s; }
+.analysing-art__approach { transform-box: fill-box; transform-origin: center; animation: aa-approach 1.8s ease-in infinite; }
+.analysing-art__circle { transform-box: fill-box; transform-origin: center; animation: aa-hit 5.4s ease-in-out infinite; }
+.analysing-art__circle:nth-of-type(2) { animation-delay: 1.8s; }
+.analysing-art__circle:nth-of-type(3) { animation-delay: 3.6s; }
+
+@keyframes aa-bob { 50% { transform: rotate(-3deg) translateY(1px); } }
+@keyframes aa-float { 50% { transform: translateY(-5px); } }
+@keyframes aa-twinkle { 50% { transform: scale(0.55); opacity: 0.5; } }
+@keyframes aa-steam {
+  0% { transform: translateY(4px); opacity: 0; }
+  40% { opacity: 0.75; }
+  100% { transform: translateY(-10px); opacity: 0; }
+}
+@keyframes aa-approach {
+  0% { transform: scale(1.15); opacity: 0; }
+  30% { opacity: 0.8; }
+  100% { transform: scale(0.6); opacity: 0; }
+}
+@keyframes aa-hit { 0%, 30%, 100% { transform: scale(1); } 8% { transform: scale(1.12); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .analysing-art * { animation: none !important; }
+}

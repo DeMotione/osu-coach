@@ -39,6 +39,20 @@ it("accepts both default DT endpoints and rejects finer than hundredth rates", (
   expect(screen.getByRole("button", { name: "Show maps" })).toBeDisabled();
 });
 
+it("Star Levels: no comfort, κₛ or relevance to set; the playlist is made around the skill's own level", () => {
+  const onApply = vi.fn();
+  render(<RecommendationControls current="speed" measured={{ speed: 50 }} comfort={6.4} levels={{ speed: 6.82 }} initial={{ comfort: 5, kappa: 0.8 }} onApply={onApply} />);
+  fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
+  expect(screen.queryByRole("spinbutton", { name: /Comfort difficulty/ })).toBeNull();
+  expect(screen.queryByRole("spinbutton", { name: /Skill star adjustment/ })).toBeNull();
+  expect(screen.queryByRole("spinbutton", { name: /relevance/ })).toBeNull();
+  expect(screen.getByText(/your Tapping speed level from the Overview, 6\.8★/)).toBeTruthy();
+  fireEvent.change(screen.getByRole("combobox", { name: "Target skill" }), { target: { value: "consistency" } });
+  expect(screen.getByText(/your comfort level \(Consistency has no measured star level\)/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ skill: "consistency", comfort: undefined, kappa: 0.5, min_relevance: 0.3 }));
+});
+
 it("starts from the selection applied last, and applies it again unchanged (#107)", () => {
   const onApply = vi.fn();
   const applied = {

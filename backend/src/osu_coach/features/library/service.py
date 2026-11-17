@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import datetime as dt
+import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from osu_coach.common.errors import ApiError, Invalid, NotFound
 from osu_coach.common.schemas import Count
-from osu_coach.domain.analysis.models import Play
-from osu_coach.domain.replays import scope
+from osu_coach.domain.analysis.estimate import DOWNLOAD, STARTUP, STORED, Plan, analysis_seconds, parallel_work
+from osu_coach.domain.player import PlaySummary
+from osu_coach.domain.replays import eligibility, scope
+from osu_coach.domain.replays.selection import MOST_REPLAYS
 from osu_coach.features.library.schemas import (
     AnalysisRequest,
     InstallOut,
@@ -21,9 +24,9 @@ from osu_coach.features.library.schemas import (
     SelectionOut,
     UploadedFile,
 )
-from osu_coach.infra import clock
+from osu_coach.infra import analysis_speed, clock
 from osu_coach.infra.jobs import Reporter
-from osu_coach.infra.library import Library, ScanArgs
+from osu_coach.infra.library import Library, ScanArgs, default_workers
 from osu_coach.infra.replays import detect
 from osu_coach.infra.uploads import MAX_UPLOAD_BYTES, UPLOAD_SUFFIXES, find_upload, safe_upload_name, upload_target
 
@@ -65,6 +68,17 @@ def add_install_path(ws: Workspace, path: str) -> detect.Install:
 
 
 # ------------------------------------------------------------------ scan
+def _days(ws: Workspace) -> int:
+    """How many days back a scanned library's replays are analysed (0: any age)."""
+    days = ws.config.recent_days
+    return scope.RECENT_DAYS if days is None else days
+
+
+def _oldest(ws: Workspace, now: dt.datetime) -> dt.datetime | None:
+    days = _days(ws)
+    return scope.recent_start(now, days) if days else None
+
+
 def kept_files(ws: Workspace) -> list[str]:
     """The replay and beatmap files added by hand in earlier scans that are still there."""
     return [f for f in (ws.scan_args.files if ws.scan_args else []) if Path(f).is_file()]
@@ -90,19 +104,25 @@ def scan_args(ws: Workspace, req: ScanRequest) -> ScanArgs:
 
 
 def run_scan(ws: Workspace, args: ScanArgs, report: Reporter) -> ScanResult:
-    """Read every replay (and the beatmaps) of the chosen sources into a new library. How many of them are
-    analysed is chosen afterwards (``select``), so the count found is the full one (#36)."""
+    """Read the replays (and the beatmaps) of the chosen sources into a new library: newest first, until the newest
+    ``MOST_REPLAYS`` of the player are certain (the one analysed last, else whoever has the most replays: you) or
+    the files are older than the last year (``scope.RECENT_DAYS``). How
+    many of them are analysed is chosen afterwards (``select``, #36). The beatmaps are then looked up only for those
+    replays, not read from the whole Songs folder (#95)."""
     lib = Library(ws.cache_dir)
     warnings = []
+    player = ws.settings().player or None
+    since = _oldest(ws, clock.now())
+    oldest = since.timestamp() if since else None  # older files can't hold a play of the last year
     report.note("Scanning for replays…")
     for inst in args.installs:
         report.note(f"Scanning {inst.label}…")
-        lib.add_install(inst, progress=report.note)
+        lib.add_install(inst, progress=report.note, latest=MOST_REPLAYS, player=player, oldest=oldest)
     for f in args.folders:
         path = Path(f).expanduser()
         if path.is_dir():
             report.note(f"Scanning {path}…")
-            lib.add_folder(path)
+            lib.add_folder(path, latest=MOST_REPLAYS, player=player, oldest=oldest)
         else:
             warnings.append(f"Folder not found: {f}")
     if args.files:
@@ -168,25 +188,40 @@ class Selection:
     start: dt.date | None
     end: dt.date | None
     since: dt.datetime | None
+    oldest: dt.datetime | None = None  # the last year's start (a scanned library, not files added by hand)
 
 
 def select(
     ws: Workspace, player: str | None, latest: int, date_range: str, date_from: dt.date | None, date_to: dt.date | None
 ) -> Selection:
     """The replays an analysis with these choices reads: the player's (``*`` = everyone's) newest first, in the
-    time range, at most ``latest`` (only when scanning the library, not dropped files)."""
+    time range, at most ``latest``. A scanned library's are of the last year only (``scope.RECENT_DAYS``); files
+    added by hand are taken whenever they were played, the newest ``MOST_REPLAYS`` of them."""
     lib = require_library(ws)
-    players = lib.players()
+    only = bool(ws.scan_args and ws.scan_args.only)
+    now = clock.now()
+    oldest = None if only else _oldest(ws, now)
+    every_player = lib.standard_replays()
+    recent = every_player if oldest is None else scope.filter_refs(every_player, oldest, None)
+    players = eligibility.player_counts(recent)
     if not players:
+        if every_player:
+            raise ApiError(
+                409,
+                "no_recent_replays",
+                f"The replays found there are all older than a year: only the plays of the last {_days(ws)} days "
+                "are analysed.",
+            )
         raise ApiError(
             409, "no_replays", "No osu!standard replays found there (relax/autopilot/autoplay replays are skipped)."
         )
     names = [n for n, _ in players]
     opts = names + (["*"] if len(names) > 1 else [])
     player = player if player in opts else names[0]
-    only = bool(ws.scan_args and ws.scan_args.only)
-    limit = None if only else (latest or None)
+    limit = min(latest or MOST_REPLAYS, MOST_REPLAYS)  # files added by hand too: their newest
     every = lib.eligible(player)
+    if oldest is not None:
+        every = scope.filter_refs(every, oldest, None)
     choice = "all" if only else date_range
     start = end = None
     if choice == "custom":
@@ -195,11 +230,12 @@ def select(
         if start > end:
             raise Invalid("The start of the date range is after its end.", "invalid_date_range")
     since, until = scope.date_window(
-        choice, [r.get("timestamp") for r in every], start, end, now=clock.now(), tz=clock.local_tz()
+        choice, [r.get("timestamp") for r in every], start, end, now=now, tz=clock.local_tz()
     )
+    if oldest is not None:
+        since = max(since, oldest) if since else oldest
     refs = scope.filter_refs(every, since, until)[:limit]
-    counts = dict(players)
-    found = sum(counts.values()) if player == "*" else counts.get(player, 0)
+    found = len(every)
     return Selection(
         player=player,
         players=players,
@@ -211,13 +247,26 @@ def select(
         start=start,
         end=end,
         since=since,
+        oldest=oldest,
     )
+
+
+def estimate(ws: Workspace, refs: list[dict]) -> tuple[Plan, float]:
+    """What analysing these replays takes, and how long it is expected to (on this computer, as far as measured)."""
+    plan = require_library(ws).plan(refs)
+    return plan, analysis_seconds(plan, _workers(ws), analysis_speed.speed(ws.cache_dir))
+
+
+def _workers(ws: Workspace) -> int:
+    return ws.config.analysis_workers or default_workers()
 
 
 def selection_out(ws: Workspace, sel: Selection) -> SelectionOut:
     lib = require_library(ws)
     missing = lib.missing_maps(sel.refs)  # looks in the beatmap sources not read yet (only dropped files)
-    left = lib.left_out(sel.player, since=sel.refs[-1]["timestamp"] if sel.limit and sel.refs else None)
+    oldest = sel.oldest.isoformat() if sel.oldest else None
+    left = lib.left_out(sel.player, since=sel.refs[-1]["timestamp"] if sel.limit and sel.refs else oldest)
+    plan, seconds = estimate(ws, sel.refs)
     return SelectionOut(
         player=sel.player,
         players=[PlayerCount(name=n, replays=c) for n, c in sel.players],
@@ -232,14 +281,19 @@ def selection_out(ws: Workspace, sel: Selection) -> SelectionOut:
         empty_range=not sel.refs and sel.choice != "all",
         left_out=[Count(label=reason, count=n) for reason, n in left.most_common(3)],
         left_out_total=sum(left.values()),
+        recent_days=_days(ws) if sel.oldest else None,
+        already_analysed=plan.stored,
+        estimate_seconds=round(seconds, 1),
+        download_seconds=round(DOWNLOAD * len(missing), 1),
     )
 
 
 # ------------------------------------------------------------------ analysis
 def analyze_selection(
     ws: Workspace, req: AnalysisRequest, report: Reporter
-) -> tuple[Selection, list[Play], list[tuple[dict, str]]]:
-    """Fetch what is missing (when online) and analyse the selected replays. What to do with the analyses
+) -> tuple[Selection, list[PlaySummary], list[tuple[dict, str]]]:
+    """Fetch what is missing (when online) and analyse the selected replays, giving their summaries: made in worker
+    processes, so the job never holds every play's notes (``Library.summarize_replays``). What to do with them
     (progress history, profile) is up to the caller: see :mod:`osu_coach.features.library.session`."""
     lib = require_library(ws)
     sel = select(ws, req.player, int(req.latest), req.date_range, req.date_from, req.date_to)
@@ -250,20 +304,25 @@ def analyze_selection(
             "No replays in that time range — choose a longer one." if sel.choice != "all" else "No replays to analyse.",
         )
     report(0, 1, "Preparing…")
-    if req.online:
-        missing = lib.missing_maps(sel.refs, progress=report.note)
-        if missing:
-            lib.fetch_missing(missing, progress=report)
-    analyses, errors = lib.analyze(
+    plan, seconds = estimate(ws, sel.refs)
+    missing = lib.missing_maps(sel.refs, progress=report.note) if req.online else []
+    report.detail(replays=len(sel.refs), estimate_seconds=round(seconds + DOWNLOAD * len(missing), 1))
+    if missing:
+        lib.fetch_missing(missing, progress=report)
+    started = time.monotonic()
+    plays, errors = lib.summarize_replays(
         sel.refs,
         workers=ws.config.analysis_workers,
         progress=lambda done, total, _msg: report(done, total, f"Analysing replays… {done}/{total}"),
     )
-    if not analyses:
+    # how fast this computer is: the next estimates follow it
+    took = time.monotonic() - started - STARTUP - STORED * plan.stored
+    analysis_speed.record(ws.cache_dir, parallel_work(plan, _workers(ws)), took, len(plan.new))
+    if not plays:
         raise ApiError(
             422, "nothing_analysed", "None of the replays could be analysed. " + (errors[0][1] if errors else "")
         )
-    return sel, analyses, errors
+    return sel, plays, errors
 
 
 def save_upload(ws: Workspace, name: str, data: bytes) -> UploadedFile:

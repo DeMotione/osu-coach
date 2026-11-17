@@ -90,3 +90,29 @@ def test_bundled_pool_covers_beginner_to_advanced():
     assert pool["md5"].is_unique
     assert pool["stars"].min() < 1.5 and pool["stars"].max() > 7.5
     assert {"s_" + s for s in SKILLS} <= set(pool.columns)
+
+
+def test_the_pool_is_kept_as_read_in_the_data_folder(tmp_path, monkeypatch):
+    """Reading the whole pool file took seconds of every start: the data folder keeps it as read, for this pool
+    file and this code, with each map's skill composites worked out once (#95)."""
+    from osu_coach.domain.maps import skillset
+    from osu_coach.infra import map_pool
+
+    path = save_pool(
+        [{"md5": "a" * 32, "stars": 5.0, "cs": 4, "jump_velocity": 1.2, "sharp_share": 0.3}], tmp_path / "p.json.gz"
+    )
+    data = tmp_path / "data"
+    first = load_pool(path, cache_dir=data)
+    assert len(list((data / map_pool.PARSED_DIR).glob("*.pkl"))) == 1
+    assert first[skillset.PRECOMPUTED + "aim"].iloc[0] > 0
+    # another start: read from the copy, not parsed
+    monkeypatch.setattr(map_pool, "_READ", {})
+    monkeypatch.setattr(map_pool, "_parse", lambda p: pytest.fail("parsed again"))
+    again = load_pool(path, cache_dir=data)
+    assert again.equals(first)
+    # an edited pool file is read again, and its copy replaces the old one
+    monkeypatch.undo()
+    save_pool([{"md5": "b" * 32, "stars": 6.0}], path)
+    monkeypatch.setattr(map_pool, "_READ", {})
+    assert load_pool(path, cache_dir=data)["md5"].tolist() == ["b" * 32]
+    assert len(list((data / map_pool.PARSED_DIR).glob("*.pkl"))) == 1

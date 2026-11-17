@@ -943,6 +943,22 @@ export interface components {
              */
             kind: "analysis";
             result: components["schemas"]["AnalysisResult"] | null;
+            /**
+             * Automatic
+             * @description Started by osu! coach for a play osu! just saved (auto-analyse).
+             * @default false
+             */
+            automatic: boolean;
+            /**
+             * Replays
+             * @description How many replays it reads, once they are chosen.
+             */
+            replays?: number | null;
+            /**
+             * Estimate Seconds
+             * @description How long it was expected to take, when it started.
+             */
+            estimate_seconds?: number | null;
         };
         /** AnalysisRequest */
         AnalysisRequest: {
@@ -952,7 +968,7 @@ export interface components {
              */
             player?: string | null;
             /**
-             * @description Analyse only the newest N of the found replays; 0 = all.
+             * @description Analyse only the newest N of the found replays.
              * @default 500
              */
             latest: components["schemas"]["Latest"];
@@ -1053,7 +1069,7 @@ export interface components {
              */
             folders: string;
             /**
-             * @description Newest of the found replays to analyse; 0 = all.
+             * @description Newest of the found replays to analyse.
              * @default 500
              */
             latest: components["schemas"]["Latest"];
@@ -1924,10 +1940,10 @@ export interface components {
         };
         /**
          * Latest
-         * @description How many of the newest found replays to analyse; 0 = all of them.
+         * @description How many of the newest found replays to analyse.
          * @enum {integer}
          */
-        Latest: 100 | 500 | 1000 | 0;
+        Latest: 100 | 500 | 1000;
         /** LazerOpenRequest */
         LazerOpenRequest: {
             /**
@@ -2245,7 +2261,7 @@ export interface components {
             best_definition: string;
             /**
              * Latest Choices
-             * @description Replay counts to analyse; 0 = all.
+             * @description Replay counts to analyse.
              */
             latest_choices: number[];
             /** Periods */
@@ -2685,6 +2701,18 @@ export interface components {
                 [key: string]: number;
             };
             /**
+             * Engine
+             * @description The rating engine of the skill ratings (null: no replays analysed).
+             */
+            engine?: string | null;
+            /**
+             * Skill Levels
+             * @description Star Levels: each skill's own star level (★), which its playlist is made around instead of the comfort level moved by kappa; empty under Comfort Score.
+             */
+            skill_levels?: {
+                [key: string]: number;
+            };
+            /**
              * Coverage Maps
              * @description Maps with verified .osu data searched for modified configurations.
              */
@@ -3102,6 +3130,29 @@ export interface components {
             left_out: components["schemas"]["Count"][];
             /** Left Out Total */
             left_out_total: number;
+            /**
+             * Recent Days
+             * @description Only replays of the last this many days are taken; null = any age.
+             */
+            recent_days?: number | null;
+            /**
+             * Already Analysed
+             * @description Of these replays, the ones analysed before (they take no time).
+             * @default 0
+             */
+            already_analysed: number;
+            /**
+             * Estimate Seconds
+             * @description How long analysing them is expected to take on this computer.
+             * @default 0
+             */
+            estimate_seconds: number;
+            /**
+             * Download Seconds
+             * @description And downloading their missing beatmaps (when online).
+             * @default 0
+             */
+            download_seconds: number;
         };
         /**
          * SettingsPatch

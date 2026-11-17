@@ -7,12 +7,16 @@ from typing import Literal
 
 
 class Latest(IntEnum):
-    """How many of the newest found replays to analyse; 0 = all of them."""
+    """How many of the newest found replays to analyse."""
 
     newest_100 = 100
     newest_500 = 500
     newest_1000 = 1000
-    all = 0
+
+
+# the most replays a scan reads (newest first, per player) and an analysis takes: more took tens of minutes the first
+# time and told little more about how you play now
+MOST_REPLAYS = int(max(Latest))
 
 
 DateRange = Literal["all", "session", "7d", "30d", "custom"]

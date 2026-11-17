@@ -64,7 +64,7 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs Python 3.11 and 3
 
 ## Environment variables
 
-`OSU_COACH_CACHE` (data dir), `OSU_COACH_WEB_DIR` (built web app to serve), `OSU_COACH_API` (Vite proxy target), `OSU_COACH_PYTHON` (e2e interpreter), `OSU_COACH_NO_AUTODETECT` (skip osu! detection), `OSU_COACH_API_DOCS` (serve `/docs` and show the web app's API link; default true), `OSU_COACH_DEMO` (replay folder(s) used when none were saved; for demos).
+`OSU_COACH_CACHE` (data dir), `OSU_COACH_WEB_DIR` (built web app to serve), `OSU_COACH_API` (Vite proxy target), `OSU_COACH_PYTHON` (e2e interpreter), `OSU_COACH_NO_AUTODETECT` (skip osu! detection), `OSU_COACH_API_DOCS` (serve `/docs` and show the web app's API link; default true), `OSU_COACH_DEMO` (replay folder(s) used when none were saved; for demos), `OSU_COACH_RECENT_DAYS` (how many days back a scanned library's replays are analysed; default 366, `0` = any age, as the e2e tests and demos with old replays need).
 
 ## Dependencies and versions
 

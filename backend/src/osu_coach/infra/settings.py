@@ -118,7 +118,7 @@ class UserSettings:
 
     @property
     def latest(self) -> int | None:
-        """The newest replays to analyse; 0 = all."""
+        """The newest replays to analyse (0, from an older version: all)."""
         return _int(self.values.get("latest"))
 
     @property

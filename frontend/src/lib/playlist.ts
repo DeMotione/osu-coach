@@ -59,6 +59,8 @@ export interface PlaylistControls {
   skill: string;
   measured: Record<string, number>;
   comfort: number;
+  /** Star Levels: each skill's own star level, which its playlist is made around (absent under Comfort Score). */
+  levels?: Record<string, number>;
 }
 
 /** The Playlist for a skill tab as it was left, so another tab or page and back shows the same playlist (#107): the

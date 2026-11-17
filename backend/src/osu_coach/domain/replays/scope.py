@@ -1,7 +1,8 @@
 """Which replays go into an analysis: a date window (last session / 7 days / 30 days / custom range) and
 "All replays" vs "Best replays".
 
-* **Date window**: on the replay headers (``timestamp``, ISO, UTC), before anything is analysed.
+* **Date window**: on the replay headers (``timestamp``, ISO, UTC), before anything is analysed, and never
+  older than ``RECENT_DAYS`` (a scanned library's plays of the last year: how you play now).
   "Last session" = the newest replay and every replay before it with less than ``SESSION_GAP``
   between consecutive plays.
 * **Best replays**: after the analysis (it needs to know whether a play was passed): only passed plays
@@ -14,8 +15,10 @@ from __future__ import annotations
 import datetime as dt
 
 DATE_CHOICES = ["all", "session", "7d", "30d", "custom"]
+# a scanned library's replays older than this aren't analysed: how you played then says little about now (#95)
+RECENT_DAYS = 366
 DATE_LABELS = {
-    "all": "All time",
+    "all": "Last year",
     "session": "Last session",
     "7d": "Last 7 days",
     "30d": "Last 30 days",
@@ -81,6 +84,11 @@ def date_window(
         until = (dt.datetime.combine(end, dt.time.min, tz) + dt.timedelta(days=1)).astimezone(dt.UTC) if end else None
         return since, until
     return None, None
+
+
+def recent_start(now: dt.datetime, days: int | None = None) -> dt.datetime:
+    """The oldest play time a scanned library's analysis takes (UTC): ``days`` (default ``RECENT_DAYS``) back."""
+    return parse_time(now) - dt.timedelta(days=RECENT_DAYS if days is None else days)
 
 
 def in_window(t, since: dt.datetime | None, until: dt.datetime | None) -> bool:

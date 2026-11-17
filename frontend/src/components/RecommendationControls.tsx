@@ -23,6 +23,8 @@ const SKILLS = [
   ["reading", "Reading"], ["consistency", "Consistency"],
 ] as const;
 
+const skillName = (id: string) => SKILLS.find(([key]) => key === id)?.[1] ?? id;
+
 /** Manual ratings as applied (a JSON object of numbers) back into the fields' texts. */
 function ratingTexts(applied: string | undefined): Record<string, string> {
   try {
@@ -35,11 +37,14 @@ function ratingTexts(applied: string | undefined): Record<string, string> {
 }
 
 /** Draft every control locally; the one Show maps action applies the complete selection. The draft starts from
- * ``initial``, the selection applied last (a playlist come back to, #107). */
-export function RecommendationControls({ current, measured, comfort, initial = {}, onApply }: {
+ * ``initial``, the selection applied last (a playlist come back to, #107). With ``levels`` (Star Levels: each skill's
+ * own star level) a playlist is made around the target skill's level, so there is no comfort difficulty, κₛ or
+ * relevance to set. */
+export function RecommendationControls({ current, measured, comfort, levels, initial = {}, onApply }: {
   current: string;
   measured: Record<string, number>;
   comfort: number;
+  levels?: Record<string, number>;
   initial?: RecommendationOptions;
   onApply: (options: RecommendationOptions) => void;
 }) {
@@ -59,8 +64,9 @@ export function RecommendationControls({ current, measured, comfort, initial = {
   const [minRate, setMinRate] = useState((initial.min_rate ?? 1.1).toFixed(2));
   const [maxRate, setMaxRate] = useState((initial.max_rate ?? 2).toFixed(2));
   const selected = [skill, ...(assessed ?? []).filter((id) => id !== skill)];
-  const valid = Number(stars) > 0 && Number(kappa) >= 0 && Number(relevance) >= 0 && Number(relevance) <= 1 &&
-    [stars, kappa, relevance].every((n) => n.trim() !== "" && Number.isFinite(Number(n))) &&
+  const byLevel = levels !== undefined;
+  const valid = (byLevel || (Number(stars) > 0 && Number(kappa) >= 0 && Number(relevance) >= 0 && Number(relevance) <= 1 &&
+    [stars, kappa, relevance].every((n) => n.trim() !== "" && Number.isFinite(Number(n))))) &&
     Object.values(ratings).every((n) => n.trim() === "" || (Number.isFinite(Number(n)) && Number(n) >= 0 && Number(n) <= 100)) &&
     (!adjustableDt || (Number(minRate) >= 1.10 && Number(maxRate) <= 2.00 && Number(minRate) <= Number(maxRate) &&
       [minRate, maxRate].every((n) => n.trim() !== "" &&
@@ -73,9 +79,10 @@ export function RecommendationControls({ current, measured, comfort, initial = {
       skill,
       assessed: selected.join(","),
       ratings: Object.keys(manual).length ? JSON.stringify(manual) : undefined,
-      comfort: starsOverride !== null ? Number(stars) : undefined,
-      kappa: Number(kappa),
-      min_relevance: Number(relevance),
+      // Star Levels: no comfort; κₛ moves nothing around the skill's own level, and relevance keeps its default
+      comfort: !byLevel && starsOverride !== null ? Number(stars) : undefined,
+      kappa: byLevel ? 0.5 : Number(kappa),
+      min_relevance: byLevel ? 0.3 : Number(relevance),
       exclude_played: excludePlayed,
       allow_hr: allowHr,
       allow_hd: allowHd,
@@ -112,17 +119,26 @@ export function RecommendationControls({ current, measured, comfort, initial = {
           <button type="button" className="recommendation-close" aria-label="Close settings" onClick={() => setPanel(null)}>×</button>
         </div>
         {panel === "fine" ? <>
-          <div className="recommendation-grid">
-            <Field label="Comfort difficulty" help="Your starting difficulty in stars.">
-              <input className="input" type="number" min="0.1" step="0.01" value={stars} onChange={(event) => setStarsOverride(event.target.value)} />
-            </Field>
-            <Field label="Skill star adjustment κₛ (stars)" help="How much your skill rating shifts the star target.">
-              <input className="input" type="number" min="0" step="0.1" value={kappa} onChange={(event) => setKappa(event.target.value)} />
-            </Field>
-            <Field label="Minimum target-skill relevance" help="Only maps with at least this much material for the target skill (0–1).">
-              <input className="input" type="number" min="0" max="1" step="0.05" value={relevance} onChange={(event) => setRelevance(event.target.value)} />
-            </Field>
-          </div>
+          {byLevel ? (
+            <p className="small muted">
+              Difficulty:{" "}
+              {levels[skill] !== undefined
+                ? `your ${skillName(skill)} level from the Overview, ${levels[skill].toFixed(1)}★.`
+                : `your comfort level (${skillName(skill)} has no measured star level).`}
+            </p>
+          ) : (
+            <div className="recommendation-grid">
+              <Field label="Comfort difficulty" help="Your starting difficulty in stars.">
+                <input className="input" type="number" min="0.1" step="0.01" value={stars} onChange={(event) => setStarsOverride(event.target.value)} />
+              </Field>
+              <Field label="Skill star adjustment κₛ (stars)" help="How much your skill rating shifts the star target.">
+                <input className="input" type="number" min="0" step="0.1" value={kappa} onChange={(event) => setKappa(event.target.value)} />
+              </Field>
+              <Field label="Minimum target-skill relevance" help="Only maps with at least this much material for the target skill (0–1).">
+                <input className="input" type="number" min="0" max="1" step="0.05" value={relevance} onChange={(event) => setRelevance(event.target.value)} />
+              </Field>
+            </div>
+          )}
           <label className="recommendation-check">
             <input type="checkbox" checked={excludePlayed} onChange={(event) => setExcludePlayed(event.target.checked)} />
             Hide maps I have already completed

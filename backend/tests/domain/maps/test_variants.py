@@ -65,7 +65,9 @@ def test_rows_are_stored_where_the_patterns_change():
 
 
 def test_composites_are_skillsets(pool):
-    rows = pool.iloc[::37].to_dict("records")
+    # the formulas themselves: without the composites the pool carries (see the next test)
+    plain = pool.drop(columns=[c for c in pool if c.startswith(skillset.PRECOMPUTED)])
+    rows = plain.iloc[::37].to_dict("records")
     frame = pd.DataFrame(rows)
     for hd in (False, True):
         if hd:
@@ -79,6 +81,21 @@ def test_composites_are_skillsets(pool):
                 else:
                     assert math.isnan(mine[skill][i]), skill
     assert sum(len(skillset._features(row)) for row in rows) > 6 * len(rows)
+
+
+def test_the_pool_carries_its_composites(pool):
+    """Worked out once when the pool is read, they are the ones each recommendation used to work out per map; a row
+    with mods works its own out. numpy's log1p and math's can differ in the last bit (numpy 2.4 on Linux did)."""
+    rows = pool.iloc[::13].to_dict("records")
+    assert all(skillset.PRECOMPUTED + skill in rows[0] for skill in SKILLS)
+    for row in rows:
+        plain = {k: v for k, v in row.items() if not k.startswith(skillset.PRECOMPUTED)}
+        assert skillset._features(row) == pytest.approx(skillset._features(plain), rel=1e-12)
+        assert skillset._features(row, ("aim", "reading")) == pytest.approx(
+            skillset._features(plain, ("aim", "reading")), rel=1e-12
+        )
+        hidden = {**row, "mods": "HD"}
+        assert skillset._features(hidden) == skillset._features({**plain, "mods": "HD"})
 
 
 def test_relevance_is_skill_scores(pool):
