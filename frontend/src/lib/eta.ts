@@ -19,17 +19,20 @@ export function secondsLeft(first: Sample, last: Sample, now: number): number | 
   return Math.max(0, (end - now) / 1000);
 }
 
-/** "about 3 minutes left": rounded, as an estimate should be. */
-export function formatLeft(seconds: number): string {
-  if (seconds < 50) return "less than a minute left";
+/** "about 3 minutes": rounded, as an estimate should be. */
+export function formatDuration(seconds: number): string {
+  if (seconds < 50) return "less than a minute";
   const minutes = Math.round(seconds / 60);
-  if (minutes <= 1) return "about a minute left";
-  if (minutes < 60) return `about ${minutes} minutes left`;
+  if (minutes <= 1) return "about a minute";
+  if (minutes < 60) return `about ${minutes} minutes`;
   const rounded = Math.round(minutes / 5) * 5;
   const h = Math.floor(rounded / 60);
   const m = rounded % 60;
-  return m ? `about ${h} h ${m} min left` : `about ${h} h left`;
+  return m ? `about ${h} h ${m} min` : `about ${h} h`;
 }
+
+/** "about 3 minutes left". */
+export const formatLeft = (seconds: number): string => `${formatDuration(seconds)} left`;
 
 /**
  * Seconds a job (``key``) still needs at its pace so far, updated every second; null until its progress has moved

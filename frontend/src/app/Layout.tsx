@@ -20,6 +20,7 @@ import {
   IconWinRestore,
   IconX,
 } from "../components/icons";
+import { AnalysisLock } from "../components/AnalysisLock";
 import { NewPlayNotice } from "../components/NewPlayNotice";
 import { Onboarding } from "../components/onboarding/Onboarding";
 import { closeWindow, isDesktop, minimizeWindow, toggleMaximizeWindow, useWindowMaximized } from "../lib/desktop";
@@ -374,6 +375,8 @@ function Shell() {
         <StatusBar inert={guide} />
       </div>
       {!guide && <NewPlayNotice />}
+      {/* the guide shows its own analysis, and lets the player go on with the next steps meanwhile */}
+      {!guide && <AnalysisLock />}
       {guide && <Onboarding first={firstStart} onClose={() => setGuideOpened(false)} />}
     </div>
   );

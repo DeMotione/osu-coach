@@ -88,7 +88,9 @@ def _use(cache_dir: Path | str, work: Callable[[sqlite3.Connection], T], fallbac
 
 
 def _pack(summary: PlaySummary) -> bytes:
-    return zlib.compress(pickle.dumps(summary, protocol=pickle.HIGHEST_PROTOCOL), 6)
+    return zlib.compress(
+        pickle.dumps(summary, protocol=pickle.HIGHEST_PROTOCOL), 1
+    )  # 6 took twice as long, ~5% smaller
 
 
 def _unpack(data: bytes) -> PlaySummary | None:
@@ -120,6 +122,26 @@ def load(cache_dir: Path | str, keys: Iterable[str]) -> dict[str, PlaySummary]:
         return out
 
     return _use(cache_dir, read, {})
+
+
+def stored_keys(cache_dir: Path | str, keys: Iterable[str]) -> set[str]:
+    """Which of these plays have a summary of the current version (without reading them)."""
+    keys = list(dict.fromkeys(keys))
+
+    def read(conn: sqlite3.Connection) -> set[str]:
+        out: set[str] = set()
+        for start in range(0, len(keys), 500):
+            chunk = keys[start : start + 500]
+            out.update(
+                k
+                for (k,) in conn.execute(
+                    f"SELECT key FROM summaries WHERE version = ? AND key IN ({', '.join('?' * len(chunk))})",
+                    [VERSION, *chunk],
+                )
+            )
+        return out
+
+    return _use(cache_dir, read, set()) if keys else set()
 
 
 def save(cache_dir: Path | str, summaries: Iterable[PlaySummary]) -> None:

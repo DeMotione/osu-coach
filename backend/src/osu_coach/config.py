@@ -29,7 +29,10 @@ class Settings(BaseSettings):
     api_docs: bool = True
     """Serve the API reference at ``/docs`` and ``/api/openapi.json``; the installed desktop app turns it off."""
     analysis_workers: int | None = None
-    """Processes for replay analysis; None = CPU count − 1, at most 8."""
+    """Processes for replay analysis; None = CPU count, at most 8."""
+    recent_days: int | None = Field(None, ge=0)
+    """How many days back a scanned library's replays are analysed (``OSU_COACH_RECENT_DAYS``); None = the last year
+    (``scope.RECENT_DAYS``), 0 = any age (demos and tests with old replays)."""
 
 
 def default_cache_dir() -> Path:

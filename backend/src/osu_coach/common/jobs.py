@@ -37,4 +37,5 @@ def job_view(model: type[JobBase], job) -> JobBase:
         finished_at=job.finished_at,
         cancellable=job.cancellable,
         result=job.result,
+        **{k: v for k, v in job.details.items() if k in model.model_fields},
     )

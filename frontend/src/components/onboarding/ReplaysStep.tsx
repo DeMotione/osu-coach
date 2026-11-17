@@ -252,7 +252,7 @@ function Sources({ client, r }: { client: Schemas["SetupModel"]["client"]; r: Re
             block
             value={s.latest}
             onChange={(latest) => patch.mutate({ latest })}
-            options={(meta.data?.latest_choices ?? [100, 500, 1000, 0]).map((n) => ({ value: n as Schemas["Latest"], label: n ? `Latest ${n}` : "All" }))}
+            options={(meta.data?.latest_choices ?? [100, 500, 1000]).map((n) => ({ value: n as Schemas["Latest"], label: `Latest ${n}` }))}
           />
         </Field>
       )}

@@ -10,6 +10,7 @@ import json
 import multiprocessing
 import os
 import pickle
+import threading
 from collections import Counter
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -17,10 +18,14 @@ from pathlib import Path
 import pandas as pd
 
 from osu_coach.config import default_cache_dir
+from osu_coach.domain.analysis.estimate import Plan
 from osu_coach.domain.analysis.models import ANALYSIS_VERSION, Play, ReplayMeta, UnsupportedReplay
 from osu_coach.domain.analysis.notes import HitObjects, KeyPresses
+from osu_coach.domain.player import PlaySummary
+from osu_coach.domain.player import summarize as summarize_play
 from osu_coach.domain.replays import eligibility
 from osu_coach.domain.replays.eligibility import analysable
+from osu_coach.infra import summaries
 from osu_coach.infra.analysis import analyze
 from osu_coach.infra.beatmaps import sources
 from osu_coach.infra.beatmaps.parser import parse_beatmap_bytes
@@ -113,6 +118,7 @@ class Library:
         self._limits: list[int | None] = []  # `latest` of every scanned source
         self._unread_maps: list[tuple[str, object]] = []  # (kind, LazerStore/SongsFolder) not fully read
         self._index_path = self.cache / "index.json"
+        self._index_lock = threading.RLock()  # the keys of an estimate (a request) and of an analysis (a job)
         try:
             self.index = json.loads(self._index_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -132,9 +138,10 @@ class Library:
 
     # -------------------------------------------------------------- discovery
     def save_index(self):
-        tmp = self._index_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.index), encoding="utf-8")
-        os.replace(tmp, self._index_path)
+        with self._index_lock:
+            tmp = self._index_path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self.index), encoding="utf-8")
+            os.replace(tmp, self._index_path)
 
     def _add(self, replays: list[dict], maps: dict[str, str], source: str):
         known = {r["path"] for r in self.replays}
@@ -153,22 +160,24 @@ class Library:
         index_songs: bool = True,
         latest: int | None = None,
         player: str | None = None,
+        oldest: float | None = None,
     ):
         """Replays and beatmaps of an osu! install.  ``latest``: read only the newest ``latest``
-        replays of ``player`` (default: whoever has the most, normally you), newest files first,
-        and leave the beatmaps to :meth:`find_maps` instead of reading the whole install."""
+        replays of ``player`` (default: whoever has the most, normally you), newest files first, none older than
+        ``oldest`` (a Unix time), and leave the beatmaps to :meth:`find_maps` instead of reading the whole
+        install."""
         latest = latest or None
         self.sources.append(inst.label)
         self._limits.append(latest)
         if inst.kind == "lazer" and inst.files_dir:
             store = locate.LazerStore(inst.files_dir, self.index)
-            r, m = store.scan(progress, latest, player, analysable)
+            r, m = store.scan(progress, latest, player, analysable, oldest)
             self._add(r, m, "lazer")
             self.installed["lazer"].update(m)
             if not store.exhausted:
                 self._unread_maps.append(("lazer", store))
         for d in inst.replay_dirs:
-            r, m = locate.scan_folder(d, self.index, latest, player, analysable)
+            r, m = locate.scan_folder(d, self.index, latest, player, analysable, oldest)
             self._add(r, m, inst.kind)
         if inst.kind == "stable" and inst.songs and index_songs:
             songs = locate.SongsFolder(inst.songs, self.index)
@@ -187,11 +196,12 @@ class Library:
         latest: int | None = None,
         player: str | None = None,
         maps_only: bool = False,
+        oldest: float | None = None,
     ):
-        """Replays and beatmaps in a folder (``maps_only``: just the beatmaps)."""
+        """Replays and beatmaps in a folder (``maps_only``: just the beatmaps; ``oldest``: see :meth:`add_install`)."""
         self.sources.append(str(folder))
         self._limits.append(latest or None)
-        r, m = locate.scan_folder(Path(folder), self.index, latest or None, player, analysable)
+        r, m = locate.scan_folder(Path(folder), self.index, latest or None, player, analysable, oldest)
         self._add([] if maps_only else r, m, source)
         self.save_index()
 
@@ -335,7 +345,7 @@ class Library:
                 pickle.dump(to_cached(result), fh, protocol=pickle.HIGHEST_PROTOCOL)
             done.append(result)
 
-        workers = workers if workers is not None else max(1, min(8, (os.cpu_count() or 2) - 1))
+        workers = workers if workers is not None else default_workers()
         if workers > 1 and len(todo) >= 4:
             try:
                 ctx = multiprocessing.get_context("spawn")
@@ -360,6 +370,217 @@ class Library:
             if progress:
                 progress(len(done) + len(errors), total, item[0].get("path", ""))
         return done, errors
+
+    def replay_keys(self, refs: list[dict]) -> dict[str, str]:
+        """{path: key} of these replays (the MD5 of the file), cached in the index by size and time like the
+        beatmaps', so an estimate or a repeated analysis doesn't read every replay file again. Unreadable ones are
+        left out."""
+        out: dict[str, str] = {}
+        with self._index_lock:
+            cache = self.index.setdefault("files", {})
+            changed = False
+            for ref in refs:
+                path = str(ref["path"])
+                try:
+                    st = os.stat(path)
+                except OSError:
+                    continue
+                hit = cache.get(path)
+                key = locate._md5_of(path, st.st_size, st.st_mtime_ns, cache)
+                changed |= cache.get(path) is not hit  # read again: a new entry to keep
+                if key:
+                    out[path] = key
+            if changed:
+                try:
+                    self.save_index()
+                except OSError:  # the keys are only kept to save time
+                    pass
+        return out
+
+    def plan(self, refs: list[dict]) -> Plan:
+        """What analysing these replays will take (see ``domain.analysis.estimate``): those analysed and summarised
+        already, those whose cached analysis is summarised again, and the size of each one still to analyse."""
+        keys = self.replay_keys(refs)
+        stored = summaries.stored_keys(self.cache, keys.values())
+        new: list[tuple[float, bool]] = []
+        from_cache = done = 0
+        seen: set[str] = set()
+        for ref in refs:
+            key = keys.get(str(ref["path"]))
+            if key is None or key in seen:
+                continue
+            seen.add(key)
+            cached = self._cache_path(key).exists()
+            if cached and key in stored:
+                done += 1
+            elif cached:
+                from_cache += 1
+            else:
+                try:
+                    size = os.stat(ref["path"]).st_size
+                except OSError:
+                    continue
+                new.append((size / 1e6, bool(ref.get("is_lazer"))))
+        return Plan(tuple(new), from_cache, done)
+
+    def summarize_replays(
+        self, refs: list[dict], workers: int | None = None, progress=None
+    ) -> tuple[list[PlaySummary], list[tuple[dict, str]]]:
+        """The summaries of these replays (in their order), for the analysis job: a stored summary as it is, else
+        made from the cached analysis, else from analysing the replay. The making is spread over ``workers``
+        processes, and each returns the summary only, not the whole analysis: the job never holds every play's notes,
+        and summarising is no longer done one play after the other once the analyses are made (#95)."""
+        errors: list[tuple[dict, str]] = []
+        keys = self.replay_keys(refs)
+        keyed: list[tuple[dict, str]] = []
+        for ref in refs:
+            key = keys.get(str(ref["path"]))
+            if key is None:
+                errors.append((ref, "cannot read replay"))
+            else:
+                keyed.append((ref, key))
+        have = summaries.load(self.cache, [key for _, key in keyed])
+        jobs: list[tuple[dict, str, tuple]] = []
+        for ref, key in keyed:
+            cp = self._cache_path(key)
+            if key in have and cp.exists():
+                continue
+            osu = self.maps.get(ref["beatmap_md5"])
+            if cp.exists() or osu:
+                jobs.append((ref, key, (str(cp), ref["path"], osu, key, ref.get("source") or "")))
+            else:
+                errors.append((ref, "beatmap not found (not installed and not downloaded)"))
+        made, failed = _summaries_in_workers(self.cache, jobs, _summary_job, workers, progress, len(keyed) - len(jobs))
+        have.update(made)
+        errors += failed
+        return [have[key] for _, key in keyed if key in have], errors
+
+
+# ------------------------------------------------------------------ summaries made in worker processes
+SAVE_EVERY = 50  # summaries stored at a time while they are made, so an interrupted run keeps them
+
+
+def _write_cached(path: Path, play: Play) -> None:
+    temp = path.with_suffix(f".{os.getpid()}.tmp")
+    with open(temp, "wb") as fh:
+        pickle.dump(to_cached(play), fh, protocol=pickle.HIGHEST_PROTOCOL)
+    os.replace(temp, path)
+
+
+def _summary_job(cache_file: str, replay_path: str, osu_path: str | None, key: str, source: str) -> PlaySummary:
+    """One replay's summary, in a worker: from its cached analysis, else by analysing it (and caching that)."""
+    path = Path(cache_file)
+    if path.exists():
+        try:
+            with open(path, "rb") as fh:
+                return summarize_play(read_cached(fh))
+        except Exception:  # noqa: BLE001 - stale/corrupt cache entry: analysed again
+            path.unlink(missing_ok=True)
+    if not osu_path:
+        raise UnsupportedReplay("beatmap not found (not installed and not downloaded)")
+    play = _work(replay_path, osu_path)
+    play = Play(replace(play.meta, key=key, source=source), play.notes, play.presses)
+    _write_cached(path, play)
+    return summarize_play(play)
+
+
+def _cached_summary_job(cache_file: str, key: str) -> PlaySummary | None:
+    try:
+        with open(cache_file, "rb") as fh:
+            return summarize_play(read_cached(fh))
+    except Exception:  # noqa: BLE001 - not in the cache any more
+        return None
+
+
+def default_workers() -> int:
+    """Every core, at most 8: the app waits for the analysis anyway, and the workers run at a lower priority so it
+    still answers (one core left idle made a first analysis ~13% slower on 4 cores)."""
+    return max(1, min(8, os.cpu_count() or 2))
+
+
+def _lower_priority() -> None:
+    try:
+        os.nice(5)  # POSIX; on Windows the workers keep the normal priority
+    except (AttributeError, OSError):
+        pass
+
+
+def _summaries_in_workers(cache: Path, jobs: list[tuple], fn, workers, progress, done_before: int = 0):
+    """Run ``fn(*args)`` for each (ref, key, args) of ``jobs`` (one per key) in worker processes, or in this one when
+    there are few: {key: summary} of those that gave one, stored as they come, and [(ref, error)] of those that
+    failed."""
+    (cache / "analyses").mkdir(parents=True, exist_ok=True)
+    jobs = list({key: (ref, key, args) for ref, key, args in jobs}.values())
+    made: dict[str, PlaySummary] = {}
+    errors: list[tuple[dict, str]] = []
+    handled: set[str] = set()
+    pending: list[PlaySummary] = []
+    total = done_before + len(jobs)
+    if progress:
+        progress(done_before, total, f"{done_before} replays loaded from cache")
+
+    def finish(ref, key, result=None, exc: Exception | None = None):
+        handled.add(key)
+        if exc is not None:
+            errors.append((ref, _error_text(exc)))
+        elif result is not None:
+            made[key] = result
+            pending.append(result)
+            if len(pending) >= SAVE_EVERY:
+                summaries.save(cache, pending)
+                pending.clear()
+        if progress:
+            progress(done_before + len(handled), total, (ref or {}).get("path", key))
+
+    workers = workers if workers is not None else default_workers()
+    if workers > 1 and len(jobs) >= 4:
+        try:
+            ctx = multiprocessing.get_context("spawn")
+            with cf.ProcessPoolExecutor(
+                max_workers=min(workers, len(jobs)), mp_context=ctx, initializer=_lower_priority
+            ) as ex:
+                futs = {ex.submit(fn, *args): (ref, key) for ref, key, args in jobs}
+                for fut in cf.as_completed(futs):
+                    ref, key = futs[fut]
+                    try:
+                        result = fut.result()
+                    except cf.process.BrokenProcessPool:
+                        raise
+                    except Exception as exc:  # noqa: BLE001 - this replay can't be analysed
+                        finish(ref, key, exc=exc)
+                    else:
+                        finish(ref, key, result)
+        except (OSError, cf.process.BrokenProcessPool, RuntimeError):  # no worker processes: the rest in this one
+            pass
+    for ref, key, args in jobs:
+        if key in handled:
+            continue
+        try:
+            result = fn(*args)
+        except Exception as exc:  # noqa: BLE001 - this replay can't be analysed
+            finish(ref, key, exc=exc)
+        else:
+            finish(ref, key, result)
+    summaries.save(cache, pending)
+    return made, errors
+
+
+def cached_summaries(
+    cache: Path | str, keys: list[str], workers: int | None = None, progress=None
+) -> list[PlaySummary]:
+    """The summaries of these plays: stored ones, the others made from their cached analyses in worker processes
+    (after an update of the app every summary is made again) and stored. Plays found in neither are left out."""
+    cache = Path(cache)
+    keys = list(keys)
+    have = summaries.load(cache, keys)
+    jobs = [
+        (None, key, (str(cache / "analyses" / f"{key}-v{ANALYSIS_VERSION}.pkl"), key))
+        for key in dict.fromkeys(keys)
+        if key not in have
+    ]
+    made, _ = _summaries_in_workers(cache, jobs, _cached_summary_job, workers, progress, len(keys) - len(jobs))
+    have.update(made)
+    return [have[k] for k in keys if k in have]
 
 
 @dataclass

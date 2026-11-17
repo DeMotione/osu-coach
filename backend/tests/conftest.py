@@ -28,6 +28,15 @@ OTHERS = ["circlecore__legit__legit-12.osr", "osrparse__resources__replay.osr"]
 
 
 @pytest.fixture(autouse=True)
+def _replays_of_any_year(monkeypatch):
+    """The sample replays were played years ago (and age): a scanned library's are taken whenever they were played,
+    unless a test is about the last year's window (it sets ``RECENT_DAYS`` back and pins the clock)."""
+    from osu_coach.domain.replays import scope
+
+    monkeypatch.setattr(scope, "RECENT_DAYS", 365 * 100)
+
+
+@pytest.fixture(autouse=True)
 def _no_real_osu(monkeypatch):
     """Never pick up the osu! installs of the computer running the tests."""
     monkeypatch.setenv("OSU_COACH_NO_AUTODETECT", "1")

@@ -77,7 +77,7 @@ def test_other_web_sites_cant_change_anything(client):
     assert r.status_code == 403 and r.json()["code"] == "cross_origin"
     assert client.get("/api/settings").json()["latest"] == 500
     assert client.patch("/api/settings", json=body, headers={"origin": "http://localhost:5173"}).status_code == 200
-    assert client.patch("/api/settings", json={"latest": 0}).status_code == 200  # no Origin: not a browser
+    assert client.patch("/api/settings", json={"latest": 1000}).status_code == 200  # no Origin: not a browser
     # reading is fine: the browser keeps other sites from seeing the answer
     assert client.get("/api/settings", headers={"origin": "https://evil.example"}).status_code == 200
 

@@ -9,7 +9,7 @@ import pytest
 
 from osu_coach.domain.analysis.models import ANALYSIS_VERSION
 from osu_coach.features.library import service as library_service
-from osu_coach.infra import summaries
+from osu_coach.features.library import session
 from tests.conftest import analyse, make_client, plays_folder, scan, workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
@@ -76,13 +76,13 @@ def test_the_library_and_analyses_come_back_after_a_restart(tmp_path, monkeypatc
 def test_pages_say_the_session_is_being_restored_until_it_is(tmp_path, monkeypatch):
     first_session(tmp_path)
     release = Event()
-    original = summaries.summaries_of
+    original = session.cached_summaries
 
     def delayed(*args, **kwargs):
         release.wait(timeout=10)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(summaries, "summaries_of", delayed)
+    monkeypatch.setattr(session, "cached_summaries", delayed)
     with make_client(tmp_path / "cache") as c:
         try:
             assert workspace(c).restoring
@@ -104,7 +104,7 @@ def test_a_failed_restore_says_nothing_was_analysed(tmp_path, monkeypatch):
     def broken(*args, **kwargs):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(summaries, "summaries_of", broken)
+    monkeypatch.setattr(session, "cached_summaries", broken)
     with make_client(tmp_path / "cache") as c:
         wait_restored(c)
         settle(c)

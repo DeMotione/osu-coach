@@ -33,6 +33,7 @@ export default defineConfig({
       OSU_COACH_CACHE: path.join(data, "cache"),
       OSU_COACH_NO_AUTODETECT: "1",
       OSU_COACH_WEB_DIR: path.resolve("dist"),
+      OSU_COACH_RECENT_DAYS: "0", // the sample replays are years old: analyse them whenever they were played
       HOME: data,
       USERPROFILE: data,
     },

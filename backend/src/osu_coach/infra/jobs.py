@@ -74,6 +74,7 @@ class Job:
     created_at: dt.datetime = field(default_factory=_now)
     finished_at: dt.datetime | None = None
     cancellable: bool = False
+    details: dict[str, Any] = field(default_factory=dict)  # what the job's kind tells besides (its response model)
     stop: threading.Event = field(default_factory=threading.Event, repr=False, compare=False)
 
 
@@ -98,6 +99,10 @@ class Reporter:
         self._check()
         self._job.message = str(message)
 
+    def detail(self, **details: Any) -> None:
+        """Facts about the running job its kind's response shows (e.g. how many replays an analysis reads)."""
+        self._job.details.update(details)
+
 
 class JobManager:
     def __init__(self, gate: BusyGate, keep: int = KEEP_JOBS):
@@ -107,14 +112,20 @@ class JobManager:
         self._keep = keep
 
     def start(
-        self, kind: str, label: str, work: Callable[[Reporter], Any], exclusive: bool = True, cancellable: bool = False
+        self,
+        kind: str,
+        label: str,
+        work: Callable[[Reporter], Any],
+        exclusive: bool = True,
+        cancellable: bool = False,
+        details: dict[str, Any] | None = None,
     ) -> Job:
         """Run ``work(reporter)`` in a thread; its return value becomes the job's result. ``exclusive``: hold the
         busy gate for the whole run (refused with 409 while another holder has it). ``cancellable``: :meth:`cancel`
-        may stop it."""
+        may stop it. ``details``: what the job's response tells from the start (see :meth:`Reporter.detail`)."""
         if exclusive:
             self._gate.acquire(label)
-        job = Job(kind=kind, message=f"{label}…", cancellable=cancellable)
+        job = Job(kind=kind, message=f"{label}…", cancellable=cancellable, details=dict(details or {}))
         with self._lock:
             self._jobs[job.id] = job
             while len(self._jobs) > self._keep:

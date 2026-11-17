@@ -33,6 +33,7 @@ from osu_coach.domain.maps.skillset import (
     FEATURE_POINTS,
     GOALS,
     HISTORY_WEIGHT,
+    PRECOMPUTED,
     REFERENCE_GRID,
     RISK_WEIGHT,
     SKILL_SCALE,
@@ -43,7 +44,7 @@ from osu_coach.domain.maps.skillset import (
     Tally,
     recommend_modified,
 )
-from osu_coach.domain.maps.suggestions import skill_scores
+from osu_coach.domain.maps.suggestions import SKILLS, skill_scores
 from osu_coach.domain.numeric.values import finite_or_none
 from osu_coach.domain.player import algorithm as alg
 from osu_coach.domain.player.engines.skill_scale import SPEED_POINTS, expected_speed_bpm, speed_bpm_for_rating
@@ -313,6 +314,12 @@ def composites(cols: Mapping[str, np.ndarray], hd, skills: Sequence[str], n: int
             value = np.broadcast_to(np.asarray(value, dtype=np.float64), (n,))
             out[skill] = np.where(known & np.isfinite(value) & (value > 0), value, np.nan)
     return out
+
+
+def pool_features(cols: Mapping[str, np.ndarray], n: int) -> dict[str, np.ndarray]:
+    """The composites of ``n`` pool maps (no mods), as the columns ``skillset._features`` reads instead of computing
+    them for every recommendation (NaN: none)."""
+    return {PRECOMPUTED + skill: values for skill, values in composites(cols, False, tuple(SKILLS), n).items()}
 
 
 def _c(values, low: float, high: float):

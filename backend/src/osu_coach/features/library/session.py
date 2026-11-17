@@ -19,9 +19,9 @@ from osu_coach.features.library.schemas import (
     SkippedReplay,
 )
 from osu_coach.features.library.service import analyze_selection
-from osu_coach.infra import progress, session_store, summaries
+from osu_coach.infra import progress, session_store
 from osu_coach.infra.jobs import Reporter
-from osu_coach.infra.library import ScanArgs, load_cached_analyses
+from osu_coach.infra.library import ScanArgs, cached_summaries
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
@@ -121,7 +121,8 @@ def _restore_analyses(ws: Workspace, saved: object) -> None:
         return
     try:
         keys = [str(k) for k in saved["keys"]]
-        plays = summaries.summaries_of(ws.cache_dir, keys, lambda missing: load_cached_analyses(ws.cache_dir, missing))
+        # after an update of the app every summary is made again: in worker processes
+        plays = cached_summaries(ws.cache_dir, keys, ws.config.analysis_workers)
         if len(plays) != len(keys):
             return
         errors = [
@@ -135,14 +136,13 @@ def _restore_analyses(ws: Workspace, saved: object) -> None:
 
 
 def run_analysis(ws: Workspace, req: AnalysisRequest, report: Reporter) -> AnalysisResult:
-    sel, analyses, errors = analyze_selection(ws, req, report)
+    sel, plays, errors = analyze_selection(ws, req, report)
     lib = ws.library
     warnings = []
-    plays = summaries.summarize(ws.cache_dir, analyses)
-    del analyses  # only the summaries are kept
     report.note("Saving your progress…")
+    workers = ws.config.analysis_workers
     try:  # the history is SQLite; it stays when replays or caches are deleted
-        progress.update(lib.cache, plays, lambda keys: summaries.summaries_of(ws.cache_dir, keys, lib.load_cached))
+        progress.update(lib.cache, plays, lambda keys: cached_summaries(ws.cache_dir, keys, workers))
     except Exception as exc:  # noqa: BLE001 - the analysis matters more than the history
         warnings.append(f"Could not save your progress: {exc}")
     ws.set_plays(plays, errors, "All players" if sel.player == "*" else sel.player)

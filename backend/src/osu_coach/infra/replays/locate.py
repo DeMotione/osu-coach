@@ -105,6 +105,30 @@ def list_files(folder, keep=None) -> list[tuple[str, float]]:
     return out
 
 
+def list_stats(folder, keep=None) -> list[tuple[str, int, int]]:
+    """(path, size, modification time in ns) of every file under ``folder`` whose name passes ``keep``, from the
+    directory listing: on Windows that needs no call per file, and a stat of every one of a big Songs folder's files
+    was most of a scan that found nothing new."""
+    out: list[tuple[str, int, int]] = []
+    stack = [str(folder)]
+    while stack:
+        d = stack.pop()
+        try:
+            with os.scandir(d) as it:
+                for e in it:
+                    try:
+                        if e.is_dir(follow_symlinks=False):
+                            stack.append(e.path)
+                        elif keep is None or keep(e.name):
+                            st = e.stat()
+                            out.append((e.path, st.st_size, st.st_mtime_ns))
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return out
+
+
 def play_time(h: dict) -> float:
     """When a replay was played, as a Unix time (replay dates are stored in UTC)."""
     try:
@@ -120,9 +144,11 @@ class NewestReplays:
     play found for the player of interest is newer than the newest file still unread, none of
     the remaining files can be among that player's ``latest`` newest plays.  The player of
     interest is ``player`` ("*" = everybody together), or else whoever has the most replays so
-    far, which on your own computer is you.  ``accept`` decides which replays count."""
+    far, which on your own computer is you.  ``accept`` decides which replays count. ``oldest`` (a Unix time):
+    a file older than that holds a play older than that, so the scan stops there too."""
 
-    def __init__(self, latest: int, player: str | None = None, accept=None):
+    def __init__(self, latest: int, player: str | None = None, accept=None, oldest: float | None = None):
+        self.oldest = oldest
         self.latest = int(latest)
         self.player = player or None
         self.accept = accept or (lambda h: True)
@@ -150,6 +176,8 @@ class NewestReplays:
         return self.counts.most_common(1)[0][0] if self.counts else None
 
     def done(self, next_mtime: float) -> bool:
+        if self.oldest is not None and next_mtime < self.oldest - DATE_SLACK_S:
+            return True
         heap = self.newest.get(self.target() or "")
         return bool(heap) and len(heap) >= self.latest and heap[0] > next_mtime + DATE_SLACK_S
 
@@ -159,15 +187,19 @@ def _cached_md5(p: Path, cache: dict) -> str | None:
         st = p.stat()
     except OSError:
         return None
-    key = str(p)
-    hit = cache.get(key)
-    if hit and hit[0] == st.st_size and hit[1] == st.st_mtime_ns:
+    return _md5_of(str(p), st.st_size, st.st_mtime_ns, cache)
+
+
+def _md5_of(path: str, size: int, mtime_ns: int, cache: dict) -> str | None:
+    """The file's MD5: the cached one while its size and time are unchanged, else read and cached."""
+    hit = cache.get(path)
+    if hit and hit[0] == size and hit[1] == mtime_ns:
         return hit[2]
     try:
-        md5 = file_md5(p)
+        md5 = file_md5(Path(path))
     except OSError:
         return None
-    cache[key] = [st.st_size, st.st_mtime_ns, md5]
+    cache[path] = [size, mtime_ns, md5]
     return md5
 
 
@@ -189,7 +221,12 @@ def _cached_header(p: Path, cache: dict) -> dict | None:
 
 
 def scan_folder(
-    folder: Path, index: dict, latest: int | None = None, player: str | None = None, accept=None
+    folder: Path,
+    index: dict,
+    latest: int | None = None,
+    player: str | None = None,
+    accept=None,
+    oldest: float | None = None,
 ) -> tuple[list[dict], dict[str, str]]:
     """Replays (.osr) and beatmaps (.osu, md5-indexed) under a folder.  ``latest``: read the
     replays newest file first and stop once the newest ``latest`` plays are certain (see
@@ -198,7 +235,7 @@ def scan_folder(
     header_cache = index.setdefault("osr", {})
     files = list_files(Path(folder), lambda n: n.lower().endswith((".osr", ".osu")))
     osr = sorted((f for f in files if f[0].lower().endswith(".osr")), key=lambda f: f[1], reverse=True)
-    picker = NewestReplays(latest, player, accept) if latest else None
+    picker = NewestReplays(latest, player, accept, oldest) if latest else None
     replays, maps = [], {}
     for path, mtime in osr:
         if picker and picker.done(mtime):
@@ -266,7 +303,12 @@ class LazerStore:
         return info
 
     def scan(
-        self, progress=None, latest: int | None = None, player: str | None = None, accept=None
+        self,
+        progress=None,
+        latest: int | None = None,
+        player: str | None = None,
+        accept=None,
+        oldest: float | None = None,
     ) -> tuple[list[dict], dict[str, str]]:
         """Replays and beatmaps.  ``latest``: newest files first, stop once the newest ``latest``
         plays are certain (see NewestReplays); the rest is left in ``unread`` for find()."""
@@ -274,7 +316,7 @@ class LazerStore:
         picker = None
         if latest:
             files.sort(key=lambda f: f[1], reverse=True)
-            picker = NewestReplays(latest, player, accept)
+            picker = NewestReplays(latest, player, accept, oldest)
         self.unread = []
         replays, maps = [], {}
         for i, (path, mtime) in enumerate(files):
@@ -314,13 +356,17 @@ class LazerStore:
         return maps
 
 
+def _is_osu(name: str) -> bool:
+    return name.lower().endswith(".osu")
+
+
 class SongsFolder:
     """osu!stable's Songs folder: beatmaps by MD5 (cached per file, keyed by size and time)."""
 
     def __init__(self, songs, index: dict):
         self.songs = Path(songs)
         self.cache = index.setdefault("files", {})
-        self.unread: list[tuple[str, float]] | None = None  # .osu files not hashed yet (find)
+        self.unread: list[tuple[str, int, int]] | None = None  # .osu files not hashed yet (find), newest first
 
     @property
     def exhausted(self) -> bool:
@@ -329,30 +375,28 @@ class SongsFolder:
     def scan(self, progress=None) -> dict[str, str]:
         """Every beatmap in the folder."""
         maps = {}
-        for i, p in enumerate(walk_files(self.songs, (".osu",))):
+        for i, (path, size, mtime_ns) in enumerate(list_stats(self.songs, _is_osu)):
             if progress and i % 1000 == 0 and i:
                 progress(f"beatmaps indexed: {i}")
-            md5 = _cached_md5(p, self.cache)
+            md5 = _md5_of(path, size, mtime_ns, self.cache)
             if md5:
-                maps.setdefault(md5, str(p))
+                maps.setdefault(md5, path)
         self.unread = []
         return maps
 
     def find(self, md5s, progress=None) -> dict[str, str]:
         """Hash .osu files newest first until every beatmap in ``md5s`` has turned up."""
         if self.unread is None:
-            self.unread = sorted(
-                list_files(self.songs, lambda n: n.lower().endswith(".osu")), key=lambda f: f[1], reverse=True
-            )
+            self.unread = sorted(list_stats(self.songs, _is_osu), key=lambda f: f[2], reverse=True)
         remaining = set(md5s)
         maps: dict[str, str] = {}
         i = 0
         while i < len(self.unread) and remaining:
-            path = self.unread[i][0]
+            path, size, mtime_ns = self.unread[i]
             i += 1
             if progress and i % 500 == 0:
                 progress(f"looking for beatmaps in Songs: {i}")
-            md5 = _cached_md5(Path(path), self.cache)
+            md5 = _md5_of(path, size, mtime_ns, self.cache)
             if md5:
                 maps.setdefault(md5, path)
                 remaining.discard(md5)

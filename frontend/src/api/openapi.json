@@ -2947,6 +2947,36 @@
                 "type": "null"
               }
             ]
+          },
+          "automatic": {
+            "type": "boolean",
+            "title": "Automatic",
+            "description": "Started by osu! coach for a play osu! just saved (auto-analyse).",
+            "default": false
+          },
+          "replays": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replays",
+            "description": "How many replays it reads, once they are chosen."
+          },
+          "estimate_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate Seconds",
+            "description": "How long it was expected to take, when it started."
           }
         },
         "type": "object",
@@ -2980,7 +3010,7 @@
           },
           "latest": {
             "$ref": "#/components/schemas/Latest",
-            "description": "Analyse only the newest N of the found replays; 0 = all.",
+            "description": "Analyse only the newest N of the found replays.",
             "default": 500
           },
           "date_range": {
@@ -3196,7 +3226,7 @@
           },
           "latest": {
             "$ref": "#/components/schemas/Latest",
-            "description": "Newest of the found replays to analyse; 0 = all.",
+            "description": "Newest of the found replays to analyse.",
             "default": 500
           },
           "date_range": {
@@ -5680,11 +5710,10 @@
         "enum": [
           100,
           500,
-          1000,
-          0
+          1000
         ],
         "title": "Latest",
-        "description": "How many of the newest found replays to analyse; 0 = all of them."
+        "description": "How many of the newest found replays to analyse."
       },
       "LazerOpenRequest": {
         "properties": {
@@ -6544,7 +6573,7 @@
             },
             "type": "array",
             "title": "Latest Choices",
-            "description": "Replay counts to analyse; 0 = all."
+            "description": "Replay counts to analyse."
           },
           "periods": {
             "items": {
@@ -8888,6 +8917,36 @@
           "left_out_total": {
             "type": "integer",
             "title": "Left Out Total"
+          },
+          "recent_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recent Days",
+            "description": "Only replays of the last this many days are taken; null = any age."
+          },
+          "already_analysed": {
+            "type": "integer",
+            "title": "Already Analysed",
+            "description": "Of these replays, the ones analysed before (they take no time).",
+            "default": 0
+          },
+          "estimate_seconds": {
+            "type": "number",
+            "title": "Estimate Seconds",
+            "description": "How long analysing them is expected to take on this computer.",
+            "default": 0.0
+          },
+          "download_seconds": {
+            "type": "number",
+            "title": "Download Seconds",
+            "description": "And downloading their missing beatmaps (when online).",
+            "default": 0.0
           }
         },
         "type": "object",

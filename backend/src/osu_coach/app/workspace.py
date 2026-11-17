@@ -128,9 +128,8 @@ class Workspace:
             self._installs = detect.find_installs(extra=[Path(p) for p in extra])
         return self._installs
 
-    @staticmethod
-    def pool():
-        return load_pool()  # cached by infra.map_pool (per file and modification time)
+    def pool(self):
+        return load_pool(cache_dir=self.cache_dir)  # cached by infra.map_pool (per file, its time and the code)
 
     # -------------------------------------------------------------- single replays (Detailed map analysis, Play goals)
     def replay_library(self) -> Library | None:

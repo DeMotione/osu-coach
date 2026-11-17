@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatLeft, secondsLeft } from "./eta";
+import { formatDuration, formatLeft, secondsLeft } from "./eta";
 
 describe("secondsLeft", () => {
   it("projects the pace so far to the end", () => {
@@ -28,5 +28,13 @@ describe("formatLeft", () => {
     expect(formatLeft(59 * 60)).toBe("about 59 minutes left");
     expect(formatLeft(3600 + 22 * 60)).toBe("about 1 h 20 min left");
     expect(formatLeft(2 * 3600 + 59 * 60)).toBe("about 3 h left");
+  });
+});
+
+describe("formatDuration", () => {
+  it("says how long, without the left", () => {
+    expect(formatDuration(20)).toBe("less than a minute");
+    expect(formatDuration(150)).toBe("about 3 minutes");
+    expect(formatDuration(3600 + 9 * 60)).toBe("about 1 h 10 min");
   });
 });

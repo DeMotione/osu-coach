@@ -78,3 +78,35 @@ def test_along_cross_projection():
     # moving right; click 4px below centre -> cross +4 (clockwise side)
     a, c = along_cross(0, 4, 1, 0)
     assert a == pytest.approx(0) and c == pytest.approx(4)
+
+
+def test_movement_starts_where_the_previous_circle_was_hit_else_at_its_end():
+    from osu_coach.infra.analysis import _along_cross, _movement_start
+
+    obj = pd.DataFrame(
+        {
+            "prev_idx": [None, 0, 1, 2],
+            "kind": ["circle", "slider", "circle", "circle"],
+            "head_hit": [True, True, False, True],
+            "click_x": [10.0, 50.0, np.nan, 90.0],
+            "click_y": [20.0, 60.0, np.nan, 95.0],
+            "end_x": [0.0, 70.0, 80.0, 100.0],
+            "end_y": [0.0, 75.0, 85.0, 100.0],
+            "x": [0.0, 40.0, 80.0, 110.0],
+            "y": [0.0, 60.0, 85.0, 100.0],
+        }
+    )
+    sx, sy = _movement_start(obj)
+    # first note: no start; after a hit circle: its click; after a slider or a missed circle: their end
+    assert np.isnan(sx[0]) and np.isnan(sy[0])
+    assert (sx[1], sy[1]) == (10.0, 20.0)
+    assert (sx[2], sy[2]) == (70.0, 75.0)
+    assert (sx[3], sy[3]) == (80.0, 85.0)
+    obj["start_x"], obj["start_y"] = sx, sy
+    ex = np.array([1.0, 3.0, np.nan, 0.0])
+    ey = np.array([1.0, 4.0, 2.0, 0.0])
+    along, cross = _along_cross(ex, ey, obj, radius=2.0)
+    assert np.isnan(along[0]) and np.isnan(along[2])  # no start / no error
+    a, c = along_cross(3.0, 4.0, 40.0 - 10.0, 60.0 - 20.0)
+    assert (along[1], cross[1]) == (a / 2.0, c / 2.0)
+    assert (along[3], cross[3]) == tuple(v / 2.0 for v in along_cross(0.0, 0.0, 30.0, 15.0))

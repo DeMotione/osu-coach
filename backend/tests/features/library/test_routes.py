@@ -8,7 +8,7 @@ from osu_coach.common.errors import Busy
 from osu_coach.features.library import service as svc
 from osu_coach.infra import session_store
 from osu_coach.infra.settings import load_settings
-from tests.conftest import MOT1ONE, OTHERS, analyse, plays_folder, sample_paths, scan, wait, workspace
+from tests.conftest import MOT1ONE, OTHERS, analyse, make_client, plays_folder, sample_paths, scan, wait, workspace
 
 pytestmark = pytest.mark.usefixtures("_isolated")
 
@@ -97,7 +97,7 @@ def test_scan_finds_every_replay_and_the_analysis_takes_the_newest(tmp_path, cli
     assert out.replays == 2 and out.found == 3 and out.newest_only
     out = svc.selection_out(ws, every)
     assert out.replays == 3 and not out.newest_only
-    analyse(client, latest=0)
+    analyse(client, latest=1000)
     assert client.get("/api/analysis").json()["analysed"] == 3
 
 
@@ -256,3 +256,73 @@ def test_failed_plays_and_best_replays(tmp_path, client):
     assert r.status_code == 409 and "Best replays" in r.json()["detail"]
     client.patch("/api/settings", json={"replay_set": "all"})
     assert client.get("/api/profile/summary").json()["replays"] == 1  # the copy is the same play
+
+
+def test_analysing_again_takes_the_stored_summaries(analysed, monkeypatch):
+    """The plays analysed before come back by their summaries: their cached analyses, every note of them, aren't
+    read again, and the result is the same (#95)."""
+    from osu_coach.infra import library as libmod
+
+    before = analysed.get("/api/analysis").json()
+    monkeypatch.setattr(libmod, "read_cached", lambda fh: pytest.fail(f"read {fh.name} again"))
+    monkeypatch.setattr(libmod, "_work", lambda *a: pytest.fail("analysed again"))
+    analyse(analysed, player="Mot1one")
+    after = analysed.get("/api/analysis").json()
+    assert after["analysed"] == before["analysed"] == 3
+    assert analysed.get("/api/profile/overview").status_code == 200
+
+
+def _last_year_at(monkeypatch, when: str):
+    """The last year's window, as of ``when``."""
+    import datetime as dt
+
+    from osu_coach.domain.replays import scope
+    from osu_coach.infra import clock
+
+    monkeypatch.setattr(scope, "RECENT_DAYS", 366)
+    monkeypatch.setattr(clock, "now", lambda: dt.datetime.fromisoformat(when))
+
+
+def test_only_the_last_years_replays_are_analysed(tmp_path, client, monkeypatch):
+    """A scanned library's replays of the last 366 days only: how you play now (#95). The Mot1one samples were
+    played on 13, 17 and 20 September 2026."""
+    _last_year_at(monkeypatch, "2027-09-15T12:00:00+00:00")
+    scan(client, plays_folder(tmp_path))
+    sel = client.get("/api/library/selection", params={"latest": 1000, "date_range": "all"}).json()
+    assert sel["replays"] == 2 and sel["found"] == 2 and sel["players"] == [{"name": "Mot1one", "replays": 2}]
+    # a custom range reaching further back is cut at the last year's start too
+    settings = {"date_range": "custom", "date_from": "2026-09-01", "date_to": "2026-09-30"}
+    assert client.get("/api/library/selection", params={"latest": 1000, **settings}).json()["replays"] == 2
+    analyse(client, latest=1000)
+    assert client.get("/api/analysis").json()["analysed"] == 2
+    # a year later every one of them is too old: said so, not "no replays found"
+    _last_year_at(monkeypatch, "2028-01-01T00:00:00+00:00")
+    r = client.get("/api/library/selection", params={"latest": 1000})
+    assert r.status_code == 409 and r.json()["code"] == "no_recent_replays"
+
+
+def test_files_added_by_hand_are_taken_whenever_they_were_played(client, monkeypatch):
+    _last_year_at(monkeypatch, "2030-01-01T00:00:00+00:00")
+    r = client.post("/api/library/scan", json={"mode": "files", "files": _upload(client, MOT1ONE[0])})
+    assert wait(client, r.json())["status"] == "succeeded"
+    assert client.get("/api/library/selection", params={"latest": 100}).json()["replays"] == 1
+
+
+def test_the_selection_says_how_long_the_analysis_takes(tmp_path, client):
+    scan(client, plays_folder(tmp_path))
+    before = client.get("/api/library/selection", params={"latest": 1000}).json()
+    assert before["replays"] == 3 and before["already_analysed"] == 0 and before["estimate_seconds"] > 0
+    job = analyse(client, latest=1000)
+    assert job["replays"] == 3 and job["estimate_seconds"] > 0 and job["automatic"] is False
+    after = client.get("/api/library/selection", params={"latest": 1000}).json()
+    assert after["already_analysed"] == 3 and after["estimate_seconds"] < before["estimate_seconds"]
+    assert after["estimate_seconds"] < 1  # read from the store
+
+
+def test_old_replays_are_analysed_when_the_window_is_off(tmp_path, monkeypatch):
+    """``OSU_COACH_RECENT_DAYS=0``: replays of any age (the e2e tests' and demos' samples are years old)."""
+    _last_year_at(monkeypatch, "2030-01-01T00:00:00+00:00")
+    monkeypatch.setenv("OSU_COACH_RECENT_DAYS", "0")
+    with make_client(tmp_path / "other") as c:
+        scan(c, plays_folder(tmp_path))
+        assert c.get("/api/library/selection", params={"latest": 1000}).json()["replays"] == 3

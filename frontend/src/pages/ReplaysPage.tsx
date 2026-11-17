@@ -20,12 +20,13 @@ import { DateRangePicker } from "../components/DateRangePicker";
 import { IconMagnify, IconPlay, IconSearch } from "../components/icons";
 import { EmptyState, JobStatus } from "../components/states";
 import { Alert, Card, Dropzone, Field, FileChips, Meter, Page, Row, Segmented, Switch, type Option } from "../components/ui";
+import { formatDuration } from "../lib/eta";
 import { fmt, int, isoDay, localTime, pct } from "../lib/format";
 
 type Settings = Schemas["AppSettings"];
 type Latest = Schemas["Latest"];
 
-const LATEST_LABEL = (n: number) => (n ? `Latest ${n}` : "All");
+const LATEST_LABEL = (n: number) => `Latest ${n}`;
 
 export default function ReplaysPage() {
   const settings = useSettings();
@@ -93,7 +94,7 @@ function FindCard({ settings }: { settings: Settings }) {
     );
 
   return (
-    <Card title="1 · Find replays" hint="Where the replays come from: your osu! installs and folders, or only the files you drop here.">
+    <Card title="1 · Find replays" hint="Where the replays come from: your osu! installs and folders, or only the files you drop here. Your newest 1,000 replays are read.">
       <Field label="Analyse">
         <Segmented
           label="Analyse"
@@ -200,6 +201,24 @@ function FindCard({ settings }: { settings: Settings }) {
 }
 
 // ------------------------------------------------------------------ 2 · analyse
+/** How long the analysis of the chosen replays takes: told before it starts, as it can take minutes. */
+function EstimateNote({ sel, online }: { sel: Schemas["SelectionOut"]; online: boolean }) {
+  const seconds = sel.estimate_seconds + (online ? sel.download_seconds : 0);
+  const fresh = sel.replays - sel.already_analysed;
+  const done = sel.already_analysed
+    ? fresh
+      ? ` ${int(sel.already_analysed)} of them were analysed before and take no time.`
+      : " All of them were analysed before."
+    : "";
+  return (
+    <Alert tone={seconds >= 300 ? "warn" : "info"}>
+      Analysing {sel.replays === 1 ? "this replay" : `these ${int(sel.replays)} replays`} takes {formatDuration(seconds)} on this computer
+      {online && sel.download_seconds > 0 ? ", with downloading their missing beatmaps" : ""}.{done}
+      {seconds >= 300 ? " Fewer replays (Latest 100 or 500) are quicker." : ""}
+    </Alert>
+  );
+}
+
 function AnalyseCard({ settings }: { settings: Settings }) {
   const meta = useMeta();
   const library = useLibrary();
@@ -238,11 +257,13 @@ function AnalyseCard({ settings }: { settings: Settings }) {
   const dateLabel = meta.data?.date_choices.find((c) => c.key === sel?.date_range)?.label ?? "";
   const when =
     !sel || sel.date_range === "all"
-      ? ""
+      ? sel?.recent_days
+        ? sel.recent_days >= 365 && sel.recent_days <= 366 ? " from the last year" : ` from the last ${sel.recent_days} days`
+        : ""
       : sel.date_range === "custom" && sel.date_from && sel.date_to
         ? ` played ${sel.date_from} – ${sel.date_to}`
         : ` played ${dateLabel.toLowerCase()}`;
-  const latestOptions: Option<Latest>[] = (meta.data?.latest_choices ?? [100, 500, 1000, 0]).map((n) => ({
+  const latestOptions: Option<Latest>[] = (meta.data?.latest_choices ?? [100, 500, 1000]).map((n) => ({
     value: n as Latest,
     label: LATEST_LABEL(n),
   }));
@@ -295,14 +316,14 @@ function AnalyseCard({ settings }: { settings: Settings }) {
                     : null
                 }
                 onChange={(r) => patch.mutate({ date_from: r?.from ?? null, date_to: r?.to ?? null })}
-                span={["2007-09-16", isoDay()]}
+                span={[isoDay(-365), isoDay()]} /* only the last year's replays are analysed */
               />
             </Field>
           )}
           {!sel?.files_mode && (
             <Field
               label="Replays to read"
-              hint="How many of the found replays are analysed, newest first. Fewer = faster, and closer to how you play now. All = every replay found."
+              hint="How many of the found replays are analysed, newest first. Fewer = faster, and closer to how you play now."
             >
               <Segmented
                 label="Replays to read"
@@ -343,6 +364,7 @@ function AnalyseCard({ settings }: { settings: Settings }) {
                 {online && sel.missing_maps > 0 ? " (they will be downloaded)" : ""}.
               </p>
               {sel.empty_range && <Alert tone="warn">No replays in that time range — choose a longer one.</Alert>}
+              {sel.replays > 0 && <EstimateNote sel={sel} online={online} />}
               {sel.left_out_total > 0 && (
                 <p className="small muted">
                   {sel.left_out_total} replay(s) left out: {sel.left_out.map((r) => `${r.count}× ${r.label}`).join("; ")}.

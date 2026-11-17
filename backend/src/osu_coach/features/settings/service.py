@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
+from osu_coach.domain.replays.selection import MOST_REPLAYS
 from osu_coach.features.settings.schemas import AppSettings
 
 if TYPE_CHECKING:
@@ -38,7 +39,7 @@ def app_settings(ws: Workspace) -> AppSettings:
     raw = {
         "source_mode": s.source_mode,
         "folders": default_folders(s),
-        "latest": s.latest,
+        "latest": MOST_REPLAYS if s.latest == 0 else s.latest,  # "all", no longer offered: the most there is
         "date_range": s.date_range,
         "date_from": _date(s.date_from),
         "date_to": _date(s.date_to),
