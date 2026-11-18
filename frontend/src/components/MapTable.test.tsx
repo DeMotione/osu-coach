@@ -39,3 +39,18 @@ it("keeps the table narrow: F(m) opens its calculation, the links are icons, Ski
   );
   expect(cells[headers.indexOf("F(m)")]).toHaveTextContent("-0.0210");
 });
+
+it("gives a full table a column per key, so the tables of a page share their widths; a compact one sizes itself", () => {
+  const map: Schemas["MapRow"] = {
+    md5: "c".repeat(32), beatmap_id: 3, beatmapset_id: 3,
+    artist: "A", title: "T", version: "V", stars: 5, mods: "NM", rate: 1, bpm: 180, ar: 9, length_s: 90, why: "w",
+    url: "https://osu.ppy.sh/beatmaps/3",
+  };
+  const { container, rerender } = render(<MapTable maps={[map]} onHide={() => undefined} />);
+  expect(Array.from(container.querySelectorAll("col"), (c) => c.className)).toEqual([
+    "col-map", "col-mods", "col-stars", "col-bpm", "col-ar", "col-length", "col-why", "col-demand", "col-score", "col-link",
+    "col-hide",
+  ]);
+  rerender(<MapTable maps={[map]} compact />);
+  expect(container.querySelector("colgroup")).toBeNull();
+});
