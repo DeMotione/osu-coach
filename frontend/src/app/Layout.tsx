@@ -24,7 +24,7 @@ import { AnalysisLock } from "../components/AnalysisLock";
 import { NewPlayNotice } from "../components/NewPlayNotice";
 import { Onboarding } from "../components/onboarding/Onboarding";
 import { closeWindow, isDesktop, minimizeWindow, toggleMaximizeWindow, useWindowMaximized } from "../lib/desktop";
-import { stars } from "../lib/format";
+import { localTime, stars } from "../lib/format";
 import { useSidebarCollapsed } from "../lib/sidebar";
 import { useTheme, type ThemeChoice } from "../lib/theme";
 import { NAV, PAGES, SETTINGS, currentPage } from "./nav";
@@ -44,10 +44,11 @@ function Brand({ onClick }: { onClick?: () => void }) {
   );
 }
 
-/** Whether replays were analysed: until then the analysis pages have nothing to show. */
+/** Whether replays were analysed: until then the analysis pages have nothing to show. At start-up the last
+ * analysis counts while it is shown from its snapshot (#97). */
 function useHasAnalysis() {
   const status = useAnalysisStatus();
-  return !!status.data && status.data.profile_replays !== null;
+  return !!status.data && (status.data.profile_replays !== null || !!status.data.snapshot_at);
 }
 
 function PlayerCard({ onClick }: { onClick?: () => void }) {
@@ -264,6 +265,7 @@ function StatusBar({ inert }: { inert?: boolean }) {
   const summary = useProfileSummary(has);
   const offline = health.isError && isApiError(health.error, OFFLINE);
   const s = has ? summary.data : undefined;
+  const snapshotAt = useAnalysisStatus().data?.snapshot_at;
   return (
     <footer className="statusbar" inert={inert}>
       {offline ? (
@@ -283,6 +285,14 @@ function StatusBar({ inert }: { inert?: boolean }) {
             </p>
           ) : (
             <p className="statusbar__item status-line">No replays analysed yet</p>
+          )}
+          {snapshotAt && (
+            <p
+              className="statusbar__item status-line"
+              title="The pages show your last analysis while your replays load; they update by themselves when that is done."
+            >
+              Last analysis ({localTime(snapshotAt)}) · updating…
+            </p>
           )}
           <JobIndicator />
         </>

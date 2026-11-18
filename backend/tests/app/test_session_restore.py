@@ -98,6 +98,81 @@ def test_pages_say_the_session_is_being_restored_until_it_is(tmp_path, monkeypat
         settle(c)
 
 
+def held_restore(monkeypatch) -> Event:
+    """The restore waits for the returned event before it brings the plays back."""
+    release = Event()
+    original = session.cached_summaries
+
+    def delayed(*args, **kwargs):
+        release.wait(timeout=10)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(session, "cached_summaries", delayed)
+    return release
+
+
+def test_the_last_analysis_is_shown_at_once_while_the_session_is_restored(tmp_path, monkeypatch):
+    with make_client(tmp_path / "cache") as c:
+        scan(c, plays_folder(tmp_path))
+        analyse(c, player="Mot1one")
+        overview = c.get("/api/profile/overview").json()
+        summary = c.get("/api/profile/summary").json()
+        analysed_at = workspace(c).analysed_at
+    assert analysed_at and (tmp_path / "cache" / "snapshot.json.gz").is_file()
+    release = held_restore(monkeypatch)
+    with make_client(tmp_path / "cache") as c:
+        try:
+            status = c.get("/api/analysis").json()
+            assert status["restoring"] is True and status["snapshot_at"] == analysed_at
+            r = c.get("/api/profile/overview")
+            assert r.status_code == 200 and r.headers["X-Snapshot"] == analysed_at and r.json() == overview
+            assert c.get("/api/profile/summary").json() == summary
+            # a page not shown in the last session has no snapshot: it waits for the restore
+            r = c.get("/api/profile/tapping")
+            assert r.status_code == 409 and r.json()["detail"].startswith("Restoring your last session")
+        finally:
+            release.set()
+        wait_restored(c)
+        assert c.get("/api/analysis").json()["snapshot_at"] is None
+        r = c.get("/api/profile/overview")
+        assert r.status_code == 200 and "X-Snapshot" not in r.headers  # from the profile, built by the restore
+        settle(c)
+
+
+def test_a_snapshot_of_other_choices_is_not_shown(tmp_path, monkeypatch):
+    with make_client(tmp_path / "cache") as c:
+        scan(c, plays_folder(tmp_path))
+        analyse(c, player="Mot1one")
+        assert c.get("/api/profile/overview").status_code == 200
+        c.patch("/api/settings", json={"rating_engine": "irt"})  # the pages weren't seen with it
+    release = held_restore(monkeypatch)
+    with make_client(tmp_path / "cache") as c:
+        try:
+            assert c.get("/api/analysis").json()["snapshot_at"] is None
+            assert c.get("/api/profile/overview").status_code == 409
+        finally:
+            release.set()
+        wait_restored(c)
+        settle(c)
+
+
+def test_the_snapshot_stops_when_a_choice_changes_during_the_restore(tmp_path, monkeypatch):
+    with make_client(tmp_path / "cache") as c:
+        scan(c, plays_folder(tmp_path))
+        analyse(c, player="Mot1one")
+        assert c.get("/api/profile/overview").status_code == 200
+    release = held_restore(monkeypatch)
+    with make_client(tmp_path / "cache") as c:
+        try:
+            assert c.get("/api/profile/overview").status_code == 200
+            c.patch("/api/settings", json={"replay_set": "best"})
+            assert c.get("/api/profile/overview").status_code == 409  # not the pages of All replays
+        finally:
+            release.set()
+        wait_restored(c)
+        settle(c)
+
+
 def test_a_failed_restore_says_nothing_was_analysed(tmp_path, monkeypatch):
     first_session(tmp_path)
 
