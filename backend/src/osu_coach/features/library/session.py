@@ -19,7 +19,7 @@ from osu_coach.features.library.schemas import (
     SkippedReplay,
 )
 from osu_coach.features.library.service import analyze_selection
-from osu_coach.infra import progress, session_store
+from osu_coach.infra import clock, progress, session_store
 from osu_coach.infra.jobs import Reporter
 from osu_coach.infra.library import ScanArgs, cached_summaries
 
@@ -67,20 +67,31 @@ def forget_files(ws: Workspace) -> None:
 def start_restore(ws: Workspace) -> None:
     """Pick up the last session in the background (a scan job, so it shows like any other and the server starts at
     once): the analysed replays come back from their summaries (made from the analysis cache the first time, which
-    can take a while), then the last scan is repeated. Does nothing without a saved session."""
+    can take a while) and their profile is built, then the last scan is repeated. Meanwhile the Analysis pages show
+    the last completed analysis, from its snapshot (#97). Does nothing without a saved session."""
     saved = session_store.load(ws.cache_dir)
     scan = saved.get("scan")
     rescan = isinstance(scan, dict) and _scan_usable(scan)
-    restore = _has_analyses(saved.get("analysis"))
+    analysis = saved.get("analysis")
+    restore = _has_analyses(analysis)
     if not rescan and not restore:
         return
+    if restore:
+        try:
+            ws.show_snapshot([str(k) for k in analysis["keys"]], str(analysis.get("player_label", "")))
+        except Exception:  # noqa: BLE001 - without it the pages say "restoring" until the profile is back
+            log.warning("could not read the snapshot of the last session", exc_info=True)
 
     def work(report: Reporter) -> ScanResult | None:
         report.note("Restoring your last session…")
         try:
-            _restore_analyses(ws, saved.get("analysis"))
+            _restore_analyses(ws, analysis)
+            report.note("Building your profile…")
+            ws.profile()  # here, not on the first page asked for: the snapshot is shown until it is ready
+        except Exception:  # noqa: BLE001 - a page that asks builds it again, and says what went wrong
+            log.warning("could not build the restored profile", exc_info=True)
         finally:
-            ws.set_restoring(False)  # the pages say "restoring" until here, not "nothing analysed"
+            ws.set_restoring(False)  # the pages say "restoring" (or show the snapshot) until here
         if not rescan:
             return None
         installs = ws.installs()
@@ -130,7 +141,8 @@ def _restore_analyses(ws: Workspace, saved: object) -> None:
             for e in saved.get("errors", [])
             if isinstance(e, dict) and "path" in e and "reason" in e
         ]
-        ws.set_plays(plays, errors, str(saved.get("player_label", "")))
+        at = saved.get("analysed_at")
+        ws.set_plays(plays, errors, str(saved.get("player_label", "")), at if isinstance(at, str) else None)
     except Exception:  # noqa: BLE001 - a broken session file must not keep the app from starting
         log.warning("could not restore the analysed replays", exc_info=True)
 
@@ -145,13 +157,14 @@ def run_analysis(ws: Workspace, req: AnalysisRequest, report: Reporter) -> Analy
         progress.update(lib.cache, plays, lambda keys: cached_summaries(ws.cache_dir, keys, workers))
     except Exception as exc:  # noqa: BLE001 - the analysis matters more than the history
         warnings.append(f"Could not save your progress: {exc}")
-    ws.set_plays(plays, errors, "All players" if sel.player == "*" else sel.player)
+    ws.set_plays(plays, errors, "All players" if sel.player == "*" else sel.player, clock.now().isoformat())
     _save(
         ws,
         analysis={
             "keys": [a.key for a in plays],
             "player_label": ws.player_label,
             "errors": [{"path": ref["path"], "reason": err} for ref, err in errors],
+            "analysed_at": ws.analysed_at,
         },
     )
     ws.update_settings(player=sel.player)
@@ -180,4 +193,5 @@ def analysis_status(ws: Workspace) -> AnalysisStatus:
         skipped=[SkippedReplay(file=Path(ref["path"]).name, reason=err) for ref, err in ws.errors[:SKIPPED_SHOWN]],
         skipped_total=len(ws.errors),
         restoring=ws.restoring,
+        snapshot_at=ws.snapshot_at,
     )

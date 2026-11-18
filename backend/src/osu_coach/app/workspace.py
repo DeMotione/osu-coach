@@ -8,17 +8,22 @@ in the data folder, shared with the command line.
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Callable
+from functools import cache
 from pathlib import Path
 from typing import Any, TypeVar
 
+from osu_coach import __version__
 from osu_coach.common.errors import NoProfile
 from osu_coach.config import Settings, default_cache_dir
 from osu_coach.domain.player import PlaySummary, Profile, profile_for
 from osu_coach.domain.player.engines import engine_name
 from osu_coach.domain.player.setup import Setup
 from osu_coach.domain.replays import scope
+from osu_coach.infra import clock, snapshot
+from osu_coach.infra.code_fingerprint import fingerprint
 from osu_coach.infra.jobs import BusyGate, JobManager
 from osu_coach.infra.library import Library, ScanArgs
 from osu_coach.infra.map_pool import load_pool
@@ -29,6 +34,16 @@ from osu_coach.infra.uploads import same_file
 T = TypeVar("T")
 CHECK_LATEST = 100  # replays read for a single-replay page when nothing was scanned yet
 RESTORING = "Restoring your last session… This page fills in by itself in a moment."
+SNAPSHOT_PAGES = 40  # the most pages a snapshot keeps (Where your clicks land has one per filter)
+
+log = logging.getLogger(__name__)
+
+
+@cache
+def snapshot_version() -> str:
+    """The code a snapshot's pages are of: the answers' shapes come from the slices' schemas and ``common``. Its
+    numbers may be of older rating code: they are the last analysis, shown until the profile is built again."""
+    return f"{__version__}-{fingerprint('osu_coach.common')}-{fingerprint('osu_coach.features')}"
 
 
 class Workspace:
@@ -47,7 +62,11 @@ class Workspace:
         self._plays: list[PlaySummary] = []
         self._errors: list[tuple[dict, str]] = []
         self._player_label = ""
+        self._analysed_at: str | None = None
         self._restoring = False
+        self._shown: snapshot.Snapshot | None = None  # the last session's pages, answered while it is restored
+        self._kept: snapshot.Snapshot | None = None  # this profile's pages, saved for the next start
+        self._snapshot_lock = threading.Lock()
         self._check_library: Library | None = None  # for single replays when nothing was scanned
         self._profile: Profile | None = None
         self._profile_sig: tuple | None = None
@@ -83,11 +102,25 @@ class Workspace:
         """The analysed plays of the last session are being brought back (at start-up)."""
         return self._restoring
 
+    @property
+    def analysed_at(self) -> str | None:
+        """When the analysis of the plays ended (ISO 8601 UTC; None: not known)."""
+        return self._analysed_at
+
+    @property
+    def snapshot_at(self) -> str | None:
+        """While the last session is restored and its snapshot is shown: when its analysis ended (or when the
+        snapshot was started, for one of a session that didn't say)."""
+        shown = self._shown
+        return shown.analysed_at if self._restoring and shown is not None else None
+
     def set_library(self, library: Library | None, args: ScanArgs | None) -> None:
         self._library, self._scan_args = library, args
 
     def set_restoring(self, restoring: bool) -> None:
         self._restoring = restoring
+        if not restoring:
+            self._shown = None  # the pages are answered from the profile again
 
     # -------------------------------------------------------------- settings
     def settings(self) -> UserSettings:
@@ -163,10 +196,66 @@ class Workspace:
         return lib, ref
 
     # -------------------------------------------------------------- analyses and the profile
-    def set_plays(self, plays: list[PlaySummary], errors: list[tuple[dict, str]], player_label: str):
+    def set_plays(
+        self,
+        plays: list[PlaySummary],
+        errors: list[tuple[dict, str]],
+        player_label: str,
+        analysed_at: str | None = None,
+    ):
         with self._profile_lock:
             self._plays, self._errors, self._player_label = list(plays), list(errors), player_label
+            self._analysed_at = analysed_at
             self._profile, self._profile_sig, self._memo = None, None, {}
+
+    # -------------------------------------------------------------- the snapshot of the pages (#97)
+    def page_selection(self, keys: list[str] | None = None, player_label: str | None = None) -> dict[str, Any]:
+        """What the Analysis pages depend on besides the code: the analysed plays (``keys``, else the current
+        ones), their player, All / Best replays, the level set by hand, the rating engine and the setup."""
+        s = self.settings()
+        return {
+            "keys": list(keys) if keys is not None else [a.key for a in self._plays],
+            "player_label": player_label if player_label is not None else self._player_label,
+            "replay_set": self.replay_set(),
+            "level_override": s.level_override,
+            "rating_engine": self.rating_engine(),
+            "setup": {k: v for k, v in s.values.items() if k in Setup.__dataclass_fields__},
+        }
+
+    def show_snapshot(self, keys: list[str], player_label: str) -> bool:
+        """Answer the Analysis pages from the last session's snapshot while it is restored, when that snapshot is
+        of this code and of these plays and choices. Whether it is."""
+        shown = snapshot.load(self.cache_dir, snapshot_version())
+        if shown is None or shown.selection != self.page_selection(keys, player_label):
+            return False
+        self._shown = shown
+        return True
+
+    def snapshot_page(self, page: str) -> Any | None:
+        """The snapshot's answer to ``page`` (a request path with its query) while the last session is restored, and
+        its choices are still the player's (none after e.g. the rating engine was changed meanwhile)."""
+        shown = self._shown
+        if not self._restoring or shown is None or page not in shown.pages:
+            return None
+        keys, label = shown.selection.get("keys", []), shown.selection.get("player_label", "")
+        return shown.pages[page] if shown.selection == self.page_selection(keys, label) else None
+
+    def keep_page(self, page: str, body: Any, selection: dict[str, Any]) -> None:
+        """Keep the answer to ``page`` for the next start's snapshot, if it is of the current plays and choices
+        (``selection``: :meth:`page_selection` when the page was asked for)."""
+        if self._restoring or not self._plays or selection != self.page_selection():
+            return
+        with self._snapshot_lock:
+            kept = self._kept
+            if kept is None or kept.selection != selection:
+                kept = self._kept = snapshot.Snapshot(selection, self._analysed_at or clock.now().isoformat())
+            if kept.pages.get(page) == body or (page not in kept.pages and len(kept.pages) >= SNAPSHOT_PAGES):
+                return
+            kept.pages[page] = body
+            try:
+                snapshot.save(self.cache_dir, snapshot_version(), kept)
+            except OSError:  # the snapshot is a convenience at the next start, never a reason to fail a page
+                log.warning("could not save the snapshot of the pages", exc_info=True)
 
     def _signature(self) -> tuple:
         s = self.settings()
