@@ -1291,15 +1291,14 @@ input[type="range"] {
 .map-table .table td.wrap { min-width: 150px; }
 
 /* full map tables lay out on fixed column widths, so the tables of one page (a playlist's goals) line up instead of
- * each sizing its columns to its own maps. The small columns have what they hold (a mod set wraps onto a second line
- * rather than widen its column for everyone) and grow with wider cards; Why has 18% and Map the rest. (Widths in px up
+ * each sizing its columns to its own maps. The small columns have what they hold (Mods: HD, HR and DT at a rate on one
+ * line, 115.5px) and grow with wider cards; Why has 18% and Map the rest. (Widths in px up
  * to 1120px and in % from there, each % at least its px there: a column width mixing both, max(%, px), is taken as
  * auto.) */
 @container (min-width: 880px) {
   .map-table:not(.map-table--compact) .table { table-layout: fixed; }
   .map-table:not(.map-table--compact) .table td.wrap { overflow-wrap: break-word; }
-  .map-table:not(.map-table--compact) .map-mods { flex-wrap: wrap; row-gap: 3px; }
-  .map-table .col-mods { width: 112px; }
+  .map-table .col-mods { width: 130px; }
   .map-table .col-stars { width: 72px; }
   .map-table .col-bpm { width: 44px; }
   .map-table .col-ar { width: 40px; }
@@ -1337,8 +1336,32 @@ input[type="range"] {
   }
 }
 
+/* in a table every set of mods starts at the same place, packed from the left (DT with its rate, then HD, then HR):
+ * all sets are as wide as the widest (115.5px), so they line up down the column without gaps between icons */
+@container (min-width: 880px) {
+  .map-table:not(.map-table--compact) .map-mods { width: 115.5px; justify-content: flex-start; }
+}
+
+@container (min-width: 761px) {
+  .map-table--compact .map-mods { width: 115.5px; justify-content: flex-start; }
+}
+
+/* the headers sit centred over their columns (two-line ones too), and so do the short values under them; the map's
+ * name and the why stay left-aligned, as text reads */
+@container (min-width: 880px) {
+  .map-table:not(.map-table--compact) .table thead th { text-align: center; vertical-align: middle; }
+  .map-table:not(.map-table--compact) .table thead th button { justify-content: center; text-align: center; }
+  .map-table:not(.map-table--compact) .table td:not(.wrap) { text-align: center; }
+}
+
+@container (min-width: 761px) {
+  .map-table--compact .table thead th { text-align: center; vertical-align: middle; }
+  .map-table--compact .table thead th button { justify-content: center; text-align: center; }
+  .map-table--compact .table td:not(.wrap) { text-align: center; }
+}
+
 @container (min-width: 1121px) {
-  .map-table .col-mods { width: 10%; }
+  .map-table .col-mods { width: 12.5%; }
   .map-table .col-stars { width: 6.5%; }
   .map-table .col-bpm { width: 4.5%; }
   .map-table .col-ar { width: 4%; }
