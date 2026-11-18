@@ -1,4 +1,5 @@
-"""The analysis svc. All of them answer 409 ``no_profile`` before replays were analysed."""
+"""The analysis svc. All of them answer 409 ``no_profile`` before replays were analysed; while the last session is
+restored at start-up, a page of its snapshot is answered instead (``snapshot_route``)."""
 
 from __future__ import annotations
 
@@ -19,8 +20,10 @@ from osu_coach.features.dashboard.schemas import (
     SlidersReadingPage,
     TappingPage,
 )
+from osu_coach.features.dashboard.snapshot_route import SnapshotRoute
 
-router = APIRouter(prefix="/profile", tags=["Analysis"], responses=responses(409))
+# at start-up the pages of the last completed analysis are answered at once (#97)
+router = APIRouter(prefix="/profile", tags=["Analysis"], responses=responses(409), route_class=SnapshotRoute)
 
 
 @router.get("/summary", summary="Player, replays and level of the current analysis")

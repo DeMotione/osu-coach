@@ -75,6 +75,30 @@ def test_a_play_the_analysis_choices_leave_out_is_only_added(osu):
     assert any(r["path"] == str(replay) for r in ws.library.replays)
 
 
+def test_plays_saved_while_the_app_was_closed_are_analysed_after_the_first_scan(tmp_path, client):
+    # two plays analysed; osu! saves a third while osu! coach is closed; the next start's scan finds it (#97)
+    scan(client, plays_folder(tmp_path, MOT1ONE[:2]))
+    analyse(client, player="Mot1one")
+    client.app.state.auto_analyser.stop()  # the app's own would race the test's
+    folder = plays_folder(tmp_path, MOT1ONE[2:])
+    scan(client, folder)
+    ws = workspace(client)
+    auto = AutoAnalyzer(ws)
+    assert auto.tick() is None  # starts watching
+    job = _finish(_until_job(auto))
+    assert job.status == "succeeded", job.error
+    assert job.result.analysed == 3 and [p.path for p in job.result.new_plays] == [str(folder / MOT1ONE[2])]
+    assert _until_job(auto, 3) is None  # once only
+
+
+def test_a_first_scan_is_not_followed_by_an_analysis_nobody_asked_for(tmp_path, client):
+    client.app.state.auto_analyser.stop()
+    scan(client, plays_folder(tmp_path))
+    auto = AutoAnalyzer(workspace(client))
+    assert _until_job(auto, 4) is None
+    assert auto._caught_up
+
+
 def test_nothing_happens_when_switched_off(osu):
     ws, auto, data_r = osu
     ws.update_settings(auto_analyse=False)

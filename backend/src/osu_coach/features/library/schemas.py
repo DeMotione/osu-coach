@@ -141,7 +141,12 @@ class AnalysisStatus(BaseModel):
     restoring: bool = Field(
         False,
         description="The analysed replays of the last session are still being brought back (at start-up); the "
-        "profile pages answer 409 no_profile until then.",
+        "profile pages answer 409 no_profile until then, or from its snapshot (``snapshot_at``).",
+    )
+    snapshot_at: str | None = Field(
+        None,
+        description="While restoring: the profile pages show the last completed analysis, which ended then (ISO "
+        "8601 UTC); answers from it carry the header X-Snapshot. null: no snapshot is shown.",
     )
 
 

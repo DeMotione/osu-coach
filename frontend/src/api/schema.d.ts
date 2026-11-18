@@ -1037,10 +1037,15 @@ export interface components {
             skipped_total: number;
             /**
              * Restoring
-             * @description The analysed replays of the last session are still being brought back (at start-up); the profile pages answer 409 no_profile until then.
+             * @description The analysed replays of the last session are still being brought back (at start-up); the profile pages answer 409 no_profile until then, or from its snapshot (``snapshot_at``).
              * @default false
              */
             restoring: boolean;
+            /**
+             * Snapshot At
+             * @description While restoring: the profile pages show the last completed analysis, which ended then (ISO 8601 UTC); answers from it carry the header X-Snapshot. null: no snapshot is shown.
+             */
+            snapshot_at?: string | null;
         };
         /** AngleRow */
         AngleRow: {
