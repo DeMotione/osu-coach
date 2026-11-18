@@ -6,6 +6,10 @@ files haven't changed), and when the saved Analyse choices (player, time range, 
 runs again with those choices as an ``analysis`` job: only the new replay is really analysed, the rest come from the
 cache. Its result names the new plays, so the web app can say so. Busy with another job: it tries again later.
 Off with the ``auto_analyse`` setting; nothing to watch in files-only mode or before a scan.
+
+Once, after the first scan (at start-up, the last session's): the plays osu! saved while osu! coach was closed, which
+the choices take in and which aren't analysed, are analysed the same way (#97) — only when something was analysed
+before, so a first scan is never followed by an analysis nobody asked for.
 """
 
 from __future__ import annotations
@@ -56,6 +60,7 @@ class AutoAnalyzer:
         self._watching: tuple = ()
         self._new: list[tuple[Path, str]] = []  # noticed, not in the library yet
         self._ready: list[str] = []  # in the library and in the analysis choices: to analyse
+        self._caught_up = False  # the plays saved while osu! coach was closed were looked for
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, name="auto-analyse", daemon=True)
@@ -83,6 +88,13 @@ class AutoAnalyzer:
         if self._watcher is None or watching != self._watching:  # (re)start: only what osu! saves from now on
             self._watcher, self._watching = ReplayWatcher(args.installs), watching
             return None
+        if not self._caught_up:
+            try:
+                with ws.gate.hold("Looking for new plays", brief=True):
+                    self._ready += [p for p in self._missed() if p not in self._ready]
+            except Busy:
+                return None  # the start-up scan is still running: next time
+            self._caught_up = True
         self._new += self._watcher.poll()
         if self._new:
             try:
@@ -97,7 +109,7 @@ class AutoAnalyzer:
         try:
             job = ws.jobs.start(
                 "analysis",
-                "Analysing your new play",
+                "Analysing your new play" if len(paths) == 1 else f"Analysing your {len(paths)} new plays",
                 lambda report: self._analyze(paths, report),
                 details={"automatic": True},
             )
@@ -118,6 +130,26 @@ class AutoAnalyzer:
         except ApiError:
             return []
         return [r["path"] for r in sel.refs if r["path"] in paths]
+
+    def _missed(self) -> list[str]:
+        """The replays the saved choices take in that aren't analysed (nor failed before): plays osu! saved while
+        osu! coach was closed. None when nothing was analysed (a first scan)."""
+        ws = self.ws
+        if not ws.plays or ws.library is None:
+            return []
+        req = _request(ws)
+        try:
+            sel = select(ws, req.player, int(req.latest), req.date_range, req.date_from, req.date_to)
+        except ApiError:
+            return []
+        keys = ws.library.replay_keys(sel.refs)
+        analysed = {a.key for a in ws.plays}
+        failed = {str(ref.get("path")) for ref, _ in ws.errors}
+        return [
+            str(r["path"])
+            for r in sel.refs
+            if (key := keys.get(str(r["path"]))) is not None and key not in analysed and str(r["path"]) not in failed
+        ]
 
     def _analyze(self, paths: list[str], report: Reporter) -> AnalysisResult:
         result = session.run_analysis(self.ws, _request(self.ws), report)
