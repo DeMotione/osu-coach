@@ -185,6 +185,7 @@ export function MapTable({ maps, maxHeight, onHide, done, compact = false }: {
       rowKey={(m) => m.configuration_id ?? m.md5}
       maxHeight={maxHeight}
       empty={<EmptyState title="No maps found for this." />}
+      colgroup={!compact} /* the same column widths in every table of a page, so the goals' tables line up */
     />
     {maps.length > 5 && <MapPagination page={shownPage} pages={pages} total={maps.length} onPageChange={setPage} />}
     </div>

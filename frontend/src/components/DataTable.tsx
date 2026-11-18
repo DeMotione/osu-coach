@@ -24,10 +24,12 @@ interface Props<T> {
   fill?: boolean;
   empty?: ReactNode;
   label: string;
+  /** A ``<col class="col-<key>">`` per column, for widths set in CSS (tables meant to line up with each other). */
+  colgroup?: boolean;
 }
 
 /** A sortable table with a sticky header that scrolls inside its card; optionally one row can be selected. */
-export function DataTable<T>({ rows, columns, rowKey, selected, onSelect, maxHeight, fill, empty, label }: Props<T>) {
+export function DataTable<T>({ rows, columns, rowKey, selected, onSelect, maxHeight, fill, empty, label, colgroup }: Props<T>) {
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null);
   const sorted = useMemo(() => {
     if (!sort) return rows.map((r, i) => [r, i] as const);
@@ -53,6 +55,13 @@ export function DataTable<T>({ rows, columns, rowKey, selected, onSelect, maxHei
   return (
     <div className={fill ? "table-wrap table-wrap--fill" : "table-wrap"} style={style}>
       <table className="table" aria-label={label}>
+        {colgroup && (
+          <colgroup>
+            {columns.map((c) => (
+              <col key={c.key} className={`col-${c.key}`} />
+            ))}
+          </colgroup>
+        )}
         <thead>
           <tr>
             {columns.map((c) => {

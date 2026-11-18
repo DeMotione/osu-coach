@@ -13,10 +13,13 @@ test("custom DT badge fits desktop rows and narrow map cards", async ({ page }) 
     `<button class="btn btn--sm btn--ghost btn--icon">${icon}</button></span>`;
   const head = ["Map", "Mods", "Difficulty", "BPM", "AR", "Length", "Why this map", "Skill demand", "F(m)", "Link", ""]
     .map((h, i) => `<th class="${i === 7 ? "center" : ""}"><button>${h}</button></th>`).join("");
+  // as MapTable draws a full table: a column per key, sized by the styles, so the tables of a page line up
+  const cols = "<colgroup>" + ["map", "mods", "stars", "bpm", "ar", "length", "why", "demand", "score", "link", "hide"]
+    .map((k) => `<col class="col-${k}">`).join("") + "</colgroup>";
   const cells = (custom: boolean, hide: boolean) => {
-    const badge = '<span class="map-mods__badge"><img src="/mod-double-time.svg" alt=""><span class="map-mods__badge-rate">1.36×</span></span>';
-    const regular = '<img src="/mod-double-time.svg" alt="">';
-    const mods = `<span class="map-mods">${custom ? badge : regular}<img src="/mod-hidden.svg" alt=""><img src="/mod-hard-rock.svg" alt=""></span>`;
+    const badge = '<span class="map-mods__badge map-mods__dt"><img src="/mod-double-time.svg" alt=""><span class="map-mods__badge-rate">1.36×</span></span>';
+    const regular = '<img class="map-mods__dt" src="/mod-double-time.svg" alt="">';
+    const mods = `<span class="map-mods">${custom ? badge : regular}<img class="map-mods__hd" src="/mod-hidden.svg" alt=""><img class="map-mods__hr" src="/mod-hard-rock.svg" alt=""></span>`;
     return `<td class="wrap strong" data-label="Map">Pyxis – Koise yo Minna, Hai! (TV Size) [Hai!]</td>
       <td data-label="Mods">${mods}</td><td data-label="Difficulty">6.94 ★</td>
       <td data-label="BPM">218</td><td data-label="AR">10.1</td><td data-label="Length">0:22</td>
@@ -26,7 +29,7 @@ test("custom DT badge fits desktop rows and narrow map cards", async ({ page }) 
       ${hide ? '<td><button class="btn btn--ghost btn--sm">Hide</button></td>' : ""}`;
   };
   await page.setContent(`<link rel="stylesheet" href="${css}"><div class="map-table"><div class="table-wrap">
-    <table class="table"><thead><tr>${head}</tr></thead><tbody><tr id="custom">${cells(true, false)}</tr><tr id="regular">${cells(false, false)}</tr>
+    <table class="table">${cols}<thead><tr>${head}</tr></thead><tbody><tr id="custom">${cells(true, false)}</tr><tr id="regular">${cells(false, false)}</tr>
     <tr id="hide">${cells(true, true)}</tr></tbody></table></div></div>`);
   await page.locator(".map-mods__badge").first().evaluate((el) => document.fonts.ready.then(() => el.getBoundingClientRect()));
 
@@ -38,6 +41,26 @@ test("custom DT badge fits desktop rows and narrow map cards", async ({ page }) 
   expect(modIcon!.width / modIcon!.height).toBeCloseTo(1.25, 1);
   const badge = await page.locator(".map-mods__badge").first().boundingBox();
   expect(badge!.height).toBeLessThanOrEqual(modIcon!.height + 0.5);
+  // HD, HR and DT at a rate stay on one line, and reach into no other column, at any width the table has
+  for (const width of [1440, 1280, 1121, 1120, 900, 880]) {
+    await page.setViewportSize({ width, height: 820 });
+    const lines = await page.locator("#custom .map-mods > *").evaluateAll((els) => new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size);
+    expect(lines, `${width}px`).toBe(1);
+    // every set starts at the same place down the column, its icons packed from the left with no gaps
+    const starts = await page.locator("tbody .map-mods").evaluateAll((els) => [...new Set(els.map((e) => Math.round(e.firstElementChild!.getBoundingClientRect().left)))]);
+    expect(starts, `starts at ${width}px`).toHaveLength(1);
+    const gaps = await page.locator("tbody .map-mods").evaluateAll((els) => els.flatMap((e) => Array.from(e.children).slice(1)
+      .map((c) => Math.round(c.getBoundingClientRect().left - c.previousElementSibling!.getBoundingClientRect().right))));
+    expect(Math.max(...gaps), `gaps at ${width}px`).toBeLessThanOrEqual(3);
+    const spill = await page.locator("tbody td:nth-child(2)").evaluateAll((tds) =>
+      tds.filter((td) => {
+        const cell = td.getBoundingClientRect();
+        const mods = td.querySelector(".map-mods")!.getBoundingClientRect();
+        return mods.right > cell.right + 0.5;
+      }).length);
+    expect(spill, `${width}px`).toBe(0);
+  }
+  await page.setViewportSize({ width: 1280, height: 820 });
 
   // a table at every width down to the cards, without a sideways scrollbar (with Hide: the widest rows)
   for (const width of [1440, 1280, 1130, 1121, 1100, 900, 880]) {
@@ -74,7 +97,7 @@ test("custom DT badge fits desktop rows and narrow map cards", async ({ page }) 
   await page.setContent(`<link rel="stylesheet" href="${css}"><div class="map-table map-table--compact"><div class="table-wrap">
     <table class="table"><tbody><tr id="compact">
       <td data-label="Map">Pyxis – Koise yo Minna, Hai! (TV Size) [Hai!]</td>
-      <td data-label="Mods"><span class="map-mods"><span class="map-mods__badge"><img src="/mod-double-time.svg" alt=""><span class="map-mods__badge-rate">1.36×</span></span><img src="/mod-hidden.svg" alt=""><img src="/mod-hard-rock.svg" alt=""></span></td>
+      <td data-label="Mods"><span class="map-mods"><span class="map-mods__badge map-mods__dt"><img src="/mod-double-time.svg" alt=""><span class="map-mods__badge-rate">1.36×</span></span><img class="map-mods__hd" src="/mod-hidden.svg" alt=""><img class="map-mods__hr" src="/mod-hard-rock.svg" alt=""></span></td>
       <td data-label="Difficulty">6.94 ★</td><td data-label="BPM">218</td><td data-label="Length">0:22</td>
       <td class="center" data-label="Skill demand">61.4</td><td class="num" data-label="F(m)">-0.7844</td>
       <td data-label="Link">open ↗</td>

@@ -21,16 +21,19 @@ export function ModsIcons({ mods, rate = 1 }: { mods: string | null | undefined;
   return (
     <span className="map-mods" role="img" aria-label={speed && !mods.includes("DT") ? `${label}, ${speed}` : label}>
       {selected.map(({ code, name, icon }) => {
-        const img = <img key={code} src={icon} alt="" title={name} width="25" height="20" />;
+        // each mod has its place (map-mods__dt / __hd / __hr), so a table can line every one up under the others
+        const slot = `map-mods__${code.toLowerCase()}`;
+        const badge = code === "DT" && customDt;
+        const img = <img key={code} className={badge ? undefined : slot} src={icon} alt="" title={name} width="25" height="20" />;
         // a DT rate other than 1.50× rides on the DT icon, so it reads as that mod's speed
-        return code === "DT" && customDt ? (
-          <span key={code} className="map-mods__badge" title={`${name} ${speed}`}>
+        return badge ? (
+          <span key={code} className={`map-mods__badge ${slot}`} title={`${name} ${speed}`}>
             {img}
             <span className="map-mods__badge-rate" aria-hidden="true">{speed}</span>
           </span>
         ) : img;
       })}
-      {speed && !mods.includes("DT") && <span className="map-mods__rate-only" aria-hidden="true">{speed}</span>}
+      {speed && !mods.includes("DT") && <span className="map-mods__rate-only map-mods__dt" aria-hidden="true">{speed}</span>}
     </span>
   );
 }
