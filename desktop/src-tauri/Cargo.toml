@@ -1,6 +1,6 @@
 [package]
 name = "osu-coach-desktop"
-version = "0.10.2"
+version = "0.10.3"
 description = "osu! coach desktop app"
 edition = "2021"
 
