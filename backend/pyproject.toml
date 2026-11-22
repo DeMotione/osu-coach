@@ -33,7 +33,7 @@ osu-coach-api = "osu_coach.app.server:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-osu_coach = ["infra/data/*.json.gz", "infra/data/*.npz", "features/play_goals/data/*.json.gz", "web/**/*"]
+osu_coach = ["infra/data/*.json.gz", "infra/data/*.npz", "web/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

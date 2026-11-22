@@ -10,7 +10,7 @@ import json
 import math
 from dataclasses import dataclass
 
-from osu_coach.domain.replays.models import MOD_BITS, rate_from_mods
+from osu_coach.domain.replays.models import MOD_BITS, lazer_rate, rate_from_mods
 
 
 def canonical_mods(lazer_mods: list | None) -> str:
@@ -81,15 +81,7 @@ def from_meta(meta: dict) -> Configuration:
             mods |= MOD_BITS["HT"]
     rate = meta.get("rate")
     if rate is None:
-        rate = next(
-            (
-                (mod.get("settings") or {}).get("speed_change")
-                for mod in lazer_mods
-                if str(mod.get("acronym", "")).upper() in ("DT", "NC", "HT", "DC")
-                and (mod.get("settings") or {}).get("speed_change") is not None
-            ),
-            rate_from_mods(mods),
-        )
+        rate = lazer_rate(lazer_mods) or rate_from_mods(mods)
     return Configuration(
         md5=str(meta.get("beatmap_md5") or ""),
         mods=mods,

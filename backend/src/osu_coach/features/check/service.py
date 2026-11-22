@@ -15,6 +15,7 @@ from osu_coach.common.convert import flag, integer, iso, num, text
 from osu_coach.common.errors import ApiError, Invalid
 from osu_coach.domain.player import build_profile
 from osu_coach.domain.replays.eligibility import EXCLUDE_MODS, analysable, skip_reason
+from osu_coach.domain.replays.models import mods_label, rate_from_mods
 from osu_coach.features.check import report as check
 from osu_coach.features.check.schemas import (
     CheckEvent,
@@ -76,12 +77,14 @@ def _reason(ref: dict) -> str | None:
 
 def _replay(ref: dict, lib: Library) -> CheckReplay:
     mods = "".join(ref.get("lazer_mods") or []) or ref.get("mod_string") or "NM"
+    rate = num(ref.get("rate"))  # headers read before the speed was kept: a mod's own speed
     return CheckReplay(
         path=str(ref["path"]),
         played_at=iso(ref.get("timestamp")),
         player=ref.get("player") or "",
         map=map_title(lib.maps.get(ref.get("beatmap_md5"))),
         mods=mods,
+        rate=rate if rate is not None and rate > 0 else rate_from_mods(int(ref.get("mods") or 0)),
         accuracy=num(ref.get("accuracy")),
         beatmap_md5=ref.get("beatmap_md5"),
         analysable=analysable(ref),
@@ -192,7 +195,7 @@ def _report(a, cmp: dict, path: str) -> CheckReport:
         player=s["player"] or "",
         played_at=iso(s["date"]),
         map=text(s["map"]) or check.NO_MAP,
-        mods_label=check.mods_label(s["mods"], rate),
+        mods_label=mods_label(s["mods"], rate),
         client=text(s["client"]),
         creator=m.creator,
         beatmap_id=integer(m.beatmap_id) or None,
@@ -298,7 +301,7 @@ def _map_plays(cmp: dict) -> MapPlays:
                 this=bool(r["this"]),
                 same_settings=bool(r["same_settings"]),
                 played_at=iso(date) if date is not None and not pd.isna(date) else None,
-                mods_label=check.mods_label(r["mods"], r["rate"]),
+                mods_label=mods_label(r["mods"], r["rate"]),
                 settings_label=check.settings_label(r) or "–",
                 bpm=num(r["bpm"]),
                 stars=num(r["stars"]),

@@ -262,14 +262,6 @@ def summary(a: Play, ev: pd.DataFrame | None = None) -> dict:
     return out
 
 
-def mods_label(mods, rate) -> str:
-    """'HDDT ×1.26', 'HR', 'NM ×0.85': the speed is spelled out when it isn't the mod's standard one."""
-    mods = mods if isinstance(mods, str) and mods else "NM"
-    rate = 1.0 if _nan(rate) else float(rate)
-    standard = {1.0, 1.5, 0.75}
-    return mods + (f" ×{rate:g}" if not any(abs(rate - s) < 1e-3 for s in standard) else "")
-
-
 def settings_key(m) -> tuple:
     """What changes how hard a play of the same map is: speed (DT/HT/custom rate), the effective CS / AR / OD /
     HP (HR, EZ, Difficulty Adjust, ...) and Hidden / Flashlight. Only plays with the same key are compared."""

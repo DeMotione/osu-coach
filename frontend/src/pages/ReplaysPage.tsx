@@ -4,7 +4,6 @@ import { Link, useNavigate } from "react-router";
 import { api, unwrap, type Schemas } from "../api/client";
 import { useJob } from "../api/jobs";
 import {
-  uploadFiles,
   useAnalysedReplays,
   useForgetFiles,
   useAnalysisStatus,
@@ -14,6 +13,7 @@ import {
   usePatchSettings,
   useSelection,
   useSettings,
+  useUpload,
 } from "../api/queries";
 import { DataTable, type Column } from "../components/DataTable";
 import { DateRangePicker } from "../components/DateRangePicker";
@@ -59,7 +59,7 @@ function FindCard({ settings }: { settings: Settings }) {
   const analysis = useJob("analysis");
   const [folders, setFolders] = useState(settings.folders);
   const [uploads, setUploads] = useState<Schemas["UploadedFile"][]>([]);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const { upload, error: uploadError } = useUpload();
   const forget = useForgetFiles();
   const filesMode = settings.source_mode === "files";
   const busy = scan.running || analysis.running;
@@ -70,13 +70,8 @@ function FindCard({ settings }: { settings: Settings }) {
   const read = (installs.data ?? []).filter((i) => !settings.skipped_installs.includes(i.root));
 
   const addFiles = async (files: File[]) => {
-    setUploadError(null);
-    try {
-      const added = await uploadFiles(files);
-      setUploads((u) => [...u.filter((x) => !added.some((a) => a.id === x.id)), ...added]);
-    } catch (e) {
-      setUploadError((e as Error).message);
-    }
+    const added = await upload(files);
+    if (added) setUploads((u) => [...u.filter((x) => !added.some((a) => a.id === x.id)), ...added]);
   };
 
   // every replay is read; how many of them to analyse is chosen in the Analyse card (#36)

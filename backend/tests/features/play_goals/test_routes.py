@@ -32,6 +32,9 @@ def test_options_and_conditional_starter_farming_work_without_profile(client):
         {"goal": "farm", "farm_mods": []},
         {"goal": "mod", "training_mod": "RX"},
         {"goal": "mod", "training_mod": "EZ"},  # EZ maps are not in the shipped pool yet
+        {"goal": "mod", "training_mod": "HD", "training_rate": 1.2},  # a speed goes with DT
+        {"goal": "mod", "training_mod": "DT", "training_rate": 1.05},  # from 1.10
+        {"goal": "mod", "training_mod": "DT", "training_rate": 1.234},  # in hundredths
     ],
 )
 def test_invalid_goal_requests_use_standard_errors(client, body):
@@ -77,6 +80,14 @@ def test_training_mod_accepts_hr_and_combinations(client):
         result = wait(client, response.json())["result"]
         assert result["recommendations"]
         assert all(r["map"]["mods"] == mods for r in result["recommendations"])
+
+
+def test_training_at_a_custom_dt_speed(client):
+    body = {"goal": "mod", "training_mod": "DT", "training_rate": 1.2, "online": False}
+    result = wait(client, client.post("/api/play-goals", json=body).json())["result"]
+    assert result["recommendations"] and result["coverage_maps"] > 40_000
+    assert all((r["map"]["mods"], r["map"]["rate"]) == ("DT", 1.2) for r in result["recommendations"])
+    assert "at 1.20x" in result["recommendations"][0]["objective"]
 
 
 def test_cancelled_evaluation_checks_reporter_before_work(client):

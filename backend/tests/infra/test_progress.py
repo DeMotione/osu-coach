@@ -328,3 +328,40 @@ def test_months_are_built_again_only_when_the_plays_change(tmp_path, monkeypatch
     assert built == [2, 3]
     progress.update(lib.cache, [newest], older, dt.timezone(dt.timedelta(hours=5)))  # months of another time zone
     assert built == [2, 3, 3]
+
+
+def test_star_levels_of_a_period_are_its_plays_alone(tmp_path, nm):
+    """Star Levels: each period's skills fitted to its plays alone, with their range; saved next to the scores."""
+    early, late = _months(nm)
+    conn = progress.connect(tmp_path)
+    progress.record(conn, early + late, UTC)
+    fitted = progress.rebuild_stars(conn, "Mot1one", [summarize(a) for a in early + late], UTC)
+    m = progress.monthly(conn, "Mot1one").set_index("month")
+    september = {
+        metric.name: metric.value for metric in domain_progress.star_metrics([summarize(a) for a in late]) or []
+    }
+    assert september["stars_aim"] is not None and m.loc["2026-09", "stars_aim"] == september["stars_aim"]
+    assert m.loc["2026-09", "stars_aim_low"] <= m.loc["2026-09", "stars_aim"] <= m.loc["2026-09", "stars_aim_high"]
+    assert m.loc["2026-09", "stars_aim"] > m.loc["2026-08", "stars_aim"]  # August missed its jumps
+    rolling = progress.by_period(conn, "Mot1one", "day", tz=UTC, rolling=True).set_index("month")
+    assert rolling.loc["2026-09-14", "stars_aim"] == m.loc["2026-09", "stars_aim"]  # the last 7 days: September's
+    assert fitted == len(domain_progress.period_groups([summarize(a) for a in early + late], UTC))
+
+
+def test_star_levels_are_fitted_again_only_where_the_plays_changed(tmp_path, nm, monkeypatch):
+    early, late = _months(nm)
+    conn = progress.connect(tmp_path)
+    progress.record(conn, early + late, UTC)
+    plays = [summarize(a) for a in early + late]
+    progress.rebuild_months(conn, "Mot1one", plays, UTC)  # the scores' rebuild leaves the star levels alone
+    assert progress.rebuild_stars(conn, "Mot1one", plays, UTC) > 0
+    before = progress.monthly(conn, "Mot1one").set_index("month")["stars_aim"]
+    assert progress.rebuild_stars(conn, "Mot1one", plays, UTC) == 0  # nothing changed
+    progress.rebuild_months(conn, "Mot1one", plays, UTC)
+    assert progress.monthly(conn, "Mot1one").set_index("month")["stars_aim"].equals(before)
+    newer = summarize(_copy(nm, "n1", dt.datetime(2026, 9, 20)))
+    # its day, week and month, and its rolling day (no later day with plays)
+    assert progress.rebuild_stars(conn, "Mot1one", [*plays, newer], UTC) == 4
+    assert progress.rebuild_stars(conn, "Mot1one", plays, UTC) == 2  # and back: its week and month; its days go
+    days = {k for (k,) in conn.execute("SELECT month FROM star_basis WHERE player = 'Mot1one'")}
+    assert "day:2026-09-20" not in days and "day:2026-09-14" in days

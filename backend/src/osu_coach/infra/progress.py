@@ -8,6 +8,9 @@ when replays or the analysis cache are deleted later. Per month and player:
 * from the analyses themselves (months with 5+ plays): skill scores and stream speed. Skill scores are the
   Overview's skill ratings, every month's measured against ONE reference (the comfort level of all the
   player's replays) so months can be compared; see :mod:`osu_coach.domain.progress.periods`.
+* and the star levels of every period (``stars_<skill>``, with their range): the Star Levels engine fitted to the
+  period's plays. They need no common reference, so a period is fitted again only when its own plays (or the code)
+  changed (``star_basis``): a new play refits its day, week, month and rolling days, not the whole history.
 """
 
 from __future__ import annotations
@@ -30,11 +33,14 @@ from osu_coach.domain.progress.periods import (
     FEW_PLAYS,
     ROLLING,
     SKILL_REFERENCE,
+    STAR_PREFIX,
     Metric,
     month_of,
+    period_groups,
     period_metrics,
     period_of,
     play_label,
+    star_metrics,
     utc,
 )
 from osu_coach.infra import clock
@@ -91,7 +97,14 @@ CREATE TABLE IF NOT EXISTS month_metrics (
     player TEXT NOT NULL, month TEXT NOT NULL, name TEXT NOT NULL, value REAL, n INTEGER, updated_at TEXT,
     PRIMARY KEY (player, month, name)
 );
+CREATE TABLE IF NOT EXISTS star_basis (
+    player TEXT NOT NULL, month TEXT NOT NULL, basis TEXT NOT NULL, PRIMARY KEY (player, month)
+);
 """
+_NOT_STARS = (
+    f"substr(name, 1, {len(STAR_PREFIX)}) != '{STAR_PREFIX}'"  # the metrics the star levels' rebuild leaves alone
+)
+_ONLY_STARS = f"substr(name, 1, {len(STAR_PREFIX)}) = '{STAR_PREFIX}'"
 
 
 def db_path(cache_dir=None) -> Path:
@@ -171,7 +184,7 @@ def rebuild_months(conn: sqlite3.Connection, player: str, plays: Sequence[PlaySu
     now = clock.now().isoformat(timespec="seconds")
     for month, rows in period_metrics(analyses, tz or clock.local_tz()).items():
         with conn:
-            conn.execute("DELETE FROM month_metrics WHERE player = ? AND month = ?", (player, month))
+            conn.execute(f"DELETE FROM month_metrics WHERE player = ? AND month = ? AND {_NOT_STARS}", (player, month))
             if rows:
                 conn.executemany(
                     "INSERT INTO month_metrics VALUES (?, ?, ?, ?, ?, ?)",
@@ -179,10 +192,38 @@ def rebuild_months(conn: sqlite3.Connection, player: str, plays: Sequence[PlaySu
                 )
 
 
-def _basis(keys: Iterable[str], tz) -> str:
+def rebuild_stars(conn: sqlite3.Connection, player: str, plays: Sequence[PlaySummary], tz=None) -> int:
+    """The star levels of every period of the player's ``plays``, fitted again only where the period's plays (or the
+    code) changed; periods left without plays lose theirs. Returns how many periods were fitted."""
+    zone = tz or clock.local_tz()
+    groups = period_groups([a for a in plays if a.meta.player == (player or "")], zone)
+    saved = dict(conn.execute("SELECT month, basis FROM star_basis WHERE player = ?", (player,)).fetchall())
+    now = clock.now().isoformat(timespec="seconds")
+    fitted = 0
+    for key, group in groups.items():
+        basis = _basis([a.key for a in group], zone, "stars")
+        if saved.get(key) == basis:
+            continue
+        rows = star_metrics(group) or []
+        fitted += 1
+        with conn:
+            conn.execute(f"DELETE FROM month_metrics WHERE player = ? AND month = ? AND {_ONLY_STARS}", (player, key))
+            conn.executemany(
+                "INSERT INTO month_metrics VALUES (?, ?, ?, ?, ?, ?)",
+                [(player, key, name, _value(value), n, now) for name, value, n in rows],
+            )
+            conn.execute("INSERT OR REPLACE INTO star_basis VALUES (?, ?, ?)", (player, key, basis))
+    with conn:
+        for key in set(saved) - set(groups):
+            conn.execute(f"DELETE FROM month_metrics WHERE player = ? AND month = ? AND {_ONLY_STARS}", (player, key))
+            conn.execute("DELETE FROM star_basis WHERE player = ? AND month = ?", (player, key))
+    return fitted
+
+
+def _basis(keys: Iterable[str], tz, kind: str = "") -> str:
     """What a player's months are made from: their plays, the code that rates them and the time zone of the months."""
     digest = hashlib.sha256("\n".join(sorted(keys)).encode())
-    digest.update(f"|{fingerprint('osu_coach.domain')}|{tz}".encode())
+    digest.update(f"|{fingerprint('osu_coach.domain')}|{tz}|{kind}".encode())
     return digest.hexdigest()
 
 
@@ -205,10 +246,12 @@ def update(
             # every month is rated against all the player's plays: built again only when they (or the code) changed,
             # not on every analysis of the same replays (it was most of a repeated analysis, #95)
             basis = _basis(keys, zone)
-            if conn.execute("SELECT basis FROM month_basis WHERE player = ?", (player,)).fetchone() == (basis,):
+            same = conn.execute("SELECT basis FROM month_basis WHERE player = ?", (player,)).fetchone() == (basis,)
+            if same and conn.execute("SELECT 1 FROM star_basis WHERE player = ? LIMIT 1", (player,)).fetchone():
                 continue
             older = load_cached([k for k in keys if k not in have]) if load_cached else []
             rebuild_months(conn, player, list(have.values()) + list(older), zone)
+            rebuild_stars(conn, player, list(have.values()) + list(older), zone)
             with conn:
                 conn.execute("INSERT OR REPLACE INTO month_basis VALUES (?, ?)", (player, basis))
         return names
@@ -239,11 +282,13 @@ def by_period(
     df = pd.read_sql_query("SELECT * FROM replays WHERE player = ?", conn, params=(player,))
     if keys is not None:
         df = df[df["key"].isin(set(keys))]
-    mm = (
-        metrics
-        if metrics is not None
-        else pd.read_sql_query("SELECT month, name, value FROM month_metrics WHERE player = ?", conn, params=(player,))
-    )
+    if metrics is None:
+        mm = pd.read_sql_query("SELECT month, name, value FROM month_metrics WHERE player = ?", conn, params=(player,))
+    else:  # the skill scores worked out for ``keys``, and the saved star levels (of every play of the period)
+        stars = pd.read_sql_query(
+            f"SELECT month, name, value FROM month_metrics WHERE player = ? AND {_ONLY_STARS}", conn, params=(player,)
+        )
+        mm = pd.concat([metrics, stars], ignore_index=True) if len(stars) else metrics
     return summarize_periods(df, mm, period, since, until, tz or clock.local_tz(), rolling=rolling)
 
 
@@ -336,6 +381,11 @@ def summarize_periods(
         if name.startswith("skill_"):
             vals = vals[vals.index.isin(rated)]
         out[name] = vals.reindex(out.index).astype(float)
+    # the star levels: rolling ones too (they are saved by the same rebuild), else the period's own
+    stars = _keyed(metrics, ROLLING) if rolling and period == "day" else mm
+    for name in [f"{STAR_PREFIX}{k}{part}" for k in SKILLS for part in ("", "_low", "_high")]:
+        vals = stars[stars["name"] == name].set_index("month")["value"]
+        out[name] = vals[~vals.index.duplicated()].reindex(out.index).astype(float)
     out["few_plays"] = out["plays"] < FEW_PLAYS
     return out.sort_index().reset_index().rename(columns={"index": "month"})
 

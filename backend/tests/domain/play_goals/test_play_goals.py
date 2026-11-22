@@ -21,6 +21,7 @@ from tests.conftest import play_of
 def target(**changes):
     return {
         "md5": "target",
+        "config": "NM",
         "mods": "NM",
         "client": "stable",
         "stars": 4.0,
@@ -40,7 +41,7 @@ def row(**changes) -> EvidenceRow:
         "beatmap_md5": "map-0",
         "date": "2026-10-01",
         "client": "stable",
-        "mods_name": "NM",
+        "config": "NM",
         "completed": True,
         "n_played": 100,
         "n_objects": 100,
@@ -94,7 +95,7 @@ def test_accuracy_gate_counts_plays_and_distinct_maps():
 
 def test_accuracy_does_not_mix_mods_clients_failures_or_distant_patterns():
     for changes in (
-        {"mods_name": "HD"},
+        {"config": "HD"},
         {"client": "lazer"},
         {"completed": False},
         {"n_played": 99},
@@ -109,10 +110,20 @@ def test_configuration_identity_checks_exact_lazer_settings_and_normalizes_nc():
     assert configuration(lazer) is None
     assert configuration(lazer, []) == "NM"
     assert configuration(meta(mods=576, rate=1.5, client="stable")) == "DT"
-    for settings in ({"speed_change": 1.2}, {"adjust_pitch": True}):
-        dt = meta(mods=64, rate=1.5, client="lazer")
-        assert configuration(dt, [{"acronym": "DT", "settings": settings}]) is None
+    dt = meta(mods=64, rate=1.5, client="lazer")
+    assert configuration(dt, [{"acronym": "DT", "settings": {"adjust_pitch": True}}]) == "DT"  # pitch: no difficulty
+    assert configuration(dt, [{"acronym": "DT", "settings": {"speed_change": 1.2}}]) is None  # not the play's rate
+    assert configuration(dt, [{"acronym": "DT", "settings": {"magic": 1}}]) is None
     assert configuration(meta(mods=128, rate=1, client="stable")) is None
+
+
+def test_a_custom_dt_speed_is_its_own_configuration():
+    custom = [{"acronym": "HD"}, {"acronym": "DT", "settings": {"speed_change": 1.2}}]
+    assert configuration(meta(mods=72, rate=1.2, client="lazer"), custom) == "HDDT 1.20x"
+    assert configuration(meta(mods=64, rate=1.05, client="lazer"), [{"acronym": "DT"}]) is None  # not a speed here
+    assert configuration(meta(mods=64, rate=1.2, client="stable")) is None  # stable's DT is 1.5
+    assert accuracy_range(target(config="DT 1.20x"), plays(config="DT")) is None  # a speed is its own evidence
+    assert accuracy_range(target(config="DT 1.20x"), plays(config="DT 1.20x")) is not None
 
 
 def test_extreme_target_honest_without_extrapolated_accuracy():
@@ -128,7 +139,7 @@ def test_close_to_fc_needs_verified_complete_same_configuration():
     assert reachability(target(), rows).verdict == "fc_near"
     rows[-1] = replace(rows[-1], fc=True)
     assert reachability(target(), rows).verdict == "fc_done"
-    assert reachability(target(mods="HD"), rows).verdict == "unknown"
+    assert reachability(target(config="HD", mods="HD"), rows).verdict == "unknown"
 
 
 def test_stars_alone_do_not_prove_a_target_is_beyond_reach():
@@ -163,6 +174,7 @@ def pool():
     return [
         {
             **target(md5=f"{i:032x}"),
+            "stars_nm": 4.0,
             "status": "ranked",
             "s_aim": 0.8,
             "pp_curve": [{"accuracy": 0.9, "pp": 60}, {"accuracy": 0.95, "pp": 100}, {"accuracy": 0.99, "pp": 150}],
@@ -187,10 +199,10 @@ def test_supported_fc_evidence_allows_achievable_scenario_and_keeps_repeats():
 
 
 def test_play_target_scales_with_difficulty_without_estimate():
-    maps = [{**pool()[0], "stars": 1.6}, {**pool()[1], "stars": 1.0}]
+    maps = [{**pool()[0], "stars": 1.6, "stars_nm": 1.6}, {**pool()[1], "stars": 1.0, "stars_nm": 1.0}]
     targets = {r.map["stars"]: r.practice_accuracy for r in recommend(maps, [], "mod", ["NM"], "stable", None, [])}
     assert targets == {1.6: 0.93, 1.0: 0.95}
-    far_below = {**pool()[2], "stars": 0.2}
+    far_below = {**pool()[2], "stars": 0.2, "stars_nm": 0.2}
     assert recommend([far_below], [], "mod", ["NM"], "stable", None, [])[0].practice_accuracy == 0.99
 
 
@@ -244,8 +256,8 @@ def test_maps_can_have_several_dynamics():
 
 
 def test_minimum_pp_hides_low_pp_maps_and_inflated_mod_maps_stay_out():
-    nm = {**pool()[0], "stars": 1.5}
-    dt = {**nm, "mods": "DT", "stars": 4.0}  # DT turns an easy map into one far above a starter level
+    nm = {**pool()[0], "stars": 1.5, "stars_nm": 1.5}
+    dt = {**nm, "config": "DT", "mods": "DT", "stars": 4.0}  # DT turns an easy map into one far above a starter level
     assert [r.map["mods"] for r in recommend([nm, dt], [], "farm", ["NM", "DT"], "stable", None, [])] == ["NM"]
     assert recommend([nm], [], "farm", ["NM"], "stable", None, [], min_pp=50)
     assert recommend([nm], [], "farm", ["NM"], "stable", None, [], min_pp=5000) == []
@@ -260,8 +272,8 @@ def test_pp_at_target_is_interpolated_between_curve_points():
 
 
 def test_level_is_the_profile_comfort_stars():
-    hard = {**pool()[0], "stars": 5.8}
-    easy = {**pool()[1], "stars": 3.5}
+    hard = {**pool()[0], "stars": 5.8, "stars_nm": 5.8}
+    easy = {**pool()[1], "stars": 3.5, "stars_nm": 3.5}
     got = recommend([hard, easy], [], "mod", ["NM"], "stable", None, [], comfort=4.0)
     assert [r.map["stars"] for r in got] == [3.5]
     assert got[0].practice_accuracy == 0.93  # no plays of this difficulty: the fixed scale
@@ -270,7 +282,7 @@ def test_level_is_the_profile_comfort_stars():
 def test_target_follows_nearly_clean_plays_of_similar_difficulty():
     clean = plays(6, maps=6, stars=4.0, accuracy=0.96, breaks=0)
     sloppy = [replace(r, beatmap_md5=f"sloppy-{i}") for i, r in enumerate(plays(6, maps=6, accuracy=0.80, breaks=20))]
-    easy = {**pool()[1], "stars": 3.8}
+    easy = {**pool()[1], "stars": 3.8, "stars_nm": 3.8}
     got = recommend([easy], clean + sloppy, "mod", ["NM"], "stable", None, [], comfort=4.5)
     assert got[0].practice_accuracy == 0.95  # halfway between the difficulty scale (93%) and clean plays (97%)
 

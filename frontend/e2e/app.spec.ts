@@ -175,7 +175,7 @@ test.describe("after the setup", () => {
     await expect(page.getByText("The replay file is no longer on this computer.")).toBeVisible();
     await page.getByRole("button", { name: "Back to your replays" }).click();
     await expect(page).toHaveURL(/\/check$/);
-    await expect(page.getByRole("combobox", { name: "Replay" }).locator("option")).not.toHaveCount(0);
+    await expect(page.getByRole("table", { name: "Your replays" }).locator("tbody tr")).not.toHaveCount(0);
     expect(await layoutProblems(page)).toEqual([]);
   });
 

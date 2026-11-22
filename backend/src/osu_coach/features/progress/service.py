@@ -13,7 +13,7 @@ from osu_coach.common.errors import ApiError, Invalid, NoProfile, NotFound
 from osu_coach.common.texts import SKILL_LABELS
 from osu_coach.domain.player.engines import SCORE, STARS, engine_name, make_engine, measured_scores
 from osu_coach.domain.progress import goals
-from osu_coach.domain.progress.periods import HISTORY_ENGINE, SKILL_REFERENCE, period_metrics
+from osu_coach.domain.progress.periods import HISTORY_ENGINE, SKILL_REFERENCE, STAR_ENGINE, STAR_PREFIX, period_metrics
 from osu_coach.domain.replays import scope
 from osu_coach.features.progress.schemas import (
     GoalCreate,
@@ -26,6 +26,7 @@ from osu_coach.features.progress.schemas import (
     ProgressPlay,
     ProgressPlayer,
     SkillValue,
+    StarRange,
     SuggestedGoal,
 )
 from osu_coach.infra import clock, progress
@@ -87,6 +88,15 @@ def _row(r: dict) -> PeriodRow:
         stream_bpm=num(r.get("stream_bpm")),
         few_plays=bool(r.get("few_plays")),
         skills={k: num(r.get(f"skill_{k}")) for k in SKILL_LABELS},
+        star_levels={
+            k: StarRange(
+                stars=num(r.get(f"{STAR_PREFIX}{k}")),
+                low=num(r.get(f"{STAR_PREFIX}{k}_low")),
+                high=num(r.get(f"{STAR_PREFIX}{k}_high")),
+            )
+            for k in SKILL_LABELS
+            if num(r.get(f"{STAR_PREFIX}{k}")) is not None
+        },
     )
 
 
@@ -144,6 +154,7 @@ def by_period(
         analysed_plays=len(chosen) if chosen is not None else None,
         first_day=first,
         skill_reference_stars=reference,
+        unit=SCORE if make_engine(ws.rating_engine()).uses_level else STARS,
         rows=rows,
     )
 
@@ -312,15 +323,26 @@ def _goal_out(g: dict, values: dict, low_comfort: bool, engine: str) -> GoalOut:
 
 def _history(ws: Workspace, gl: list[dict], values: dict, engine: str) -> list[GoalHistory]:
     """The goals followed with the current engine, day by day since the oldest one, with the path to each target.
-    The saved daily scores are rated by one engine (``HISTORY_ENGINE``): a score goal set with it has them; any
-    other (a goal in stars) has its value today. A goal in another unit than its skill now isn't on the chart."""
+    The saved daily numbers are the rolling ones of two engines: the scores of ``HISTORY_ENGINE`` (for its score
+    goals) and the star levels of ``STAR_ENGINE`` (for its goals in stars); any other goal has its value today. A goal
+    in another unit than its skill now isn't on the chart."""
     gl = [
         g for g in gl if _followed(g, engine) and values.get(g["skill"], (0, goals.unit_of(g)))[1] == goals.unit_of(g)
     ]
     if not gl:
         return []
+
+    def saved(g: dict) -> str | None:
+        """The saved daily column a goal follows, if any."""
+        unit = goals.unit_of(g)
+        if unit == SCORE and engine == HISTORY_ENGINE:
+            return f"skill_{g['skill']}"
+        if unit == STARS and engine == STAR_ENGINE:
+            return f"{STAR_PREFIX}{g['skill']}"
+        return None
+
     m = pd.DataFrame()
-    if engine == HISTORY_ENGINE and any(goals.unit_of(g) == SCORE for g in gl):
+    if any(saved(g) for g in gl):
         conn = progress.connect(ws.cache_dir)
         try:
             names = [n for n, _ in progress.players(conn)]
@@ -335,9 +357,9 @@ def _history(ws: Workspace, gl: list[dict], values: dict, engine: str) -> list[G
     out = []
     for g in gl:
         unit = goals.unit_of(g)
-        col = f"skill_{g['skill']}"
+        col = saved(g)
         points = []
-        if unit == SCORE and engine == HISTORY_ENGINE and col in m and m[col].notna().any():
+        if col and col in m and m[col].notna().any():
             points = [HistoryPoint(day=str(d), score=num(v)) for d, v in zip(m["month"], m[col], strict=True)]
         else:
             now = values.get(g["skill"])

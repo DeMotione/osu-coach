@@ -153,8 +153,7 @@ real player's library (154 lazer plays, comfort level ~6★). "Unfitted" means a
     level gets there; the 4-week plan raises a weak skill by half a star (10 points at 20 points a star). The 0–100
     score is against the player's level, so it moves when the level does and says nothing a goal can hold on to.
     Consistency, not on the star scale, keeps a score goal. A goal set with Star Levels as a score before this is
-    paused ("set as a score"). The saved daily history is rated by Comfort Score, so a goal in stars has no day by
-    day line yet: the chart shows where it is today against the path to its target.
+    paused ("set as a score"). A goal in stars follows the saved rolling star levels day by day (decision 31).
 30. **Star ratings are osu!'s of 2026-07-03** (#128; `rosu_pp_2026`, built in `vendor/rosu-pp-2026`). rosu-pp 4
     (osu!'s star rating of October 2025) put a third of the pool's maps more than 0.1★ away from what osu! shows, up
     to ±0.5★, and harder maps lower (+0.13★ at 7–8★), so maps with mods read low. rosu-pp's port of the 2026 update
@@ -165,6 +164,14 @@ real player's library (154 lazer plays, comfort level ~6★). "Unfitted" means a
     Refitting moved the anchors: S_aim(log₂ 3.0) 5.71 → 5.53★, S_spd(log₂ 2.5) 5.72 → 6.17★ (the speed rating is
     computed differently now), AR 9.3 / 10 / 10.33: 5.73 / 6.93 / 7.25 → 5.97 / 7.11 / 7.25★, OD 9.75 / 10: 7.25 / 7.92
     → 7.25 / 8.15★. Between 5 and 6★ a star now asks more of aim than of tapping (demand ×1.26 against ×1.07).
+31. **Progress has star levels per period** (`periods.star_metrics`, `progress.rebuild_stars`): every month, week,
+    day and rolling week (the last 7 days, for goals) is fitted to its own plays alone, five or more of them, with
+    each level's 90% range. A star level needs no common reference (a Comfort Score period is rated at the comfort
+    level of all plays, so a new play re-rates every period); so only the periods whose plays changed are fitted
+    again, by a fingerprint of each period's plays and the code (`star_basis`): a new play refits its day, week, month
+    and rolling days. A fit costs about 0.1 s (0.01 s a Comfort Score period), so a year of daily play is a minute
+    once after an update and under a second a new play. The levels come from every saved play of the period, also
+    with only some replays analysed: a star level is about the period's plays, not the Overview's selection.
 
 ## Validation status
 

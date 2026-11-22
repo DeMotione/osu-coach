@@ -1,5 +1,6 @@
 /** Data hooks: one per endpoint, with the query keys they share. */
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
 
 import { ApiError, api, unwrap, type Schemas } from "./client";
 
@@ -210,6 +211,21 @@ export const useClicks = (view: "screen" | "movement", filter: ClickFilter = {})
   });
 
 // ------------------------------------------------------------------ detailed map analysis
+/** Uploads files: ``upload`` gives the files the server keeps, or undefined when it failed (``error`` says why). */
+export function useUpload() {
+  const [error, setError] = useState<string | null>(null);
+  const upload = useCallback(async (files: File[]) => {
+    setError(null);
+    try {
+      return await uploadFiles(files);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      return undefined;
+    }
+  }, []);
+  return { upload, error, setError };
+}
+
 /** ``search``: only the replays whose map's name holds its words, out of all of them (not only the newest). */
 export const useCheckReplays = (path: string | null, onlyMap: boolean, search = "") =>
   useQuery({

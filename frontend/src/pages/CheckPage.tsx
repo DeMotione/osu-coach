@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
-import type { Schemas } from "../api/client";
-import { uploadFiles, useCheckReplays, useCheckReport, useSettings } from "../api/queries";
+import { isBusy, type Schemas } from "../api/client";
+import { useCheckReport, useSettings, useUpload } from "../api/queries";
 import { playTimingChart, rangeStats } from "../charts/check";
 import { Chart } from "../charts/Chart";
 import type { ChartTheme } from "../charts/palette";
@@ -11,11 +11,13 @@ import { ClicksView } from "../components/Clicks";
 import { DataTable } from "../components/DataTable";
 import { IconArrowLeft, IconExternal, IconMagnify, IconPlay } from "../components/icons";
 import { OpenInLazer } from "../components/OpenInLazer";
+import { ReplayPicker } from "../components/ReplayPicker";
 import { EmptyState, ErrorCard } from "../components/states";
-import { Alert, Card, Dropzone, Field, Page, Row, Stat, Switch, Tiles } from "../components/ui";
+import { Alert, Card, Dropzone, Page, Row, Stat, Switch, Tiles } from "../components/ui";
 import { clicksCaption } from "../lib/clicks";
 import { clock, fmt, int, localTime, pct, signed, stars } from "../lib/format";
 import { Md } from "../lib/markdown";
+import { useReplays } from "../lib/replaySearch";
 
 type Report = Schemas["CheckReport"];
 
@@ -24,9 +26,9 @@ export default function CheckPage() {
   const opened = params.get("path");
   const [onlyMap, setOnlyMap] = useState<boolean>(!!opened);
   const [chosen, setChosen] = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const list = useCheckReplays(opened, onlyMap);
-  const replays = list.data?.replays ?? [];
+  const { upload, error: uploadError } = useUpload();
+  const found = useReplays(opened, onlyMap);
+  const { list, all: replays } = found;
   const path = chosen && replays.some((r) => r.path === chosen) ? chosen : list.data?.selected ?? null;
   const current = replays.find((r) => r.path === path);
   // a missing map is downloaded as Settings say (Missing beatmaps)
@@ -55,19 +57,14 @@ export default function CheckPage() {
             title="Check a replay file"
             help="Any .osr — e.g. exported from lazer's results screen, or someone else's replay."
             onFiles={async (files) => {
-              setUploadError(null);
-              try {
-                const [up] = await uploadFiles(files);
-                if (up) open(up.path);
-              } catch (e) {
-                setUploadError((e as Error).message);
-              }
+              const [up] = (await upload(files)) ?? [];
+              if (up) open(up.path);
             }}
           />
           {uploadError && <Alert tone="bad">{uploadError}</Alert>}
           {list.data && !list.data.available ? (
             <Alert tone="info">No osu! installation was found automatically. Drop a replay file above, or scan a folder on the Replays page.</Alert>
-          ) : list.error ? (
+          ) : list.error && !isBusy(list.error) ? (
             <>
               <Alert tone="bad">{list.error.message}</Alert>
               {opened && (
@@ -78,16 +75,8 @@ export default function CheckPage() {
             </>
           ) : (
             <>
-              <Field label="Replay">
-                <select className="select" value={path ?? ""} onChange={(e) => setChosen(e.target.value)} disabled={!replays.length}>
-                  {replays.map((r) => (
-                    <option key={r.path} value={r.path}>
-                      {localTime(r.played_at)} · {r.player || "(no name)"} · {r.map} · {r.mods}
-                      {r.accuracy !== null ? ` · ${pct(r.accuracy, 2)}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              <ReplayPicker replays={found} label="Find a replay" selected={path} otherwise="drop a replay file above"
+                onPick={(r) => r && setChosen(r.path)} />
               <div className="controls">
                 <Switch
                   label="Only plays of this map"
@@ -100,7 +89,6 @@ export default function CheckPage() {
                   }}
                 />
               </div>
-              {list.data && !replays.length && <Alert tone="info">No osu!standard replays found. Drop a replay file above, or scan on the Replays page.</Alert>}
             </>
           )}
         </Card>

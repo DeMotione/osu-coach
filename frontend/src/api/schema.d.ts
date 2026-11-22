@@ -1225,6 +1225,12 @@ export interface components {
             map: string;
             /** Mods */
             mods: string;
+            /**
+             * Rate
+             * @description The speed: DT's 1.5, a custom lazer speed, HT's 0.75, else 1.
+             * @default 1
+             */
+            rate: number;
             /** Accuracy */
             accuracy: number | null;
             /** Beatmap Md5 */
@@ -1738,6 +1744,12 @@ export interface components {
              * @enum {string}
              */
             mods: "NM" | "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT";
+            /**
+             * Rate
+             * @description The speed: DT's 1.5, a custom one, else 1.
+             * @default 1
+             */
+            rate: number;
             /**
              * Client
              * @enum {string}
@@ -2507,6 +2519,13 @@ export interface components {
             skills: {
                 [key: string]: number | null;
             };
+            /**
+             * Star Levels
+             * @description Star Levels: each skill's star level fitted to the period's plays alone (every play saved of it); only the skills it could be fitted for.
+             */
+            star_levels?: {
+                [key: string]: components["schemas"]["StarRange"];
+            };
         };
         /** PlayGoalJob */
         PlayGoalJob: {
@@ -2586,6 +2605,11 @@ export interface components {
              */
             mods: "NM" | "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT";
             /**
+             * Rate
+             * @description FC a map: The speed with DT, a hundredth from 1.10 to 2.00 (lazer's custom speeds); null = DT's 1.5.
+             */
+            rate?: number | null;
+            /**
              * Client
              * @default stable
              * @enum {string}
@@ -2597,6 +2621,11 @@ export interface components {
              * @enum {string}
              */
             training_mod: "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT";
+            /**
+             * Training Rate
+             * @description Improve a mod: The speed with DT, a hundredth from 1.10 to 2.00 (lazer's custom speeds); null = DT's 1.5.
+             */
+            training_rate?: number | null;
             /** Farm Mods */
             farm_mods?: ("NM" | "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT")[];
             /**
@@ -2970,6 +2999,13 @@ export interface components {
              * @description The comfort level (★) every period's skill ratings are measured against; null = none saved.
              */
             skill_reference_stars: number | null;
+            /**
+             * Unit
+             * @description What the chosen engine rates skills in: score (skills) or stars (star_levels).
+             * @default score
+             * @enum {string}
+             */
+            unit: "score" | "stars";
             /** Rows */
             rows: components["schemas"]["PeriodRow"][];
         };
@@ -3658,6 +3694,21 @@ export interface components {
              * @description The star rating shown first: the comfort level.
              */
             default_target: number | null;
+        };
+        /** StarRange */
+        StarRange: {
+            /**
+             * Stars
+             * @description The star rating the skill holds up on.
+             */
+            stars: number | null;
+            /**
+             * Low
+             * @description Its 90% range: the lower end.
+             */
+            low: number | null;
+            /** High */
+            high: number | null;
         };
         /** StreamAlong */
         StreamAlong: {

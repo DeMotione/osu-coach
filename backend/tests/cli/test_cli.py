@@ -118,3 +118,31 @@ def test_analyze_only_these_files_best_and_level(tmp_path, capsys):
     )
     out = capsys.readouterr().out
     assert rc == 0 and "1 replays" in out and load_settings(cache)["replay_set"] == "all"
+
+
+def test_analyze_reads_the_installs_the_app_reads(tmp_path, capsys):
+    """The installs entered in the app are read, and one switched off in its Settings isn't (the same plays, #133)."""
+    import hashlib
+
+    import pytest
+
+    from osu_coach.infra.settings import save_settings
+    from tests.conftest import MOT1ONE, sample_paths
+
+    root = tmp_path / "lazer"  # a lazer data folder: its replays and maps in the file store
+    (root / "files").mkdir(parents=True)
+    (root / "client.realm").write_bytes(b"")
+    for name in MOT1ONE:
+        for p in sample_paths(name):
+            data = p.read_bytes()
+            h = hashlib.sha256(data).hexdigest()
+            (root / "files" / h[0] / h[:2]).mkdir(parents=True, exist_ok=True)
+            (root / "files" / h[0] / h[:2] / h).write_bytes(data)
+    cache = tmp_path / "cache"
+    save_settings({"install_paths": [str(root)], "skipped_installs": [str(root)]}, cache)
+    with pytest.raises(SystemExit, match="No osu!standard replays found"):
+        main(["analyze", "--offline", "--workers", "1", "--cache", str(cache)])
+    assert "skipping osu!lazer" in capsys.readouterr().err  # switched off in the app
+    save_settings({"install_paths": [str(root)], "skipped_installs": []}, cache)
+    assert main(["analyze", "--offline", "--workers", "1", "-q", "--cache", str(cache)]) == 0
+    assert "Mot1one" in capsys.readouterr().out

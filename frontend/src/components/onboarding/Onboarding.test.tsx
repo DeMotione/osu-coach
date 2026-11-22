@@ -28,7 +28,7 @@ vi.mock("../../api/queries", () => ({
   useAddInstall: () => ({ mutate: vi.fn(), isPending: false, isError: false, isSuccess: false }),
   useAnalysisStatus: () => ({ data: { analysed: 0, player_label: "", profile_replays: null } }),
   useMeta: () => ({ data: undefined }),
-  uploadFiles: vi.fn(),
+  useUpload: () => ({ upload: vi.fn(), error: null }),
 }));
 
 vi.mock("../../api/jobs", () => ({

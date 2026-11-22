@@ -132,11 +132,6 @@ def test_compare_without_history(tmp_path):
     assert c["map_plays"] == 0 and c["map_plays_all"] == 0 and len(c["plays"]) == 1
 
 
-def test_mods_label_spells_out_custom_speeds():
-    assert check.mods_label("DT", 1.5) == "DT" and check.mods_label("HDDT", 1.26) == "HDDT ×1.26"
-    assert check.mods_label("", 1.0) == "NM" and check.mods_label("", 0.85) == "NM ×0.85"
-
-
 def test_old_progress_databases_get_the_new_columns(tmp_path):
     import sqlite3
 

@@ -9,26 +9,32 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import urlsplit
 
+import pandas as pd
 from pydantic import ValidationError
 
 from osu_coach.common.errors import ApiError, Invalid
 from osu_coach.domain.numeric.values import finite_or_none
 from osu_coach.domain.play_goals import evidence
 from osu_coach.domain.play_goals.models import EvidenceRow, GoalPlay, MapRow
+from osu_coach.domain.play_goals.pool import config_key, standard_rate
 from osu_coach.domain.play_goals.reachability import reachability
 from osu_coach.domain.play_goals.recommend import dynamics as strong_demands
-from osu_coach.domain.play_goals.recommend import lacking_focus, recommend
+from osu_coach.domain.play_goals.recommend import lacking_focus, level, recommend
 from osu_coach.domain.player import PlaySummary
 from osu_coach.domain.replays.eligibility import analysable
 from osu_coach.features.play_goals import repository, texts
+from osu_coach.features.play_goals.candidates import Wanted, candidates
 from osu_coach.features.play_goals.schemas import PlayGoalOptions, PlayGoalRequest, PlayGoalResult
 from osu_coach.infra import summaries
 from osu_coach.infra.jobs import Reporter
+from osu_coach.infra.pp_table import PpTable, load_pp_table
 from osu_coach.infra.replays.osr import lazer_info
 from osu_coach.infra.uploads import known_replay
+from osu_coach.infra.variant_table import load_table
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
+    from osu_coach.domain.maps.variants import VariantTable
 
 
 def selected_player(ws: Workspace) -> str | None:
@@ -50,11 +56,30 @@ def revision(ws: Workspace) -> str:
     return hashlib.sha256(json.dumps(value).encode()).hexdigest()[:16]
 
 
-def pool_data() -> list[dict]:
-    try:
-        return repository.load_goal_pool()
-    except (ValueError, OSError) as exc:
-        raise ApiError(503, "goal_pool_unavailable", str(exc)) from exc
+def _tables(ws: Workspace, farm: bool) -> tuple[VariantTable, PpTable | None]:
+    """The pool's map table, and for Farm PP its pp table: 503 when the app has none it can use."""
+    table = load_table(ws.cache_dir)
+    if table is None:
+        raise ApiError(
+            503,
+            "goal_pool_unavailable",
+            "The pool's map table is missing or was made for another version: rebuild it with "
+            "tools/build_variant_table.py.",
+        )
+    pp = load_pp_table() if farm else None
+    if farm and pp is None:
+        raise ApiError(
+            503,
+            "goal_pp_unavailable",
+            "The pool's pp table is missing or was made for another calculator: rebuild it with tools/build_pp_table.py.",
+        )
+    return table, pp
+
+
+def _record(pool: pd.DataFrame, column: str, value) -> dict | None:
+    """The pool map whose ``column`` is ``value`` (the first), None when the pool has none."""
+    hits = pool.index[pool[column] == value]
+    return pool.loc[hits[0]].to_dict() if len(hits) else None
 
 
 def options(ws: Workspace) -> PlayGoalOptions:
@@ -65,14 +90,13 @@ def options(ws: Workspace) -> PlayGoalOptions:
         raise Invalid(
             "The saved Play Goals request is invalid. Submit a new goal to replace it.", "invalid_saved_goal"
         ) from exc
-    pool = pool_data()
     return PlayGoalOptions(
         last_request=remembered,
         evidence_revision=revision(ws),
         player=selected_player(ws),
         players=sorted({a.meta.player for a in ws.plays}),
         evidence_plays=len(ws.plays),
-        coverage_maps=len({r["md5"] for r in pool}),
+        coverage_maps=len(ws.pool()),
     )
 
 
@@ -158,19 +182,35 @@ def _replay_target(
     return _ReplayTarget(Path(map_path).read_bytes(), selected.meta.client, str(path), player, attempts)
 
 
-def _target(ws: Workspace, raw: bytes, request: PlayGoalRequest, client: str, pool: list[dict], report: Reporter):
-    """The target map in the requested mods, with its ranked status when the pool knows it."""
+def _target(ws: Workspace, raw: bytes, request: PlayGoalRequest, client: str, pool: pd.DataFrame, report: Reporter):
+    """The target map in the requested mods and speed, with its ranked status when the pool knows it."""
     report.note("Calculating the target configuration")
     try:
-        target = repository.target_configuration(ws.cache_dir, raw, request.mods, client)
+        target = repository.target_configuration(ws.cache_dir, raw, request.mods, client, request.rate)
     except ValueError as exc:
         raise Invalid(str(exc), "goal_configuration_unsupported") from exc
-    ranked = next((r for r in pool if r["md5"] == target["md5"]), None)
+    ranked = _record(pool, "md5", target["md5"])
     if ranked:
         target["status"] = ranked["status"]
-        target["beatmap_id"] = ranked["beatmap_id"]
-        target["beatmapset_id"] = ranked["beatmapset_id"]
+        target["beatmap_id"] = int(ranked["beatmap_id"])
+        target["beatmapset_id"] = int(ranked["beatmapset_id"])
     return target
+
+
+def _wanted(request: PlayGoalRequest, rows: list[EvidenceRow], client: str, comfort: float | None) -> list[Wanted]:
+    """The configurations the goal's maps are played in, each with the level they are picked around."""
+    if request.goal == "farm":
+        asked = [(mods, None) for mods in request.farm_mods]  # at their own speed: the pp table's
+    elif request.goal == "mod":
+        asked = [(request.training_mod, request.training_rate)]
+    else:
+        asked = [(request.mods, request.rate)]
+    out = []
+    for mods, rate in asked:
+        speed = standard_rate(mods) if rate is None else rate
+        config = config_key(mods, speed)
+        out.append(Wanted(config, mods, speed, level(config, rows, client, request.goal, comfort)))
+    return out
 
 
 def _evidence_warnings(rows: list[EvidenceRow], unverified: int, player: str | None) -> list[str]:
@@ -232,16 +272,18 @@ def _assessment(request: PlayGoalRequest, target, rows: list[EvidenceRow], plays
 def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayGoalResult:
     report.note("Preparing map and mod evidence")
     ws.update_settings(play_goal_request=request.model_dump())
-    pool = pool_data()
+    pool = ws.pool()
+    table, pp = _tables(ws, request.goal == "farm")
     player = selected_player(ws)
     evidence_revision = revision(ws)
     plays = list(ws.plays)
     target, replay_path, client = None, None, request.client
-    warnings = [
-        f"Offline recommendations cover {len({r['md5'] for r in pool})} selected difficulties, not the entire osu! catalogue.",
-        "PP values are conservative hit-result FC scenarios from the pinned calculator, not account PP gains. "
-        "Accuracy rounding and slider outcomes can change PP.",
-    ]
+    warnings = [f"Maps come from the {len(pool):,} ranked maps of the bundled pool."]
+    if request.goal == "farm":
+        warnings.append(
+            "PP values are conservative hit-result FC scenarios from the pinned calculator, not account PP gains. "
+            "Accuracy rounding and slider outcomes can change PP."
+        )
     if request.goal == "fc":
         if request.replay_path:
             found = _replay_target(ws, request, player, bool(plays), warnings, report)
@@ -250,9 +292,14 @@ def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayG
         else:
             report.note("Resolving the target difficulty")
             client = "lazer"
-            libraries = ws.libraries()
+            wanted_id = beatmap_id(request.beatmap or "")
+            known = _record(pool, "beatmap_id", wanted_id)
             raw = repository.target_bytes(
-                ws.cache_dir, beatmap_id(request.beatmap or ""), libraries, ws.settings().online(request.online), pool
+                ws.cache_dir,
+                wanted_id,
+                ws.libraries(),
+                ws.settings().online(request.online),
+                str(known["md5"]) if known else None,
             )
         target = _target(ws, raw, request, client, pool, report)
     report.note("Comparing verified player evidence")
@@ -265,18 +312,14 @@ def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayG
         target["dynamics"] = texts.dynamics(strong_demands(target))
     verdict, tone, reasons, confidence, accuracy = _assessment(request, target, rows, analysed, player)
     report.note("Finding attainable next plays")
-    mods = (
-        request.farm_mods
-        if request.goal == "farm"
-        else [request.training_mod]
-        if request.goal == "mod"
-        else [request.mods]
-    )
     comfort = (
         finite_or_none(profile.levels.comfort_stars) or finite_or_none(profile.levels.level_stars) if profile else None
     )
     skills = [b["skill"] for b in focus]
-    recommendations = recommend(pool, rows, request.goal, mods, client, target, skills, request.min_pp, comfort)
+    wanted = _wanted(request, rows, client, comfort)
+    pool_rows = candidates(table, pool, pp, wanted, client, request.goal, skills)
+    configs = [w.config for w in wanted]
+    recommendations = recommend(pool_rows, rows, request.goal, configs, client, target, skills, request.min_pp, comfort)
     if request.goal == "farm" and not any(r.projected for r in recommendations):
         warnings.append(
             "Not enough comparable FC evidence for achievable PP forecasts. All PP below is conditional on the stated FC scenario."
@@ -309,7 +352,7 @@ def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayG
             "blockers": focus,
             "recommendations": [texts.recommendation(r, focus) for r in recommendations],
             "warnings": warnings,
-            "coverage_maps": len({r["md5"] for r in pool}),
+            "coverage_maps": len(pool),
             "replay_path": replay_path,
         }
     )

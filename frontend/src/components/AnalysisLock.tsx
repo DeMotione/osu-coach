@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useJobs } from "../api/jobs";
+import { useModal } from "../lib/dialog";
 import { formatDuration, formatLeft, useSecondsLeft } from "../lib/eta";
 import { int } from "../lib/format";
 import { AnalysingArt } from "./AnalysingArt";
@@ -28,17 +29,7 @@ export function AnalysisLock() {
   const paced = useSecondsLeft(running ? running.id : null, running?.progress);
   const elapsed = useElapsed(running?.created_at, !!running);
 
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (running && !d.open) {
-      if (typeof d.showModal === "function") d.showModal();
-      else d.setAttribute("open", "");
-    } else if (!running && d.open) {
-      if (typeof d.close === "function") d.close();
-      else d.removeAttribute("open");
-    }
-  }, [running]);
+  useModal(ref, !!running);
 
   const estimate = running?.estimate_seconds ?? null;
   // the pace once the progress tells it, until then what was expected at the start

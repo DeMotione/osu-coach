@@ -10,8 +10,9 @@ from typing import Any
 from osu_coach.domain.analysis.events import Events
 from osu_coach.domain.analysis.models import ReplayMeta
 
-# A map in one mod configuration: a row of the goal pool, or the target's (``md5``, ``mods``, ``client``, ``stars``,
-# ``ar``, ``od``, ``bpm``, ``length_s``, demand shares ``s_<skill>``, ``pp_curve``, ...). JSON data, kept as it is read.
+# A map in one configuration: a pool map's row in it, or the target's (``md5``, ``config``: the combination at its
+# speed, ``mods``, ``rate``, ``client``, ``stars``, ``stars_nm``: without mods, ``ar``, ``od``, ``bpm``, ``length_s``,
+# demand shares ``s_<skill>``, ``pp_curve`` for Farm PP, ...).
 MapRow = Mapping[str, Any]
 
 
@@ -30,13 +31,13 @@ class GoalPlay:
 
 @dataclass(frozen=True)
 class EvidenceRow:
-    """A verified play of the player in a supported mod configuration (``mods_name``)."""
+    """A verified play of the player in a supported configuration (``config``: see ``pool.config_key``)."""
 
     key: str
     beatmap_md5: str
     date: str  # the play's date as text: rows sort by it
     client: str
-    mods_name: str
+    config: str
     completed: bool
     n_played: int
     n_objects: int

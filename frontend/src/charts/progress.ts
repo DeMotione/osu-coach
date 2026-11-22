@@ -99,6 +99,48 @@ export function skillsChart(all: Row[], skills: { key: string; label: string }[]
   });
 }
 
+/** Star Levels: each skill's star level by period (the star rating it holds up on, fitted to the period's plays); the
+ * tooltip gives its 90% range. */
+export function starLevelsChart(all: Row[], skills: { key: string; label: string }[], t: ChartTheme): Option {
+  const level = (r: Row, key: string) => r.star_levels?.[key]?.stars ?? null;
+  const rows = fromFirstValue(all, (r) => skills.some((s) => level(r, s.key) !== null));
+  const shown = skills.filter((s) => rows.some((r) => level(r, s.key) !== null));
+  const range = (r: Row, key: string) => {
+    const l = r.star_levels?.[key];
+    return l?.low != null && l.high != null ? ` (${l.low.toFixed(2)}–${l.high.toFixed(2)})` : "";
+  };
+  return base(t, {
+    grid: grid({}, true),
+    legend: legend(t),
+    tooltip: tooltip(t, {
+      trigger: "axis",
+      formatter: (params: { seriesName: string; dataIndex: number; value: number | null; marker: string }[]) => {
+        const lines = params.map((p) => {
+          const skill = shown.find((s) => s.label === p.seriesName);
+          const r = rows[p.dataIndex];
+          return `${p.marker}${p.seriesName}: ${p.value === null || p.value === undefined ? "–" : `${p.value.toFixed(2)}★`}${skill && r ? range(r, skill.key) : ""}`;
+        });
+        return [rows[params[0]?.dataIndex ?? 0]?.key ?? "", ...lines].join("<br/>");
+      },
+    }),
+    xAxis: categoryAxis(
+      t,
+      rows.map((r) => r.key),
+      { boundaryGap: false },
+    ),
+    yAxis: valueAxis(t, { name: "★", nameGap: 32, nameRotate: 90, scale: true }),
+    series: shown.map((s, i) => ({
+      name: s.label,
+      type: "line",
+      data: rows.map((r) => ({ value: level(r, s.key), symbol: r.few_plays ? "emptyCircle" : "circle" })),
+      connectNulls: true,
+      symbolSize: 8,
+      lineStyle: { width: 2, color: SERIES[i % SERIES.length] },
+      itemStyle: { color: SERIES[i % SERIES.length] },
+    })),
+  });
+}
+
 type Goal = Schemas["GoalHistory"];
 
 /** Where a goal is to be: its target at its deadline (the end of its path). */

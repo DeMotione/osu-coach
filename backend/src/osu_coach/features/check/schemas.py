@@ -14,6 +14,7 @@ class CheckReplay(BaseModel):
     player: str
     map: str
     mods: str
+    rate: float = Field(1.0, description="The speed: DT's 1.5, a custom lazer speed, HT's 0.75, else 1.")
     accuracy: float | None
     beatmap_md5: str | None
     analysable: bool
