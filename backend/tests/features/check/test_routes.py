@@ -4,6 +4,7 @@ import hashlib
 
 import pytest
 
+from osu_coach.features.check import service as svc
 from osu_coach.infra import progress
 from osu_coach.infra.beatmaps.parser import read_metadata
 from tests.conftest import MOT1ONE, make_client, plays_folder, sample_paths, scan, wait
@@ -66,6 +67,18 @@ def test_opens_the_replay_chosen_elsewhere_with_its_maps_plays(tmp_path, client)
     lst = client.get("/api/check/replays", params={"path": path, "only_map": True}).json()
     assert lst["selected"] == path and lst["only_map"]
     assert len(lst["replays"]) == 1 and _title("mot1one__lazer_dthd_spinner.osr") in lst["replays"][0]["map"]
+
+
+def test_searches_every_replay_by_map_name(tmp_path, client, monkeypatch):
+    monkeypatch.setattr(svc, "CHECK_LIST", 1)  # only the newest replay is listed without a search
+    scan(client, plays_folder(tmp_path))
+    newest = client.get("/api/check/replays").json()["replays"]
+    assert len(newest) == 1 and "FLOWxGRANRODEO" not in newest[0]["map"]
+    # any case, the words in any order, the artist and the difficulty too: the oldest replay is found
+    found = client.get("/api/check/replays", params={"q": "  expert flowxgranrodeo "}).json()["replays"]
+    assert [r["map"] for r in found] == ["FLOWxGRANRODEO – 7 -seven- -TV SIZE - [Expert]"]
+    assert client.get("/api/check/replays", params={"q": "seven quaver"}).json()["replays"] == []
+    assert len(client.get("/api/check/replays", params={"q": " "}).json()["replays"]) == 1  # no words: no search
 
 
 def test_scanned_lazer_replays_are_checked(tmp_path, client):

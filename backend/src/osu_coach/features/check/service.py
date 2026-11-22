@@ -89,9 +89,26 @@ def _replay(ref: dict, lib: Library) -> CheckReplay:
     )
 
 
-def replay_list(ws: Workspace, path: str | None, only_map: bool) -> CheckList:
+def _search(refs: list[dict], q: str, lib: Library) -> list[dict]:
+    """The replays whose map title holds every word of ``q`` (any case). Only maps already found are searched: a
+    search doesn't read the rest of the installs."""
+    words = q.lower().split()
+    titles: dict[str | None, str] = {}
+    out = []
+    for r in refs:
+        md5 = r.get("beatmap_md5")
+        if md5 not in titles:
+            osu = lib.maps.get(md5)
+            titles[md5] = map_title(osu).lower() if osu else ""
+        if all(w in titles[md5] for w in words):
+            out.append(r)
+    return out
+
+
+def replay_list(ws: Workspace, path: str | None, only_map: bool, q: str | None = None) -> CheckList:
     """Replays to pick from, newest first; ``path`` (a replay opened elsewhere or uploaded) is always in the list,
-    ``only_map``: only (all of) the plays of that replay's map."""
+    ``only_map``: only (all of) the plays of that replay's map; ``q``: only the replays whose map title holds its
+    words, out of all of them (not only the newest)."""
     with _hold(ws):
         lib = ws.replay_library()  # first: before any scan, the installs' newest replays are known only from it
         p = known_replay(path, ws.cache_dir, ws.libraries()) if path else None
@@ -100,7 +117,7 @@ def replay_list(ws: Workspace, path: str | None, only_map: bool) -> CheckList:
         if lib is None:
             return CheckList(available=False, replays=[], selected=None, focus_md5=None, only_map=False)
         every = lib.eligible("*")
-        refs = every[:CHECK_LIST]
+        refs = (_search(every, q, lib) if q and q.split() else every)[:CHECK_LIST]
         if p and not any(same_file(r["path"], p) for r in refs):
             h = next((r for r in lib.replays if same_file(r["path"], p)), None) or locate.replay_header(p)
             if h:

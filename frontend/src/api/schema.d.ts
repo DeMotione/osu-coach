@@ -436,7 +436,8 @@ export interface paths {
         /**
          * Replays to check (newest first)
          * @description Without a scan, the newest replays of the osu! installs on this computer are read. ``path``: a replay opened
-         *     from another page or uploaded (always listed); ``only_map``: only the plays of that replay's map.
+         *     from another page or uploaded (always listed); ``only_map``: only the plays of that replay's map; ``q``: only the
+         *     replays whose map title holds all its words, searched through every replay (not only the newest).
          */
         get: operations["replays_api_check_replays_get"];
         put?: never;
@@ -4784,6 +4785,7 @@ export interface operations {
             query?: {
                 path?: string | null;
                 only_map?: boolean;
+                q?: string | null;
             };
             header?: never;
             path?: never;

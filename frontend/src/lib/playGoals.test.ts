@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Schemas } from "../api/client";
-import { bestReplays, exportGoalMaps, GOAL_MODS, goalRequest, toggleMods } from "./playGoals";
+import { exportGoalMaps, GOAL_MODS, goalMods, goalRequest, matchesMap, toggleMods } from "./playGoals";
 
 function recommendation(mods: Schemas["GoalMap"]["mods"]): Schemas["GoalRecommendation"] {
   return {
@@ -23,12 +23,25 @@ describe("play goals", () => {
     expect(GOAL_MODS).toHaveLength(8);
   });
 
-  it("lists the best replay of each map and mods, plus the chosen one", () => {
-    const r = (path: string, accuracy: number | null, mods = "NM", md5 = "m1", played_at = "2026-01-01") =>
-      ({ path, accuracy, mods, beatmap_md5: md5, played_at, map: "x", player: "p", analysable: true, reason: null });
-    const all = [r("a", 0.9), r("b", 0.95), r("c", 0.95, "NM", "m1", "2026-02-01"), r("d", 0.8, "DT"), r("e", 0.7, "NM", "m2")];
-    expect(bestReplays(all).map((x) => x.path)).toEqual(["c", "d", "e"]);
-    expect(bestReplays(all, "a").map((x) => x.path)).toEqual(["a", "c", "d", "e"]);
+  it("reads a replay's mods as a goal combination, in any order (#127)", () => {
+    expect(goalMods("HDDT")).toBe("HDDT");
+    expect(goalMods("DTHD")).toBe("HDDT");
+    expect(goalMods("NCHD")).toBe("HDDT");
+    expect(goalMods("HDHRDTCL")).toBe("HDHRDT");
+    expect(goalMods("HD,DT")).toBe("HDDT");
+    expect(goalMods("NM")).toBe("NM");
+    expect(goalMods("NFSD")).toBe("NM");
+    expect(goalMods("EZHD")).toBeUndefined();
+    expect(goalMods("HT")).toBeUndefined();
+    expect(goalMods("HDFL")).toBeUndefined();
+  });
+
+  it("finds a map by every word of the search, in any case and order", () => {
+    const map = "VOID – Tech Occultism [Proeza]";
+    expect(matchesMap(map, "")).toBe(true);
+    expect(matchesMap(map, "  proeza  tech ")).toBe(true);
+    expect(matchesMap(map, "void occultism")).toBe(true);
+    expect(matchesMap(map, "tech insane")).toBe(false);
   });
 
   it("builds a training mod combination from toggles", () => {

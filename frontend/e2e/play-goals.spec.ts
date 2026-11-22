@@ -55,6 +55,18 @@ test("a chosen replay gets an FC diagnosis and keeps a deep link to its details"
     await finished(request, (await scan.json()).id);
     const analysis = await request.post("/api/analysis", { data: { player: "Mot1one", online: false } });
     await finished(request, (await analysis.json()).id);
+    // found by its map's name among your replays and picked from the list (#127)
+    await page.goto("/play-goals?tab=fc");
+    await page.getByRole("searchbox", { name: "Find the map you want to FC" }).fill("seven expert");
+    const replays = page.getByRole("table", { name: "Your replays" });
+    await expect(replays.locator("tbody tr")).toHaveCount(1);
+    await replays.locator("tbody tr").first().click();
+    await expect(page.getByText(/^Target:/)).toContainText("FLOWxGRANRODEO – 7 -seven- -TV SIZE - [Expert] +NM");
+    for (const width of [390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+      expect(await page.locator(".card").evaluateAll((cards) => cards.some((card) => card.scrollWidth > card.clientWidth + 1))).toBe(false);
+    }
     await page.goto(`/play-goals?tab=fc&path=${encodeURIComponent(path.join(folder, fixture.replay))}&client=lazer`);
     await page.getByRole("button", { name: "Assess my FC goal" }).click();
     await expect(page.getByRole("heading", { name: "What to work on for this map" })).toBeVisible();

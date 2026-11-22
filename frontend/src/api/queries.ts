@@ -210,13 +210,20 @@ export const useClicks = (view: "screen" | "movement", filter: ClickFilter = {})
   });
 
 // ------------------------------------------------------------------ detailed map analysis
-export const useCheckReplays = (path: string | null, onlyMap: boolean) =>
+/** ``search``: only the replays whose map's name holds its words, out of all of them (not only the newest). */
+export const useCheckReplays = (path: string | null, onlyMap: boolean, search = "") =>
   useQuery({
-    queryKey: [...keys.check, "replays", path, onlyMap],
+    queryKey: [...keys.check, "replays", path, onlyMap, search],
     queryFn: () =>
-      unwrap(api.GET("/api/check/replays", { params: { query: { path: path ?? undefined, only_map: onlyMap } } })),
+      unwrap(api.GET("/api/check/replays", { params: { query: { path: path ?? undefined, only_map: onlyMap, q: search || undefined } } })),
     placeholderData: keepPreviousData,
   });
+
+/** A replay file (uploaded, or opened elsewhere) as the replay lists show it. */
+export async function replayAt(path: string): Promise<Schemas["CheckReplay"] | null> {
+  const list = await unwrap(api.GET("/api/check/replays", { params: { query: { path } } }));
+  return list.replays.find((r) => r.path === list.selected) ?? null;
+}
 
 export const useCheckReport = (path: string | null, online: boolean) =>
   useQuery({
