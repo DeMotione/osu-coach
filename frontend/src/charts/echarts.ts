@@ -12,6 +12,7 @@ import {
   VisualMapComponent,
 } from "echarts/components";
 import * as echarts from "echarts/core";
+import { LabelLayout } from "echarts/features";
 import { CanvasRenderer } from "echarts/renderers";
 
 echarts.use([
@@ -28,6 +29,7 @@ echarts.use([
   VisualMapComponent,
   DataZoomComponent,
   TitleComponent,
+  LabelLayout, // moves overlapping labels apart (the goal chart's)
   CanvasRenderer,
 ]);
 

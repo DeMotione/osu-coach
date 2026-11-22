@@ -1800,15 +1800,9 @@ export interface components {
             unit: "score" | "stars";
             /**
              * Paused Reason
-             * @description Why a paused goal isn't followed: set on the scores before 0.10, a recalibrated accuracy goal, set with the other rating engine (``engine_label``), or set as a score where the skill is now in stars.
+             * @description Why a paused goal isn't followed: set on the scores before 0.10, a recalibrated accuracy goal, or set as a score where the skill is now in stars.
              */
-            paused_reason?: ("old_scale" | "accuracy" | "engine" | "unit") | null;
-            /**
-             * Engine Label
-             * @description The rating engine the goal was set with.
-             * @default Comfort Score
-             */
-            engine_label: string;
+            paused_reason?: ("old_scale" | "accuracy" | "unit") | null;
         };
         /** GoalRecommendation */
         GoalRecommendation: {

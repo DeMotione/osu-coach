@@ -5,7 +5,7 @@ import { circle, merge, niceMax, responsive } from "./base";
 import { mmss, playTimingChart, rangeStats } from "./check";
 import { MISS_SHORT, compareBars, compareHover, missCauses, starLevelHover, starLevels } from "./overview";
 import { alpha, chartTheme, faded, heat, scoreColor, C } from "./palette";
-import { goalsChart, skillsChart, starsChart } from "./progress";
+import { goalLabelLayout, goalOffsets, goalsChart, skillsChart, starsChart } from "./progress";
 import { timingChart } from "./tapping";
 
 const t = chartTheme(true);
@@ -250,7 +250,18 @@ describe("IRT star levels", () => {
 
 
 describe("goalsChart", () => {
-  it("puts plays and plans on one timeline, with today between them", () => {
+  type Dot = { value: [string, number]; symbolOffset: [number, number]; label: { formatter: string } };
+  type Series = { name: string; data: unknown[]; yAxisIndex?: number; markLine?: { data: unknown[] } };
+  const goal = (id: string, skill: string, label: string, target: number, deadline = "2026-12-20", unit: "score" | "stars" = "score") => ({
+    goal_id: id,
+    skill,
+    label,
+    unit,
+    points: [{ day: "2026-11-20", score: target - 10 }],
+    target: [{ day: "2026-11-20", score: target - 10 }, { day: deadline, score: target }],
+  });
+
+  it("puts the plays and a labelled dot for each goal on one timeline, with today between them", () => {
     const history = [
       {
         goal_id: "g1",
@@ -260,32 +271,57 @@ describe("goalsChart", () => {
         target: [{ day: "2026-10-24", score: 66 }, { day: "2026-11-07", score: 70 }],
       },
     ] as Schemas["GoalHistory"][];
-    const o = goalsChart(history, chartTheme(true), "2026-10-24") as { xAxis: { type: string }; series: { data: unknown[]; markLine?: { data: unknown[] } }[] };
+    const o = goalsChart(history, chartTheme(true), "2026-10-24") as { xAxis: { type: string }; series: Series[] };
     expect(o.xAxis.type).toBe("time");
-    expect(o.series[0].data).toEqual([["2026-10-18", 38], ["2026-10-23", 23]]); // a day without a score is left out
-    expect(o.series[1].data).toEqual([["2026-10-24", 66], ["2026-11-07", 70]]);
-    expect(o.series[0].markLine?.data).toEqual([{ xAxis: "2026-10-24" }]);
+    const [speed] = o.series;
+    // the plays (a day without a score left out), a gap, then the goal at its target and deadline: no path to it
+    expect(speed.data.slice(0, 3)).toEqual([["2026-10-18", 38], ["2026-10-23", 23], [null, null]]);
+    const dot = speed.data[3] as Dot;
+    expect(dot.value).toEqual(["2026-11-07", 70]);
+    expect(dot.label.formatter).toBe("Tapping speed goal");
+    expect(speed.markLine?.data).toEqual([{ xAxis: "2026-10-24" }]);
+  });
+
+  it("draws one line per skill, with a dot for each of its goals", () => {
+    const o = goalsChart(
+      [goal("a", "aim", "Jumps", 80, "2026-12-01"), goal("b", "aim", "Jumps", 90), goal("c", "stamina", "Stamina", 60)],
+      chartTheme(true),
+    ) as { series: Series[] };
+    expect(o.series.map((s) => s.name)).toEqual(["Jumps", "Stamina"]);
+    expect(o.series[0].data.flatMap((d) => ((d as Dot).label ? [(d as Dot).value] : []))).toEqual([
+      ["2026-12-01", 80],
+      ["2026-12-20", 90],
+    ]);
+  });
+
+  it("sets goals close together on the same deadline side by side (a 4-week plan)", () => {
+    const plan = [goal("a", "aim", "Jumps", 50), goal("b", "speed", "Tapping speed", 52), goal("c", "stamina", "Stamina", 54), goal("d", "sliders", "Sliders", 80)];
+    const offsets = goalOffsets(plan, () => 5);
+    expect(["a", "b", "c"].map((id) => offsets.get(id)?.offset)).toEqual([-14, 0, 14]);
+    expect(offsets.get("a")?.spread).toBe(14);
+    expect(offsets.get("d")).toEqual({ offset: 0, spread: 0 }); // far from the others
+    const apart = goalOffsets([goal("a", "aim", "Jumps", 50), goal("b", "speed", "Tapping speed", 50, "2026-12-27")], () => 5);
+    expect([apart.get("a")?.offset, apart.get("b")?.offset]).toEqual([0, 0]); // other deadlines
+    const o = goalsChart(plan, chartTheme(true)) as { series: (Series & { labelLayout: unknown })[] };
+    expect(o.series.every((s) => s.labelLayout === goalLabelLayout)).toBe(true);
+    expect(goalLabelLayout({ labelRect: { x: 10, y: 20 } })).toMatchObject({ x: 10, y: 20, moveOverlap: "shiftY" });
+    const dot = (s: number) => o.series[s].data.at(-1) as Dot & { label: { distance: number } };
+    expect(dot(0).symbolOffset).toEqual([-14, 0]);
+    // the labels (left of the dots) all start past the row of dots: none covers a dot
+    expect([dot(0), dot(1), dot(2)].map((d) => d.label.distance - d.symbolOffset[0])).toEqual([22, 22, 22]);
   });
 
   it("puts goals in stars on a star axis, beside the scores when there are both (#129)", () => {
-    const goal = (label: string, unit: "score" | "stars", value: number) => ({
-      goal_id: label,
-      skill: label,
-      label,
-      unit,
-      points: [{ day: "2026-11-22", score: value }],
-      target: [{ day: "2026-11-01", score: value }, { day: "2026-12-01", score: value + 1 }],
-    });
     type Axis = { name: string; min?: number; scale?: boolean };
-    const stars = goalsChart([goal("Tapping speed", "stars", 6.8)], chartTheme(true)) as { yAxis: Axis };
+    const stars = goalsChart([goal("s", "speed", "Tapping speed", 7.3, "2026-12-01", "stars")], chartTheme(true)) as { yAxis: Axis };
     expect(stars.yAxis.name).toBe("★");
     expect(stars.yAxis.scale).toBe(true);
-    const both = goalsChart([goal("Consistency", "score", 34), goal("Tapping speed", "stars", 6.8)], chartTheme(true)) as {
+    const both = goalsChart([goal("c", "consistency", "Consistency", 44), goal("s", "speed", "Tapping speed", 7.3, "2026-12-01", "stars")], chartTheme(true)) as {
       yAxis: Axis[];
-      series: { yAxisIndex?: number }[];
+      series: Series[];
     };
     expect(both.yAxis.map((a) => a.name)).toEqual(["★", "score"]);
-    expect(both.series.map((s) => s.yAxisIndex)).toEqual([1, 1, 0, 0]);
+    expect(both.series.map((s) => s.yAxisIndex)).toEqual([1, 0]);
   });
 });
 

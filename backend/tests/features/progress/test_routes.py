@@ -285,21 +285,24 @@ def test_one_open_goal_per_skill_with_a_target_above_the_score(analysed):
     assert len(analysed.get("/api/goals").json()["open"]) == 1
 
 
-def test_a_goal_is_followed_only_with_the_engine_it_was_set_with(analysed):
+def test_a_goal_shows_only_with_the_engine_it_was_set_with(analysed):
     _measured_profile(analysed)
     deadline = (TODAY + dt.timedelta(days=14)).isoformat()
     g = analysed.post("/api/goals", json={"skill": "speed", "target": 75, "deadline": deadline}).json()
     goal = g["open"][0]
     assert load_settings(workspace(analysed).cache_dir)["goals"][0]["engine"] == "comfort"
-    # with Star-Scale IRT a score of 90 is on another scale: it must neither complete nor move the goal
+    # with Star-Scale IRT a score of 90 is on another scale: the goal is hidden, neither completed nor moved
     analysed.patch("/api/settings", json={"rating_engine": "irt"})
     p = workspace(analysed).profile()
     assert p.engine == "irt"
     p.skill_ratings = {**p.skill_ratings, "speed": SkillRating(90.0, 12, Message("irt_measured"), state="measured")}
     g = analysed.get("/api/goals").json()
-    followed = {x["id"]: x for x in g["open"]}
-    assert goal["id"] in followed and followed[goal["id"]]["state"] == "paused" and g["done"] == []
+    assert (g["open"], g["done"], g["history"]) == ([], [], [])
     assert load_settings(workspace(analysed).cache_dir)["goals"][0]["done"] is None
+    # back with Comfort Score, it is there again
+    analysed.patch("/api/settings", json={"rating_engine": "comfort"})
+    g = analysed.get("/api/goals").json()
+    assert goal["id"] in {x["id"] for x in g["open"] + g["done"]}
 
 
 def test_an_at_least_score_neither_sets_nor_reaches_a_goal(analysed):
@@ -377,7 +380,7 @@ def test_a_star_goal_is_reached_by_the_star_level(analysed):
     assert g["open"] == [] and g["done"][0]["state"] == "done" and g["done"][0]["unit"] == "stars"
 
 
-def test_goals_of_another_engine_or_unit_are_paused_with_their_reason(analysed):
+def test_another_engines_goal_is_hidden_and_one_in_another_unit_paused(analysed):
     _star_levels(analysed)
     ws = workspace(analysed)
     common = {"created": "2026-06-01", "deadline": "2026-07-01", "done": None, "score_source": "experimental"}
@@ -394,11 +397,12 @@ def test_goals_of_another_engine_or_unit_are_paused_with_their_reason(analysed):
         ws.cache_dir,
     )
     g = analysed.get("/api/goals").json()
-    by_id = {x["id"]: x for x in g["open"]}
-    assert by_id["comfort"]["state"] == "paused" and by_id["comfort"]["paused_reason"] == "engine"
-    assert by_id["comfort"]["engine_label"] == "Comfort Score" and by_id["comfort"]["current"] is None
-    assert by_id["irt-score"]["state"] == "paused" and by_id["irt-score"]["paused_reason"] == "unit"
+    [irt_score] = g["open"]  # the Comfort Score goal isn't listed with Star Levels
+    assert irt_score["id"] == "irt-score" and irt_score["state"] == "paused" and irt_score["paused_reason"] == "unit"
     assert g["history"] == []  # neither is followed with Star Levels
-    # neither blocks a goal in stars for its skill
+    # neither blocks a goal in stars for its skill, and the hidden one is kept
     deadline = (TODAY + dt.timedelta(days=14)).isoformat()
     assert analysed.post("/api/goals", json={"skill": "speed", "target": 7.2, "deadline": deadline}).status_code == 201
+    r = analysed.post("/api/goals", json={"skill": "stamina", "target": 7.0, "deadline": deadline})
+    assert r.status_code == 201 and "comfort" not in {x["id"] for x in r.json()["open"]}
+    assert "comfort" in {x["id"] for x in load_settings(ws.cache_dir)["goals"]}

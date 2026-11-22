@@ -89,12 +89,11 @@ class GoalOut(BaseModel):
     state: Literal["done", "on track", "behind", "overdue", "no data", "paused"]
     score_source: Literal["experimental", "legacy"] = Field(description="Rating scale used when the goal was created.")
     unit: Unit = Field("score", description="What start, target, current and left are in: the score, or stars.")
-    paused_reason: Literal["old_scale", "accuracy", "engine", "unit"] | None = Field(
+    paused_reason: Literal["old_scale", "accuracy", "unit"] | None = Field(
         None,
         description="Why a paused goal isn't followed: set on the scores before 0.10, a recalibrated accuracy goal, "
-        "set with the other rating engine (``engine_label``), or set as a score where the skill is now in stars.",
+        "or set as a score where the skill is now in stars.",
     )
-    engine_label: str = Field("Comfort Score", description="The rating engine the goal was set with.")
 
 
 class SkillValue(BaseModel):

@@ -5255,7 +5255,6 @@
                 "enum": [
                   "old_scale",
                   "accuracy",
-                  "engine",
                   "unit"
                 ]
               },
@@ -5264,13 +5263,7 @@
               }
             ],
             "title": "Paused Reason",
-            "description": "Why a paused goal isn't followed: set on the scores before 0.10, a recalibrated accuracy goal, set with the other rating engine (``engine_label``), or set as a score where the skill is now in stars."
-          },
-          "engine_label": {
-            "type": "string",
-            "title": "Engine Label",
-            "description": "The rating engine the goal was set with.",
-            "default": "Comfort Score"
+            "description": "Why a paused goal isn't followed: set on the scores before 0.10, a recalibrated accuracy goal, or set as a score where the skill is now in stars."
           }
         },
         "type": "object",

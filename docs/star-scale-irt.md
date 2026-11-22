@@ -100,8 +100,9 @@ real player's library (154 lazer plays, comfort level ~6★). "Unfitted" means a
     so everything that reads scores follows the engine toggle. Where a page
     reads a score on another scale, it is converted: map suggestions get IRT tapping speed on the recommender's tempo
     scale from the BPM IRT measured (IRT 77 had read as a 269 BPM target where IRT measured ~231 BPM).
-22. **Goals remember their engine.** A goal set with one engine is paused under the other (its scores are on another
-    scale) instead of being completed by them. Goals from before engines existed are Comfort-Based.
+22. **Goals remember their engine.** A goal set with one engine is shown only with it: under the other (its scores
+    are on another scale) it is hidden, neither completed nor moved, and back when its engine is. Goals from before
+    engines existed are Comfort-Based.
 23. **Consistency** stays the Comfort-Based measure (combo and accuracy held from map to map) in both engines.
 24. **Stored summaries are keyed by a fingerprint of the compiled domain code** (`infra/code_fingerprint.py`): any
     change to the code that makes them rebuilds them, with no version to bump by hand. `ANALYSIS_VERSION` stays

@@ -57,11 +57,6 @@ function pausedWhy(goal: Schemas["GoalOut"]): [string, string] {
       return ["paused · previous rating scale", "Set on the previous rating scale, which no longer matches your scores. Add a new goal to follow this skill."];
     case "accuracy":
       return ["paused · previous accuracy scale", "Create a new goal to track the recalibrated score."];
-    case "engine":
-      return [
-        `paused · set with ${goal.engine_label}`,
-        `Followed only with ${goal.engine_label} (Settings): its numbers are on another scale. Add a new goal to follow this skill now.`,
-      ];
     case "unit":
       return ["paused · set as a score", "Set as a 0–100 score; Star Levels now counts this skill in stars. Add a new goal in stars."];
     default:
@@ -83,7 +78,7 @@ function GoalsTab() {
       </Tiles>
       <Card
         title="Your goals"
-        hint="Each goal: a skill score to reach by a date. On track = you are at least as far as the time that has passed."
+        hint="Each goal: a skill score (with Star Levels: a star level) to reach by a date. On track = you are at least as far as the time that has passed. Goals belong to the rating engine they were set with (Settings): the other engine's goals are kept and show again when you switch back."
         foot={g.history.length ? undefined : <AddGoal goals={g} />}
       >
         {g.open.length ? (
@@ -146,7 +141,7 @@ function HistoryCard({ history, foot }: { history: Schemas["GoalHistory"][]; foo
   return (
     <Card
       title="Goal skills day by day"
-      hint="Goals on the current rating scale. Solid lines: your score over the plays of the last 7 days, on each day you played (a goal in stars, with Star Levels: where you are today); dotted: the path from where you started to the target by the deadline. Above the dotted line = ahead of plan."
+      hint="Goals on the current rating scale. Lines: your score over the plays of the last 7 days, on each day you played (a skill in stars, with Star Levels: where you are today). ◆ each goal: its target, at its deadline. Hover a skill to bring it forward; click its name below the chart to hide it."
       foot={foot}
     >
       <Chart build={build} height={320} label="Goal skills day by day" />
