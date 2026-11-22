@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from osu_coach.common.errors import Invalid
 from osu_coach.domain.player.engines.irt.engine import adapter
 from osu_coach.domain.player.messages import Message
 from osu_coach.domain.player.records import SkillRating
@@ -56,6 +57,16 @@ def test_without_a_level_the_comfort_level_and_kappa_stay():
     assert theta == LEVEL
 
 
-def test_manual_ratings_still_win_around_the_level():
-    _, _, abilities, theta, _, _ = _options(profile(), "speed", None, '{"speed": 60}', None, 0.5, 0.3)
-    assert theta == 6.8 and abilities["speed"] == 60
+def test_star_levels_leave_manual_ratings_out():
+    # a skill is a star level there, not a score to try another value of (#126); still checked as sent
+    _, _, abilities, theta, _, _ = _options(
+        profile(), "speed", "speed,consistency", '{"speed": 60, "consistency": 90}', None, 0.5, 0.3
+    )
+    assert theta == 6.8 and abilities["speed"] == 50 and abilities["consistency"] == 34.0
+    with pytest.raises(Invalid):
+        _options(profile(), "speed", None, '{"speed": 160}', None, 0.5, 0.3)
+
+
+def test_comfort_score_takes_manual_ratings():
+    _, _, abilities, _, _, _ = _options(profile("comfort"), "speed", None, '{"speed": 60}', None, 0.5, 0.3)
+    assert abilities["speed"] == 60

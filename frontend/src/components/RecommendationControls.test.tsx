@@ -53,6 +53,25 @@ it("Star Levels: no comfort, κₛ or relevance to set; the playlist is made aro
   expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ skill: "consistency", comfort: undefined, kappa: 0.5, min_relevance: 0.3 }));
 });
 
+it("Star Levels: no other skill ratings to try, and none left from Comfort Score are sent (#126)", () => {
+  const onApply = vi.fn();
+  render(<RecommendationControls current="speed" measured={{ speed: 50 }} comfort={6.4} levels={{ speed: 6.82 }}
+    initial={{ ratings: JSON.stringify({ speed: 140 }) }} onApply={onApply} />);
+  expect(screen.queryByRole("button", { name: "Try other skill ratings" })).toBeNull();
+  // an out-of-range rating left from a Comfort Score search neither blocks Show maps nor is sent
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ skill: "speed", ratings: undefined }));
+});
+
+it("Comfort Score: other skill ratings can be tried", () => {
+  const onApply = vi.fn();
+  render(<RecommendationControls current="aim" measured={{ aim: 50 }} comfort={4} onApply={onApply} />);
+  fireEvent.click(screen.getByRole("button", { name: "Try other skill ratings" }));
+  fireEvent.change(screen.getByRole("spinbutton", { name: /^Jumps/ }), { target: { value: "70" } });
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ ratings: JSON.stringify({ aim: 70 }) }));
+});
+
 it("starts from the selection applied last, and applies it again unchanged (#107)", () => {
   const onApply = vi.fn();
   const applied = {

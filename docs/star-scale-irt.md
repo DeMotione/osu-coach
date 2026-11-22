@@ -145,7 +145,9 @@ real player's library (154 lazer plays, comfort level ~6★). "Unfitted" means a
     nothing and is 0. The other assessed skills are scored against maps of that level (`map_scores(θ)`, as the
     Overview's comparison scored them). The comfort difficulty and κ are not offered under Star Levels, and the
     relevance threshold keeps its default (0.3). Skills without a star level (consistency, or a skill not measured
-    yet) keep the comfort level.
+    yet) keep the comfort level. Nor is "Try other skill ratings" (#126): a skill is a star level here, and a 0–100
+    score typed in its place would mean a score against a level the engine doesn't rate by (`uses_level`); ratings
+    still sent, from a selection kept from Comfort Score, are checked and left out.
 
 ## Validation status
 

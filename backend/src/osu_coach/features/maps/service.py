@@ -181,6 +181,10 @@ def _options(
         theta = 2.5  # Visible starting assumption until the user supplies comfort stars.
         source = "Unmeasured 2.5★ starting assumption"
     manual = _manual_ratings(ratings)
+    if p is not None and not make_engine(p.engine).uses_level:
+        # Star Levels: a skill is a star level, not a 0-100 score against a level to try another value of; ratings
+        # still sent (a selection kept from Comfort Score) are left out (#126)
+        manual = {}
     abilities = {**measured_abilities(p, theta), **manual}
     target = skill or default_skill(p, abilities)
     if target not in SKILLS:
