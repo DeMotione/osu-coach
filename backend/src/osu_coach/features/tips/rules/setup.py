@@ -10,12 +10,16 @@ A change is suggested only when all three hold:
   on most plays), at least :data:`LEAN_SHARE` of :data:`LEAN_MIN` or more;
 * the fix is a value you can set: the new millimetres, sensitivity, offset or key setting.
 
-Otherwise the advice is to keep the setting, or that there isn't enough data yet.
+Otherwise the advice is to keep the setting, or that there isn't enough data yet. A group of settings changed in
+Your setup is checked on the plays made since (:class:`Since`), not on the ones before (#131).
 """
 
 from __future__ import annotations
 
+import dataclasses
+import datetime as dt
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -65,6 +69,20 @@ class Advice:
     why: str
     changes: list[Change] = field(default_factory=list)
     where: str | None = None
+
+
+@dataclass(frozen=True)
+class Since:
+    """A group of settings changed on ``day``: its checks read only the plays since (``profile``; None: none yet)."""
+
+    day: dt.date
+    profile: Profile | None
+
+
+def _after(a: Advice, day: dt.date) -> Advice:
+    """``a`` told from the plays since its setting was changed on ``day``."""
+    why = a.why[0].lower() + a.why[1:] if a.why[1:2].islower() else a.why
+    return dataclasses.replace(a, why=f"Since you changed it on {day.isoformat()}, {why}")
 
 
 def mm_per_osu_px(setup: Setup) -> tuple[float, float] | None:
@@ -318,12 +336,11 @@ def _mm(v: float) -> float:
     return round(round(v / SAYO_STEP) * SAYO_STEP, 2)
 
 
-def _keys(p: Profile, s: Setup) -> Advice:
-    t = p.tapping
+def _keys(p: Profile | None, s: Setup) -> Advice:
     title = {"sayo": "SayoDevice", "rapid_trigger": "Rapid trigger"}.get(s.keyboard, "Keys")
-    presses = t.press_count or 0
-    if presses < MIN_PRESSES:
+    if p is None or (p.tapping.press_count or 0) < MIN_PRESSES:
         return Advice("keys", title, "unknown", "Not enough key presses yet to check them.")
+    t = p.tapping
     chatter = t.chatter_per_1000 or 0.0
     extra = t.extra_presses_per_100 or 0.0
     sliders = p.sliders.sliders or 0
@@ -433,11 +450,24 @@ def _sayo_changes(s: Setup, double: bool, letting_go: bool, t: Tapping, reasons:
 
 
 # ---------------------------------------------------------------- all of it
-def setup_advice(p: Profile, s: Setup) -> list[Advice]:
-    """Every setup check for this device: the changes first, then what can't be told yet, then what to keep."""
+def setup_advice(p: Profile, s: Setup, since: Mapping[str, Since] | None = None) -> list[Advice]:
+    """Every setup check for this device: the changes first, then what can't be told yet, then what to keep. A group
+    of settings changed in Your setup (``since``, by ``setup.CHECKED_BY``'s groups) is checked on the plays since."""
+    since = since or {}
+    aim, keys = since.get("aim"), since.get("keys")
+    out = _aim(aim.profile if aim else p, s)
+    if aim:
+        out = [_after(a, aim.day) for a in out]
+    out.append(_offset(p, s))
+    out.append(_after(_keys(keys.profile, s), keys.day) if keys else _keys(p, s))
+    return sorted(out, key=lambda a: (VERDICT_ORDER[a.verdict], ORDER.index(a.key)))
+
+
+def _aim(p: Profile | None, s: Setup) -> list[Advice]:
+    """The tablet area (size, position, rotation) or the mouse sensitivity."""
     out: list[Advice] = []
-    J = _jumps(p)
-    if not p.regression or len(J) < MIN_JUMPS:
+    J = _jumps(p) if p is not None else pd.DataFrame()
+    if p is None or not p.regression or len(J) < MIN_JUMPS:
         title = "Tablet area" if s.device == "tablet" else "Sensitivity"
         out.append(
             Advice(
@@ -451,5 +481,4 @@ def setup_advice(p: Profile, s: Setup) -> list[Advice]:
         out.append(_size(p, s, J))
         if s.device == "tablet":  # a mouse can't be moved or turned in a setting
             out += [_position(p, s), _rotation(p, J)]
-    out += [_offset(p, s), _keys(p, s)]
-    return sorted(out, key=lambda a: (VERDICT_ORDER[a.verdict], ORDER.index(a.key)))
+    return out

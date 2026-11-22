@@ -1,5 +1,7 @@
 """Remembered choices and the player's setup (shared with the command line through settings.json)."""
 
+import datetime as dt
+
 import pytest
 
 from osu_coach.infra.settings import load_settings, save_settings
@@ -89,6 +91,22 @@ def test_setup_saves_sayo_settings_and_area_position(client):
     assert (saved["area_x_mm"], saved["area_y_mm"]) == (76.0, 47.0)
     assert saved["setup_saved"] is True
     assert client.get("/api/settings").json()["setup_saved"] is True
+
+
+def test_a_setup_change_is_stamped_for_its_checks(client):
+    """#131: a value replaced by another stamps its group of Setup Tips checks; the first save, a value entered where
+    there was none and one cleared don't."""
+    ws = workspace(client)
+    setup = {**client.get("/api/setup").json(), "keyboard": "sayo", "sayo_rt_trigger_mm": 0.15, "area_w_mm": 100.0}
+    client.put("/api/setup", json=setup)  # the first save describes the setup
+    client.put("/api/setup", json={**setup, "sayo_rt_release_mm": 0.2})
+    assert load_settings(ws.cache_dir)["setup_changed"] == {}
+    client.put("/api/setup", json={**setup, "sayo_rt_trigger_mm": 0.2})  # and RT Release cleared again
+    keys = ws.settings().setup_changed["keys"]
+    assert set(ws.settings().setup_changed) == {"keys"}
+    assert abs(keys - dt.datetime.now(dt.UTC)) < dt.timedelta(minutes=1)
+    client.put("/api/setup", json={**setup, "sayo_rt_trigger_mm": 0.2, "area_w_mm": 90.0})
+    assert ws.settings().setup_changed == {"keys": keys, "aim": ws.settings().setup_changed["aim"]}
 
 
 def test_setup_zero_means_unknown_and_ranges_are_checked(client):

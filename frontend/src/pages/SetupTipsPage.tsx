@@ -29,7 +29,7 @@ function AdviceCard({ advice }: { advice: Advice[] }) {
   return (
     <Card
       title="Setup tips"
-      hint="A change shows up only when it is big enough to feel and your misses show it costs you; then you get the exact new value. Everything else: keep it."
+      hint="A change shows up only when it is big enough to feel and your misses show it costs you; then you get the exact new value. Everything else: keep it. After you change a setting in Your setup, it is checked again only on the plays you make with it."
     >
       <p className="setup-verdict">
         {changes.length ? `${changes.length} ${changes.length === 1 ? "change" : "changes"} to try` : "Your setup fits: nothing to change."}

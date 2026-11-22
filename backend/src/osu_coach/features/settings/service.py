@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import logging
 import os
@@ -9,14 +10,29 @@ from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
+from osu_coach.domain.player.setup import Setup, changed_groups
 from osu_coach.domain.replays.selection import MOST_REPLAYS
 from osu_coach.features.settings.schemas import AppSettings
+from osu_coach.infra import clock
 
 if TYPE_CHECKING:
     from osu_coach.app.workspace import Workspace
     from osu_coach.infra.settings import UserSettings
 
 log = logging.getLogger("osu_coach.features.settings.service")
+
+
+def save_setup(ws: Workspace, values: dict) -> None:
+    """Save the setup. The groups of settings this save changes (:func:`changed_groups`) are stamped with the time,
+    so their Setup Tips wait for plays made with the new values (#131); the first save describes the setup and
+    changes nothing."""
+    s = ws.settings()
+    entered = {k: v for k, v in values.items() if k in Setup.__dataclass_fields__}
+    before = ws.setup()
+    changed = changed_groups(before, dataclasses.replace(before, **entered)) if s.setup_saved else set()
+    now = clock.now().isoformat()
+    stamps = {g: t.isoformat() for g, t in s.setup_changed.items()} | dict.fromkeys(changed, now)
+    ws.update_settings(setup_saved=True, setup_changed=stamps, **entered)
 
 
 def default_folders(settings: UserSettings) -> str:

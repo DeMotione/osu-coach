@@ -1,8 +1,9 @@
+import dataclasses
 from dataclasses import asdict, fields
 
 import pytest
 
-from osu_coach.domain.player.setup import Setup
+from osu_coach.domain.player.setup import CHECKED_BY, Setup, changed_groups
 
 
 def test_defaults_describe_a_right_handed_tablet_player_on_stable():
@@ -21,6 +22,22 @@ def test_fields_given_by_name_override_the_defaults_and_the_rest_stay():
     s = Setup(device="mouse", mouse_dpi=800, ingame_sens=1.2, sayo_rt=True)
     assert (s.device, s.mouse_dpi, s.ingame_sens, s.sayo_rt) == ("mouse", 800, 1.2, True)
     assert s.handedness == "right" and s.area_w_mm is None
+
+
+def test_a_value_replaced_by_another_changes_its_group_of_checks():
+    """#131: the checks of a changed group wait for plays made with the new value."""
+    old = Setup(keyboard="sayo", sayo_rt_trigger_mm=0.15, area_w_mm=100.0)
+    assert changed_groups(old, dataclasses.replace(old, sayo_rt_trigger_mm=0.2)) == {"keys"}
+    assert changed_groups(old, dataclasses.replace(old, area_w_mm=90.0, keyboard="standard")) == {"aim", "keys"}
+    # a value entered where there was none, or cleared: the setup described, not changed
+    assert changed_groups(old, dataclasses.replace(old, sayo_rt_release_mm=0.2, area_w_mm=None)) == set()
+    assert changed_groups(old, dataclasses.replace(old, client="lazer", handedness="left")) == set()
+
+
+def test_every_setting_is_read_by_a_group_of_checks_or_by_none():
+    grouped = [n for names in CHECKED_BY.values() for n in names]
+    assert len(grouped) == len(set(grouped))
+    assert set(grouped) | {"handedness", "client"} == {f.name for f in fields(Setup)}
 
 
 def test_instances_do_not_share_state():

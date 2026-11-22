@@ -53,7 +53,8 @@ def test_skills_against_other_star_ratings(tmp_path, client):
         assert sk["score"] == comfort_scores[sk["key"]] and sk["change"] in (0, None)
     assert at_comfort["pass_chance"] == 0.75
     chances = [t["pass_chance"] for t in open_]
-    assert chances == sorted(chances, reverse=True) and chances[-1] < 0.15
+    # the last open target is 1-2★ above the comfort level, as the targets fall (here 9★ at a comfort level of 7.65★)
+    assert chances == sorted(chances, reverse=True) and chances[-1] < 0.5
     for key in ("aim", "speed", "sliders"):
         series = [next(s["score"] for s in t["skills"] if s["key"] == key) for t in open_]
         assert None not in series and series == sorted(series, reverse=True), key
@@ -239,6 +240,22 @@ def test_setup_tips_page(client, monkeypatch, small_profile):
     tips = client.get("/api/profile/tips").json()
     assert "calibration" not in tips and tips["practice_plan"]
     assert not any(t["category"].startswith(("Setup", "Keys", "Tablet")) for t in tips["tips"])
+
+
+def test_setup_tips_after_a_change_read_the_plays_since(analysed):
+    """#131: the keys changed in Your setup are checked on the plays made since; the other checks on every play."""
+    ws = workspace(analysed)
+    before = {a["key"]: a for a in analysed.get("/api/profile/setup-tips").json()["advice"]}
+    stamps = {"keys": "1990-01-01T12:00:00+00:00"}  # before every sample play: all of them count
+    save_settings({**load_settings(ws.cache_dir), "setup_saved": True, "setup_changed": stamps}, ws.cache_dir)
+    page = {a["key"]: a for a in analysed.get("/api/profile/setup-tips").json()["advice"]}
+    assert page["keys"]["verdict"] == before["keys"]["verdict"]
+    assert page["keys"]["why"].startswith("Since you changed it on 1990-01-01, ")
+    assert page["offset"] == before["offset"]
+    stamps = {"keys": "2099-01-01T12:00:00+00:00"}  # no play since
+    save_settings({**load_settings(ws.cache_dir), "setup_changed": stamps}, ws.cache_dir)
+    keys = next(a for a in analysed.get("/api/profile/setup-tips").json()["advice"] if a["key"] == "keys")
+    assert keys["verdict"] == "unknown" and keys["why"].startswith("Since you changed it on 2099-01-01, not enough")
 
 
 def test_setup_tips_need_an_analysis(client):

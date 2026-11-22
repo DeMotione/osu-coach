@@ -2,6 +2,7 @@
 otherwise keep it."""
 
 import dataclasses
+import datetime as dt
 import math
 
 import numpy as np
@@ -13,7 +14,7 @@ from osu_coach.domain.player import build_profile
 from osu_coach.domain.player.profile import Sliders
 from osu_coach.domain.player.setup import Setup
 from osu_coach.domain.player.summary import ChartNotes
-from osu_coach.features.tips.rules import make_tips, mm_per_osu_px, setup_advice
+from osu_coach.features.tips.rules import Since, make_tips, mm_per_osu_px, setup_advice
 from osu_coach.infra.library import analyze_files
 from tests.conftest import replay_and_map
 from tests.domain.player.helpers import aim_regression, records
@@ -230,6 +231,27 @@ def keys(base, **tapping):
         sliders=dataclasses.replace(base.sliders, sliders=20_000),
         slider_breaks={"follow": 52, "released": 8, "key_swap": 2},
     )
+
+
+def test_a_changed_setting_is_checked_on_the_plays_since(base):
+    """#131: RT set to the advised 0.15 mm: the double presses of the plays before don't ask for the next step."""
+    s, day = Setup(**SAYO), dt.date(2026, 11, 22)
+    before = keys(base, chatter_per_1000=9.0)
+
+    def by_key(since=None):
+        return {a.key: a for a in setup_advice(before, s, since)}
+
+    assert by_key()["keys"].verdict == "change"
+    waiting = by_key({"keys": Since(day, None)})["keys"]
+    assert waiting.verdict == "unknown" and not waiting.changes
+    assert waiting.why == "Since you changed it on 2026-11-22, not enough key presses yet to check them."
+    clean = by_key({"keys": Since(day, keys(base))})["keys"]
+    assert clean.verdict == "keep" and clean.why.startswith("Since you changed it on 2026-11-22, no double presses")
+    assert by_key({"keys": Since(day, keys(base, chatter_per_1000=9.0))})["keys"].verdict == "change"  # still fires
+    # the other checks still read every play
+    assert by_key({"keys": Since(day, None)})["offset"] == by_key()["offset"]
+    area = {a.key: a for a in setup_advice(before, Setup(**AREA), {"aim": Since(day, None)})}["area_size"]
+    assert area.verdict == "unknown" and area.why.startswith("Since you changed it on 2026-11-22, not enough jumps")
 
 
 def test_keys_that_fit_are_kept(base):
