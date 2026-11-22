@@ -270,6 +270,24 @@ def test_double_presses_make_rapid_trigger_less_sensitive(base):
     }
 
 
+def test_without_rapid_trigger_double_presses_move_the_release_point(base):
+    """RT Mode off: the RT values do nothing, so the fixed Release goes a step higher up (and RT on for fast streams)."""
+    off = Setup(**{**SAYO, "sayo_rt": False})
+    slow = keys(base, chatter_per_1000=9.0, comfort_bpm=180)
+    assert changes(advice(slow, off, "keys")) == {"Release": ("0.35 mm", "0.30 mm")}
+    assert changes(advice(keys(base, chatter_per_1000=9.0), off, "keys")) == {  # 210 BPM streams
+        "Release": ("0.35 mm", "0.30 mm"),
+        "RT Mode": ("off", "on"),
+    }
+    top = Setup(**{**SAYO, "sayo_rt": False, "sayo_release_mm": 0.05})  # Release as high up as it goes
+    assert changes(advice(slow, top, "keys")) == {"Trigger": ("0.40 mm", "0.45 mm")}
+
+
+def test_full_stroke_ignores_the_bounds(base):
+    a = advice(keys(base, chatter_per_1000=9.0), Setup(**{**SAYO, "sayo_full_stroke": True}), "keys")
+    assert set(changes(a)) == {"RT Trigger", "RT Release"}
+
+
 def test_keys_letting_go_mid_slider_raise_rt_release(base):
     p = dataclasses.replace(keys(base), slider_breaks={"released": 40, "follow": 20})
     a = advice(p, Setup(**SAYO), "keys")

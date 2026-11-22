@@ -412,16 +412,29 @@ def _rt_changes(s: Setup, double: bool, letting_go: bool) -> list[Change]:
 
 
 def _sayo_changes(s: Setup, double: bool, letting_go: bool, t: Tapping, reasons: list[str]) -> list[Change]:
-    """SayoDevice: rapid trigger less sensitive when keys fire twice (and never active above the trigger point), RT
-    Release higher when keys let go mid-slider, RT on for fast streams, and values the device can't work with."""
+    """SayoDevice: when keys fire twice or let go mid-slider, the setting that decides it a step less sensitive (with
+    rapid trigger on: RT Trigger / RT Release, and RT never working above the trigger point; off: Release higher up),
+    RT on for fast streams, and values the device can't work with. A setting rapid trigger being off or Full Stroke
+    leaves unused (the RT values, the bounds) is never suggested."""
     trig, rel = s.sayo_trigger_mm, s.sayo_release_mm
     rt_trig, rt_rel, upper = s.sayo_rt_trigger_mm, s.sayo_rt_release_mm, s.sayo_rt_upper_mm
+    rt = s.sayo_rt is not False  # on until switched off
     changes: list[Change] = []
 
     def mm(v: float | None) -> str | None:
         return None if v is None else f"{v:.2f} mm"
 
-    if double:
+    if not rt and (double or letting_go):
+        # without rapid trigger the fixed points decide: a Release higher up (smaller) needs a bigger lift to reset
+        if rel is None:
+            changes.append(Change("Release", None, f"{SAYO_STEP:g} mm smaller"))
+        elif rel > SAYO_STEP:
+            changes.append(Change("Release", mm(rel), mm(_mm(rel - SAYO_STEP))))
+            rel = _mm(rel - SAYO_STEP)
+        elif trig is not None:  # Release as high up as it goes: Trigger deeper instead
+            changes.append(Change("Trigger", mm(trig), mm(_mm(trig + SAYO_STEP))))
+            trig = _mm(trig + SAYO_STEP)
+    if rt and double:
         new_trig = _mm(max(rt_trig + SAYO_STEP, 0.15)) if rt_trig is not None else None
         new_rel = _mm(rt_rel + SAYO_STEP) if rt_rel is not None else None
         if new_trig is not None and new_rel is not None:
@@ -429,18 +442,19 @@ def _sayo_changes(s: Setup, double: bool, letting_go: bool, t: Tapping, reasons:
         changes.append(Change("RT Trigger", mm(rt_trig), mm(new_trig) or f"{SAYO_STEP:g} mm higher"))
         changes.append(Change("RT Release", mm(rt_rel), mm(new_rel) or f"{SAYO_STEP:g} mm higher"))
         rt_trig, rt_rel = new_trig, new_rel
-        if upper is not None and trig is not None and upper < trig:  # rapid trigger fires above the trigger point
+        # rapid trigger fires above the trigger point (Full Stroke ignores the bounds)
+        if upper is not None and trig is not None and upper < trig and not s.sayo_full_stroke:
             changes.append(Change("RT Upper Bound", mm(upper), mm(trig)))
-    if letting_go and not double:
+    if rt and letting_go and not double:
         new_rel = _mm(rt_rel + SAYO_STEP) if rt_rel is not None else None
         changes.append(Change("RT Release", mm(rt_rel), mm(new_rel) or f"{SAYO_STEP:g} mm higher"))
         rt_rel = new_rel
     speed = t.comfort_bpm or 0
-    if s.sayo_rt is False and speed >= 200:
+    if not rt and speed >= 200:
         changes.append(Change("RT Mode", "off", "on"))
         reasons.append(f"you stream {speed:.0f} BPM, and rapid trigger resets keys without a full lift")
     # values the device can't work with, whatever the replays show
-    if rt_trig is not None and rt_rel is not None and rt_trig > rt_rel and not double:
+    if rt and rt_trig is not None and rt_rel is not None and rt_trig > rt_rel and not double:
         changes.append(Change("RT Trigger", mm(rt_trig), mm(rt_rel)))
         reasons.append("RT Trigger can't be larger than RT Release")
     if trig is not None and rel is not None and rel >= trig:
