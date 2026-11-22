@@ -13,7 +13,7 @@ from osu_coach.domain.analysis.notes import HitObjects, KeyPresses
 from osu_coach.domain.beatmaps.models import Beatmap, PlayableBeatmap
 from osu_coach.domain.replays.models import Replay
 
-ANALYSIS_VERSION = 9
+ANALYSIS_VERSION = 10  # 10: osu!'s star rating of 2026 (#128)
 
 
 class UnsupportedReplay(ValueError):

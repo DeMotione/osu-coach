@@ -153,6 +153,16 @@ real player's library (154 lazer plays, comfort level ~6★). "Unfitted" means a
     Consistency, not on the star scale, keeps a score goal. A goal set with Star Levels as a score before this is
     paused ("set as a score"). The saved daily history is rated by Comfort Score, so a goal in stars has no day by
     day line yet: the chart shows where it is today against the path to its target.
+30. **Star ratings are osu!'s of 2026-07-03** (#128; `rosu_pp_2026`, built in `vendor/rosu-pp-2026`). rosu-pp 4
+    (osu!'s star rating of October 2025) put a third of the pool's maps more than 0.1★ away from what osu! shows, up
+    to ±0.5★, and harder maps lower (+0.13★ at 7–8★), so maps with mods read low. rosu-pp's port of the 2026 update
+    (its unreleased `pp-update` branch, pinned) matched osu! on 158 of 158 sampled maps, within 0.0005★; rosu-pp 4 was
+    within 0.01★ on 12. Maps, plays, the anchors and the demand curves are all on it. The per-note strain shapes
+    (`aim_eq`, `speed_eq`, the evenness) still come from rosu-pp 4, levelled by the new aim and speed ratings: the 2026
+    model keeps only aim's hardest sections, in no order, and speed per note, so it can't say where a map is hard.
+    Refitting moved the anchors: S_aim(log₂ 3.0) 5.71 → 5.53★, S_spd(log₂ 2.5) 5.72 → 6.17★ (the speed rating is
+    computed differently now), AR 9.3 / 10 / 10.33: 5.73 / 6.93 / 7.25 → 5.97 / 7.11 / 7.25★, OD 9.75 / 10: 7.25 / 7.92
+    → 7.25 / 8.15★. Between 5 and 6★ a star now asks more of aim than of tapping (demand ×1.26 against ×1.07).
 
 ## Validation status
 
@@ -170,6 +180,8 @@ Everything above was checked on one real player and on simulated players; none o
 - Reading above ~AR 10.5 sits on the top of the reading anchor, which is DT rows almost alone (17,095 pool rows of
   AR 10.5 and more since decision 25, 1,660 before; AR 10.8 still reads 11.3★), so DT players' reading can read
   high. The two engines also measure opposite things under "Reading" (Comfort-Based rewards *lower* AR).
+- The star ratings are osu!'s of 2026 (decision 30) and the tables are fitted on them, but the per-note strain
+  shapes are rosu-pp 4's (osu!'s model of 2025), and the numbers quoted in decisions 1–29 were measured before.
 - The tables are fitted on the 50k pool (decision 25), but the numbers quoted in decisions 1–24 (the test player's
   scores, `D_CLUSTER`, the split halves) were measured on the old tables and are not measured again. The pool's
   maps under 6★ are the most played ones, not a sample of all ranked maps, and "6★ and more" was chosen by the

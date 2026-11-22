@@ -5,9 +5,9 @@ from __future__ import annotations
 import math
 from importlib.metadata import version
 
-import rosu_pp_py as rosu
+import rosu_pp_2026 as rosu  # osu!'s pp and star rating of 2026-07-03 (see beatmaps.difficulty)
 
-CALCULATOR_VERSION = version("rosu-pp-py")
+CALCULATOR_VERSION = version("rosu-pp-2026")
 SUPPORTED_MODS = (0, 8, 16, 24, 64, 72, 80, 88)
 
 

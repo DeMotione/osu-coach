@@ -2,16 +2,26 @@
 
 Gives star rating and per-skill ratings (aim / speed / reading) plus per-400 ms
 strain peaks used to tell "aim-heavy" from "speed-heavy" parts of a map.
+
+The ratings follow osu!'s star rating of 2026-07-03 (``rosu_pp_2026``: rosu-pp's port of it, not released yet,
+built in vendor/rosu-pp-2026), the stars osu! shows (#128). The strain peaks still come from rosu-pp 4 (osu!'s model
+of 2025): the 2026 model keeps only aim's hardest sections, in no order, and speed per note, so it has no difficulty
+over time to read. Their shape places the hard parts; the ratings set their level (``analysis._attach_strains``).
 """
 
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 try:  # pragma: no cover - import guard
-    import rosu_pp_py as rosu
+    import rosu_pp_2026 as rosu
 except Exception:  # noqa: BLE001
     rosu = None
+try:  # pragma: no cover - import guard
+    import rosu_pp_py as rosu_strains
+except Exception:  # noqa: BLE001
+    rosu_strains = None
 
 ATTR_NAMES = [
     "stars",
@@ -37,18 +47,35 @@ def available() -> bool:
     return rosu is not None
 
 
+@dataclass(frozen=True)
+class ParsedMap:
+    """A map parsed once for a batch of calculations, by each calculator (one can't use the other's parse)."""
+
+    stars: object
+    strains: object | None
+
+
 def _map(osu_bytes: bytes):
     return rosu.Beatmap(bytes=osu_bytes)
 
 
-def parse_map(osu_bytes: bytes):
+def _strains_map(osu_bytes: bytes):
+    return rosu_strains.Beatmap(bytes=osu_bytes)
+
+
+def parse_map(osu_bytes: bytes) -> ParsedMap | None:
     """Parse once for a batch of calculations; an invalid map stays unavailable."""
     if rosu is None:
         return None
     try:
-        return _map(osu_bytes)
+        stars = _map(osu_bytes)
     except Exception:  # noqa: BLE001
         return None
+    try:
+        strains = _strains_map(osu_bytes) if rosu_strains is not None else None
+    except Exception:  # noqa: BLE001
+        strains = None
+    return ParsedMap(stars, strains)
 
 
 def _kwargs(mods: int, rate: float | None, lazer_mods: list | None, lazer: bool) -> dict:
@@ -68,10 +95,10 @@ def _kwargs(mods: int, rate: float | None, lazer_mods: list | None, lazer: bool)
     return kw
 
 
-def _difficulty(mods: int, rate: float | None, lazer_mods: list | None, lazer: bool):
+def _difficulty(mods: int, rate: float | None, lazer_mods: list | None, lazer: bool, calculator=None):
     # An unsupported customized mod must stay unavailable. Falling back to legacy
     # bits would silently erase its settings while claiming an exact result.
-    return rosu.Difficulty(**_kwargs(mods, rate, lazer_mods, lazer))
+    return (calculator or rosu).Difficulty(**_kwargs(mods, rate, lazer_mods, lazer))
 
 
 def attributes(
@@ -85,7 +112,7 @@ def attributes(
     if rosu is None:
         return {}
     try:
-        m = parsed_map if parsed_map is not None else _map(osu_bytes)
+        m = parsed_map.stars if parsed_map is not None else _map(osu_bytes)
         if m.is_suspicious():
             return {}
         a = _difficulty(mods, rate, lazer_mods, lazer).calculate(m)
@@ -107,11 +134,13 @@ def strains(
     lazer: bool = False,
     parsed_map=None,
 ) -> dict | None:
-    if rosu is None:
+    if rosu_strains is None:
         return None
     try:
-        m = parsed_map if parsed_map is not None else _map(osu_bytes)
-        s = _difficulty(mods, rate, lazer_mods, lazer).strains(m)
+        m = parsed_map.strains if parsed_map is not None else _strains_map(osu_bytes)
+        if m is None:
+            return None
+        s = _difficulty(mods, rate, lazer_mods, lazer, rosu_strains).strains(m)
     except Exception:  # noqa: BLE001
         return None
     return {

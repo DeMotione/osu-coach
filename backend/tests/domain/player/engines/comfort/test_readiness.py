@@ -59,7 +59,8 @@ def test_a_score_falls_by_the_skill_points_per_doubling_of_its_demand():
         extra = log_demand(skill, 6.0) - log_demand(skill, 5.0)
         assert at[skill].demand == pytest.approx(2**extra, abs=1e-3)
         assert at[skill].change == pytest.approx(-POINTS[skill] * extra, abs=0.06)
-    assert at["speed"].change < at["aim"].change < -3  # a star costs tapping more points than aim here
+    # a star costs aim more points than tapping here (osu!'s star rating of 2026; with the 2025 one, tapping more)
+    assert at["aim"].change < at["speed"].change < -3
 
 
 def test_scores_stay_between_0_and_100():

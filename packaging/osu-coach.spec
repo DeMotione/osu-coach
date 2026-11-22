@@ -12,7 +12,7 @@ if not os.path.isfile(os.path.join(WEB, "index.html")):
     raise SystemExit("frontend/dist is missing: build the web app first (cd frontend && npm ci && npm run build)")
 
 datas, binaries, hiddenimports = [], [], []
-for pkg in ("rosu_pp_py", "scalar_fastapi"):
+for pkg in ("rosu_pp_py", "rosu_pp_2026", "scalar_fastapi"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b

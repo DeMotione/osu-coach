@@ -1,5 +1,7 @@
 # The versions osu! coach is tested with (pip install -c constraints.txt -e .). The packages' own
 # requirements stay loose; this file makes installs and CI reproducible. Update it together with a test run.
+# rosu-pp-2026 (osu!'s star rating of 2026) is not on PyPI: its wheels are in vendor/rosu-pp-2026 (see its README).
+--find-links vendor/rosu-pp-2026
 annotated-types==0.8.0
 anyio==4.15.1
 certifi==2026.7.22
@@ -24,6 +26,7 @@ python-dateutil==2.9.0.post0
 python-multipart==0.0.32
 requests==2.34.2
 rosu-pp-py==4.0.2
+rosu-pp-2026==4.0.2+pp.072ed25
 ruff==0.17.0
 scalar-fastapi==1.9.1
 six==1.17.0
