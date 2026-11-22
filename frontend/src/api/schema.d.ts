@@ -985,10 +985,9 @@ export interface components {
             date_to?: string | null;
             /**
              * Online
-             * @description Download missing beatmaps (osu.direct lookup, osu.ppy.sh file).
-             * @default true
+             * @description Download missing beatmaps; null = the download_maps setting.
              */
-            online: boolean;
+            online?: boolean | null;
         };
         /** AnalysisResult */
         AnalysisResult: {
@@ -1135,6 +1134,18 @@ export interface components {
              * @default true
              */
             auto_analyse: boolean;
+            /**
+             * Skipped Installs
+             * @description osu! installs found on this computer whose replays aren't read (folders).
+             * @default []
+             */
+            skipped_installs: string[];
+            /**
+             * Download Maps
+             * @description Download the beatmaps that aren't on this computer (osu.direct lookup, osu.ppy.sh file): for analyses, Detailed Map Analysis and Play Goals.
+             * @default true
+             */
+            download_maps: boolean;
         };
         /** ArMissRow */
         ArMissRow: {
@@ -1214,6 +1225,12 @@ export interface components {
             map: string;
             /** Mods */
             mods: string;
+            /**
+             * Rate
+             * @description The speed: DT's 1.5, a custom lazer speed, HT's 0.75, else 1.
+             * @default 1
+             */
+            rate: number;
             /** Accuracy */
             accuracy: number | null;
             /** Beatmap Md5 */
@@ -1246,10 +1263,9 @@ export interface components {
             path: string;
             /**
              * Online
-             * @description Download the beatmap if it's missing.
-             * @default true
+             * @description Download missing beatmaps; null = the download_maps setting.
              */
-            online: boolean;
+            online?: boolean | null;
         };
         /** CheckSummary */
         CheckSummary: {
@@ -1728,6 +1744,12 @@ export interface components {
              * @enum {string}
              */
             mods: "NM" | "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT";
+            /**
+             * Rate
+             * @description The speed: DT's 1.5, a custom one, else 1.
+             * @default 1
+             */
+            rate: number;
             /**
              * Client
              * @enum {string}
@@ -2497,6 +2519,13 @@ export interface components {
             skills: {
                 [key: string]: number | null;
             };
+            /**
+             * Star Levels
+             * @description Star Levels: each skill's star level fitted to the period's plays alone (every play saved of it); only the skills it could be fitted for.
+             */
+            star_levels?: {
+                [key: string]: components["schemas"]["StarRange"];
+            };
         };
         /** PlayGoalJob */
         PlayGoalJob: {
@@ -2576,6 +2605,11 @@ export interface components {
              */
             mods: "NM" | "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT";
             /**
+             * Rate
+             * @description FC a map: The speed with DT, a hundredth from 1.10 to 2.00 (lazer's custom speeds); null = DT's 1.5.
+             */
+            rate?: number | null;
+            /**
              * Client
              * @default stable
              * @enum {string}
@@ -2587,13 +2621,18 @@ export interface components {
              * @enum {string}
              */
             training_mod: "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT";
+            /**
+             * Training Rate
+             * @description Improve a mod: The speed with DT, a hundredth from 1.10 to 2.00 (lazer's custom speeds); null = DT's 1.5.
+             */
+            training_rate?: number | null;
             /** Farm Mods */
             farm_mods?: ("NM" | "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT")[];
             /**
              * Online
-             * @default true
+             * @description Download missing beatmaps; null = the download_maps setting.
              */
-            online: boolean;
+            online?: boolean | null;
             /**
              * Min Pp
              * @description Hide maps whose FC scenario gives less PP.
@@ -2960,6 +2999,13 @@ export interface components {
              * @description The comfort level (★) every period's skill ratings are measured against; null = none saved.
              */
             skill_reference_stars: number | null;
+            /**
+             * Unit
+             * @description What the chosen engine rates skills in: score (skills) or stars (star_levels).
+             * @default score
+             * @enum {string}
+             */
+            unit: "score" | "stars";
             /** Rows */
             rows: components["schemas"]["PeriodRow"][];
         };
@@ -3073,7 +3119,7 @@ export interface components {
             mode: "library" | "files";
             /**
              * Installs
-             * @description Roots of the installs to scan; null = all found.
+             * @description Roots of the installs to scan; null = all found but the skipped_installs setting's.
              */
             installs?: string[] | null;
             /** Folders */
@@ -3214,6 +3260,10 @@ export interface components {
             onboarded?: boolean | null;
             /** Auto Analyse */
             auto_analyse?: boolean | null;
+            /** Skipped Installs */
+            skipped_installs?: string[] | null;
+            /** Download Maps */
+            download_maps?: boolean | null;
         };
         /** SetupAdvice */
         SetupAdvice: {
@@ -3644,6 +3694,21 @@ export interface components {
              * @description The star rating shown first: the comfort level.
              */
             default_target: number | null;
+        };
+        /** StarRange */
+        StarRange: {
+            /**
+             * Stars
+             * @description The star rating the skill holds up on.
+             */
+            stars: number | null;
+            /**
+             * Low
+             * @description Its 90% range: the lower end.
+             */
+            low: number | null;
+            /** High */
+            high: number | null;
         };
         /** StreamAlong */
         StreamAlong: {

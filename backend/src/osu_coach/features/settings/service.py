@@ -67,6 +67,8 @@ def app_settings(ws: Workspace) -> AppSettings:
         "setup_saved": bool(s.setup_saved),
         "onboarded": bool(s.onboarded),
         "auto_analyse": s.auto_analyse,
+        "skipped_installs": s.skipped_installs,
+        "download_maps": s.download_maps,
     }
     out = {}
     for k, v in raw.items():

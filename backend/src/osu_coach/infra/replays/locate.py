@@ -13,6 +13,7 @@ import os
 from collections import Counter
 from pathlib import Path
 
+from osu_coach.domain.replays.models import lazer_rate, rate_from_mods
 from osu_coach.infra.replays.osr import lazer_info, lazer_mod_acronyms, parse_header, peek_header
 
 HEAD_BYTES = 1 << 16
@@ -20,14 +21,14 @@ HEAD_BYTES = 1 << 16
 
 # ------------------------------------------------------------------ scanning
 # Bump when cached replay headers gain fields: headers cached by an older version are read again.
-SCAN_VERSION = 2
+SCAN_VERSION = 3  # 3: the speed (rate) in every header
 # A replay file is written when (or after) the play happens. The slack covers replay dates in the
 # wrong time zone, coarse file times and clock drift.
 DATE_SLACK_S = 86400.0
 
 
 def upgrade_index(index: dict) -> None:
-    """Forget replay headers cached by an older version (they lack the lazer mods)."""
+    """Forget replay headers cached by an older version (they lack the lazer mods, or the speed)."""
     if index.get("v") == SCAN_VERSION:
         return
     lz = index.get("lazer")
@@ -44,7 +45,7 @@ def read_head(path: Path, n: int = HEAD_BYTES) -> bytes:
 
 
 def replay_header(path: Path, head: bytes | None = None) -> dict | None:
-    """Header fields of an .osr file (plus ``lazer_mods`` for lazer replays), or None."""
+    """Header fields of an .osr file (plus ``lazer_mods`` for lazer replays, and the speed: ``rate``), or None."""
     try:
         head = read_head(path) if head is None else head
         whole = head if len(head) < HEAD_BYTES else None
@@ -52,14 +53,18 @@ def replay_header(path: Path, head: bytes | None = None) -> dict | None:
         if h is None and whole is None and peek_header(head) is not None:  # very long life-bar string
             whole = Path(path).read_bytes()
             h = parse_header(whole)
+        speed = None
         if h and h["version"] >= 30000001:
             if whole is None:
                 whole = Path(path).read_bytes()
-            h["lazer_mods"] = lazer_mod_acronyms(lazer_info(whole))
+            info = lazer_info(whole)
+            h["lazer_mods"] = lazer_mod_acronyms(info)
+            speed = lazer_rate((info or {}).get("mods"))
     except OSError:
         return None
     if h:
         h["path"] = str(path)
+        h["rate"] = rate_from_mods(h["mods"]) if speed is None else speed
     return h
 
 

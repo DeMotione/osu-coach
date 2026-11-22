@@ -2,7 +2,7 @@ import { useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Link } from "react-router";
 
-import { ApiError, OFFLINE, type Job } from "../api/client";
+import { ApiError, isBusy, OFFLINE, type Job } from "../api/client";
 import { useJobs } from "../api/jobs";
 import { invalidateResults, useAnalysisStatus } from "../api/queries";
 import { IconFolder, IconInfo, IconWarn } from "./icons";
@@ -87,6 +87,14 @@ function NoAnalysis({ message }: { message?: string }) {
 export function ErrorCard({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const e = error instanceof ApiError ? error : null;
   const offline = e?.code === OFFLINE;
+  if (isBusy(error)) {
+    // another task holds the app: the page asks again by itself when it ends
+    return (
+      <Card>
+        <EmptyState title="Waiting for another task">{error.message} This page updates by itself then.</EmptyState>
+      </Card>
+    );
+  }
   return (
     <Card>
       <EmptyState

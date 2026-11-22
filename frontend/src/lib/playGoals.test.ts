@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import type { Schemas } from "../api/client";
-import { exportGoalMaps, GOAL_MODS, goalMods, goalRequest, matchesMap, toggleMods } from "./playGoals";
+import {
+  exportGoalMaps, GOAL_MODS, goalMods, goalModsOfLabel, goalRequest, matchesMap, modsText, toggleMods, validRate,
+} from "./playGoals";
 
-function recommendation(mods: Schemas["GoalMap"]["mods"]): Schemas["GoalRecommendation"] {
+function recommendation(mods: Schemas["GoalMap"]["mods"], rate = mods.includes("DT") ? 1.5 : 1): Schemas["GoalRecommendation"] {
   return {
     map: { md5: "a".repeat(32), beatmap_id: 1, beatmapset_id: 2, artist: "Artist", title: "Title", version: "Hard",
-      mods, client: "stable", stars: 4, bpm: 180, ar: 9, od: 8, length_s: 120 },
+      mods, rate, client: "stable", stars: 4, bpm: 180, ar: 9, od: 8, length_s: 120 },
     why: "Stream control", objective: `Play +${mods}, aim for 95%, no combo breaks.`,
     step_up: "Return after two clean attempts", practice_accuracy: 0.95, achieved: false, stage: "Starter",
   };
@@ -24,16 +26,31 @@ describe("play goals", () => {
   });
 
   it("reads a replay's mods as a goal combination, in any order (#127)", () => {
-    expect(goalMods("HDDT")).toBe("HDDT");
-    expect(goalMods("DTHD")).toBe("HDDT");
-    expect(goalMods("NCHD")).toBe("HDDT");
-    expect(goalMods("HDHRDTCL")).toBe("HDHRDT");
-    expect(goalMods("HD,DT")).toBe("HDDT");
-    expect(goalMods("NM")).toBe("NM");
-    expect(goalMods("NFSD")).toBe("NM");
+    const mods = (m: string, rate?: number) => goalMods(m, rate)?.mods;
+    expect(mods("HDDT")).toBe("HDDT");
+    expect(mods("DTHD", 1.5)).toBe("HDDT");
+    expect(mods("NCHD")).toBe("HDDT");
+    expect(mods("HDHRDTCL")).toBe("HDHRDT");
+    expect(mods("HD,DT")).toBe("HDDT");
+    expect(mods("NM", 1)).toBe("NM");
+    expect(mods("NFSD")).toBe("NM");
     expect(goalMods("EZHD")).toBeUndefined();
-    expect(goalMods("HT")).toBeUndefined();
+    expect(goalMods("HT", 0.75)).toBeUndefined();
     expect(goalMods("HDFL")).toBeUndefined();
+  });
+
+  it("keeps a replay's custom DT speed, when a goal can be at it", () => {
+    expect(goalMods("HDDT", 1.5)).toEqual({ mods: "HDDT", rate: null });
+    expect(goalMods("DTHD", 1.2)).toEqual({ mods: "HDDT", rate: 1.2 });
+    expect(goalMods("DT", 1.05)).toBeUndefined(); // from 1.10
+    expect(goalMods("HD", 1.2)).toBeUndefined(); // a speed goes with DT
+    expect(goalModsOfLabel("HDDT ×1.26")).toEqual({ mods: "HDDT", rate: 1.26 });
+    expect(goalModsOfLabel("HR")).toEqual({ mods: "HR", rate: null });
+    expect(modsText("HDDT", 1.2)).toBe("+HDDT ×1.20");
+    expect(modsText("DT", 1.5)).toBe("+DT");
+    expect(modsText("HT", 0.75)).toBe("+HT");
+    expect(validRate("DT", 1.234)).toBe(false);
+    expect(validRate("DT", null) && validRate("DT", 2) && !validRate("HR", 1.2)).toBe(true);
   });
 
   it("finds a map by every word of the search, in any case and order", () => {
@@ -55,9 +72,9 @@ describe("play goals", () => {
   });
 
   it("exports each map once but retains instructions for every configuration", () => {
-    const maps = exportGoalMaps([recommendation("HD"), recommendation("DT")]);
+    const maps = exportGoalMaps([recommendation("HD"), recommendation("DT"), recommendation("DT", 1.2)]);
     expect(maps).toHaveLength(1);
-    expect(maps[0].stage).toBe("+HD / +DT");
+    expect(maps[0].stage).toBe("+HD / +DT / +DT ×1.20");
     expect(maps[0].goal).toContain("Play +HD");
     expect(maps[0].goal).toContain("Play +DT");
     expect(maps[0].stars).toBeNull();

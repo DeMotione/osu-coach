@@ -1,61 +1,50 @@
-"""The play goals' data: the bundled goal pool (versioned offline map data) and the cached target maps and their
-configurations, independent of temporary job objects."""
+"""The play goals' data: the target map (from a replay's map, a library or a download) and its row in the goal's
+configuration, both cached in the data folder. The maps to recommend come from the pool's tables
+(:mod:`osu_coach.features.play_goals.candidates`)."""
 
 from __future__ import annotations
 
-import gzip
 import hashlib
 import json
 import math
 import os
-from functools import lru_cache
 from pathlib import Path
 
 from osu_coach.common.errors import ApiError
 from osu_coach.domain.beatmaps.models import Beatmap
-from osu_coach.domain.play_goals.pool import ACCURACIES, CONFIGS
+from osu_coach.domain.play_goals.pool import CONFIGS, config_key, standard_rate, valid_rate
 from osu_coach.infra.beatmaps.parser import parse_beatmap_bytes, read_metadata
-from osu_coach.infra.beatmaps.performance import CALCULATOR_VERSION, calculate
+from osu_coach.infra.beatmaps.performance import CALCULATOR_VERSION
 from osu_coach.infra.beatmaps.sources import download_osu
 from osu_coach.infra.map_stats import map_stats
 
-GOAL_POOL = Path(__file__).parent / "data" / "goals_pool.json.gz"
-SCHEMA_VERSION = 1
+ROW_VERSION = 2  # 2: with the configuration's speed, without the pp
 
 
-@lru_cache(maxsize=2)
-def _load(path: str, mtime: int) -> list[dict]:
-    with gzip.open(path, "rt", encoding="utf-8") as file:
-        document = json.load(file)
-    if document["schema_version"] != SCHEMA_VERSION or document["calculator_version"] != CALCULATOR_VERSION:
-        raise ValueError("The Play Goals map data must be rebuilt for this calculator version.")
-    return document["rows"]
-
-
-def load_goal_pool(path: Path = GOAL_POOL) -> list[dict]:
-    if not path.is_file():
-        raise ValueError("The bundled Play Goals map data is missing.")
-    return _load(str(path), path.stat().st_mtime_ns)
-
-
-def configuration(bm: Beatmap, osu_bytes: bytes, mods: str, client: str, status: str = "unknown") -> dict:
-    if mods not in CONFIGS or client not in ("stable", "lazer"):
+def configuration(
+    bm: Beatmap, osu_bytes: bytes, mods: str, client: str, rate: float | None = None, status: str = "unknown"
+) -> dict:
+    """The map's row in the combination ``mods`` at ``rate`` (default: the combination's own speed)."""
+    rate = standard_rate(mods) if rate is None else rate
+    if mods not in CONFIGS or client not in ("stable", "lazer") or not valid_rate(mods, rate):
         raise ValueError("Unsupported play-goal configuration.")
-    stats = map_stats(bm, osu_bytes, CONFIGS[mods])
+    stats = map_stats(bm, osu_bytes, CONFIGS[mods], rate)
     if not stats or not stats.get("stars"):
         raise ValueError("The map has no supported difficulty or too few playable objects.")
     return {
         **stats,
+        "config": config_key(mods, rate),
         "mods": mods,
+        "rate": rate,
         "client": client,
         "status": status,
         "length_s": stats["drain_length"],
-        "pp_curve": [{"accuracy": acc, "pp": calculate(osu_bytes, CONFIGS[mods], client, acc)} for acc in ACCURACIES],
     }
 
 
-def target_bytes(cache_dir: Path, beatmap_id: int, libraries: list, online: bool, pool: list[dict]) -> bytes:
-    known = next((r["md5"] for r in pool if r["beatmap_id"] == beatmap_id), None)
+def target_bytes(cache_dir: Path, beatmap_id: int, libraries: list, online: bool, known: str | None = None) -> bytes:
+    """The .osu file of a difficulty: from a library, the data folder or a download. ``known``: its MD5 when the
+    pool has it (a file must then be that one)."""
     if known:
         for library in libraries:
             path = library.maps.get(known)
@@ -79,7 +68,8 @@ def target_bytes(cache_dir: Path, beatmap_id: int, libraries: list, online: bool
         raise ApiError(
             409,
             "goal_map_offline",
-            "This difficulty is not cached. Allow downloading its beatmap or choose a local replay.",
+            "This difficulty is not cached. Turn on downloading missing beatmaps in Settings, or choose a local "
+            "replay.",
         )
     data = download_osu(beatmap_id, expected_md5=known)
     if data is None:
@@ -95,10 +85,13 @@ def target_bytes(cache_dir: Path, beatmap_id: int, libraries: list, online: bool
     return data
 
 
-def target_configuration(cache_dir: Path, raw: bytes, mods: str, client: str) -> dict:
+def target_configuration(cache_dir: Path, raw: bytes, mods: str, client: str, rate: float | None = None) -> dict:
+    """The target's row in the combination at ``rate`` (default: its own speed), cached by map, configuration,
+    client and calculator."""
     md5 = hashlib.md5(raw).hexdigest()
+    config = config_key(mods, rate)
     directory = cache_dir / "play-goals" / "configurations"
-    key = f"{md5}-{mods}-{client}-{CALCULATOR_VERSION}-v1"
+    key = f"{md5}-{config.replace(' ', '-')}-{client}-{CALCULATOR_VERSION}-v{ROW_VERSION}"
     path = directory / f"{key}.json"
     if path.is_file():
         try:
@@ -107,10 +100,15 @@ def target_configuration(cache_dir: Path, raw: bytes, mods: str, client: str) ->
             raise ApiError(
                 422, "goal_cache_invalid", "The cached target configuration is unreadable. Remove it and assess again."
             ) from exc
-        if not isinstance(row, dict) or row.get("md5") != md5 or row.get("mods") != mods or row.get("client") != client:
+        if (
+            not isinstance(row, dict)
+            or row.get("md5") != md5
+            or row.get("config") != config
+            or row.get("client") != client
+        ):
             raise ApiError(422, "goal_cache_invalid", "The cached target configuration has an invalid identity.")
         return row
-    row = configuration(parse_beatmap_bytes(raw), raw, mods, client)
+    row = configuration(parse_beatmap_bytes(raw), raw, mods, client, rate)
     row = {k: None if isinstance(v, float) and not math.isfinite(v) else v for k, v in row.items()}
     directory.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")

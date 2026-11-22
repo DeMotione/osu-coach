@@ -11,9 +11,9 @@ import { ModPicker } from "../components/ModPicker";
 import { OpenInLazer } from "../components/OpenInLazer";
 import { StageNav } from "../components/StageNav";
 import { EmptyState, ErrorCard, JobStatus, LoadingPage } from "../components/states";
-import { Alert, Badge, Card, Field, Page, Switch, Tabs } from "../components/ui";
-import { clock, fmt, pct, stars } from "../lib/format";
-import { exportGoalMaps, GOAL_MODS, goalMods, goalRequest } from "../lib/playGoals";
+import { Alert, Badge, Card, Field, Page, Tabs } from "../components/ui";
+import { clock, fmt, mapName, pct, stars } from "../lib/format";
+import { exportGoalMaps, GOAL_MODS, goalModsOfLabel, goalRequest, modsText, validRate } from "../lib/playGoals";
 import { STAGE_SIZE, stageMaps, useRounds } from "../lib/playlist";
 
 type Request = Schemas["PlayGoalRequest"];
@@ -56,13 +56,13 @@ function GoalForm({ goal, options, path, beatmap, client, mods }: {
   goal: Goal; options: Schemas["PlayGoalOptions"]; path: string | null; beatmap: string | null; client: string | null; mods: string | null;
 }) {
   const [request, setRequest] = useState<Request>(() => {
-    const targetMods = mods ? goalMods(mods) : undefined;
+    const targetMods = mods ? goalModsOfLabel(mods) : undefined;
     return {
       ...goalRequest(goal, options.last_request),
       ...(path ? { replay_path: path, beatmap: null } : {}),
       ...(beatmap && !path ? { beatmap, replay_path: null } : {}),
       ...(client === "lazer" || client === "stable" ? { client } : {}),
-      ...(targetMods ? { mods: targetMods } : {}),
+      ...(targetMods ? { mods: targetMods.mods, rate: targetMods.rate } : {}),
     };
   });
   const job = useJob("play_goal");
@@ -86,7 +86,8 @@ function GoalForm({ goal, options, path, beatmap, client, mods }: {
     started.current = true;
     void run(() => unwrap(api.POST("/api/play-goals", { body: request })));
   }, [goal, path, beatmap, request, run]);
-  const invalid = goal === "fc" && !request.replay_path && !request.beatmap?.trim();
+  const invalid = (goal === "fc" && !request.replay_path && !request.beatmap?.trim())
+    || !validRate(request.mods ?? "NM", request.rate) || !validRate(request.training_mod ?? "HD", request.training_rate);
   return (
     <>
       <Card
@@ -101,15 +102,16 @@ function GoalForm({ goal, options, path, beatmap, client, mods }: {
         {goal === "fc" && <FcTargetPicker request={request} update={update} />}
         <div className="controls">
           {goal === "fc" && (request.replay_path && !editMods ? (
-            <p>Mods: <strong>+{request.mods}</strong> (from your replay){" "}
+            <p>Mods: <strong>{modsText(request.mods ?? "NM", request.rate)}</strong> (from your replay){" "}
               <button type="button" className="btn btn--sm" onClick={() => setEditMods(true)}>Change</button></p>
           ) : (
-            <ModPicker label="Mods you want to FC with" allowNone value={request.mods}
-              onChange={(mods) => update({ mods })} />
+            <ModPicker label="Mods you want to FC with" allowNone value={request.mods ?? "NM"}
+              onChange={(mods) => update({ mods })} rate={request.rate} onRate={(rate) => update({ rate })} />
           ))}
           {goal === "mod" && (
-            <ModPicker label="Training mods" value={request.training_mod}
-              onChange={(mods) => update({ training_mod: mods as Request["training_mod"] })} />
+            <ModPicker label="Training mods" value={request.training_mod ?? "HD"}
+              onChange={(mods) => update({ training_mod: mods as Request["training_mod"] })}
+              rate={request.training_rate} onRate={(training_rate) => update({ training_rate })} />
           )}
         </div>
         {goal === "farm" && (
@@ -123,7 +125,6 @@ function GoalForm({ goal, options, path, beatmap, client, mods }: {
           </fieldset>
         )}
         <div className="controls">
-          <Switch label="Allow missing target beatmap downloads" checked={request.online ?? true} onChange={(online) => update({ online })} />
           <button type="button" className="btn btn--primary" disabled={job.running || invalid || !request.farm_mods?.length} onClick={submit}>
             {goal === "fc" ? "Assess my FC goal" : goal === "farm" ? "Find maps" : "Find training maps"}
           </button>
@@ -174,13 +175,13 @@ function AccuracyRange({ value }: { value: Accuracy | null | undefined }) {
 function playColumns(farm: boolean, estimates: boolean): Column<Recommendation>[] {
   return [
     { key: "map", header: "Map", strong: true, wrap: true,
-      value: (r) => `${r.map.artist} - ${r.map.title} [${r.map.version}]`,
+      value: (r) => mapName(r.map),
       cell: (r) => <>
         <a href={`https://osu.ppy.sh/beatmaps/${r.map.beatmap_id}`} target="_blank" rel="noreferrer noopener">
-          {r.map.artist} - {r.map.title} [{r.map.version}]</a>{" "}
+          {mapName(r.map)}</a>{" "}
         <OpenInLazer beatmapId={r.map.beatmap_id} iconOnly />
       </> },
-    { key: "mods", header: "Mods", cell: (r) => <Badge tone="info">+{r.map.mods}</Badge>, value: (r) => r.map.mods },
+    { key: "mods", header: "Mods", cell: (r) => <Badge tone="info">{modsText(r.map.mods, r.map.rate)}</Badge>, value: (r) => r.map.mods },
     { key: "type", header: "Type", cell: (r) => r.map.dynamics ?? "", wrap: true, title: "The map's overall character." },
     { key: "stage", header: "Stage", cell: (r) => r.stage, title: "Starter: no data yet. Core: your level. Stretch: a bit above it." },
     { key: "stars", header: "Stars", cell: (r) => stars(r.map.stars), value: (r) => r.map.stars, align: "right" },
@@ -213,8 +214,8 @@ function GoalResults({ result }: { result: Result }) {
   return (
     <>
       {result.request.goal === "fc" && <Card title={result.verdict} className={`verdict verdict--${result.tone}`}>
-        {result.target && <p><strong>{result.target.artist} - {result.target.title} [{result.target.version}]</strong>{" "}
-          +{result.target.mods} / {stars(result.target.stars)}{" "}
+        {result.target && <p><strong>{mapName(result.target)}</strong>{" "}
+          {modsText(result.target.mods, result.target.rate)} / {stars(result.target.stars)}{" "}
           {result.target.dynamics && <Badge tone="info">{result.target.dynamics}</Badge>}</p>}
         <ul className="list list--bullets">{result.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
         {result.request.goal === "fc" && <AccuracyRange value={result.accuracy} />}

@@ -7,7 +7,7 @@ import pytest
 
 from osu_coach.domain.player.messages import Message
 from osu_coach.domain.player.records import SkillRating
-from osu_coach.infra import clock
+from osu_coach.infra import clock, progress
 from osu_coach.infra.settings import load_settings, save_settings
 from tests.conftest import workspace
 
@@ -406,3 +406,26 @@ def test_another_engines_goal_is_hidden_and_one_in_another_unit_paused(analysed)
     r = analysed.post("/api/goals", json={"skill": "stamina", "target": 7.0, "deadline": deadline})
     assert r.status_code == 201 and "comfort" not in {x["id"] for x in r.json()["open"]}
     assert "comfort" in {x["id"] for x in load_settings(ws.cache_dir)["goals"]}
+
+
+def test_star_levels_by_period_and_a_star_goals_daily_line(analysed):
+    """Star Levels: Progress charts the periods' star levels, and a goal in stars follows the saved rolling days."""
+    days = [r["key"] for r in analysed.get("/api/progress", params={"period": "day"}).json()["rows"]]
+    conn = progress.connect(workspace(analysed).cache_dir)
+    with conn:  # what the analysis saves with five plays or more (the three here are too few)
+        conn.executemany(
+            "INSERT INTO month_metrics VALUES ('Mot1one', ?, ?, ?, 4, '')",
+            [("2026-09", "stars_aim", 6.4), ("2026-09", "stars_aim_low", 6.1), ("2026-09", "stars_aim_high", 6.7)]
+            + [(f"rolling:{day}", "stars_speed", 6.5 + i / 10) for i, day in enumerate(days)],
+        )
+    assert analysed.get("/api/progress").json()["unit"] == "score"
+    _star_levels(analysed)
+    m = analysed.get("/api/progress").json()
+    assert m["unit"] == "stars"
+    assert m["rows"][-1]["star_levels"]["aim"] == {"stars": 6.4, "low": 6.1, "high": 6.7}
+    deadline = (TODAY + dt.timedelta(days=14)).isoformat()
+    r = analysed.post("/api/goals", json={"skill": "speed", "target": 7.3, "deadline": deadline})
+    [history] = r.json()["history"]
+    assert [(p["day"], p["score"]) for p in history["points"]] == [
+        (day, pytest.approx(6.5 + i / 10)) for i, day in enumerate(days)
+    ]

@@ -166,6 +166,20 @@ class UserSettings:
         """Analyse new plays by themselves."""
         return _bool(self.values.get("auto_analyse"))
 
+    @property
+    def skipped_installs(self) -> list[str]:
+        """The osu! installs found on this computer whose replays aren't read (their folders)."""
+        return _strs(self.values.get("skipped_installs")) or []
+
+    @property
+    def download_maps(self) -> bool:
+        """Download the beatmaps that aren't on this computer (on unless switched off)."""
+        return _bool(self.values.get("download_maps")) is not False
+
+    def online(self, asked: bool | None) -> bool:
+        """Whether to download a missing beatmap: what a request asked for, else :attr:`download_maps`."""
+        return self.download_maps if asked is None else asked
+
     # the setup and the first start
     @property
     def client(self) -> str | None:

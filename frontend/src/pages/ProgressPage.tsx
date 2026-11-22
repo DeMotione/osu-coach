@@ -5,7 +5,7 @@ import { isApiError, type Schemas } from "../api/client";
 import { useMeta, useProgress, useProgressPlayers, useProgressPlays, useSettings } from "../api/queries";
 import { Chart } from "../charts/Chart";
 import type { ChartTheme } from "../charts/palette";
-import { playedChart, skillsChart, starsChart } from "../charts/progress";
+import { playedChart, skillsChart, starLevelsChart, starsChart } from "../charts/progress";
 import { DataTable } from "../components/DataTable";
 import { DateRangePicker } from "../components/DateRangePicker";
 import { IconTrend } from "../components/icons";
@@ -109,6 +109,7 @@ export default function ProgressPage() {
             player={q.data.player}
             reference={q.data.skill_reference_stars}
             replays={q.data.replays}
+            unit={q.data.unit}
           />
         ) : (
           <Card>
@@ -139,12 +140,15 @@ function ProgressBody({
   player,
   reference,
   replays,
+  unit,
 }: {
   rows: PRow[];
   period: Period;
   player: string;
   reference: number | null;
   replays: Replays;
+  /** what the chosen engine rates skills in: scores, or star levels (Star Levels) */
+  unit: Schemas["ProgressOut"]["unit"];
 }) {
   const meta = useMeta();
   const word = WORD[period];
@@ -153,8 +157,13 @@ function ProgressBody({
   const skills = useMemo(() => (meta.data?.skills ?? []).map((s) => ({ key: s.key, label: shortLabel(s.label) })), [meta.data]);
   const stars = useCallback((t: ChartTheme) => starsChart(rows, t), [rows]);
   const played = useCallback((t: ChartTheme) => playedChart(rows, t), [rows]);
-  const skillChart = useCallback((t: ChartTheme) => skillsChart(rows, skills, t), [rows, skills]);
-  const hasSkills = rows.some((r) => Object.values(r.skills).some((v) => v !== null));
+  const inStars = unit === "stars";
+  const skillChart = useCallback(
+    (t: ChartTheme) => (inStars ? starLevelsChart(rows, skills, t) : skillsChart(rows, skills, t)),
+    [rows, skills, inStars],
+  );
+  const hasSkills = rows.some((r) =>
+    inStars ? Object.keys(r.star_levels ?? {}).length > 0 : Object.values(r.skills).some((v) => v !== null));
   return (
     <>
       <Tiles n={6}>
@@ -186,13 +195,17 @@ function ProgressBody({
       </Row>
       <Card
         title={`Skills by ${word}`}
-        hint={`The same skill ratings as the Overview's chart, every ${word} rated at ${replays === "analysed" ? "the Overview's" : "your"} comfort level${reference !== null ? ` (${starsText(reference, 1)})` : ""}: 50 = what maps of that level demand (not a typical player), higher = you played the skill better that ${word}. ${replays === "analysed" ? "Only the replays of your last analysis (the ones the Overview shows); pick All saved for your whole history." : "Every play saved, also from earlier analyses."} Click a skill in the legend to hide or show it. Hollow points: fewer than 5 plays.`}
+        hint={inStars
+          ? `Star Levels: each skill's star level every ${word}, fitted to every play saved of that ${word} alone (the star rating it holds up on, as the Overview's). Point at a ${word} for each level's 90% range. Click a skill in the legend to hide or show it. Hollow points: fewer than 5 plays.`
+          : `The same skill ratings as the Overview's chart, every ${word} rated at ${replays === "analysed" ? "the Overview's" : "your"} comfort level${reference !== null ? ` (${starsText(reference, 1)})` : ""}: 50 = what maps of that level demand (not a typical player), higher = you played the skill better that ${word}. ${replays === "analysed" ? "Only the replays of your last analysis (the ones the Overview shows); pick All saved for your whole history." : "Every play saved, also from earlier analyses."} Click a skill in the legend to hide or show it. Hollow points: fewer than 5 plays.`}
       >
         {hasSkills ? (
-          <Chart build={skillChart} height={360} label="Skill scores by period" />
+          <Chart build={skillChart} height={360} label={inStars ? "Skill star levels by period" : "Skill scores by period"} />
         ) : (
-          <EmptyState title="No skill scores yet">
-            {`Skill ratings need 5+ plays in a ${word}, with 3+ different maps for a skill. Scores saved by an earlier version aren't shown: analyse your replays again (Replays page) to rate every ${word}.`}
+          <EmptyState title={inStars ? "No star levels yet" : "No skill scores yet"}>
+            {inStars
+              ? `Star levels need 5+ plays in a ${word}. They are worked out when your replays are analysed: analyse them again (Replays page) to fit every ${word}.`
+              : `Skill ratings need 5+ plays in a ${word}, with 3+ different maps for a skill. Scores saved by an earlier version aren't shown: analyse your replays again (Replays page) to rate every ${word}.`}
           </EmptyState>
         )}
       </Card>

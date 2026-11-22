@@ -14,6 +14,7 @@ class CheckReplay(BaseModel):
     player: str
     map: str
     mods: str
+    rate: float = Field(1.0, description="The speed: DT's 1.5, a custom lazer speed, HT's 0.75, else 1.")
     accuracy: float | None
     beatmap_md5: str | None
     analysable: bool
@@ -30,7 +31,7 @@ class CheckList(BaseModel):
 
 class CheckRequest(Request):
     path: str = Field(min_length=1, max_length=4000)
-    online: bool = Field(True, description="Download the beatmap if it's missing.")
+    online: bool | None = Field(None, description="Download missing beatmaps; null = the download_maps setting.")
 
 
 class CheckSummary(BaseModel):

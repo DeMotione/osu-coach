@@ -4,7 +4,6 @@ import { Link, useNavigate } from "react-router";
 import { api, unwrap, type Schemas } from "../api/client";
 import { useJob } from "../api/jobs";
 import {
-  uploadFiles,
   useAnalysedReplays,
   useForgetFiles,
   useAnalysisStatus,
@@ -14,6 +13,7 @@ import {
   usePatchSettings,
   useSelection,
   useSettings,
+  useUpload,
 } from "../api/queries";
 import { DataTable, type Column } from "../components/DataTable";
 import { DateRangePicker } from "../components/DateRangePicker";
@@ -57,25 +57,21 @@ function FindCard({ settings }: { settings: Settings }) {
   const patch = usePatchSettings();
   const scan = useJob("scan");
   const analysis = useJob("analysis");
-  const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [folders, setFolders] = useState(settings.folders);
   const [uploads, setUploads] = useState<Schemas["UploadedFile"][]>([]);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const { upload, error: uploadError } = useUpload();
   const forget = useForgetFiles();
   const filesMode = settings.source_mode === "files";
   const busy = scan.running || analysis.running;
   // files added by hand are kept across scans (#38): the ones the library has, then the ones dropped since
   const kept = library.data?.files ?? [];
   const added = [...kept, ...uploads.filter((u) => !kept.some((k) => k.id === u.id))];
+  // the installs to read are chosen in Settings (osu! installs)
+  const read = (installs.data ?? []).filter((i) => !settings.skipped_installs.includes(i.root));
 
   const addFiles = async (files: File[]) => {
-    setUploadError(null);
-    try {
-      const added = await uploadFiles(files);
-      setUploads((u) => [...u.filter((x) => !added.some((a) => a.id === x.id)), ...added]);
-    } catch (e) {
-      setUploadError((e as Error).message);
-    }
+    const added = await upload(files);
+    if (added) setUploads((u) => [...u.filter((x) => !added.some((a) => a.id === x.id)), ...added]);
   };
 
   // every replay is read; how many of them to analyse is chosen in the Analyse card (#36)
@@ -85,7 +81,6 @@ function FindCard({ settings }: { settings: Settings }) {
         api.POST("/api/library/scan", {
           body: {
             mode: settings.source_mode,
-            installs: (installs.data ?? []).map((i) => i.root).filter((r) => !excluded.has(r)),
             folders: folders.split("\n").map((f) => f.trim()).filter(Boolean),
             files: uploads.map((u) => u.id),
           },
@@ -116,31 +111,19 @@ function FindCard({ settings }: { settings: Settings }) {
         />
       ) : (
         <>
-          <Field label="osu! installs found">
+          <div className="field">
+            <span className="field__label">osu! installs</span>
             {installs.data && installs.data.length > 0 ? (
-              <div className="stack" style={{ gap: 8 }}>
-                {installs.data.map((inst) => (
-                  <label key={inst.root} className="check">
-                    <input
-                      type="checkbox"
-                      checked={!excluded.has(inst.root)}
-                      onChange={(e) => {
-                        const next = new Set(excluded);
-                        if (e.target.checked) next.delete(inst.root);
-                        else next.add(inst.root);
-                        setExcluded(next);
-                      }}
-                    />
-                    <span className="check__text">{inst.label}</span>
-                  </label>
-                ))}
-              </div>
+              <p className="small installs-read">
+                {read.length ? `Reads ${read.map((i) => i.label).join(" and ")}.` : "Reads none of them: all are switched off."}{" "}
+                <Link to="/settings">Choose in Settings</Link>
+              </p>
             ) : (
               <p className="muted small">
                 No osu! installation was found automatically on this computer. Add a folder below or drop replay files.
               </p>
             )}
-          </Field>
+          </div>
           <Field
             label="Extra folders (one per line)"
             hint="Searched recursively for .osr replays and .osu beatmaps. osu!stable keeps your replays in <osu!>/Data/r; in lazer use the Export button on the results screen (files land in <lazer data>/exports)."
@@ -226,7 +209,7 @@ function AnalyseCard({ settings }: { settings: Settings }) {
   const scan = useJob("scan");
   const analysis = useJob("analysis");
   const [player, setPlayer] = useState<string | null>(settings.player ?? null);
-  const [online, setOnline] = useState(true);
+  const online = settings.download_maps; // Settings → Missing beatmaps
   const busy = scan.running || analysis.running;
   const scanned = !!library.data?.scanned;
   const params = {
@@ -270,7 +253,7 @@ function AnalyseCard({ settings }: { settings: Settings }) {
 
   const analyse = () =>
     analysis.run(() =>
-      unwrap(api.POST("/api/analysis", { body: { ...params, player: chosen ?? null, online } })),
+      unwrap(api.POST("/api/analysis", { body: { ...params, player: chosen ?? null } })),
     );
 
   return (
@@ -344,12 +327,6 @@ function AnalyseCard({ settings }: { settings: Settings }) {
             />
           </Field>
           <Switch
-            checked={online}
-            onChange={setOnline}
-            label="Download missing beatmaps from the internet"
-            hint="Looks the map up by its MD5 on osu.direct and downloads the .osu from osu.ppy.sh (verified against the replay)."
-          />
-          <Switch
             checked={settings.auto_analyse}
             onChange={(v) => patch.mutate({ auto_analyse: v })}
             label="Analyse new plays automatically"
@@ -361,7 +338,7 @@ function AnalyseCard({ settings }: { settings: Settings }) {
               <p className="muted">
                 {sel.newest_only ? `The newest ${int(sel.replays)} replays` : `${int(sel.replays)} replays`} of {who}
                 {when} will be analysed · {int(sel.missing_maps)} of their beatmaps are not on this computer
-                {online && sel.missing_maps > 0 ? " (they will be downloaded)" : ""}.
+                {sel.missing_maps > 0 ? (online ? " (they will be downloaded)" : " (downloading is off in Settings)") : ""}.
               </p>
               {sel.empty_range && <Alert tone="warn">No replays in that time range — choose a longer one.</Alert>}
               {sel.replays > 0 && <EstimateNote sel={sel} online={online} />}

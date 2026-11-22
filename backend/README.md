@@ -51,19 +51,18 @@ need ten completed comparable plays across five maps, capped at two observations
 not calibrated probabilities. Missing evidence remains null; practice objectives are separate instructions.
 
 `beatmaps/performance.py` calculates explicit PP scenarios with pinned rosu-pp and conservative hit-result generation.
-Broken lazer plays without slider outcomes are rejected. The separate `maps/data/goals_pool.json.gz` contains ranked
-map configurations, FC PP samples and calculator/schema provenance; it leaves the original NoMod pool unchanged.
+Broken lazer plays without slider outcomes are rejected. The maps to play come from the whole bundled pool: its map
+table (`infra/data/pool_variants.npz`) holds every pool map with HD, HR and DT at every speed from 1.10 to 2.00, and
+its pp table (`infra/data/pool_pp.npz`, for Farm PP) the FC pp at 90-100% accuracy of the eight goal mod combinations
+on stable and lazer. `play_goals/candidates.py` reads them as arrays and makes rows of the most promising maps only.
 
-Regenerate the companion data from the repository root:
+Rebuild the pp table after the pool and after a new rosu-pp (a few minutes on all cores):
 
 ```sh
-python backend/tools/build_goal_pool.py /path/to/public-osu-cache --fetch --count 64
+python backend/tools/build_pp_table.py RAW_DIR
 ```
 
-The builder selects aim/speed examples across quarter-star bands, verifies downloaded checksums, and produces
-deterministic compressed output. `--fetch` downloads only missing public raw maps; omit it to rebuild offline.
-The current selection has 62 distinct difficulties, each with eight mod combinations for stable and lazer.
-Rebuild after changing calculator versions. Missing/incompatible companion data is an explicit API error.
+Missing/incompatible tables are an explicit API error (`goal_pool_unavailable`, `goal_pp_unavailable`).
 
 Goal inputs persist in settings; downloaded targets and versioned target configurations are cached under
 `play-goals/` inside the data directory. Job IDs/results are transient and are not restored as fresh assessments.

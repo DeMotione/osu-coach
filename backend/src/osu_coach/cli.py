@@ -18,6 +18,7 @@ from pathlib import Path
 
 from osu_coach.common import frames
 from osu_coach.common.texts import MISS_LABELS, SKILL_LABELS, message
+from osu_coach.config import Settings as Config
 from osu_coach.config import default_cache_dir
 from osu_coach.domain.exports.downloads import sets_to_download
 from osu_coach.domain.maps.suggestions import (
@@ -33,6 +34,7 @@ from osu_coach.domain.player.records import UNRATED
 from osu_coach.domain.player.setup import Setup
 from osu_coach.domain.replays import scope
 from osu_coach.domain.replays.eligibility import EXCLUDE_MODS, skip_reason
+from osu_coach.domain.replays.models import mods_label
 from osu_coach.features.check import report as check
 from osu_coach.features.maps.playlists import build_playlist, recommendations
 from osu_coach.features.tips.rules import make_tips, practice_plan, setup_advice
@@ -43,7 +45,7 @@ from osu_coach.infra.exports.collection_db import merge_into, write_collection_d
 from osu_coach.infra.library import Library
 from osu_coach.infra.map_pool import load_pool
 from osu_coach.infra.replays import detect
-from osu_coach.infra.settings import load_settings, save_settings
+from osu_coach.infra.settings import load_settings, read_settings, save_settings
 
 SEVERITY = {3: "HIGH", 2: "MED ", 1: "LOW "}
 
@@ -78,6 +80,19 @@ def _setup_from(args) -> Setup:
     return Setup(**s)
 
 
+def _installs(args) -> list[detect.Install]:
+    """The osu! installs the app reads: the ones found on this computer and the folders entered in the app."""
+    extra = read_settings(args.cache).install_paths or []
+    return detect.find_installs(extra=[Path(p) for p in extra])
+
+
+def _oldest() -> float | None:
+    """The oldest play a library scan reads, as the app's (``OSU_COACH_RECENT_DAYS``; None: any age)."""
+    days = Config().recent_days
+    days = scope.RECENT_DAYS if days is None else days
+    return scope.recent_start(clock.now(), days).timestamp() if days else None
+
+
 def _discover(args, log) -> Library:
     lib = Library(args.cache)
     if getattr(args, "only", None):
@@ -88,7 +103,7 @@ def _discover(args, log) -> Library:
         log(f"analysing only {len(files)} file(s)")
         lib.add_files(files, source="file")
         if not args.no_auto:  # their beatmaps may be in the osu! installs or the folders
-            for inst in detect.find_installs():
+            for inst in _installs(args):
                 lib.add_map_source(inst)
         for f in args.folder or []:
             lib.add_folder(f, maps_only=True)
@@ -96,12 +111,17 @@ def _discover(args, log) -> Library:
     latest = args.limit or None
     if latest:
         log(f"reading only the newest {latest} replays" + (f" of {args.player}" if args.player else ""))
+    oldest = _oldest()  # the last year's plays, as the app reads them
     if not args.no_auto:
-        for inst in detect.find_installs():
+        skipped = set(read_settings(args.cache).skipped_installs)
+        for inst in _installs(args):
+            if str(inst.root) in skipped:
+                log(f"skipping {inst.label} (switched off in the app's Settings)")
+                continue
             log(f"found {inst.label}")
-            lib.add_install(inst, progress=log, latest=latest, player=args.player)
+            lib.add_install(inst, progress=log, latest=latest, player=args.player, oldest=oldest)
     for f in args.folder or []:
-        lib.add_folder(f, latest=latest, player=args.player)
+        lib.add_folder(f, latest=latest, player=args.player, oldest=oldest)
     return lib
 
 
@@ -130,7 +150,7 @@ def _analyze(args, log):
             f"No replays for player '{player}'. Players found: " + ", ".join(f"{p} ({n})" for p, n in players)
         )
     missing = lib.missing_maps(refs, progress=log)
-    if missing and not args.offline:
+    if missing and not args.offline and read_settings(args.cache).download_maps:
         log(f"downloading {len(missing)} missing beatmap(s)…")
         lib.fetch_missing(missing)
 
@@ -282,11 +302,17 @@ def cmd_analyze(args) -> int:
         f"Judgement check: re-simulated results match the replay exactly on {ov.sim_exact_share:.0%} of "
         f"replays ({ov.sim_agreement:.1%} of judgements)"
     )
-    print("\nSkills (0-100, 50 = what maps at your comfort level ask for, assumed; higher is better)")
+    in_stars = not make_engine(prof.engine).uses_level
+    if in_stars:
+        print("\nSkills (star levels: the map star rating each skill holds up on; the bar is the 0-100 score)")
+    else:
+        print("\nSkills (0-100, 50 = what maps at your comfort level ask for, assumed; higher is better)")
     for k, label in SKILL_LABELS.items():
         s = prof.skill_ratings.get(k, UNRATED)
         score = s.score
         note = f"{_num(score, '.0f'):>3}" if score is not None else "  ?"
+        if in_stars and s.stars is not None:
+            note += f"  {s.stars:.2f}★"
         why = f"{s.maps} map/mod setups" if score is not None else (message(s.reason) or "not enough data")
         print(f"  {label:<32} {_bar(score)} {note}  ({why})")
     print("Strengths: " + (", ".join(SKILL_LABELS[k] for k in prof.strengths) or "–"))
@@ -562,7 +588,7 @@ def _print_check(a, cmp: dict) -> None:
     m = a.meta.to_dict()
     length = s["length_s"] or 0
     rate = s["rate"] or 1.0
-    mods = check.mods_label(s["mods"], rate)
+    mods = mods_label(s["mods"], rate)
     print(f"\nDetailed map analysis — {s['player'] or '(no name)'}, {check.local_time(s['date'])} (osu!{s['client']})")
     print(
         f"{s['map']} · {mods} · {s['stars'] or 0:.2f}★ · {s['bpm'] or 0:.0f} BPM · "
@@ -690,7 +716,11 @@ def build_parser() -> argparse.ArgumentParser:
             metavar="REPLAY.osr",
             help="analyse only these replay files (repeatable), not your library",
         )
-        p.add_argument("--offline", action="store_true", help="don't download missing beatmaps")
+        p.add_argument(
+            "--offline",
+            action="store_true",
+            help="don't download missing beatmaps (otherwise: as the app's Settings say)",
+        )
         p.add_argument("--workers", type=int, help="parallel analysis processes")
         p.add_argument("--cache", help="cache folder (default: per-user cache dir)")
         p.add_argument("-q", "--quiet", action="store_true")

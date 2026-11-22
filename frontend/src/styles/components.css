@@ -208,6 +208,18 @@
   font-size: var(--t-sm);
 }
 
+/* DT's speed next to the mod chips: a short number field */
+.modpicker__speed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--t-sm);
+}
+
+.modpicker__speed .input {
+  width: 6.5em;
+}
+
 /* a verdict is the headline of the page: tinted, with a coloured edge and a big coloured title */
 .card.verdict {
   --tone: var(--info);
@@ -235,6 +247,12 @@
   color: var(--tone);
   font-size: 1.5rem;
   font-weight: 700;
+}
+
+/* the osu! installs a scan reads (their folders): a long path breaks anywhere */
+.installs-read {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 /* FC a map: the chosen target under the list of replays (a long beatmap link breaks anywhere) */
@@ -907,29 +925,29 @@ input[type="range"] {
   .completed-maps .table td:nth-child(4)::before { display: none; }
 }
 
-/* FC a map's replays: a table, and on narrow cards a card per replay (map, then mods · accuracy · played · player) */
-.fc-replays { container-type: inline-size; min-width: 0; }
+/* a replay picker (Detailed Map Analysis, FC a map): a table, and on narrow cards a card per replay (map, then mods · accuracy · played · player) */
+.replay-picker { container-type: inline-size; min-width: 0; }
 
 @container (max-width: 520px) {
-  .fc-replays .table,
-  .fc-replays .table tbody { display: block; width: 100%; }
-  .fc-replays .table thead { display: none; }
-  .fc-replays .table tr {
+  .replay-picker .table,
+  .replay-picker .table tbody { display: block; width: 100%; }
+  .replay-picker .table thead { display: none; }
+  .replay-picker .table tr {
     display: grid;
     grid-template-columns: auto auto minmax(0, 1fr) auto;
     grid-template-areas: "map map map map" "mods acc played player";
     border-bottom: 1px solid var(--border);
   }
-  .fc-replays .table td,
-  .fc-replays .table td.num,
-  .fc-replays .table td.wrap { display: block; min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; border: 0; }
-  .fc-replays .table td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--t-xs); margin-bottom: 3px; }
-  .fc-replays .table td:nth-child(1) { grid-area: map; }
-  .fc-replays .table td:nth-child(1)::before { display: none; }
-  .fc-replays .table td:nth-child(2) { grid-area: mods; }
-  .fc-replays .table td:nth-child(3) { grid-area: acc; }
-  .fc-replays .table td:nth-child(4) { grid-area: played; }
-  .fc-replays .table td:nth-child(5) { grid-area: player; }
+  .replay-picker .table td,
+  .replay-picker .table td.num,
+  .replay-picker .table td.wrap { display: block; min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; border: 0; }
+  .replay-picker .table td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--t-xs); margin-bottom: 3px; }
+  .replay-picker .table td:nth-child(1) { grid-area: map; }
+  .replay-picker .table td:nth-child(1)::before { display: none; }
+  .replay-picker .table td:nth-child(2) { grid-area: mods; }
+  .replay-picker .table td:nth-child(3) { grid-area: acc; }
+  .replay-picker .table td:nth-child(4) { grid-area: played; }
+  .replay-picker .table td:nth-child(5) { grid-area: player; }
 }
 
 /* a finished map in a playlist: its name under a "Completed" check */

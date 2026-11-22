@@ -34,6 +34,14 @@ class AppSettings(BaseModel):
     auto_analyse: bool = Field(
         True, description="Analyse new plays by themselves: the replays osu! saves while osu! coach runs."
     )
+    skipped_installs: list[str] = Field(
+        [], description="osu! installs found on this computer whose replays aren't read (folders)."
+    )
+    download_maps: bool = Field(
+        True,
+        description="Download the beatmaps that aren't on this computer (osu.direct lookup, osu.ppy.sh file): for "
+        "analyses, Detailed Map Analysis and Play Goals.",
+    )
 
 
 class SettingsPatch(Request):
@@ -52,6 +60,8 @@ class SettingsPatch(Request):
     manual_comfort: float | None = Field(None, ge=1.0, le=8.0)
     onboarded: bool | None = None
     auto_analyse: bool | None = None
+    skipped_installs: list[str] | None = Field(None, max_length=50)
+    download_maps: bool | None = None
 
 
 class SetupUpdate(SetupModel, Request):

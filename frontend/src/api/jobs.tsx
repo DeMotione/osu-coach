@@ -2,7 +2,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { ApiError, api, unwrap, type Job } from "./client";
+import { ApiError, api, isBusy, unwrap, type Job } from "./client";
 import { invalidateLibrary, invalidateResults, useAnalysisStatus } from "./queries";
 
 /** One slot per kind of background work: starting a new job replaces the slot's last one. */
@@ -43,6 +43,8 @@ export function JobsProvider({ children }: { children: ReactNode }) {
 
   const finished = useCallback(
     (job: Job) => {
+      // what was refused while the job held the app ("busy"), however it ended: ask again now
+      void qc.refetchQueries({ predicate: (query) => isBusy(query.state.error) });
       if (job.kind === "scan") {
         // also when the scan failed or was stopped: the library may have changed, the restore may have worked
         void invalidateLibrary(qc);

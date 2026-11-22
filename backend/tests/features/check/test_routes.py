@@ -7,6 +7,7 @@ import pytest
 from osu_coach.features.check import service as svc
 from osu_coach.infra import progress
 from osu_coach.infra.beatmaps.parser import read_metadata
+from osu_coach.infra.library import Library
 from tests.conftest import MOT1ONE, make_client, plays_folder, sample_paths, scan, wait
 
 pytestmark = pytest.mark.usefixtures("_isolated")
@@ -98,6 +99,16 @@ def test_scanned_lazer_replays_are_checked(tmp_path, client):
     assert _title("mot1one__lazer_nm.osr") in report.json()["summary"]["map"]
 
 
+def test_installs_skipped_in_the_settings_are_not_scanned(tmp_path, client):
+    root = client.post("/api/installs", json={"path": str(_lazer(tmp_path))}).json()["root"]
+    client.patch("/api/settings", json={"skipped_installs": [root]})
+    assert wait(client, client.post("/api/library/scan", json={"mode": "library"}).json())["result"]["replays"] == 0
+    named = client.post("/api/library/scan", json={"mode": "library", "installs": [root]})  # a scan naming it reads it
+    assert wait(client, named.json())["result"]["replays"] == 3
+    client.patch("/api/settings", json={"skipped_installs": []})
+    assert wait(client, client.post("/api/library/scan", json={"mode": "library"}).json())["result"]["replays"] == 3
+
+
 def test_a_lazer_replay_read_before_the_scan_still_opens(tmp_path, client):
     """Found by the quick look at the installs before any scan, then a scan of other sources: it still opens."""
     client.post("/api/installs", json={"path": str(_lazer(tmp_path))})
@@ -160,6 +171,20 @@ def test_only_known_replays_are_opened(tmp_path, client):
     r = client.post("/api/check/report", json={"path": str(elsewhere), "online": False})
     assert r.status_code == 404 and r.json()["code"] == "replay_not_found"
     assert client.get("/api/check/replays", params={"path": str(elsewhere)}).status_code == 404
+
+
+def test_a_missing_map_is_downloaded_as_the_settings_say(client, monkeypatch):
+    asked = []
+    monkeypatch.setattr(Library, "fetch_missing", lambda self, md5s, progress=None: asked.append(md5s) or 0)
+    rp, _ = sample_paths("mot1one__lazer_nm.osr")
+    up = client.post("/api/uploads", files=[("files", (rp.name, rp.read_bytes()))]).json()[0]
+    client.post("/api/check/report", json={"path": up["path"]})
+    assert len(asked) == 1  # on unless switched off
+    client.patch("/api/settings", json={"download_maps": False})
+    client.post("/api/check/report", json={"path": up["path"]})
+    assert len(asked) == 1
+    client.post("/api/check/report", json={"path": up["path"], "online": True})  # a request can still ask
+    assert len(asked) == 2
 
 
 def test_a_replay_without_its_map_offline(tmp_path, client):

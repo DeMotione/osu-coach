@@ -1,8 +1,10 @@
+import { Link } from "react-router";
+
 import type { Schemas } from "../api/client";
-import { useMeta, usePatchSettings, useSettings } from "../api/queries";
+import { useInstalls, useMeta, usePatchSettings, useSettings } from "../api/queries";
 import { IconCheck } from "../components/icons";
 import { QueryView } from "../components/states";
-import { Alert, Card, Field, Page, Segmented } from "../components/ui";
+import { Alert, Card, Field, Page, Row, Segmented, Switch } from "../components/ui";
 
 type Settings = Schemas["AppSettings"];
 type Engine = Settings["rating_engine"];
@@ -22,7 +24,17 @@ export default function SettingsPage() {
   const settings = useSettings();
   return (
     <Page title="Settings">
-      <QueryView query={settings}>{(s) => <EngineCard settings={s} />}</QueryView>
+      <QueryView query={settings}>
+        {(s) => (
+          <>
+            <EngineCard settings={s} />
+            <Row>
+              <InstallsCard settings={s} />
+              <DownloadsCard settings={s} />
+            </Row>
+          </>
+        )}
+      </QueryView>
     </Page>
   );
 }
@@ -64,6 +76,65 @@ function EngineCard({ settings }: { settings: Settings }) {
         )}
         {patch.isError && <Alert tone="bad">{patch.error.message}</Alert>}
       </div>
+    </Card>
+  );
+}
+
+/** Whose replays a scan reads: the osu! installs found on this computer, each one on or off. */
+function InstallsCard({ settings }: { settings: Settings }) {
+  const installs = useInstalls();
+  const patch = usePatchSettings();
+  const skipped = new Set(settings.skipped_installs);
+  const found = installs.data ?? [];
+  return (
+    <Card title="osu! installs" hint="The osu! on this computer whose replays a scan reads. Extra folders and replay files are added on the Replays page.">
+      {installs.isPending ? (
+        <p className="muted small">Looking for osu! on this computer…</p>
+      ) : found.length > 0 ? (
+        <div className="stack" style={{ gap: 8 }}>
+          {found.map((inst) => (
+            <label key={inst.root} className="check">
+              <input
+                type="checkbox"
+                checked={!skipped.has(inst.root)}
+                onChange={(e) => {
+                  const next = new Set(skipped);
+                  if (e.target.checked) next.delete(inst.root);
+                  else next.add(inst.root);
+                  patch.mutate({ skipped_installs: [...next] });
+                }}
+              />
+              <span className="check__text">{inst.label}</span>
+            </label>
+          ))}
+        </div>
+      ) : (
+        <p className="muted small">No osu! installation was found automatically on this computer. Add a folder or replay files on the Replays page.</p>
+      )}
+      <p className="small muted">
+        A change counts from the next scan: <Link to="/replays">Replays</Link> → Scan.
+      </p>
+      {patch.isError && <Alert tone="bad">{patch.error.message}</Alert>}
+    </Card>
+  );
+}
+
+/** Whether a replay whose map isn't on this computer gets the map from the internet. */
+function DownloadsCard({ settings }: { settings: Settings }) {
+  const patch = usePatchSettings();
+  return (
+    <Card title="Missing beatmaps" hint="A replay is analysed with its map's .osu file.">
+      <Switch
+        checked={settings.download_maps}
+        onChange={(download_maps) => patch.mutate({ download_maps })}
+        label="Download beatmaps that aren't on this computer"
+        hint="Looks the map up by its MD5 on osu.direct and downloads the .osu from osu.ppy.sh (checked against the replay)."
+      />
+      <p className="small muted">
+        For analysing your replays, Detailed Map Analysis and Play Goals. Off: a replay whose map isn't on this computer
+        can't be analysed.
+      </p>
+      {patch.isError && <Alert tone="bad">{patch.error.message}</Alert>}
     </Card>
   );
 }

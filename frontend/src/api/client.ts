@@ -19,6 +19,10 @@ export class ApiError extends Error {
 }
 
 export const OFFLINE = "offline";
+export const BUSY = "busy";
+
+/** The server answered that another task (a scan, an analysis, ...) holds it: the answer comes once that ends. */
+export const isBusy = (error: unknown): error is ApiError => error instanceof ApiError && error.code === BUSY;
 
 export const api = createClient<paths>({ baseUrl: "" });
 

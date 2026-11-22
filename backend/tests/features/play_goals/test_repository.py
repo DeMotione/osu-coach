@@ -13,7 +13,7 @@ def test_target_outside_goal_pool_resolves_from_local_library(tmp_path):
 
     raw = path.read_bytes()
     beatmap = parse_beatmap_bytes(raw)
-    assert target_bytes(tmp_path, beatmap.beatmap_id, [library], False, []) == raw
+    assert target_bytes(tmp_path, beatmap.beatmap_id, [library], False) == raw
 
 
 def test_configuration_cache_is_separate_for_client_mods_and_checksums(tmp_path):
@@ -26,3 +26,13 @@ def test_configuration_cache_is_separate_for_client_mods_and_checksums(tmp_path)
     assert hd["mods"] == "HD" and lazer["client"] == "lazer"
     assert target_configuration(tmp_path, raw, "NM", "stable") == nm
     assert len(list((tmp_path / "play-goals" / "configurations").glob("*.json"))) == 3
+
+
+def test_a_target_at_a_custom_speed(tmp_path):
+    _, path = sample_paths("mot1one__lazer_nm.osr")
+    raw = path.read_bytes()
+    dt = target_configuration(tmp_path, raw, "DT", "lazer")
+    custom = target_configuration(tmp_path, raw, "DT", "lazer", 1.2)
+    assert (dt["config"], dt["rate"]) == ("DT", 1.5) and (custom["config"], custom["rate"]) == ("DT 1.20x", 1.2)
+    assert target_configuration(tmp_path, raw, "NM", "lazer")["stars"] < custom["stars"] < dt["stars"]
+    assert custom["length_s"] > dt["length_s"]  # slower: longer

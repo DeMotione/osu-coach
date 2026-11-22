@@ -175,7 +175,7 @@ test.describe("after the setup", () => {
     await expect(page.getByText("The replay file is no longer on this computer.")).toBeVisible();
     await page.getByRole("button", { name: "Back to your replays" }).click();
     await expect(page).toHaveURL(/\/check$/);
-    await expect(page.getByRole("combobox", { name: "Replay" }).locator("option")).not.toHaveCount(0);
+    await expect(page.getByRole("table", { name: "Your replays" }).locator("tbody tr")).not.toHaveCount(0);
     expect(await layoutProblems(page)).toEqual([]);
   });
 
@@ -225,6 +225,21 @@ test.describe("after the setup", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
     await page.getByText("Comfort Score", { exact: true }).click();
     await expect.poll(engine).toBe("comfort");
+  });
+
+  test("missing beatmaps and the osu! installs to read are chosen on Settings", async ({ page, request }) => {
+    await page.goto("/settings");
+    const download = async () => (await (await request.get("/api/settings")).json()).download_maps;
+    await expect(page.getByRole("heading", { name: "osu! installs" })).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: /^Download beatmaps that aren't on this computer/ })).toBeChecked();
+    await page.getByText("Download beatmaps that aren't on this computer").click();
+    await expect.poll(download).toBe(false);
+    for (const width of [390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await layoutProblems(page)).toEqual([]);
+    }
+    await page.getByText("Download beatmaps that aren't on this computer").click();
+    await expect.poll(download).toBe(true);
   });
 
   test("the sidebar navigates, folds with Ctrl+B and remembers it", async ({ page }) => {

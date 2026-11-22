@@ -9,11 +9,19 @@ from osu_coach.common.schemas import Request
 
 Period = Literal["month", "week", "day"]
 ProgressReplays = Literal["analysed", "all"]
+# what a goal's values are counted in: the 0–100 score, or the map star rating (Star Levels, #129)
+Unit = Literal["score", "stars"]
 
 
 class ProgressPlayer(BaseModel):
     name: str
     plays: int
+
+
+class StarRange(BaseModel):
+    stars: float | None = Field(description="The star rating the skill holds up on.")
+    low: float | None = Field(description="Its 90% range: the lower end.")
+    high: float | None
 
 
 class PeriodRow(BaseModel):
@@ -37,6 +45,11 @@ class PeriodRow(BaseModel):
     skills: dict[str, float | None] = Field(
         description="The Overview's skill ratings, 0–100: 50 = expected at the reference comfort level (``skill_reference_stars``)."
     )
+    star_levels: dict[str, StarRange] = Field(
+        default_factory=dict,
+        description="Star Levels: each skill's star level fitted to the period's plays alone (every play saved of it); "
+        "only the skills it could be fitted for.",
+    )
 
 
 class ProgressOut(BaseModel):
@@ -54,6 +67,9 @@ class ProgressOut(BaseModel):
     skill_reference_stars: float | None = Field(
         description="The comfort level (★) every period's skill ratings are measured against; null = none saved."
     )
+    unit: Unit = Field(
+        "score", description="What the chosen engine rates skills in: score (skills) or stars (star_levels)."
+    )
     rows: list[PeriodRow]
 
 
@@ -67,10 +83,6 @@ class ProgressPlay(BaseModel):
     combo: int | None
     map_combo: int | None
     result: Literal["full combo", "passed", "failed"]
-
-
-# what a goal's values are counted in: the 0–100 score, or the map star rating (Star Levels, #129)
-Unit = Literal["score", "stars"]
 
 
 class GoalOut(BaseModel):

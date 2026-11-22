@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from osu_coach.domain.analysis.models import ReplayMeta
 from osu_coach.domain.numeric.values import finite_or_none
 from osu_coach.domain.play_goals.models import AccuracyRange, Blocker, EvidenceRow, GoalPlay, MapRow, Reason
-from osu_coach.domain.play_goals.pool import CONFIGS
+from osu_coach.domain.play_goals.pool import CONFIGS, config_key, standard_rate, valid_rate
 
 MIN_PLAYS = 10
 MIN_MAPS = 5
@@ -23,8 +23,9 @@ def sim_ok(meta: ReplayMeta) -> bool:
 
 
 def configuration(meta: ReplayMeta, lazer_mods: object = None) -> str | None:
-    """The play's mod configuration (a :data:`CONFIGS` name), or None when it isn't a supported one. Lazer plays need
-    their mods with settings read back from the replay file (``lazer_mods``)."""
+    """The play's configuration (``pool.config_key``: a :data:`CONFIGS` combination at its speed), or None when it
+    isn't a supported one. Lazer plays need their mods with settings read back from the replay file (``lazer_mods``):
+    a custom DT speed is the play's rate, and the pitch changes no difficulty."""
     bits = meta.mods
     if not isinstance(bits, int) or meta.client not in ("stable", "lazer"):
         return None
@@ -32,7 +33,10 @@ def configuration(meta: ReplayMeta, lazer_mods: object = None) -> str | None:
     if bits & 512:
         bits = (bits & ~512) | 64
     name = next((name for name, value in CONFIGS.items() if value == bits), None)
-    if name is None or abs((finite_or_none(meta.rate) or 1) - (1.5 if bits & 64 else 1)) > 1e-6:
+    rate = finite_or_none(meta.rate) or 1.0
+    if name is None or not valid_rate(name, rate):
+        return None
+    if meta.client == "stable" and abs(rate - standard_rate(name)) > 1e-6:
         return None
     if meta.client == "lazer":
         if not isinstance(lazer_mods, list | tuple):
@@ -43,16 +47,20 @@ def configuration(meta: ReplayMeta, lazer_mods: object = None) -> str | None:
                 return None
             acronym = mod["acronym"]
             actual |= LAZER_MOD_BITS[acronym]
-            extra = set(mod.get("settings") or {})
+            settings = mod.get("settings") or {}
+            extra = set(settings)
             if acronym == "EZ":
                 extra -= {"retries"}
-            if acronym in ("DT", "NC") and (mod.get("settings") or {}).get("speed_change") == 1.5:
-                extra -= {"speed_change"}
+            if acronym in ("DT", "NC"):
+                speed = finite_or_none(settings.get("speed_change"))
+                if speed is not None and abs(speed - rate) > 1e-6:
+                    return None
+                extra -= {"speed_change", "adjust_pitch"}
             if extra:
                 return None
         if actual != bits:
             return None
-    return name
+    return config_key(name, rate)
 
 
 def play_configuration(play: GoalPlay) -> str | None:
@@ -71,9 +79,9 @@ def evidence(plays: Sequence[GoalPlay], player: str | None) -> list[EvidenceRow]
     seen, out = set(), []
     for a in plays:
         m = a.meta
-        mods = play_configuration(a)
+        config = play_configuration(a)
         key = (m.beatmap_md5, str(m.date), m.score)
-        if m.player != player or mods is None or key in seen or not sim_ok(m):
+        if m.player != player or config is None or key in seen or not sim_ok(m):
             continue
         if any(finite_or_none(v) is None for v in (m.stars, m.ar, m.od, m.bpm, m.length_s, m.accuracy)):
             continue
@@ -84,7 +92,7 @@ def evidence(plays: Sequence[GoalPlay], player: str | None) -> list[EvidenceRow]
                 beatmap_md5=m.beatmap_md5,
                 date=str(m.date),
                 client=m.client,
-                mods_name=mods,
+                config=config,
                 completed=m.completed,
                 n_played=m.n_played,
                 n_objects=m.n_objects,
@@ -110,7 +118,7 @@ def same_map(target: MapRow, rows: Sequence[EvidenceRow]) -> list[EvidenceRow]:
     return [
         r
         for r in rows
-        if r.beatmap_md5 == target["md5"] and r.mods_name == target["mods"] and r.client == target["client"]
+        if r.beatmap_md5 == target["md5"] and r.config == target["config"] and r.client == target["client"]
     ]
 
 
@@ -118,7 +126,7 @@ def comparable(target: MapRow, rows: Sequence[EvidenceRow]) -> list[EvidenceRow]
     """Completed plays of maps like the target (difficulty, length, patterns), newest first, at most two per map."""
     selected = []
     for row in rows:
-        if row.mods_name != target["mods"] or row.client != target["client"] or not row.completed:
+        if row.config != target["config"] or row.client != target["client"] or not row.completed:
             continue
         if row.n_played != row.n_objects:
             continue
@@ -153,7 +161,12 @@ def comparable(target: MapRow, rows: Sequence[EvidenceRow]) -> list[EvidenceRow]
 
 def accuracy_range(target: MapRow, rows: Sequence[EvidenceRow]) -> AccuracyRange | None:
     """The middle 80% of the comparable plays' accuracy; None without enough plays on enough maps."""
-    peers = comparable(target, rows)
+    return estimate(comparable(target, rows))
+
+
+def estimate(peers: Sequence[EvidenceRow]) -> AccuracyRange | None:
+    """The middle 80% of these comparable plays' accuracy (from :func:`comparable`); None without enough plays on
+    enough maps."""
     maps = len({r.beatmap_md5 for r in peers})
     if len(peers) < MIN_PLAYS or maps < MIN_MAPS:
         return None
@@ -177,16 +190,16 @@ def skipped_attempts(
         m = a.meta
         if m.beatmap_md5 != target["md5"] or m.player != player or a.key in kept:
             continue
-        mods = f"+{m.mod_string or 'NM'}"
         config = play_configuration(a)
+        mods = f"+{config or m.mod_string or 'NM'}"
         if m.client != target["client"]:
             why[Reason("other_client", (mods, m.client, target["client"]))] += 1
         elif not sim_ok(m):
             why[Reason("sim_mismatch")] += 1
         elif config is None:
             why[Reason("unsupported_mods", (mods,))] += 1
-        elif config != target["mods"]:
-            why[Reason("other_mods", (mods, target["mods"]))] += 1
+        elif config != target["config"]:
+            why[Reason("other_mods", (mods, target["config"]))] += 1
         else:
             why[Reason("incomplete")] += 1
     return why
@@ -212,7 +225,7 @@ def blockers(plays: Sequence[GoalPlay], target: MapRow) -> list[Blocker]:
     attempts: dict[str, set[str]] = {}
     for a in plays:
         m = a.meta
-        if m.beatmap_md5 != target["md5"] or play_configuration(a) != target["mods"] or m.client != target["client"]:
+        if m.beatmap_md5 != target["md5"] or play_configuration(a) != target["config"] or m.client != target["client"]:
             continue
         ev = a.events
         for reason, pattern, timestamp in zip(ev.reason, ev.pattern, ev.timestamp, strict=True):

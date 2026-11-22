@@ -10,8 +10,9 @@ import { FcTargetPicker } from "./FcTargetPicker";
 type Replay = Schemas["CheckReplay"];
 type Request = Schemas["PlayGoalRequest"];
 
-const replay = (path: string, map: string, mods: string, accuracy: number, analysable = true): Replay => ({
-  path, map, mods, accuracy, analysable, played_at: "2026-11-20T18:00:00Z", player: "Mot1one", beatmap_md5: path,
+const replay = (path: string, map: string, mods: string, accuracy: number, analysable = true, rate = 0): Replay => ({
+  path, map, mods, rate: rate || (/DT|NC/.test(mods) ? 1.5 : 1), accuracy, analysable, played_at: "2026-11-20T18:00:00Z",
+  player: "Mot1one", beatmap_md5: path,
   reason: analysable ? null : "relax / autopilot / autoplay replays aren't checked",
 });
 
@@ -20,13 +21,18 @@ const REPLAYS = [
   replay("b.osr", "VOID – Tech Occultism [Proeza]", "NM", 0.9501),
   replay("c.osr", "Roselia – Ringing Bloom [Everyone's voice becomes my voice]", "HD", 0.9822),
   replay("d.osr", "Roselia – Ringing Bloom [Insane]", "RX", 0.99, false),
+  replay("e.osr", "Camellia – Exit This Earth's Atomosphere [Evolution]", "DTHD", 0.9512, true, 1.2),
 ];
 
-vi.mock("../api/queries", () => ({
-  useCheckReplays: vi.fn(() => ({ data: { available: true, replays: REPLAYS, selected: "a.osr" }, isPending: false, error: null })),
-  uploadFiles: vi.fn(),
-  replayAt: vi.fn(),
-}));
+vi.mock("../api/queries", () => {
+  const uploadFiles = vi.fn();
+  return {
+    useCheckReplays: vi.fn(() => ({ data: { available: true, replays: REPLAYS, selected: "a.osr" }, isPending: false, error: null })),
+    uploadFiles,
+    useUpload: () => ({ upload: uploadFiles, error: null }),
+    replayAt: vi.fn(),
+  };
+});
 
 afterEach(() => vi.useRealTimers());
 
@@ -47,7 +53,7 @@ it("finds a map by name in all your replays and picks one of its replays with it
   render(<Picker changes={changes} />);
   expect(screen.getByText(/No target yet/)).toBeInTheDocument();
   // a replay that can't be analysed isn't offered
-  expect(mapCells()).toHaveLength(3);
+  expect(mapCells()).toHaveLength(4);
 
   fireEvent.change(screen.getByRole("searchbox", { name: "Find the map you want to FC" }), { target: { value: "proeza tech" } });
   // the list follows each key; all replays are searched once typing stops
@@ -56,14 +62,22 @@ it("finds a map by name in all your replays and picks one of its replays with it
   expect(vi.mocked(useCheckReplays)).toHaveBeenLastCalledWith(null, false, "proeza tech");
 
   fireEvent.click(screen.getByRole("cell", { name: "+HDDT" }));
-  expect(changes.at(-1)).toEqual({ replay_path: "a.osr", beatmap: null, mods: "HDDT" });
+  expect(changes.at(-1)).toEqual({ replay_path: "a.osr", beatmap: null, mods: "HDDT", rate: null });
   expect(screen.getByText(/^Target:/)).toHaveTextContent("Target: VOID – Tech Occultism [Proeza] +HDDT, 97.12%");
 
   fireEvent.click(screen.getByRole("button", { name: "Clear" }));
   expect(changes.at(-1)).toEqual({ replay_path: null, beatmap: null });
 
-  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "camellia" } });
+  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "camelia" } });
   expect(screen.getByText("No replay of a map like that")).toBeInTheDocument();
+});
+
+it("a replay at a custom DT speed is the target at that speed", () => {
+  const changes: Partial<Request>[] = [];
+  render(<Picker changes={changes} />);
+  fireEvent.click(screen.getByRole("cell", { name: "+DTHD ×1.20" }));
+  expect(changes.at(-1)).toEqual({ replay_path: "e.osr", beatmap: null, mods: "HDDT", rate: 1.2 });
+  expect(screen.getByText(/^Target:/)).toHaveTextContent("+DTHD ×1.20");
 });
 
 it("takes a beatmap link from the dialog", () => {
@@ -96,5 +110,5 @@ it("takes a replay file from the dialog with its mods, and says why one can't be
 
   await drop("play.osr", replay("uploads/play.osr", "Some – Map [Hard]", "NCHD", 0.97));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  expect(changes.at(-1)).toEqual({ replay_path: "uploads/play.osr", beatmap: null, mods: "HDDT" });
+  expect(changes.at(-1)).toEqual({ replay_path: "uploads/play.osr", beatmap: null, mods: "HDDT", rate: null });
 });

@@ -50,7 +50,7 @@ After any change of calculator, rebuild these in order:
 1. `backend/tools/build_pool.py RAW_DIR`
 2. `build_irt_tables.py`
 3. `fit_demand_curves.py`
-4. `build_goal_pool.py RAW_DIR/osu`
+4. `build_pp_table.py RAW_DIR` (a few minutes; its finished blocks are kept by calculator)
 5. `build_variant_table.py RAW_DIR`: move `RAW_DIR/variants/` aside first, because its finished blocks are kept by
    map, not by calculator.
 

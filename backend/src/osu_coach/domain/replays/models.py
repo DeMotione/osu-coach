@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as _dt
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -99,6 +100,30 @@ def rate_from_mods(mods: int) -> float:
     return 1.0
 
 
+SPEED_MODS = {"DT": 1.5, "NC": 1.5, "HT": 0.75, "DC": 0.75}  # lazer's speed mods and their own speeds
+
+
+def lazer_rate(mods: object) -> float | None:
+    """The speed lazer mods (``[{"acronym", "settings"}]``) play at: a speed mod's ``speed_change``, else the mod's own
+    speed; None without a speed mod."""
+    for mod in mods if isinstance(mods, list | tuple) else ():
+        if not isinstance(mod, dict):
+            continue
+        acronym = str(mod.get("acronym", "")).upper()
+        if acronym in SPEED_MODS:
+            speed = (mod.get("settings") or {}).get("speed_change")
+            return float(speed) if speed else SPEED_MODS[acronym]
+    return None
+
+
+def mods_label(mods: object, rate: object) -> str:
+    """'HDDT ×1.26', 'HR', 'NM ×0.85': the speed is spelled out when it isn't the mod's standard one."""
+    mods = mods if isinstance(mods, str) and mods else "NM"
+    rate = float(rate) if isinstance(rate, int | float) and math.isfinite(rate) else 1.0
+    standard = {1.0, 1.5, 0.75}
+    return mods + (f" ×{rate:g}" if not any(abs(rate - s) < 1e-3 for s in standard) else "")
+
+
 @dataclass
 class Replay:
     mode: int
@@ -138,15 +163,8 @@ class Replay:
     @property
     def rate(self) -> float:
         """Playback rate; honours lazer's custom speed_change when present."""
-        if self.lazer:
-            for m in self.lazer.get("mods", []) or []:
-                ac = str(m.get("acronym", "")).upper()
-                if ac in ("DT", "NC", "HT", "DC"):
-                    sc = (m.get("settings") or {}).get("speed_change")
-                    if sc:
-                        return float(sc)
-                    return 0.75 if ac in ("HT", "DC") else 1.5
-        return rate_from_mods(self.mods)
+        speed = lazer_rate(self.lazer.get("mods")) if self.lazer else None
+        return rate_from_mods(self.mods) if speed is None else speed
 
     @property
     def total_objects_judged(self) -> int:

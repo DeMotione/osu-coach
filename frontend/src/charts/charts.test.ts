@@ -5,7 +5,7 @@ import { circle, merge, niceMax, responsive } from "./base";
 import { mmss, playTimingChart, rangeStats } from "./check";
 import { MISS_SHORT, compareBars, compareHover, missCauses, starLevelHover, starLevels } from "./overview";
 import { alpha, chartTheme, faded, heat, scoreColor, C } from "./palette";
-import { goalLabelLayout, goalOffsets, goalsChart, skillsChart, starsChart } from "./progress";
+import { goalLabelLayout, goalOffsets, goalsChart, skillsChart, starLevelsChart, starsChart } from "./progress";
 import { timingChart } from "./tapping";
 
 const t = chartTheme(true);
@@ -380,6 +380,23 @@ describe("progress charts start where their data does", () => {
 
   it("no values at all: an empty chart, not empty months", () => {
     expect(keys(skillsChart([row("2017-11")], [{ key: "aim", label: "Jump aim" }], t) as AnyOption)).toEqual([]);
+  });
+
+  it("Star Levels: the star levels by month, their range on hover", () => {
+    const levels = [
+      row("2021-06"),
+      row("2021-07", { star_levels: { aim: { stars: 6.4, low: 6.1, high: 6.7 } } }),
+      row("2021-08", { star_levels: { aim: { stars: 6.6, low: 6.3, high: 6.9 } } }),
+    ];
+    const o = starLevelsChart(levels, [{ key: "aim", label: "Jump aim" }, { key: "speed", label: "Speed" }], t) as AnyOption;
+    expect(keys(o)).toEqual(["2021-07", "2021-08"]);
+    const series = o.series as { name: string; data: { value: number | null }[] }[];
+    expect(series.map((s) => s.name)).toEqual(["Jump aim"]); // no level of speed: no line
+    expect(series[0].data.map((d) => d.value)).toEqual([6.4, 6.6]);
+    const tip = (o.tooltip as { formatter: (p: unknown[]) => string }).formatter([
+      { seriesName: "Jump aim", dataIndex: 1, value: 6.6, marker: "" },
+    ]);
+    expect(tip).toBe("2021-08<br/>Jump aim: 6.60★ (6.30–6.90)");
   });
 });
 

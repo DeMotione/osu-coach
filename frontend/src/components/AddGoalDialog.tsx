@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import type { Schemas } from "../api/client";
 import { useAddGoal } from "../api/queries";
+import { useModal } from "../lib/dialog";
 import { isoDay } from "../lib/format";
 import { blockedSkills, goalValue, nextTarget } from "../lib/goals";
 import { IconPlus, IconX } from "./icons";
@@ -41,13 +42,7 @@ function AddGoalDialog({ goals, onClose }: { goals: Goals; onClose: () => void }
   const [deadline, setDeadline] = useState(isoDay(28));
   const chosen = goals.skills.find((s) => s.key === skill);
 
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (typeof d.showModal === "function") d.showModal();
-    else d.setAttribute("open", "");
-    return () => d.close?.();
-  }, []);
+  useModal(ref);
 
   const pick = (s: Goals["skills"][number]) => {
     setSkill(s.key);

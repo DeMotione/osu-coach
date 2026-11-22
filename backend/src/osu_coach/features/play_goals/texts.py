@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 
 from osu_coach.domain.play_goals.models import AccuracyRange, Blocker, Reason, Recommendation
+from osu_coach.domain.play_goals.pool import standard_rate
 from osu_coach.domain.play_goals.recommend import dynamics as strong_demands
 
 VERDICTS = {
@@ -139,6 +140,12 @@ def _trains(focus: Sequence[dict], mods: str) -> str:
     )
 
 
+def mods_text(mods: str, rate: float | None) -> str:
+    """'+HDDT', '+HDDT at 1.20x': the speed when it isn't the combination's own."""
+    speed = standard_rate(mods) if rate is None else rate
+    return f"+{mods}" + ("" if abs(speed - standard_rate(mods)) < 1e-6 else f" at {speed:.2f}x")
+
+
 def recommendation(r: Recommendation, focus: Sequence[dict]) -> dict:
     label = None
     if r.pp is not None:
@@ -147,7 +154,7 @@ def recommendation(r: Recommendation, focus: Sequence[dict]) -> dict:
     return {
         "map": {**r.map, "dynamics": dynamics(strong_demands(r.map))},
         "why": f"Trains {_trains(focus, mods)}.",
-        "objective": f"Play +{mods}, aim for {r.practice_accuracy:.0%}, no combo breaks.",
+        "objective": f"Play {mods_text(mods, r.map.get('rate'))}, aim for {r.practice_accuracy:.0%}, no combo breaks.",
         "step_up": "Pass twice, then move up.",
         "accuracy": accuracy(r.accuracy),
         "practice_accuracy": r.practice_accuracy,

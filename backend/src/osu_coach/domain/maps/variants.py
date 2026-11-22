@@ -49,7 +49,7 @@ from osu_coach.domain.numeric.values import finite_or_none
 from osu_coach.domain.player import algorithm as alg
 from osu_coach.domain.player.engines.skill_scale import SPEED_POINTS, expected_speed_bpm, speed_bpm_for_rating
 from osu_coach.domain.replays.configuration import Configuration
-from osu_coach.domain.replays.models import MOD_BITS
+from osu_coach.domain.replays.models import MOD_BITS, mods_to_string
 
 RATES = (100, *range(110, 201))  # hundredths: no rate change, then every rate a search can ask for
 # What pattern_stats gives as numbers, in the table's column order.
@@ -124,7 +124,6 @@ SAME = 1e-6  # a pattern statistic is "the previous rate's, scaled" within this 
 TIE = 1e-9  # scores this close are left to recommend_modified to order
 BLOCK = 4096  # maps whose stars are read at a time
 CHUNK = 100_000  # configurations scored at a time
-_MODS = (("HD", MOD_BITS["HD"]), ("HR", MOD_BITS["HR"]), ("DT", MOD_BITS["DT"]))
 _REASONS = (
     "Target demand or relevance unknown",
     "Insufficient target relevance",
@@ -480,10 +479,6 @@ def _grid(options: SearchOptions, client: str) -> _Grid:
     )
 
 
-def _mods_text(mods: int) -> str:
-    return "".join(name for name, bit in _MODS if mods & bit) or "NM"
-
-
 def _clean(value: float) -> float | None:
     return float(value) if math.isfinite(value) else None
 
@@ -519,17 +514,23 @@ def _rows(
             row["stars_dt"] = finite_or_none(record.get("stars_dt"))
         row.update(skill_scores(row))
         row["configuration_id"] = Configuration(str(record.get("md5")), mods, rate_value, client).key
-        row["mods"] = _mods_text(mods)
+        row["mods"] = mods_to_string(mods)
         row["rate"] = rate_value
         yield row
 
 
-def _in_pool(table: VariantTable, records: Sequence[Mapping[str, Any]]) -> tuple[np.ndarray, np.ndarray]:
+def in_pool(table: VariantTable, records: Sequence[Mapping[str, Any]]) -> tuple[np.ndarray, np.ndarray]:
     """The table's maps that are pool records: their table indices, and table index -> record index (-1: none)."""
+    return pool_maps(table, [str(record.get("md5") or "") for record in records])
+
+
+def pool_maps(table: VariantTable, md5s: Sequence[str]) -> tuple[np.ndarray, np.ndarray]:
+    """The table's maps among ``md5s`` (the pool's, in its order): their table indices, and table index -> index in
+    ``md5s`` (-1: none)."""
     record_of = np.full(len(table.md5), -1, dtype=np.int64)
     index = table.index
-    for i, record in enumerate(records):
-        t = index.get(str(record.get("md5") or ""))
+    for i, md5 in enumerate(md5s):
+        t = index.get(md5)
         if t is not None and table.found[t] and record_of[t] < 0:
             record_of[t] = i
     return np.flatnonzero(record_of >= 0), record_of
@@ -541,13 +542,56 @@ def table_rows(
     """Every available configuration of the pool's maps as a row, in pool order: what ``variant_rows`` gives from
     the .osu files, without them."""
     grid = _grid(options, client)
-    maps, record_of = _in_pool(table, records)
+    maps, record_of = in_pool(table, records)
     maps = maps[np.argsort(record_of[maps], kind="stable")]
     for start in range(0, len(maps), 256):
         part = maps[start : start + 256]
         stars = np.asarray(table.stars[part])[:, grid.hr, grid.hd, grid.rate]
         m, c = np.nonzero((stars != MISSING) & (stars > 0))
         yield from _rows(table, records, grid, client, part[m], record_of, c)
+
+
+def rate_index(rate: float) -> int:
+    """The table's index of a rate (1.0, or a hundredth from 1.10 to 2.00); ValueError for one it has not."""
+    try:
+        return RATES.index(round(rate * 100))
+    except ValueError as exc:
+        raise ValueError("The variant table has no such rate.") from exc
+
+
+def configuration_columns(
+    table: VariantTable, maps, hr: bool, hd: bool, rate: float, columns: Sequence[str]
+) -> dict[str, np.ndarray]:
+    """The values ``columns`` of the maps ``maps`` (table indices) in one configuration: pattern statistics and rosu's
+    values, as a row of :func:`rows_at` has them (NaN: none)."""
+    index = rate_index(rate)
+    maps = np.asarray(maps, dtype=np.int64)
+    pattern = [c for c in columns if c in table.columns]
+    out = pattern_columns(table, maps, int(hr), index, pattern) if len(maps) else {c: np.empty(0) for c in pattern}
+    for name in (*BY_CONFIGURATION, *BY_GEOMETRY):
+        if name in columns:
+            out[name] = table.value(name, maps, int(hr), int(hd), index)
+    return out
+
+
+def rows_at(
+    table: VariantTable,
+    records: Sequence[Mapping[str, Any]] | Mapping[int, Mapping[str, Any]],
+    record_of: np.ndarray,
+    maps,
+    hr: bool,
+    hd: bool,
+    rate: float,
+    client: str,
+) -> Iterator[dict]:
+    """The rows of the maps ``maps`` (table indices; ``record_of`` as :func:`in_pool` gives it) in one configuration
+    (HR, HD and a rate), as :func:`table_rows` gives them. ``records``: the pool's records, or the ones of these maps
+    by their index in the pool."""
+    index = rate_index(rate)
+    mods = (MOD_BITS["HR"] if hr else 0) | (MOD_BITS["HD"] if hd else 0) | (MOD_BITS["DT"] if index else 0)
+    grid = _Grid(np.array([int(hr)]), np.array([int(hd)]), np.array([index]), (mods,), np.zeros(1, dtype=np.int64))
+    maps = np.asarray(maps, dtype=np.int64)
+    yield from _rows(table, records, grid, client, maps, record_of, np.zeros(len(maps), dtype=np.int64))
 
 
 # ------------------------------------------------------------------ the search
@@ -600,7 +644,7 @@ def recommend_from_table(
 ) -> TableSearch:
     """``recommend_modified`` over every configuration ``options`` asks for of every pool map the table has."""
     grid = _grid(options, client)
-    maps, record_of = _in_pool(table, records)
+    maps, record_of = in_pool(table, records)
     n = len(maps)
     keys = [key for key in assessed if key != "speed"]
     rated = all(key in abilities for key in assessed)

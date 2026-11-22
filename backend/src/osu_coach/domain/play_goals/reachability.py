@@ -34,7 +34,7 @@ def reachability(target: MapRow, rows: Sequence[EvidenceRow]) -> Reach:
             ),
             "limited",
         )
-    complete = [r for r in rows if r.completed and r.mods_name == target["mods"] and r.client == target["client"]]
+    complete = [r for r in rows if r.completed and r.config == target["config"] and r.client == target["client"]]
     if len({r.beatmap_md5 for r in complete}) >= MIN_MAPS:
         base = statistics.median(r.stars for r in complete)
         speed = statistics.median(r.bpm for r in complete)

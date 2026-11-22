@@ -279,9 +279,24 @@ def test_replay_header_reads_a_built_replay(tmp_path):
     p = put(tmp_path / "r.osr", osr(player="bob", score=4321, n300=90, n100=10, nmiss=2, mods=64))
     h = replay_header(p)
     assert (h["player"], h["score"], h["mods"], h["mod_string"]) == ("bob", 4321, 64, "DT")
+    assert h["rate"] == 1.5  # the speed: the mod's own on stable
     assert h["timestamp"] == T0.isoformat()
     assert h["accuracy"] == pytest.approx((300 * 90 + 100 * 10) / (300 * 102))
     assert h["is_lazer"] is False
+
+
+def test_a_lazer_replay_header_has_its_custom_speed():
+    from tests.conftest import sample_paths
+
+    rp, _ = sample_paths("mot1one__lazer_dthd_spinner.osr")
+    h = replay_header(rp)
+    assert "DT" in h["lazer_mods"] and h["rate"] == locate_rate(rp)
+
+
+def locate_rate(path):
+    from osu_coach.infra.replays.osr import parse_replay_file
+
+    return parse_replay_file(path).rate
 
 
 def test_replay_header_accepts_bytes_already_read(tmp_path):

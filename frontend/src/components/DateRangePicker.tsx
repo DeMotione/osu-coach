@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   dayLabel,
@@ -12,6 +12,7 @@ import {
   type Day,
   type DayRange,
 } from "../lib/dateRange";
+import { useModal } from "../lib/dialog";
 import { isoDay } from "../lib/format";
 import { IconCalendar, IconChevronLeft, IconChevronRight, IconX } from "./icons";
 
@@ -65,13 +66,7 @@ function CalendarDialog({ value, played, span, onApply, onClose }: {
   const at = (y: number, m: number) => `${y}-${String(m + 1).padStart(2, "0")}`;
   const [earlier, later] = [at(year, month) > first.slice(0, 7), at(year, month) < last.slice(0, 7)];
 
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (typeof d.showModal === "function") d.showModal();
-    else d.setAttribute("open", "");
-    return () => d.close?.();
-  }, []);
+  useModal(ref);
 
   // while only the first day is picked, the range runs to the day under the pointer
   const end = range?.to ?? (range && hover ? hover : null);

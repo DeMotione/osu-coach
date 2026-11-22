@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { api, unwrap, type Job, type Schemas } from "../../api/client";
 import { useJob } from "../../api/jobs";
-import { uploadFiles, useAnalysisStatus, useInstalls, useMeta, usePatchSettings, useSettings } from "../../api/queries";
+import { useAnalysisStatus, useInstalls, useMeta, usePatchSettings, useSettings, useUpload } from "../../api/queries";
 import { formatLeft, useSecondsLeft } from "../../lib/eta";
 import { int } from "../../lib/format";
 import { IconArrowLeft, IconArrowRight, IconCheck, IconFolder, IconSearch, IconUpload } from "../icons";
@@ -51,7 +51,6 @@ export function useReplayRun(run: ReplayRun | null, setRun: (run: ReplayRun | nu
       date_range: s.date_range,
       date_from: s.date_from ?? null,
       date_to: s.date_to ?? null,
-      online: true,
     };
     void analysis
       .run(() => unwrap(api.POST("/api/analysis", { body })))
@@ -147,7 +146,7 @@ function Sources({ client, r }: { client: Schemas["SetupModel"]["client"]; r: Re
   const [mode, setMode] = useState<"auto" | "manual" | null>(null);
   const [picked, setPicked] = useState<Set<string> | null>(null);
   const [uploads, setUploads] = useState<Schemas["UploadedFile"][]>([]);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const { upload, error: uploadError } = useUpload();
   const [folder, setFolder] = useState("");
   const [starting, setStarting] = useState(false);
 
@@ -159,13 +158,8 @@ function Sources({ client, r }: { client: Schemas["SetupModel"]["client"]; r: Re
   const extra = (s?.folders ?? "").split("\n").map((f) => f.trim()).filter(Boolean);
 
   const addFiles = async (files: File[]) => {
-    setUploadError(null);
-    try {
-      const added = await uploadFiles(files);
-      setUploads((u) => [...u.filter((x) => !added.some((a) => a.id === x.id)), ...added]);
-    } catch (e) {
-      setUploadError((e as Error).message);
-    }
+    const added = await upload(files);
+    if (added) setUploads((u) => [...u.filter((x) => !added.some((a) => a.id === x.id)), ...added]);
   };
 
   if (!s) return <div className="skeleton" style={{ height: 240 }} />;
@@ -185,6 +179,8 @@ function Sources({ client, r }: { client: Schemas["SetupModel"]["client"]; r: Re
   const go = async () => {
     if (!body) return;
     setStarting(true);
+    // later scans read the same osu! (Settings → osu! installs)
+    if (how === "auto") patch.mutate({ skipped_installs: all.map((i) => i.root).filter((root) => !chosen.has(root)) });
     await r.start(body);
     setStarting(false);
   };

@@ -3066,10 +3066,16 @@
             "title": "Date To"
           },
           "online": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Online",
-            "description": "Download missing beatmaps (osu.direct lookup, osu.ppy.sh file).",
-            "default": true
+            "description": "Download missing beatmaps; null = the download_maps setting."
           }
         },
         "additionalProperties": false,
@@ -3358,6 +3364,21 @@
             "title": "Auto Analyse",
             "description": "Analyse new plays by themselves: the replays osu! saves while osu! coach runs.",
             "default": true
+          },
+          "skipped_installs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skipped Installs",
+            "description": "osu! installs found on this computer whose replays aren't read (folders).",
+            "default": []
+          },
+          "download_maps": {
+            "type": "boolean",
+            "title": "Download Maps",
+            "description": "Download the beatmaps that aren't on this computer (osu.direct lookup, osu.ppy.sh file): for analyses, Detailed Map Analysis and Play Goals.",
+            "default": true
           }
         },
         "type": "object",
@@ -3556,6 +3577,12 @@
             "type": "string",
             "title": "Mods"
           },
+          "rate": {
+            "type": "number",
+            "title": "Rate",
+            "description": "The speed: DT's 1.5, a custom lazer speed, HT's 0.75, else 1.",
+            "default": 1.0
+          },
           "accuracy": {
             "anyOf": [
               {
@@ -3688,10 +3715,16 @@
             "title": "Path"
           },
           "online": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Online",
-            "description": "Download the beatmap if it's missing.",
-            "default": true
+            "description": "Download missing beatmaps; null = the download_maps setting."
           }
         },
         "additionalProperties": false,
@@ -5085,6 +5118,12 @@
               "HDHRDT"
             ],
             "title": "Mods"
+          },
+          "rate": {
+            "type": "number",
+            "title": "Rate",
+            "description": "The speed: DT's 1.5, a custom one, else 1.",
+            "default": 1.0
           },
           "client": {
             "type": "string",
@@ -7234,6 +7273,14 @@
             "type": "object",
             "title": "Skills",
             "description": "The Overview's skill ratings, 0–100: 50 = expected at the reference comfort level (``skill_reference_stars``)."
+          },
+          "star_levels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StarRange"
+            },
+            "type": "object",
+            "title": "Star Levels",
+            "description": "Star Levels: each skill's star level fitted to the period's plays alone (every play saved of it); only the skills it could be fitted for."
           }
         },
         "type": "object",
@@ -7470,6 +7517,18 @@
             "title": "Mods",
             "default": "NM"
           },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate",
+            "description": "FC a map: The speed with DT, a hundredth from 1.10 to 2.00 (lazer's custom speeds); null = DT's 1.5."
+          },
           "client": {
             "type": "string",
             "enum": [
@@ -7493,6 +7552,18 @@
             "title": "Training Mod",
             "default": "HD"
           },
+          "training_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Training Rate",
+            "description": "Improve a mod: The speed with DT, a hundredth from 1.10 to 2.00 (lazer's custom speeds); null = DT's 1.5."
+          },
           "farm_mods": {
             "items": {
               "type": "string",
@@ -7513,9 +7584,16 @@
             "title": "Farm Mods"
           },
           "online": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Online",
-            "default": true
+            "description": "Download missing beatmaps; null = the download_maps setting."
           },
           "min_pp": {
             "anyOf": [
@@ -8456,6 +8534,16 @@
             "title": "Skill Reference Stars",
             "description": "The comfort level (★) every period's skill ratings are measured against; null = none saved."
           },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "score",
+              "stars"
+            ],
+            "title": "Unit",
+            "description": "What the chosen engine rates skills in: score (skills) or stars (star_levels).",
+            "default": "score"
+          },
           "rows": {
             "items": {
               "$ref": "#/components/schemas/PeriodRow"
@@ -8840,7 +8928,7 @@
               }
             ],
             "title": "Installs",
-            "description": "Roots of the installs to scan; null = all found."
+            "description": "Roots of the installs to scan; null = all found but the skipped_installs setting's."
           },
           "folders": {
             "items": {
@@ -9224,6 +9312,32 @@
               }
             ],
             "title": "Auto Analyse"
+          },
+          "skipped_installs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped Installs"
+          },
+          "download_maps": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Download Maps"
           }
         },
         "additionalProperties": false,
@@ -10474,6 +10588,52 @@
           "default_target"
         ],
         "title": "StarCompare"
+      },
+      "StarRange": {
+        "properties": {
+          "stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars",
+            "description": "The star rating the skill holds up on."
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low",
+            "description": "Its 90% range: the lower end."
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stars",
+          "low",
+          "high"
+        ],
+        "title": "StarRange"
       },
       "StreamAlong": {
         "properties": {

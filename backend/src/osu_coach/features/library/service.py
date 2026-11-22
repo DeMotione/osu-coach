@@ -92,7 +92,11 @@ def scan_args(ws: Workspace, req: ScanRequest) -> ScanArgs:
     if only and not files:
         raise Invalid("Add the replay files to analyse first.", "no_files")
     installs = ws.installs()
-    chosen = installs if req.installs is None else [i for i in installs if str(i.root) in set(req.installs)]
+    if req.installs is None:
+        skipped = set(ws.settings().skipped_installs)
+        chosen = [i for i in installs if str(i.root) not in skipped]
+    else:
+        chosen = [i for i in installs if str(i.root) in set(req.installs)]
     folders = [f.strip().strip('"') for f in req.folders if f.strip().strip('"')]
     return ScanArgs(
         installs=[] if only else chosen,
@@ -305,7 +309,7 @@ def analyze_selection(
         )
     report(0, 1, "Preparing…")
     plan, seconds = estimate(ws, sel.refs)
-    missing = lib.missing_maps(sel.refs, progress=report.note) if req.online else []
+    missing = lib.missing_maps(sel.refs, progress=report.note) if ws.settings().online(req.online) else []
     report.detail(replays=len(sel.refs), estimate_seconds=round(seconds + DOWNLOAD * len(missing), 1))
     if missing:
         lib.fetch_missing(missing, progress=report)
