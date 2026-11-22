@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from osu_coach.domain.analysis.models import ReplayMeta
-from osu_coach.domain.player.engines.base import IRT, Rated, measured_scores
+from osu_coach.domain.player.engines.base import IRT, SCORE, STARS, Rated, measured_scores
 from osu_coach.domain.player.engines.consistency import star_consistency
 from osu_coach.domain.player.engines.demand import log_demand
 from osu_coach.domain.player.engines.irt import constants as K
@@ -248,6 +248,20 @@ class IrtEngine:
         if row is None or row.state not in ("measured", "provisional") or row.measured is None:
             return None
         return row.measured if math.isfinite(row.measured) else None
+
+    def goal_values(self, skills: Mapping[str, SkillRating]) -> dict[str, tuple[float, str]]:
+        """A skill's goal is the map star rating it holds up on (#129); one not on the star scale (consistency)
+        keeps its score. A lower bound (``untested``) is no measurement: no goal."""
+        out = {}
+        for k, v in measured_scores(skills).items():
+            row = skills[k]
+            if v is None:
+                continue
+            if row.stars is None:
+                out[k] = (float(v), SCORE)
+            elif row.state in ("measured", "provisional") and math.isfinite(row.stars):
+                out[k] = (float(row.stars), STARS)
+        return out
 
     def map_scores(self, skills: Mapping[str, SkillRating], theta: float) -> dict[str, float]:
         # the scores against maps of theta ★, as compare_at gives them (consistency isn't on the star scale)

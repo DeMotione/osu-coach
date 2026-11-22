@@ -1,8 +1,10 @@
-"""Skill goals: a target score for a skill by a date, and how far along you are.
+"""Skill goals: a target for a skill by a date, and how far along you are.
 
 Goals live in the settings (``settings.json``, key ``goals``) as plain dicts:
-``{"id", "skill", "start", "target", "created", "deadline", "done"}`` — ``start`` is the skill score when the
-goal was set, ``done`` the date it was first reached (None while open). Dates are ISO strings.
+``{"id", "skill", "start", "target", "created", "deadline", "done"}`` — ``start`` is the skill's value when the
+goal was set, ``done`` the date it was first reached (None while open). Dates are ISO strings. ``unit``: what the
+values are counted in, the 0–100 score (``score``, also when it is missing) or the map star rating (``stars``,
+Star Levels: #129).
 """
 
 from __future__ import annotations
@@ -10,6 +12,10 @@ from __future__ import annotations
 import datetime as dt
 import math
 from dataclasses import dataclass
+
+from osu_coach.domain.player.engines import SCORE, STARS
+
+STEP = {SCORE: 10.0, STARS: 0.5}  # a plan's step up: 10 points is half a star on Star Levels (20 points a star)
 
 
 def new_goal(
@@ -23,6 +29,7 @@ def new_goal(
     score_source: str = "legacy",
     score_version: int | None = None,
     engine: str | None = None,
+    unit: str = SCORE,
 ) -> dict:
     goal = {
         "id": goal_id,
@@ -38,7 +45,21 @@ def new_goal(
         goal["score_version"] = score_version
     if engine is not None:
         goal["engine"] = engine  # the rating engine whose scores it follows
+    if unit != SCORE:
+        goal["unit"] = unit
     return goal
+
+
+def unit_of(goal: dict) -> str:
+    """What the goal's values are counted in (goals saved before there were star goals: the score)."""
+    return STARS if goal.get("unit") == STARS else SCORE
+
+
+def next_target(value: float, unit: str = SCORE) -> float:
+    """A plan's target for a skill at ``value``: :data:`STEP` higher (a score: at most 100)."""
+    if unit == STARS:
+        return round(value + STEP[STARS], 1)
+    return min(100.0, round(value + STEP[SCORE]))
 
 
 def _num(v) -> float | None:
@@ -108,3 +129,10 @@ def suggested_targets(scores: dict, n: int = 3, step: float = 10.0) -> list[tupl
     have = [(k, float(v)) for k, v in scores.items() if _num(v) is not None]
     have.sort(key=lambda kv: kv[1])
     return [(k, v, min(100.0, round(v + step))) for k, v in have[:n]]
+
+
+def weakest(scores: dict, n: int = 3) -> list[str]:
+    """The ``n`` skills with the lowest score (the order :func:`suggested_targets` takes them in)."""
+    have = [(k, float(v)) for k, v in scores.items() if _num(v) is not None]
+    have.sort(key=lambda kv: kv[1])
+    return [k for k, _ in have[:n]]

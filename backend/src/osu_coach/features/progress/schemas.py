@@ -69,6 +69,10 @@ class ProgressPlay(BaseModel):
     result: Literal["full combo", "passed", "failed"]
 
 
+# what a goal's values are counted in: the 0–100 score, or the map star rating (Star Levels, #129)
+Unit = Literal["score", "stars"]
+
+
 class GoalOut(BaseModel):
     id: str
     skill: str
@@ -84,12 +88,20 @@ class GoalOut(BaseModel):
     days_left: int
     state: Literal["done", "on track", "behind", "overdue", "no data", "paused"]
     score_source: Literal["experimental", "legacy"] = Field(description="Rating scale used when the goal was created.")
+    unit: Unit = Field("score", description="What start, target, current and left are in: the score, or stars.")
+    paused_reason: Literal["old_scale", "accuracy", "unit"] | None = Field(
+        None,
+        description="Why a paused goal isn't followed: set on the scores before 0.10, a recalibrated accuracy goal, "
+        "or set as a score where the skill is now in stars.",
+    )
 
 
 class SkillValue(BaseModel):
     key: str
     label: str
-    score: float
+    score: float = Field(description="Its 0–100 score (weak at 45 or less).")
+    value: float = Field(description="What a goal for it follows now, in ``unit``.")
+    unit: Unit = "score"
 
 
 class SuggestedGoal(BaseModel):
@@ -97,18 +109,22 @@ class SuggestedGoal(BaseModel):
     label: str
     current: float
     target: float
+    unit: Unit = "score"
 
 
 class HistoryPoint(BaseModel):
     day: str
-    score: float | None
+    score: float | None = Field(description="The skill's value that day, in the goal's unit.")
 
 
 class GoalHistory(BaseModel):
     goal_id: str
     skill: str
     label: str
-    points: list[HistoryPoint]
+    unit: Unit = "score"
+    points: list[HistoryPoint] = Field(
+        description="Day by day for a score goal of Comfort Score (the saved history); otherwise today's value."
+    )
     target: list[HistoryPoint] = Field(description="From the start score on the day it was set to the target.")
 
 

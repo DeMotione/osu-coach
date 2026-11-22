@@ -16,7 +16,7 @@ import { RecommendationControls, type RecommendationOptions } from "../component
 import { StageNav } from "../components/StageNav";
 import { EmptyState, ErrorCard, JobStatus, LoadingPage } from "../components/states";
 import { Alert, Badge, Card, Page, Progress, Stat, Tabs, Tiles } from "../components/ui";
-import { fmt } from "../lib/format";
+import { goalLeft, goalValue } from "../lib/goals";
 import { loadPlaylist, playlistKey, savePlaylist, STAGE_SIZE, stageMaps, useRounds, type PlaylistControls } from "../lib/playlist";
 import { speedFitNotice } from "../lib/recommendationFit";
 
@@ -47,8 +47,22 @@ const STATE: Record<Schemas["GoalOut"]["state"], ["good" | "info" | "warn" | "ba
   behind: ["warn", "behind"],
   overdue: ["bad", "overdue"],
   "no data": ["muted", "no data"],
-  paused: ["muted", "paused · previous accuracy scale"],
+  paused: ["muted", "paused"],
 };
+
+/** Why a paused goal isn't followed: its badge and what to do about it. */
+function pausedWhy(goal: Schemas["GoalOut"]): [string, string] {
+  switch (goal.paused_reason) {
+    case "old_scale":
+      return ["paused · previous rating scale", "Set on the previous rating scale, which no longer matches your scores. Add a new goal to follow this skill."];
+    case "accuracy":
+      return ["paused · previous accuracy scale", "Create a new goal to track the recalibrated score."];
+    case "unit":
+      return ["paused · set as a score", "Set as a 0–100 score; Star Levels now counts this skill in stars. Add a new goal in stars."];
+    default:
+      return ["paused", ""];
+  }
+}
 
 function GoalsTab() {
   const q = useGoals();
@@ -64,7 +78,7 @@ function GoalsTab() {
       </Tiles>
       <Card
         title="Your goals"
-        hint="Each goal: a skill score to reach by a date. On track = you are at least as far as the time that has passed."
+        hint="Each goal: a skill score (with Star Levels: a star level) to reach by a date. On track = you are at least as far as the time that has passed. Goals belong to the rating engine they were set with (Settings): the other engine's goals are kept and show again when you switch back."
         foot={g.history.length ? undefined : <AddGoal goals={g} />}
       >
         {g.open.length ? (
@@ -80,7 +94,7 @@ function GoalsTab() {
           <ul className="list list--bullets">
             {g.done.map((x) => (
               <li key={x.id}>
-                <strong>{x.label}</strong> {fmt(x.start, 0)} → {x.target.toFixed(0)}, reached {x.done} (set {x.created})
+                <strong>{x.label}</strong> {goalValue(x.start, x.unit)} → {goalValue(x.target, x.unit)}, reached {x.done} (set {x.created})
                 {x.score_source === "legacy" && " · previous rating scale"}
               </li>
             ))}
@@ -96,24 +110,21 @@ function GoalRow({ goal }: { goal: Schemas["GoalOut"] }) {
   const [tone, stateWord] = STATE[goal.state];
   // set before 0.10: those scores can't be compared with today's, so the goal isn't followed any more (#70)
   const oldScale = goal.score_source === "legacy";
-  const word = goal.state === "paused" && oldScale ? "paused · previous rating scale" : stateWord;
+  const paused = goal.state === "paused";
+  const [pausedWord, pausedText] = pausedWhy(goal);
+  const word = paused ? pausedWord : stateWord;
   return (
     <div className="goal">
       <div className="stack" style={{ gap: 4 }}>
         <span className="goal__title">
-          {goal.label}: {fmt(goal.start, 0)} → {goal.target.toFixed(0)} by {goal.deadline}
-          {goal.state !== "paused" && ` · now ${fmt(goal.current, 0)}`} {" "}
+          {goal.label}: {goalValue(goal.start, goal.unit)} → {goalValue(goal.target, goal.unit)} by {goal.deadline}
+          {!paused && ` · now ${goalValue(goal.current, goal.unit)}`} {" "}
           <Badge tone={tone}>{word}</Badge>
         </span>
         <span className="goal__meta">
           <span>{goal.state === "paused" ? `Original deadline ${goal.deadline}` : goal.days_left >= 0 ? `${goal.days_left} days left` : `${-goal.days_left} days overdue`}</span>
-          {goal.left !== null && goal.left > 0 && <span>{goal.left.toFixed(0)} points to go</span>}
-          {goal.state === "paused" &&
-            (oldScale ? (
-              <span>Set on the previous rating scale, which no longer matches your scores. Add a new goal to follow this skill.</span>
-            ) : (
-              <span>Create a new goal to track the recalibrated score.</span>
-            ))}
+          {goal.left !== null && goal.left > 0 && <span>{goalLeft(goal.left, goal.unit)} to go</span>}
+          {paused && pausedText && <span>{pausedText}</span>}
           {oldScale && goal.state !== "paused" && <span>Previous rating scale</span>}
         </span>
       </div>
@@ -130,7 +141,7 @@ function HistoryCard({ history, foot }: { history: Schemas["GoalHistory"][]; foo
   return (
     <Card
       title="Goal skills day by day"
-      hint="Goals on the current rating scale. Solid lines: your score over the plays of the last 7 days, on each day you played; dotted: the path from where you started to the target by the deadline. Above the dotted line = ahead of plan."
+      hint="Goals on the current rating scale. Lines: your score over the plays of the last 7 days, on each day you played (a skill in stars, with Star Levels: where you are today). ◆ each goal: its target, at its deadline. Hover a skill to bring it forward; click its name below the chart to hide it."
       foot={foot}
     >
       <Chart build={build} height={320} label="Goal skills day by day" />
@@ -141,13 +152,16 @@ function HistoryCard({ history, foot }: { history: Schemas["GoalHistory"][]; foo
 function PlanCard({ goals }: { goals: Schemas["GoalsOut"] }) {
   const plan = useAddPlan();
   return (
-    <Card title="A 4-week plan" hint="Up to 3 measured skills below your comfort level, each with a target 10 points higher.">
+    <Card
+      title="A 4-week plan"
+      hint="Up to 3 measured skills below your comfort level, each with a target 10 points higher (with Star Levels: half a star higher)."
+    >
       {goals.suggested.length ? (
         <ul className="list">
           {goals.suggested.map((s) => (
             <li key={s.skill} className="mini">
               <span className="mini__title">
-                {s.label}: {s.current.toFixed(0)} → {s.target.toFixed(0)}
+                {s.label}: {goalValue(s.current, s.unit)} → {goalValue(s.target, s.unit)}
               </span>
             </li>
           ))}
@@ -157,7 +171,7 @@ function PlanCard({ goals }: { goals: Schemas["GoalsOut"] }) {
       )}
       {goals.weak_without_goal.length > 0 && (
         <p className="small muted">
-          Still below your level and without a goal: {goals.weak_without_goal.map((s) => `${s.label} (${s.score.toFixed(0)})`).join(", ")}.
+          Still below your level and without a goal: {goals.weak_without_goal.map((s) => `${s.label} (${goalValue(s.value, s.unit)})`).join(", ")}.
         </p>
       )}
       {plan.isError && <Alert tone="bad">{plan.error.message}</Alert>}

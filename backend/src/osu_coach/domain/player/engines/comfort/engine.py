@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from osu_coach.domain.analysis.models import ReplayMeta
-from osu_coach.domain.player.engines.base import COMFORT, Rated, measured_scores
+from osu_coach.domain.player.engines.base import COMFORT, SCORE, Rated, measured_scores
 from osu_coach.domain.player.engines.comfort.ratings import combine_ratings
 from osu_coach.domain.player.engines.comfort.readiness import compare_at
 from osu_coach.domain.player.engines.ranking import strengths_and_weaknesses
@@ -36,3 +36,6 @@ class ComfortEngine:
 
     def playlist_level(self, skills: Mapping[str, SkillRating], skill: str) -> float | None:
         return None  # every playlist is made around the comfort level, moved by the skill's score (κ)
+
+    def goal_values(self, skills: Mapping[str, SkillRating]) -> dict[str, tuple[float, str]]:
+        return {k: (float(v), SCORE) for k, v in measured_scores(skills).items() if v is not None}

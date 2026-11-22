@@ -29,3 +29,12 @@ def test_plan_targets_the_weakest_skills():
     plan = goals.suggested_targets({"aim": 70, "speed": 30, "reading": 45, "sliders": None, "flow_aim": 95}, 2)
     assert plan == [("speed", 30.0, 40.0), ("reading", 45.0, 55.0)]
     assert goals.suggested_targets({"flow_aim": 95}, 1) == [("flow_aim", 95.0, 100.0)]
+
+
+def test_a_goal_in_stars_steps_half_a_star():
+    assert goals.next_target(6.83, goals.STARS) == 7.3 and goals.next_target(95.0) == 100.0
+    star = goals.new_goal("aim", 6.83, 7.3, D0, goal_id="g", today=D0, unit=goals.STARS)
+    assert star["unit"] == "stars" and goals.unit_of(star) == "stars"
+    score = goals.new_goal("aim", 40, 50, D0, goal_id="g", today=D0)
+    assert "unit" not in score and goals.unit_of(score) == "score"  # as every goal saved before #129
+    assert goals.weakest({"aim": 70, "speed": 30, "reading": None}, 1) == ["speed"]

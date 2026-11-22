@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Schemas } from "../api/client";
 import { useAddGoal } from "../api/queries";
 import { isoDay } from "../lib/format";
-import { blockedSkills } from "../lib/goals";
+import { blockedSkills, goalValue, nextTarget } from "../lib/goals";
 import { IconPlus, IconX } from "./icons";
 import { Alert, Field } from "./ui";
 
@@ -49,11 +49,12 @@ function AddGoalDialog({ goals, onClose }: { goals: Goals; onClose: () => void }
     return () => d.close?.();
   }, []);
 
-  const pick = (key: string, score: number) => {
-    setSkill(key);
-    setTarget(String(Math.min(100, Math.round(score) + 10)));
+  const pick = (s: Goals["skills"][number]) => {
+    setSkill(s.key);
+    setTarget(String(nextTarget(s.value, s.unit)));
     add.reset();
   };
+  const stars = chosen?.unit === "stars";
 
   return (
     <dialog ref={ref} className="goal-dialog" aria-labelledby="goal-dialog-title" onClose={onClose}>
@@ -70,7 +71,7 @@ function AddGoalDialog({ goals, onClose }: { goals: Goals; onClose: () => void }
             <div className="goal-dialog__chips">
               {active.map((g) => (
                 <span key={g.id} className="chip">
-                  {g.label} → {g.target.toFixed(0)} by {g.deadline}
+                  {g.label} → {goalValue(g.target, g.unit)} by {g.deadline}
                 </span>
               ))}
             </div>
@@ -90,10 +91,10 @@ function AddGoalDialog({ goals, onClose }: { goals: Goals; onClose: () => void }
                   className="skill-pick"
                   aria-pressed={skill === s.key}
                   disabled={why !== undefined}
-                  onClick={() => pick(s.key, s.score)}
+                  onClick={() => pick(s)}
                 >
                   <span>{s.label}</span>
-                  <small>{why ?? `now ${s.score.toFixed(0)}`}</small>
+                  <small>{why ?? `now ${goalValue(s.value, s.unit)}`}</small>
                 </button>
               );
             })}
@@ -101,9 +102,9 @@ function AddGoalDialog({ goals, onClose }: { goals: Goals; onClose: () => void }
         </section>
         {chosen && (
           <section className="goal-dialog__when">
-            <Field label={`Target (now ${chosen.score.toFixed(0)})`}>
-              <input className="input" type="number" min={Math.ceil(chosen.score + 0.01)} max={100} value={target}
-                onChange={(e) => setTarget(e.target.value)} />
+            <Field label={stars ? `Target in stars (now ${goalValue(chosen.value, "stars")})` : `Target (now ${goalValue(chosen.value)})`}>
+              <input className="input" type="number" min={stars ? Math.ceil(chosen.value * 10 + 0.01) / 10 : Math.ceil(chosen.value + 0.01)}
+                max={stars ? 15 : 100} step={stars ? 0.1 : 1} value={target} onChange={(e) => setTarget(e.target.value)} />
             </Field>
             {/* buttons, so not inside a <label> like the other fields */}
             <div className="field" role="group" aria-labelledby="goal-dialog-by">
