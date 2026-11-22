@@ -11,10 +11,11 @@ router = APIRouter(prefix="/check", tags=["Detailed Map Analysis"])
 
 
 @router.get("/replays", summary="Replays to check (newest first)", responses=responses(404, 409, 422))
-def replays(ws: WorkspaceDep, path: str | None = None, only_map: bool = False) -> CheckList:
+def replays(ws: WorkspaceDep, path: str | None = None, only_map: bool = False, q: str | None = None) -> CheckList:
     """Without a scan, the newest replays of the osu! installs on this computer are read. ``path``: a replay opened
-    from another page or uploaded (always listed); ``only_map``: only the plays of that replay's map."""
-    return svc.replay_list(ws, path, only_map)
+    from another page or uploaded (always listed); ``only_map``: only the plays of that replay's map; ``q``: only the
+    replays whose map title holds all its words, searched through every replay (not only the newest)."""
+    return svc.replay_list(ws, path, only_map, q)
 
 
 @router.post("/report", summary="Check one replay", responses=responses(404, 409, 422))

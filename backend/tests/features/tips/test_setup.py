@@ -2,6 +2,7 @@
 otherwise keep it."""
 
 import dataclasses
+import datetime as dt
 import math
 
 import numpy as np
@@ -13,7 +14,7 @@ from osu_coach.domain.player import build_profile
 from osu_coach.domain.player.profile import Sliders
 from osu_coach.domain.player.setup import Setup
 from osu_coach.domain.player.summary import ChartNotes
-from osu_coach.features.tips.rules import make_tips, mm_per_osu_px, setup_advice
+from osu_coach.features.tips.rules import Since, make_tips, mm_per_osu_px, setup_advice
 from osu_coach.infra.library import analyze_files
 from tests.conftest import replay_and_map
 from tests.domain.player.helpers import aim_regression, records
@@ -232,6 +233,27 @@ def keys(base, **tapping):
     )
 
 
+def test_a_changed_setting_is_checked_on_the_plays_since(base):
+    """#131: RT set to the advised 0.15 mm: the double presses of the plays before don't ask for the next step."""
+    s, day = Setup(**SAYO), dt.date(2026, 11, 22)
+    before = keys(base, chatter_per_1000=9.0)
+
+    def by_key(since=None):
+        return {a.key: a for a in setup_advice(before, s, since)}
+
+    assert by_key()["keys"].verdict == "change"
+    waiting = by_key({"keys": Since(day, None)})["keys"]
+    assert waiting.verdict == "unknown" and not waiting.changes
+    assert waiting.why == "Since you changed it on 2026-11-22, not enough key presses yet to check them."
+    clean = by_key({"keys": Since(day, keys(base))})["keys"]
+    assert clean.verdict == "keep" and clean.why.startswith("Since you changed it on 2026-11-22, no double presses")
+    assert by_key({"keys": Since(day, keys(base, chatter_per_1000=9.0))})["keys"].verdict == "change"  # still fires
+    # the other checks still read every play
+    assert by_key({"keys": Since(day, None)})["offset"] == by_key()["offset"]
+    area = {a.key: a for a in setup_advice(before, Setup(**AREA), {"aim": Since(day, None)})}["area_size"]
+    assert area.verdict == "unknown" and area.why.startswith("Since you changed it on 2026-11-22, not enough jumps")
+
+
 def test_keys_that_fit_are_kept(base):
     """The old rule changed RT Lower Bound 4.00 → 3.95 mm on any setup: no more changes the replays don't ask for."""
     a = advice(keys(base), Setup(**{**SAYO, "sayo_rt_lower_mm": 4.0}), "keys")
@@ -246,6 +268,24 @@ def test_double_presses_make_rapid_trigger_less_sensitive(base):
         "RT Release": ("0.15 mm", "0.20 mm"),
         "RT Upper Bound": ("0.10 mm", "0.40 mm"),  # rapid trigger no longer fires above the trigger point
     }
+
+
+def test_without_rapid_trigger_double_presses_move_the_release_point(base):
+    """RT Mode off: the RT values do nothing, so the fixed Release goes a step higher up (and RT on for fast streams)."""
+    off = Setup(**{**SAYO, "sayo_rt": False})
+    slow = keys(base, chatter_per_1000=9.0, comfort_bpm=180)
+    assert changes(advice(slow, off, "keys")) == {"Release": ("0.35 mm", "0.30 mm")}
+    assert changes(advice(keys(base, chatter_per_1000=9.0), off, "keys")) == {  # 210 BPM streams
+        "Release": ("0.35 mm", "0.30 mm"),
+        "RT Mode": ("off", "on"),
+    }
+    top = Setup(**{**SAYO, "sayo_rt": False, "sayo_release_mm": 0.05})  # Release as high up as it goes
+    assert changes(advice(slow, top, "keys")) == {"Trigger": ("0.40 mm", "0.45 mm")}
+
+
+def test_full_stroke_ignores_the_bounds(base):
+    a = advice(keys(base, chatter_per_1000=9.0), Setup(**{**SAYO, "sayo_full_stroke": True}), "keys")
+    assert set(changes(a)) == {"RT Trigger", "RT Release"}
 
 
 def test_keys_letting_go_mid_slider_raise_rt_release(base):

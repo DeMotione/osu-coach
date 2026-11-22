@@ -33,7 +33,13 @@ function NumberField({ label, value, onChange, step, min, max, hint, placeholder
   );
 }
 
-const SAYO: [string, keyof Setup, "mm" | "toggle", string][][] = [
+/** Rapid trigger counts as on for a SayoDevice until it is switched off. */
+const rtOn = (s: Setup) => s.sayo_rt ?? true;
+/** The bounds only matter with rapid trigger on and without Full Stroke (which ignores them). */
+const bounded = (s: Setup) => rtOn(s) && !s.sayo_full_stroke;
+
+/** Label, setting, kind, hint, and when it matters (hidden otherwise; its value stays saved). */
+const SAYO: [string, keyof Setup, "mm" | "toggle", string, ((s: Setup) => boolean)?][][] = [
   [
     ["Stroke", "sayo_stroke_mm", "mm", "Full travel of your switches (4.0 mm for most magnetic switches)."],
     ["Trigger", "sayo_trigger_mm", "mm", "Fixed press depth (actuation point)."],
@@ -41,13 +47,13 @@ const SAYO: [string, keyof Setup, "mm" | "toggle", string][][] = [
   ],
   [
     ["RT Mode", "sayo_rt", "toggle", "Rapid trigger on/off."],
-    ["RT Trigger", "sayo_rt_trigger_mm", "mm", "Inside the RT zone: press again after moving down this far (≤ RT Release)."],
-    ["RT Release", "sayo_rt_release_mm", "mm", "Inside the RT zone: release after moving up this far."],
+    ["RT Trigger", "sayo_rt_trigger_mm", "mm", "Inside the RT zone: press again after moving down this far (≤ RT Release).", rtOn],
+    ["RT Release", "sayo_rt_release_mm", "mm", "Inside the RT zone: release after moving up this far.", rtOn],
   ],
   [
-    ["Full Stroke", "sayo_full_stroke", "toggle", "Rapid trigger over the whole stroke (ignores the bounds)."],
-    ["RT Upper Bound", "sayo_rt_upper_mm", "mm", "Depth where rapid trigger starts working."],
-    ["RT Lower Bound", "sayo_rt_lower_mm", "mm", "Depth where rapid trigger stops working (keep it a bit above the full stroke)."],
+    ["Full Stroke", "sayo_full_stroke", "toggle", "Rapid trigger over the whole stroke (ignores the bounds).", rtOn],
+    ["RT Upper Bound", "sayo_rt_upper_mm", "mm", "Depth where rapid trigger starts working.", bounded],
+    ["RT Lower Bound", "sayo_rt_lower_mm", "mm", "Depth where rapid trigger stops working (keep it a bit above the full stroke).", bounded],
   ],
 ];
 
@@ -107,13 +113,13 @@ export function SetupDetails({ value: s, onChange, client = true }: { value: Set
         <div className="section">
           <h3 className="section__title">SayoDevice — the values from its configurator (sayodevice.com → Key stroke); leave empty what you don't know</h3>
           <div className="sayo-grid">
-            {SAYO.flat().map(([label, key, kind, hint]) =>
+            {SAYO.flat().filter(([, , , , matters]) => !matters || matters(s)).map(([label, key, kind, hint]) =>
               kind === "toggle" ? (
                 <div key={key} className="field sayo-toggle">
                   <Switch
                     label={label}
                     hint={hint}
-                    checked={key === "sayo_rt" ? s.sayo_rt ?? true : !!s[key]}
+                    checked={key === "sayo_rt" ? rtOn(s) : !!s[key]}
                     onChange={(v) => onChange({ [key]: v })}
                   />
                 </div>

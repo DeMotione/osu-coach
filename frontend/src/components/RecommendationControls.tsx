@@ -39,7 +39,7 @@ function ratingTexts(applied: string | undefined): Record<string, string> {
 /** Draft every control locally; the one Show maps action applies the complete selection. The draft starts from
  * ``initial``, the selection applied last (a playlist come back to, #107). With ``levels`` (Star Levels: each skill's
  * own star level) a playlist is made around the target skill's level, so there is no comfort difficulty, κₛ or
- * relevance to set. */
+ * relevance to set, and no other skill ratings to try: a skill is a star level, not a 0–100 score (#126). */
 export function RecommendationControls({ current, measured, comfort, levels, initial = {}, onApply }: {
   current: string;
   measured: Record<string, number>;
@@ -67,7 +67,7 @@ export function RecommendationControls({ current, measured, comfort, levels, ini
   const byLevel = levels !== undefined;
   const valid = (byLevel || (Number(stars) > 0 && Number(kappa) >= 0 && Number(relevance) >= 0 && Number(relevance) <= 1 &&
     [stars, kappa, relevance].every((n) => n.trim() !== "" && Number.isFinite(Number(n))))) &&
-    Object.values(ratings).every((n) => n.trim() === "" || (Number.isFinite(Number(n)) && Number(n) >= 0 && Number(n) <= 100)) &&
+    (byLevel || Object.values(ratings).every((n) => n.trim() === "" || (Number.isFinite(Number(n)) && Number(n) >= 0 && Number(n) <= 100))) &&
     (!adjustableDt || (Number(minRate) >= 1.10 && Number(maxRate) <= 2.00 && Number(minRate) <= Number(maxRate) &&
       [minRate, maxRate].every((n) => n.trim() !== "" &&
         Math.abs(Number(n) * 100 - Math.round(Number(n) * 100)) < 1e-8)));
@@ -78,8 +78,9 @@ export function RecommendationControls({ current, measured, comfort, levels, ini
     onApply({
       skill,
       assessed: selected.join(","),
-      ratings: Object.keys(manual).length ? JSON.stringify(manual) : undefined,
-      // Star Levels: no comfort; κₛ moves nothing around the skill's own level, and relevance keeps its default
+      // Star Levels: no ratings to try or comfort; κₛ moves nothing around the skill's own level, and relevance keeps
+      // its default
+      ratings: !byLevel && Object.keys(manual).length ? JSON.stringify(manual) : undefined,
       comfort: !byLevel && starsOverride !== null ? Number(stars) : undefined,
       kappa: byLevel ? 0.5 : Number(kappa),
       min_relevance: byLevel ? 0.3 : Number(relevance),
@@ -109,11 +110,11 @@ export function RecommendationControls({ current, measured, comfort, levels, ini
       <div className="recommendation-modes">
         <button type="button" className={panel === "fine" ? "recommendation-mode active" : "recommendation-mode"}
           aria-expanded={panel === "fine"} aria-controls={panelId} onClick={() => setPanel(panel === "fine" ? null : "fine")}>⚙ Fine-tune</button>
-        <button type="button" className={panel === "ratings" ? "recommendation-mode active" : "recommendation-mode"}
-          aria-expanded={panel === "ratings"} aria-controls={panelId} onClick={() => setPanel(panel === "ratings" ? null : "ratings")}>Try other skill ratings</button>
+        {!byLevel && <button type="button" className={panel === "ratings" ? "recommendation-mode active" : "recommendation-mode"}
+          aria-expanded={panel === "ratings"} aria-controls={panelId} onClick={() => setPanel(panel === "ratings" ? null : "ratings")}>Try other skill ratings</button>}
       </div>
 
-      {panel && <div className="recommendation-panel" id={panelId} role="region" aria-label={panel === "fine" ? "Fine-tune" : "Skill ratings"}>
+      {panel && !(byLevel && panel === "ratings") && <div className="recommendation-panel" id={panelId} role="region" aria-label={panel === "fine" ? "Fine-tune" : "Skill ratings"}>
         <div className="recommendation-panel__head">
           <h3>{panel === "fine" ? "Fine-tune" : "Try other skill ratings"}</h3>
           <button type="button" className="recommendation-close" aria-label="Close settings" onClick={() => setPanel(null)}>×</button>

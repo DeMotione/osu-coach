@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from osu_coach.features.tips.rules.common import Tip
 from osu_coach.features.tips.rules.engine import make_tips, practice_plan
-from osu_coach.features.tips.rules.setup import mm_per_osu_px, setup_advice
+from osu_coach.features.tips.rules.setup import Since, mm_per_osu_px, setup_advice
 
 __all__ = [
+    "Since",
     "Tip",
     "make_tips",
     "mm_per_osu_px",

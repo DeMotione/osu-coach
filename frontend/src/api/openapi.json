@@ -1251,7 +1251,7 @@
           "Detailed Map Analysis"
         ],
         "summary": "Replays to check (newest first)",
-        "description": "Without a scan, the newest replays of the osu! installs on this computer are read. ``path``: a replay opened\nfrom another page or uploaded (always listed); ``only_map``: only the plays of that replay's map.",
+        "description": "Without a scan, the newest replays of the osu! installs on this computer are read. ``path``: a replay opened\nfrom another page or uploaded (always listed); ``only_map``: only the plays of that replay's map; ``q``: only the\nreplays whose map title holds all its words, searched through every replay (not only the newest).",
         "operationId": "replays_api_check_replays_get",
         "parameters": [
           {
@@ -1278,6 +1278,22 @@
               "type": "boolean",
               "default": false,
               "title": "Only Map"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
             }
           }
         ],

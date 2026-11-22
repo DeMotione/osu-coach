@@ -17,7 +17,8 @@ def osu_bytes(res):
 
 
 class FakeRosu:
-    """Stands in for rosu_pp_py: records the Difficulty kwargs; behaviour is steered by class attributes."""
+    """Stands in for both calculators (rosu_pp_2026 and rosu_pp_py): records the Difficulty kwargs; behaviour is
+    steered by class attributes."""
 
     created: list = []
     suspicious = False
@@ -54,6 +55,7 @@ def fake(monkeypatch):
     FakeRosu.attrs = SimpleNamespace(stars=5.5, aim=2, speed=float("nan"), max_combo=100, ar="9", flashlight=None)
     FakeRosu.strain_data = SimpleNamespace(section_length=400, aim=[1, 2], speed=None)
     monkeypatch.setattr(difficulty, "rosu", FakeRosu)
+    monkeypatch.setattr(difficulty, "rosu_strains", FakeRosu)
     return FakeRosu
 
 
@@ -69,6 +71,7 @@ def test_available_reflects_whether_rosu_imported(monkeypatch):
 
 def test_everything_fails_soft_without_rosu(monkeypatch, osu_bytes):
     monkeypatch.setattr(difficulty, "rosu", None)
+    monkeypatch.setattr(difficulty, "rosu_strains", None)
     assert difficulty.parse_map(osu_bytes) is None
     assert difficulty.attributes(osu_bytes) == {}
     assert difficulty.strains(osu_bytes) is None
@@ -83,8 +86,36 @@ def test_parsed_map_reuses_native_beatmap_and_preserves_fail_soft(fake, monkeypa
         raise AssertionError("beatmap parsed again")
 
     monkeypatch.setattr(difficulty, "_map", unexpected_parse)
+    monkeypatch.setattr(difficulty, "_strains_map", unexpected_parse)
     assert difficulty.attributes(b"data", parsed_map=parsed)["stars"] == 5.5
     assert difficulty.strains(b"data", parsed_map=parsed)["aim"] == [1, 2]
+
+
+def test_each_calculator_gets_its_own_parse(fake, monkeypatch):
+    class Strains(FakeRosu):
+        """The strain calculator (rosu-pp 4): its own Beatmap type, which the star one can't read."""
+
+        class Beatmap(FakeRosu.Beatmap):
+            pass
+
+        class Difficulty(FakeRosu.Difficulty):
+            def strains(self, m):
+                assert isinstance(m, Strains.Beatmap), "the star calculator's parse"
+                return FakeRosu.strain_data
+
+    monkeypatch.setattr(difficulty, "rosu_strains", Strains)
+    parsed = difficulty.parse_map(b"data")
+    assert isinstance(parsed.strains, Strains.Beatmap) and not isinstance(parsed.stars, Strains.Beatmap)
+    assert difficulty.strains(b"data", parsed_map=parsed)["aim"] == [1, 2]
+    assert difficulty.strains(b"data")["aim"] == [1, 2]
+
+
+def test_stars_without_the_strain_calculator(fake, monkeypatch):
+    monkeypatch.setattr(difficulty, "rosu_strains", None)
+    parsed = difficulty.parse_map(b"data")
+    assert parsed is not None and parsed.strains is None
+    assert difficulty.attributes(b"data", parsed_map=parsed)["stars"] == 5.5
+    assert difficulty.strains(b"data", parsed_map=parsed) is None
 
 
 # --- _legacy_rate / _kwargs -----------------------------------------------------------------------------------
@@ -273,6 +304,13 @@ def test_real_attributes_of_a_sample_map(osu_bytes):
     assert a["ar"] == pytest.approx(9.7, abs=1e-3)
     assert set(a) <= set(difficulty.ATTR_NAMES)
     assert all(isinstance(v, float) and math.isfinite(v) for v in a.values())
+
+
+@needs_rosu
+def test_real_stars_are_the_ones_osu_shows(osu_bytes):
+    # osu!'s star rating of 2026-07-03 (#128): this map (beatmap 3076104, [Extreme]) shows 7.81402★ on osu.ppy.sh;
+    # rosu-pp 4 (osu!'s model of 2025) had 7.77★
+    assert difficulty.attributes(osu_bytes)["stars"] == pytest.approx(7.81402, abs=5e-4)
 
 
 @needs_rosu

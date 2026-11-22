@@ -10,12 +10,16 @@ A change is suggested only when all three hold:
   on most plays), at least :data:`LEAN_SHARE` of :data:`LEAN_MIN` or more;
 * the fix is a value you can set: the new millimetres, sensitivity, offset or key setting.
 
-Otherwise the advice is to keep the setting, or that there isn't enough data yet.
+Otherwise the advice is to keep the setting, or that there isn't enough data yet. A group of settings changed in
+Your setup is checked on the plays made since (:class:`Since`), not on the ones before (#131).
 """
 
 from __future__ import annotations
 
+import dataclasses
+import datetime as dt
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -65,6 +69,20 @@ class Advice:
     why: str
     changes: list[Change] = field(default_factory=list)
     where: str | None = None
+
+
+@dataclass(frozen=True)
+class Since:
+    """A group of settings changed on ``day``: its checks read only the plays since (``profile``; None: none yet)."""
+
+    day: dt.date
+    profile: Profile | None
+
+
+def _after(a: Advice, day: dt.date) -> Advice:
+    """``a`` told from the plays since its setting was changed on ``day``."""
+    why = a.why[0].lower() + a.why[1:] if a.why[1:2].islower() else a.why
+    return dataclasses.replace(a, why=f"Since you changed it on {day.isoformat()}, {why}")
 
 
 def mm_per_osu_px(setup: Setup) -> tuple[float, float] | None:
@@ -318,12 +336,11 @@ def _mm(v: float) -> float:
     return round(round(v / SAYO_STEP) * SAYO_STEP, 2)
 
 
-def _keys(p: Profile, s: Setup) -> Advice:
-    t = p.tapping
+def _keys(p: Profile | None, s: Setup) -> Advice:
     title = {"sayo": "SayoDevice", "rapid_trigger": "Rapid trigger"}.get(s.keyboard, "Keys")
-    presses = t.press_count or 0
-    if presses < MIN_PRESSES:
+    if p is None or (p.tapping.press_count or 0) < MIN_PRESSES:
         return Advice("keys", title, "unknown", "Not enough key presses yet to check them.")
+    t = p.tapping
     chatter = t.chatter_per_1000 or 0.0
     extra = t.extra_presses_per_100 or 0.0
     sliders = p.sliders.sliders or 0
@@ -395,16 +412,29 @@ def _rt_changes(s: Setup, double: bool, letting_go: bool) -> list[Change]:
 
 
 def _sayo_changes(s: Setup, double: bool, letting_go: bool, t: Tapping, reasons: list[str]) -> list[Change]:
-    """SayoDevice: rapid trigger less sensitive when keys fire twice (and never active above the trigger point), RT
-    Release higher when keys let go mid-slider, RT on for fast streams, and values the device can't work with."""
+    """SayoDevice: when keys fire twice or let go mid-slider, the setting that decides it a step less sensitive (with
+    rapid trigger on: RT Trigger / RT Release, and RT never working above the trigger point; off: Release higher up),
+    RT on for fast streams, and values the device can't work with. A setting rapid trigger being off or Full Stroke
+    leaves unused (the RT values, the bounds) is never suggested."""
     trig, rel = s.sayo_trigger_mm, s.sayo_release_mm
     rt_trig, rt_rel, upper = s.sayo_rt_trigger_mm, s.sayo_rt_release_mm, s.sayo_rt_upper_mm
+    rt = s.sayo_rt is not False  # on until switched off
     changes: list[Change] = []
 
     def mm(v: float | None) -> str | None:
         return None if v is None else f"{v:.2f} mm"
 
-    if double:
+    if not rt and (double or letting_go):
+        # without rapid trigger the fixed points decide: a Release higher up (smaller) needs a bigger lift to reset
+        if rel is None:
+            changes.append(Change("Release", None, f"{SAYO_STEP:g} mm smaller"))
+        elif rel > SAYO_STEP:
+            changes.append(Change("Release", mm(rel), mm(_mm(rel - SAYO_STEP))))
+            rel = _mm(rel - SAYO_STEP)
+        elif trig is not None:  # Release as high up as it goes: Trigger deeper instead
+            changes.append(Change("Trigger", mm(trig), mm(_mm(trig + SAYO_STEP))))
+            trig = _mm(trig + SAYO_STEP)
+    if rt and double:
         new_trig = _mm(max(rt_trig + SAYO_STEP, 0.15)) if rt_trig is not None else None
         new_rel = _mm(rt_rel + SAYO_STEP) if rt_rel is not None else None
         if new_trig is not None and new_rel is not None:
@@ -412,18 +442,19 @@ def _sayo_changes(s: Setup, double: bool, letting_go: bool, t: Tapping, reasons:
         changes.append(Change("RT Trigger", mm(rt_trig), mm(new_trig) or f"{SAYO_STEP:g} mm higher"))
         changes.append(Change("RT Release", mm(rt_rel), mm(new_rel) or f"{SAYO_STEP:g} mm higher"))
         rt_trig, rt_rel = new_trig, new_rel
-        if upper is not None and trig is not None and upper < trig:  # rapid trigger fires above the trigger point
+        # rapid trigger fires above the trigger point (Full Stroke ignores the bounds)
+        if upper is not None and trig is not None and upper < trig and not s.sayo_full_stroke:
             changes.append(Change("RT Upper Bound", mm(upper), mm(trig)))
-    if letting_go and not double:
+    if rt and letting_go and not double:
         new_rel = _mm(rt_rel + SAYO_STEP) if rt_rel is not None else None
         changes.append(Change("RT Release", mm(rt_rel), mm(new_rel) or f"{SAYO_STEP:g} mm higher"))
         rt_rel = new_rel
     speed = t.comfort_bpm or 0
-    if s.sayo_rt is False and speed >= 200:
+    if not rt and speed >= 200:
         changes.append(Change("RT Mode", "off", "on"))
         reasons.append(f"you stream {speed:.0f} BPM, and rapid trigger resets keys without a full lift")
     # values the device can't work with, whatever the replays show
-    if rt_trig is not None and rt_rel is not None and rt_trig > rt_rel and not double:
+    if rt and rt_trig is not None and rt_rel is not None and rt_trig > rt_rel and not double:
         changes.append(Change("RT Trigger", mm(rt_trig), mm(rt_rel)))
         reasons.append("RT Trigger can't be larger than RT Release")
     if trig is not None and rel is not None and rel >= trig:
@@ -433,11 +464,24 @@ def _sayo_changes(s: Setup, double: bool, letting_go: bool, t: Tapping, reasons:
 
 
 # ---------------------------------------------------------------- all of it
-def setup_advice(p: Profile, s: Setup) -> list[Advice]:
-    """Every setup check for this device: the changes first, then what can't be told yet, then what to keep."""
+def setup_advice(p: Profile, s: Setup, since: Mapping[str, Since] | None = None) -> list[Advice]:
+    """Every setup check for this device: the changes first, then what can't be told yet, then what to keep. A group
+    of settings changed in Your setup (``since``, by ``setup.CHECKED_BY``'s groups) is checked on the plays since."""
+    since = since or {}
+    aim, keys = since.get("aim"), since.get("keys")
+    out = _aim(aim.profile if aim else p, s)
+    if aim:
+        out = [_after(a, aim.day) for a in out]
+    out.append(_offset(p, s))
+    out.append(_after(_keys(keys.profile, s), keys.day) if keys else _keys(p, s))
+    return sorted(out, key=lambda a: (VERDICT_ORDER[a.verdict], ORDER.index(a.key)))
+
+
+def _aim(p: Profile | None, s: Setup) -> list[Advice]:
+    """The tablet area (size, position, rotation) or the mouse sensitivity."""
     out: list[Advice] = []
-    J = _jumps(p)
-    if not p.regression or len(J) < MIN_JUMPS:
+    J = _jumps(p) if p is not None else pd.DataFrame()
+    if p is None or not p.regression or len(J) < MIN_JUMPS:
         title = "Tablet area" if s.device == "tablet" else "Sensitivity"
         out.append(
             Advice(
@@ -451,5 +495,4 @@ def setup_advice(p: Profile, s: Setup) -> list[Advice]:
         out.append(_size(p, s, J))
         if s.device == "tablet":  # a mouse can't be moved or turned in a setting
             out += [_position(p, s), _rotation(p, J)]
-    out += [_offset(p, s), _keys(p, s)]
-    return sorted(out, key=lambda a: (VERDICT_ORDER[a.verdict], ORDER.index(a.key)))
+    return out

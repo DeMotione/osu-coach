@@ -1,7 +1,7 @@
 import math
 
 import pytest
-import rosu_pp_py as rosu
+import rosu_pp_2026 as rosu
 
 from osu_coach.infra.beatmaps.performance import calculate
 from tests.conftest import sample_paths

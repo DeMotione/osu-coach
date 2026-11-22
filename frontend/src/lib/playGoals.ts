@@ -25,21 +25,22 @@ export function toggleMods(current: string, part: string, on: boolean, allowNone
   return (next || (allowNone ? "NM" : current)) as NonNullable<Request["mods"]>;
 }
 
-type CheckReplay = Schemas["CheckReplay"];
+/** Mods that leave a map's difficulty as it is: a replay with them makes the same goal without them. */
+const SAME_DIFFICULTY = new Set(["NM", "NF", "SD", "PF", "SO", "CL", "MU", "V2"]);
 
-/** One replay per map and mods: the most accurate (then the newest). The ``keep`` path stays listed whatever its rank. */
-export function bestReplays(replays: CheckReplay[], keep?: string | null): CheckReplay[] {
-  const best = new Map<string, CheckReplay>();
-  for (const r of replays) {
-    const key = `${r.beatmap_md5 ?? r.path}:${r.mods}`;
-    const current = best.get(key);
-    const better = !current
-      || (r.accuracy ?? -1) > (current.accuracy ?? -1)
-      || ((r.accuracy ?? -1) === (current.accuracy ?? -1) && (r.played_at ?? "") > (current.played_at ?? ""));
-    if (better) best.set(key, r);
-  }
-  const picked = new Set([...best.values()].map((r) => r.path));
-  return replays.filter((r) => picked.has(r.path) || r.path === keep);
+/** A replay's mods ("HDDT", "DTHD", "NCHD", "HDDTCL", in any order) as the goal combination they make, NC counting as
+ * DT; undefined when one of them changes the difficulty in a way goals don't cover (EZ, HT, FL, ...). */
+export function goalMods(replayMods: string): NonNullable<Request["mods"]> | undefined {
+  const parts = new Set((replayMods.toUpperCase().match(/[A-Z0-9]{2}/g) ?? []).map((m) => (m === "NC" ? "DT" : m)));
+  const combo = ["HD", "HR", "DT"].filter((m) => parts.has(m));
+  if ([...parts].some((m) => !combo.includes(m) && !SAME_DIFFICULTY.has(m))) return undefined;
+  return GOAL_MODS.find((m) => m === (combo.join("") || "NM"));
+}
+
+/** Every word of a search in a map's name ("Artist – Title [Version]"), in any case and order: as the API searches. */
+export function matchesMap(map: string, search: string): boolean {
+  const name = map.toLowerCase();
+  return search.toLowerCase().split(/\s+/).every((word) => name.includes(word));
 }
 
 export function goalRequest(goal: Request["goal"], remembered?: Request | null): Request {

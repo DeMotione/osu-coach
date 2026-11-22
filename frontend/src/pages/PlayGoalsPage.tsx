@@ -3,17 +3,17 @@ import { Link, useSearchParams } from "react-router";
 
 import { api, unwrap, type Schemas } from "../api/client";
 import { useJob } from "../api/jobs";
-import { uploadFiles, useCheckReplays, usePlayGoalOptions } from "../api/queries";
-import { Combobox } from "../components/Combobox";
+import { usePlayGoalOptions } from "../api/queries";
 import { DataTable, type Column } from "../components/DataTable";
 import { ExportPanel } from "../components/ExportPanel";
+import { FcTargetPicker } from "../components/FcTargetPicker";
 import { ModPicker } from "../components/ModPicker";
 import { OpenInLazer } from "../components/OpenInLazer";
 import { StageNav } from "../components/StageNav";
 import { EmptyState, ErrorCard, JobStatus, LoadingPage } from "../components/states";
-import { Alert, Badge, Card, Dropzone, Field, Page, Segmented, Switch, Tabs } from "../components/ui";
+import { Alert, Badge, Card, Field, Page, Switch, Tabs } from "../components/ui";
 import { clock, fmt, pct, stars } from "../lib/format";
-import { bestReplays, exportGoalMaps, GOAL_MODS, goalRequest } from "../lib/playGoals";
+import { exportGoalMaps, GOAL_MODS, goalMods, goalRequest } from "../lib/playGoals";
 import { STAGE_SIZE, stageMaps, useRounds } from "../lib/playlist";
 
 type Request = Schemas["PlayGoalRequest"];
@@ -56,7 +56,7 @@ function GoalForm({ goal, options, path, beatmap, client, mods }: {
   goal: Goal; options: Schemas["PlayGoalOptions"]; path: string | null; beatmap: string | null; client: string | null; mods: string | null;
 }) {
   const [request, setRequest] = useState<Request>(() => {
-    const targetMods = GOAL_MODS.find((m) => m === mods?.replaceAll("NC", "DT"));
+    const targetMods = mods ? goalMods(mods) : undefined;
     return {
       ...goalRequest(goal, options.last_request),
       ...(path ? { replay_path: path, beatmap: null } : {}),
@@ -91,14 +91,14 @@ function GoalForm({ goal, options, path, beatmap, client, mods }: {
     <>
       <Card
         title={goal === "fc" ? "What is stopping your FC?" : goal === "farm" ? "Find a score worth going for" : "Get comfortable with your mod"}
-        hint={goal === "fc" ? "Pick a difficulty and mods." :
+        hint={goal === "fc" ? "Pick the map (one of your replays of it, a replay file or a beatmap link) and the mods." :
           goal === "farm" ? "Local PP scenarios, not account PP." : "Pick a mod or combo."}
       >
         <p>{options.player ? `Player: ${options.player}. ` : "No player selected. "}
           {options.evidence_plays} analysed replays.{" "}
           <Link to="/replays">Manage replays</Link>
         </p>
-        {goal === "fc" && <TargetPicker request={request} update={update} />}
+        {goal === "fc" && <FcTargetPicker request={request} update={update} />}
         <div className="controls">
           {goal === "fc" && (request.replay_path && !editMods ? (
             <p>Mods: <strong>+{request.mods}</strong> (from your replay){" "}
@@ -142,17 +142,6 @@ function GoalForm({ goal, options, path, beatmap, client, mods }: {
   );
 }
 
-function Choice<T extends string>({ label, value, options, onChange }: {
-  label: string; value: T; options: { value: T; label: string }[]; onChange: (value: T) => void;
-}) {
-  return (
-    <div className="field">
-      <span className="field__label">{label}</span>
-      <Segmented label={label} value={value} options={options} onChange={onChange} />
-    </div>
-  );
-}
-
 function FarmMods({ value, onChange }: { value: NonNullable<Request["farm_mods"]>; onChange: (value: NonNullable<Request["farm_mods"]>) => void }) {
   const [draft, setDraft] = useState<NonNullable<Request["mods"]>>("HD");
   return (
@@ -170,51 +159,6 @@ function FarmMods({ value, onChange }: { value: NonNullable<Request["farm_mods"]
           onClick={() => onChange([...value, draft])}>Add</button>
       </div>
     </div>
-  );
-}
-
-function TargetPicker({ request, update }: { request: Request; update: (patch: Partial<Request>) => void }) {
-  const replays = useCheckReplays(request.replay_path ?? null, false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [source, setSource] = useState<"replay" | "beatmap">(request.beatmap ? "beatmap" : "replay");
-  const choices = bestReplays(replays.data?.replays ?? [], request.replay_path);
-  return (
-    <>
-      <Choice label="Target source" value={source}
-        options={[{ value: "replay", label: "A replay of this map" }, { value: "beatmap", label: "A beatmap link" }]}
-        onChange={(next) => {
-          setSource(next);
-          update({ replay_path: null, beatmap: null });
-        }} />
-      {source === "beatmap" ? (
-        <Field label="Beatmap link" help="On osu.ppy.sh open the specific difficulty (not the whole set) and copy the address.">
-          <input className="input" placeholder="https://osu.ppy.sh/beatmapsets/123#osu/456" value={request.beatmap ?? ""}
-            onChange={(e) => update({ beatmap: e.target.value, replay_path: null })} />
-        </Field>
-      ) : (
-        <>
-          <Combobox label="Replay for the FC target" placeholder="Type a map name" value={request.replay_path ?? ""}
-            options={choices.map((r) => ({ value: r.path, label: `${r.map} +${r.mods} - ${r.player}${r.accuracy == null ? "" : ` - ${pct(r.accuracy, 2)}`}`, disabled: !r.analysable }))}
-            onChange={(replayPath) => {
-              const picked = replays.data?.replays.find((r) => r.path === replayPath);
-              const mods = GOAL_MODS.find((m) => m === picked?.mods.replaceAll("NC", "DT"));
-              update({ replay_path: replayPath, beatmap: null, ...(mods ? { mods } : {}) });
-            }} />
-          {replays.error && <Alert tone="bad">{replays.error.message}</Alert>}
-          <Dropzone accept=".osr" multiple={false} title="Or drop your replay" help="Export an .osr from your results screen."
-            onFiles={async (files) => {
-              setUploadError(null);
-              try {
-                const uploaded = await uploadFiles(files);
-                if (uploaded[0]) update({ replay_path: uploaded[0].path, beatmap: null });
-              } catch (error) {
-                setUploadError(error instanceof Error ? error.message : String(error));
-              }
-            }} />
-          {uploadError && <Alert tone="bad">{uploadError}</Alert>}
-        </>
-      )}
-    </>
   );
 }
 

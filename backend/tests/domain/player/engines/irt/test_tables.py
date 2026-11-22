@@ -24,8 +24,9 @@ def test_anchors_rise_and_have_no_ceiling(skill):
 
 
 def test_the_specs_examples():
-    # on the 50k pool (docs/star-scale-irt.md, decision 25); the spec's own pool gave 5.66, 5.85 and 5.5 / 7.75 / 8.0
-    assert star_of(np.log2(3.0), tables.ANCHORS["aim"]) == pytest.approx(5.71, abs=0.01)
-    assert star_of(np.log2(2.5), tables.ANCHORS["spd"]) == pytest.approx(5.72, abs=0.01)
-    for ar, stars in ((9.3, 5.73), (10, 6.93), (10.33, 7.25)):
+    # on the 50k pool with osu!'s star rating of 2026 (docs/star-scale-irt.md, decisions 25 and 30); the spec's own
+    # pool gave 5.66, 5.85 and 5.5 / 7.75 / 8.0, the 50k pool with the 2025 one 5.71, 5.72 and 5.73 / 6.93 / 7.25
+    assert star_of(np.log2(3.0), tables.ANCHORS["aim"]) == pytest.approx(5.53, abs=0.01)
+    assert star_of(np.log2(2.5), tables.ANCHORS["spd"]) == pytest.approx(6.17, abs=0.01)
+    for ar, stars in ((9.3, 5.97), (10, 7.11), (10.33, 7.25)):
         assert star_of(-np.log2(preempt_ms(ar)), tables.ANCHORS["read"]) == pytest.approx(stars, abs=0.01)

@@ -178,6 +178,20 @@ class UserSettings:
         return _bool(self.values.get("setup_saved"))
 
     @property
+    def setup_changed(self) -> dict[str, dt.datetime]:
+        """When each group of setup settings was last changed (``setup.CHECKED_BY``, UTC); its Setup Tips read only
+        the plays since (#131). A time that can't be read is left out."""
+        v = self.values.get("setup_changed")
+        out: dict[str, dt.datetime] = {}
+        for group, when in v.items() if isinstance(v, dict) else ():
+            try:
+                t = dt.datetime.fromisoformat(when)
+            except (TypeError, ValueError):
+                continue
+            out[str(group)] = t if t.tzinfo else t.replace(tzinfo=dt.UTC)
+        return out
+
+    @property
     def onboarded(self) -> bool | None:
         """The first-start guide was finished or skipped."""
         return _bool(self.values.get("onboarded"))

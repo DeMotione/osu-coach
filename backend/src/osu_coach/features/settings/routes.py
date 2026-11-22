@@ -5,9 +5,8 @@ from fastapi import APIRouter
 from osu_coach.app.deps import WorkspaceDep
 from osu_coach.common.errors import responses
 from osu_coach.common.setup import SetupModel, setup_model
-from osu_coach.domain.player.setup import Setup
 from osu_coach.features.settings.schemas import AppSettings, SettingsPatch, SetupUpdate
-from osu_coach.features.settings.service import NULLABLE, app_settings
+from osu_coach.features.settings.service import NULLABLE, app_settings, save_setup
 
 router = APIRouter(tags=["Settings"])
 
@@ -34,6 +33,5 @@ def get_setup(ws: WorkspaceDep) -> SetupModel:
 
 @router.put("/setup", summary="Save your setup", responses=responses(422))
 def put_setup(setup: SetupUpdate, ws: WorkspaceDep) -> SetupModel:
-    values = setup.model_dump()
-    ws.update_settings(setup_saved=True, **{k: v for k, v in values.items() if k in Setup.__dataclass_fields__})
+    save_setup(ws, setup.model_dump())
     return setup_model(ws.setup())
