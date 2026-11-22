@@ -237,6 +237,12 @@
   font-weight: 700;
 }
 
+/* the osu! installs a scan reads (their folders): a long path breaks anywhere */
+.installs-read {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 /* FC a map: the chosen target under the list of replays (a long beatmap link breaks anywhere) */
 .fc-target {
   display: flex;

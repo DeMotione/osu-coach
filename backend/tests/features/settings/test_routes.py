@@ -15,6 +15,15 @@ def test_defaults(client):
     assert s["latest"] == 500 and s["date_range"] == "all" and s["replay_set"] == "all"
     assert s["level_override"] is None and s["source_mode"] == "library" and s["manual_comfort"] == 2.5
     assert s["rating_engine"] == "comfort"
+    assert s["download_maps"] is True and s["skipped_installs"] == []
+
+
+def test_downloads_and_skipped_installs_are_remembered(client):
+    s = client.patch("/api/settings", json={"download_maps": False, "skipped_installs": ["C:/osu!"]}).json()
+    assert s["download_maps"] is False and s["skipped_installs"] == ["C:/osu!"]
+    saved = load_settings(workspace(client).cache_dir)
+    assert saved["download_maps"] is False and saved["skipped_installs"] == ["C:/osu!"]
+    assert client.patch("/api/settings", json={"skipped_installs": []}).json()["skipped_installs"] == []
 
 
 def test_rating_engine_is_remembered_and_checked(client):

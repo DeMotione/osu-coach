@@ -124,7 +124,7 @@ def _replay_target(
     if ref is None or not analysable(ref):
         raise Invalid("This replay cannot be used for a standard play goal.", "goal_replay_unsupported")
     missing = lib.missing_maps([ref])
-    if missing and request.online:
+    if missing and ws.settings().online(request.online):
         lib.fetch_missing(missing)
     report.note("Analysing the target attempt")
     done, errors = lib.analyze([ref], workers=1)
@@ -252,7 +252,7 @@ def evaluate(ws: Workspace, request: PlayGoalRequest, report: Reporter) -> PlayG
             client = "lazer"
             libraries = ws.libraries()
             raw = repository.target_bytes(
-                ws.cache_dir, beatmap_id(request.beatmap or ""), libraries, request.online, pool
+                ws.cache_dir, beatmap_id(request.beatmap or ""), libraries, ws.settings().online(request.online), pool
             )
         target = _target(ws, raw, request, client, pool, report)
     report.note("Comparing verified player evidence")

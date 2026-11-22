@@ -95,7 +95,7 @@ def start_restore(ws: Workspace) -> None:
         if not rescan:
             return None
         installs = ws.installs()
-        roots = set(scan.get("installs", []))
+        roots = set(scan.get("installs", [])) - set(ws.settings().skipped_installs)  # skipped since in Settings
         maps = set(scan.get("map_installs", []))
         only = bool(scan.get("only"))
         args = ScanArgs(

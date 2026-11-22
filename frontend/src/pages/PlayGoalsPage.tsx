@@ -11,7 +11,7 @@ import { ModPicker } from "../components/ModPicker";
 import { OpenInLazer } from "../components/OpenInLazer";
 import { StageNav } from "../components/StageNav";
 import { EmptyState, ErrorCard, JobStatus, LoadingPage } from "../components/states";
-import { Alert, Badge, Card, Field, Page, Switch, Tabs } from "../components/ui";
+import { Alert, Badge, Card, Field, Page, Tabs } from "../components/ui";
 import { clock, fmt, pct, stars } from "../lib/format";
 import { exportGoalMaps, GOAL_MODS, goalMods, goalRequest } from "../lib/playGoals";
 import { STAGE_SIZE, stageMaps, useRounds } from "../lib/playlist";
@@ -123,7 +123,6 @@ function GoalForm({ goal, options, path, beatmap, client, mods }: {
           </fieldset>
         )}
         <div className="controls">
-          <Switch label="Allow missing target beatmap downloads" checked={request.online ?? true} onChange={(online) => update({ online })} />
           <button type="button" className="btn btn--primary" disabled={job.running || invalid || !request.farm_mods?.length} onClick={submit}>
             {goal === "fc" ? "Assess my FC goal" : goal === "farm" ? "Find maps" : "Find training maps"}
           </button>

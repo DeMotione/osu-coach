@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import type { Schemas } from "../api/client";
-import { uploadFiles, useCheckReplays, useCheckReport } from "../api/queries";
+import { uploadFiles, useCheckReplays, useCheckReport, useSettings } from "../api/queries";
 import { playTimingChart, rangeStats } from "../charts/check";
 import { Chart } from "../charts/Chart";
 import type { ChartTheme } from "../charts/palette";
@@ -24,13 +24,14 @@ export default function CheckPage() {
   const opened = params.get("path");
   const [onlyMap, setOnlyMap] = useState<boolean>(!!opened);
   const [chosen, setChosen] = useState<string | null>(null);
-  const [online, setOnline] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const list = useCheckReplays(opened, onlyMap);
   const replays = list.data?.replays ?? [];
   const path = chosen && replays.some((r) => r.path === chosen) ? chosen : list.data?.selected ?? null;
   const current = replays.find((r) => r.path === path);
-  const report = useCheckReport(current?.analysable ? path : null, online);
+  // a missing map is downloaded as Settings say (Missing beatmaps)
+  const download = useSettings().data?.download_maps;
+  const report = useCheckReport(current?.analysable && download !== undefined ? path : null, download ?? true);
 
   const open = (p: string, focus = true) => {
     setChosen(null);
@@ -98,7 +99,6 @@ export default function CheckPage() {
                     if (v && path && path !== opened) open(path, true);
                   }}
                 />
-                <Switch label="Download the map if it's missing" checked={online} onChange={setOnline} />
               </div>
               {list.data && !replays.length && <Alert tone="info">No osu!standard replays found. Drop a replay file above, or scan on the Replays page.</Alert>}
             </>

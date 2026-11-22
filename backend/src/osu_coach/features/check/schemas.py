@@ -30,7 +30,7 @@ class CheckList(BaseModel):
 
 class CheckRequest(Request):
     path: str = Field(min_length=1, max_length=4000)
-    online: bool = Field(True, description="Download the beatmap if it's missing.")
+    online: bool | None = Field(None, description="Download missing beatmaps; null = the download_maps setting.")
 
 
 class CheckSummary(BaseModel):

@@ -51,7 +51,6 @@ export function useReplayRun(run: ReplayRun | null, setRun: (run: ReplayRun | nu
       date_range: s.date_range,
       date_from: s.date_from ?? null,
       date_to: s.date_to ?? null,
-      online: true,
     };
     void analysis
       .run(() => unwrap(api.POST("/api/analysis", { body })))
@@ -185,6 +184,8 @@ function Sources({ client, r }: { client: Schemas["SetupModel"]["client"]; r: Re
   const go = async () => {
     if (!body) return;
     setStarting(true);
+    // later scans read the same osu! (Settings → osu! installs)
+    if (how === "auto") patch.mutate({ skipped_installs: all.map((i) => i.root).filter((root) => !chosen.has(root)) });
     await r.start(body);
     setStarting(false);
   };

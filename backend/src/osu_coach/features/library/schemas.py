@@ -40,7 +40,9 @@ class UploadedFile(BaseModel):
 
 class ScanRequest(Request):
     mode: SourceMode = Field("library", description="library = osu! installs and folders; files = only uploads.")
-    installs: list[str] | None = Field(None, description="Roots of the installs to scan; null = all found.")
+    installs: list[str] | None = Field(
+        None, description="Roots of the installs to scan; null = all found but the skipped_installs setting's."
+    )
     folders: list[str] = Field(default_factory=list, max_length=50)
     files: list[str] = Field(
         default_factory=list,
@@ -106,7 +108,7 @@ class AnalysisRequest(Request):
     date_range: DateRange = "all"
     date_from: dt.date | None = None
     date_to: dt.date | None = None
-    online: bool = Field(True, description="Download missing beatmaps (osu.direct lookup, osu.ppy.sh file).")
+    online: bool | None = Field(None, description="Download missing beatmaps; null = the download_maps setting.")
 
 
 class NewPlay(BaseModel):

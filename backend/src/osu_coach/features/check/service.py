@@ -143,7 +143,8 @@ def replay_list(ws: Workspace, path: str | None, only_map: bool, q: str | None =
 
 
 # ------------------------------------------------------------------ the report
-def report(ws: Workspace, path: str, online: bool) -> CheckReport:
+def report(ws: Workspace, path: str, online: bool | None) -> CheckReport:
+    """``online``: download the map if it's missing (None: the ``download_maps`` setting)."""
     p = known_replay(path, ws.cache_dir, ws.libraries())
     with _hold(ws):
         lib, ref = ws.open_replay(p)
@@ -153,7 +154,7 @@ def report(ws: Workspace, path: str, online: bool) -> CheckReport:
         if reason:
             raise ApiError(422, "not_checkable", f"This replay can't be checked: {reason}.")
         missing = lib.missing_maps([ref])
-        if missing and online:
+        if missing and ws.settings().online(online):
             lib.fetch_missing(missing)
         analyses, errors = lib.analyze([ref], workers=1)
         if not analyses:

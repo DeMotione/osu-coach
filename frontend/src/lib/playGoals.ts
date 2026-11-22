@@ -52,7 +52,7 @@ export function goalRequest(goal: Request["goal"], remembered?: Request | null):
     client: "lazer",
     training_mod: remembered?.training_mod ?? "HD",
     farm_mods: remembered?.farm_mods ?? ["NM", "HD", "HR", "DT", "HDDT"],
-    online: remembered?.online ?? true,
+    online: null, // missing maps are downloaded as Settings say
     min_pp: remembered?.min_pp ?? null,
   };
 }

@@ -23,7 +23,7 @@ class PlayGoalRequest(Request):
     farm_mods: list[GoalMods] = Field(
         default_factory=lambda: ["NM", "HD", "HR", "DT", "HDDT"], min_length=1, max_length=8
     )
-    online: bool = True
+    online: bool | None = Field(None, description="Download missing beatmaps; null = the download_maps setting.")
     min_pp: float | None = Field(None, ge=0, le=5000, description="Hide maps whose FC scenario gives less PP.")
 
     @model_validator(mode="after")

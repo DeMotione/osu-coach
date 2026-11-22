@@ -985,10 +985,9 @@ export interface components {
             date_to?: string | null;
             /**
              * Online
-             * @description Download missing beatmaps (osu.direct lookup, osu.ppy.sh file).
-             * @default true
+             * @description Download missing beatmaps; null = the download_maps setting.
              */
-            online: boolean;
+            online?: boolean | null;
         };
         /** AnalysisResult */
         AnalysisResult: {
@@ -1135,6 +1134,18 @@ export interface components {
              * @default true
              */
             auto_analyse: boolean;
+            /**
+             * Skipped Installs
+             * @description osu! installs found on this computer whose replays aren't read (folders).
+             * @default []
+             */
+            skipped_installs: string[];
+            /**
+             * Download Maps
+             * @description Download the beatmaps that aren't on this computer (osu.direct lookup, osu.ppy.sh file): for analyses, Detailed Map Analysis and Play Goals.
+             * @default true
+             */
+            download_maps: boolean;
         };
         /** ArMissRow */
         ArMissRow: {
@@ -1246,10 +1257,9 @@ export interface components {
             path: string;
             /**
              * Online
-             * @description Download the beatmap if it's missing.
-             * @default true
+             * @description Download missing beatmaps; null = the download_maps setting.
              */
-            online: boolean;
+            online?: boolean | null;
         };
         /** CheckSummary */
         CheckSummary: {
@@ -2591,9 +2601,9 @@ export interface components {
             farm_mods?: ("NM" | "HD" | "HR" | "HDHR" | "DT" | "HDDT" | "HRDT" | "HDHRDT")[];
             /**
              * Online
-             * @default true
+             * @description Download missing beatmaps; null = the download_maps setting.
              */
-            online: boolean;
+            online?: boolean | null;
             /**
              * Min Pp
              * @description Hide maps whose FC scenario gives less PP.
@@ -3073,7 +3083,7 @@ export interface components {
             mode: "library" | "files";
             /**
              * Installs
-             * @description Roots of the installs to scan; null = all found.
+             * @description Roots of the installs to scan; null = all found but the skipped_installs setting's.
              */
             installs?: string[] | null;
             /** Folders */
@@ -3214,6 +3224,10 @@ export interface components {
             onboarded?: boolean | null;
             /** Auto Analyse */
             auto_analyse?: boolean | null;
+            /** Skipped Installs */
+            skipped_installs?: string[] | null;
+            /** Download Maps */
+            download_maps?: boolean | null;
         };
         /** SetupAdvice */
         SetupAdvice: {
