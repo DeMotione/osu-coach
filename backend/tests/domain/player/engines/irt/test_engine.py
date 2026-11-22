@@ -188,3 +188,19 @@ def test_calibration_puts_each_skills_50_where_it_fails_its_anchor_share():
     # the maps' content alone sets it: the same maps played better or worse give the same references
     better = groups.replace(f_a=groups.f_a * 0, f_b=groups.f_b * 0, f_t=groups.f_t * 0)
     assert calibration(merge([(p.meta, p.irt) for p in plays([better, simulate(seed=2)])]), 6.0) == pytest.approx(refs)
+
+
+def test_goals_follow_the_star_levels():
+    from osu_coach.domain.player.engines import COMFORT, make_engine
+
+    rated = IrtEngine().rate(plays([simulate(seed=s) for s in range(4)]), [], comfort=6.0)
+    values = IrtEngine().goal_values(rated.skills)
+    aim = rated.skills["aim"]
+    assert values["aim"] == (aim.stars, "stars")
+    for key, row in rated.skills.items():
+        if row.state == "untested" or row.score is None:
+            assert key not in values, key  # a lower bound or no number: no goal
+    if rated.skills["consistency"].score is not None:
+        assert values["consistency"] == (rated.skills["consistency"].score, "score")  # not on the star scale
+    comfort = make_engine(COMFORT).goal_values(rated.skills)
+    assert comfort["aim"] == (aim.score, "score")

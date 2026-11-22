@@ -146,6 +146,12 @@ real player's library (154 lazer plays, comfort level ~6★). "Unfitted" means a
     Overview's comparison scored them). The comfort difficulty and κ are not offered under Star Levels, and the
     relevance threshold keeps its default (0.3). Skills without a star level (consistency, or a skill not measured
     yet) keep the comfort level.
+29. **A skill goal is in stars** (`goal_values`, #129): "Tapping speed 6.8★ → 7.3★", reached when the skill's star
+    level gets there; the 4-week plan raises a weak skill by half a star (10 points at 20 points a star). The 0–100
+    score is against the player's level, so it moves when the level does and says nothing a goal can hold on to.
+    Consistency, not on the star scale, keeps a score goal. A goal set with Star Levels as a score before this is
+    paused ("set as a score"). The saved daily history is rated by Comfort Score, so a goal in stars has no day by
+    day line yet: the chart shows where it is today against the path to its target.
 
 ## Validation status
 

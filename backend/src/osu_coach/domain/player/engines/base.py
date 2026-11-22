@@ -23,6 +23,7 @@ COMFORT = "comfort"
 IRT = "irt"
 ENGINES = (COMFORT, IRT)
 ENGINE_LABELS = {COMFORT: "Comfort Score", IRT: "Star Levels (experimental)"}  # IRT's spec: Star-Scale IRT
+SCORE, STARS = "score", "stars"  # what a skill goal is counted in: the 0–100 score, or the map star rating
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,4 +60,9 @@ class RatingEngine(Protocol):
 
     def playlist_level(self, skills: Mapping[str, SkillRating], skill: str) -> float | None:
         """The star rating a playlist for ``skill`` is made around (None: the comfort level)."""
+        ...
+
+    def goal_values(self, skills: Mapping[str, SkillRating]) -> dict[str, tuple[float, str]]:
+        """What a goal for each skill follows: its value now and what it is counted in (:data:`SCORE` or
+        :data:`STARS`); measurements only (a skill without one can't get a goal)."""
         ...

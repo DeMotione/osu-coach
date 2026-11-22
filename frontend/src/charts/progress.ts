@@ -103,14 +103,23 @@ export function skillsChart(all: Row[], skills: { key: string; label: string }[]
  * goal's path to its deadline, with today marked between them. ``today``: YYYY-MM-DD. */
 export function goalsChart(history: Schemas["GoalHistory"][], t: ChartTheme, today = localDay()): Option {
   const pairs = (pts: Schemas["HistoryPoint"][]) => pts.filter((p) => p.score !== null).map((p) => [p.day, p.score]);
+  // goals in stars (Star Levels, #129) on a star axis; scores (and consistency there) on the 0–100 one
+  const units = [...new Set(history.map((h) => h.unit ?? "score"))].sort((a, b) => (a === "stars" ? -1 : b === "stars" ? 1 : 0));
+  const axis = (unit: string, i: number) =>
+    unit === "stars"
+      ? valueAxis(t, { name: "★", nameGap: 32, nameRotate: 90, scale: true, position: i ? "right" : "left", axisLabel: { formatter: (v: number) => `${v}★` } })
+      : valueAxis(t, { name: "score", nameGap: 32, nameRotate: 90, min: 0, max: 100, position: i ? "right" : "left", ...(i ? { splitLine: { show: false } } : {}) });
+  const shown = (unit: string) => (v: number | null) => (v === null || v === undefined ? "–" : unit === "stars" ? `${v.toFixed(2)}★` : v.toFixed(0));
   return base(t, {
-    grid: grid({}, true),
+    grid: grid(units.length > 1 ? { right: 56 } : {}, true),
     legend: legend(t),
-    tooltip: tooltip(t, { trigger: "axis", valueFormatter: (v: number | null) => (v === null || v === undefined ? "–" : v.toFixed(0)) }),
+    tooltip: tooltip(t, { trigger: "axis" }),
     xAxis: valueAxis(t, { type: "time", splitLine: { show: false }, axisLabel: { formatter: "{MMM} {d}", hideOverlap: true } }),
-    yAxis: valueAxis(t, { name: "score", nameGap: 32, nameRotate: 90, min: 0, max: 100 }),
+    yAxis: units.length > 1 ? units.map(axis) : axis(units[0] ?? "score", 0),
     series: history.flatMap((h, i) => {
       const color = SERIES[i % SERIES.length];
+      const unit = h.unit ?? "score";
+      const onAxis = units.length > 1 ? { yAxisIndex: units.indexOf(unit) } : {};
       return [
         {
           name: h.label,
@@ -119,6 +128,8 @@ export function goalsChart(history: Schemas["GoalHistory"][], t: ChartTheme, tod
           symbolSize: 7,
           lineStyle: { color, width: 2 },
           itemStyle: { color },
+          tooltip: { valueFormatter: shown(unit) },
+          ...onAxis,
           ...(i === 0 ? { markLine: refLine(t, { xAxis: today }, t.muted, { label: { show: true, formatter: "today", color: t.muted } }) } : {}),
         },
         {
@@ -128,6 +139,8 @@ export function goalsChart(history: Schemas["GoalHistory"][], t: ChartTheme, tod
           showSymbol: false,
           lineStyle: { color, width: 1, type: "dotted" },
           itemStyle: { color },
+          tooltip: { valueFormatter: shown(unit) },
+          ...onAxis,
         },
       ];
     }),

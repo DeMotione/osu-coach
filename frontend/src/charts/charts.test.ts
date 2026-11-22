@@ -266,6 +266,27 @@ describe("goalsChart", () => {
     expect(o.series[1].data).toEqual([["2026-10-24", 66], ["2026-11-07", 70]]);
     expect(o.series[0].markLine?.data).toEqual([{ xAxis: "2026-10-24" }]);
   });
+
+  it("puts goals in stars on a star axis, beside the scores when there are both (#129)", () => {
+    const goal = (label: string, unit: "score" | "stars", value: number) => ({
+      goal_id: label,
+      skill: label,
+      label,
+      unit,
+      points: [{ day: "2026-11-22", score: value }],
+      target: [{ day: "2026-11-01", score: value }, { day: "2026-12-01", score: value + 1 }],
+    });
+    type Axis = { name: string; min?: number; scale?: boolean };
+    const stars = goalsChart([goal("Tapping speed", "stars", 6.8)], chartTheme(true)) as { yAxis: Axis };
+    expect(stars.yAxis.name).toBe("★");
+    expect(stars.yAxis.scale).toBe(true);
+    const both = goalsChart([goal("Consistency", "score", 34), goal("Tapping speed", "stars", 6.8)], chartTheme(true)) as {
+      yAxis: Axis[];
+      series: { yAxisIndex?: number }[];
+    };
+    expect(both.yAxis.map((a) => a.name)).toEqual(["★", "score"]);
+    expect(both.series.map((s) => s.yAxisIndex)).toEqual([1, 1, 0, 0]);
+  });
 });
 
 describe("a skill the maps haven't tested to its limit", () => {

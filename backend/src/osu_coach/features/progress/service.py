@@ -11,7 +11,7 @@ import pandas as pd
 from osu_coach.common.convert import integer, iso, num, text
 from osu_coach.common.errors import ApiError, Invalid, NoProfile, NotFound
 from osu_coach.common.texts import SKILL_LABELS
-from osu_coach.domain.player.engines import COMFORT, engine_name, measured_scores
+from osu_coach.domain.player.engines import ENGINE_LABELS, SCORE, STARS, engine_name, make_engine, measured_scores
 from osu_coach.domain.progress import goals
 from osu_coach.domain.progress.periods import HISTORY_ENGINE, SKILL_REFERENCE, period_metrics
 from osu_coach.domain.replays import scope
@@ -37,6 +37,7 @@ if TYPE_CHECKING:
 PLAN_WEEKS = 4
 PLAN_SKILLS = 3
 HISTORY_LEAD_DAYS = 14
+MAX_STARS = 15.0  # the highest target of a goal in stars
 
 
 def short_label(skill: str) -> str:
@@ -179,12 +180,20 @@ def period_plays(
 
 # ------------------------------------------------------------------ goals
 def _scores(ws: Workspace) -> dict:
-    """The scores goals follow: measurements only (an IRT "at least" score is left out)."""
+    """The skill scores the plan picks weak skills by: measurements only (an IRT "at least" score is left out)."""
     p = ws.profile()
     if p is None:
         return {}
     measured = measured_scores(p.skill_ratings)
     return {k: num(measured.get(k)) for k in SKILL_LABELS}
+
+
+def _values(ws: Workspace) -> dict[str, tuple[float, str]]:
+    """What a goal for each skill follows now, and in what: the engine's score, or its star level (#129)."""
+    p = ws.profile()
+    if p is None:
+        return {}
+    return {k: v for k, v in make_engine(p.engine).goal_values(p.skill_ratings).items() if k in SKILL_LABELS}
 
 
 def _engine_of(g: dict) -> str:
@@ -208,26 +217,46 @@ def _paused_accuracy_goal(g: dict, low_comfort: bool) -> bool:
     )
 
 
-def _paused(g: dict, low_comfort: bool, engine: str = COMFORT) -> bool:
-    """An open goal that isn't followed now: an older rating scale, a recalibrated accuracy goal, or set
-    with the other engine.
-    """
+def _pause_reason(g: dict, low_comfort: bool, engine: str, values: dict) -> str | None:
+    """Why an open goal isn't followed now (None: it is): an older rating scale, a recalibrated accuracy goal, set
+    with the other engine, or counted in another unit than the skill is now (a score goal of Star Levels from before
+    its goals were in stars)."""
     if g.get("done"):
-        return False
-    return g.get("score_source") != "experimental" or _paused_accuracy_goal(g, low_comfort) or _engine_of(g) != engine
-
-
-def _goal_score(g: dict, current: dict, low_comfort: bool = False, engine: str = COMFORT) -> float | None:
-    """The goal's skill score; None for a paused goal."""
-    if g.get("score_source") != "experimental" or _paused_accuracy_goal(g, low_comfort) or _engine_of(g) != engine:
         return None
-    return current.get(g["skill"])
+    if g.get("score_source") != "experimental":
+        return "old_scale"
+    if _paused_accuracy_goal(g, low_comfort):
+        return "accuracy"
+    if _engine_of(g) != engine:
+        return "engine"
+    now = values.get(g["skill"])
+    if now is not None and now[1] != goals.unit_of(g):
+        return "unit"
+    return None
 
 
-def _plan_targets(scores: dict, open_skills: set[str]) -> list[tuple[str, float, float]]:
-    """Use the same measured weak skills and 45-point cutoff as Overview."""
-    weak = {k: score for k, score in scores.items() if score is not None and score <= 45 and k not in open_skills}
-    return goals.suggested_targets(weak, PLAN_SKILLS)
+def _followed(g: dict, engine: str) -> bool:
+    """Set on the current scale with the current engine (also when reached)."""
+    return g.get("score_source") == "experimental" and _engine_of(g) == engine
+
+
+def _goal_value(g: dict, values: dict, low_comfort: bool, engine: str) -> float | None:
+    """The goal's skill now, in the goal's unit; None for a paused goal."""
+    now = values.get(g["skill"])
+    if _pause_reason(g, low_comfort, engine, values) or not _followed(g, engine) or now is None:
+        return None
+    return now[0] if now[1] == goals.unit_of(g) else None
+
+
+def _plan_targets(scores: dict, values: dict, open_skills: set[str]) -> list[tuple[str, float, float, str]]:
+    """The skills the Overview counts as weak (score 45 or less) without a goal, weakest first: (skill, now,
+    target, unit), the target a step higher (10 points, or half a star on Star Levels)."""
+    weak = {
+        k: score
+        for k, score in scores.items()
+        if score is not None and score <= 45 and k not in open_skills and k in values
+    }
+    return [(k, values[k][0], goals.next_target(*values[k]), values[k][1]) for k in goals.weakest(weak, PLAN_SKILLS)]
 
 
 def _save_goals(ws: Workspace, gl: list[dict]) -> None:
@@ -235,13 +264,13 @@ def _save_goals(ws: Workspace, gl: list[dict]) -> None:
     ws.update_settings(goals=gl + ws.settings().unreadable_goals)
 
 
-def _goals(ws: Workspace, scores: dict, low_comfort: bool = False) -> list[dict]:
+def _goals(ws: Workspace, values: dict, low_comfort: bool = False) -> list[dict]:
     """The saved goals, the ones reached by now marked as done (and saved)."""
     gl, changed = [], False
     engine = ws.rating_engine()
     for g in ws.settings().goals or []:
-        score = _goal_score(g, scores, low_comfort, engine)
-        updated, reached = goals.update([g], {g["skill"]: score}, today=clock.today())
+        value = _goal_value(g, values, low_comfort, engine)
+        updated, reached = goals.update([g], {g["skill"]: value}, today=clock.today())
         gl.extend(updated)
         changed |= reached
     if changed:
@@ -249,9 +278,10 @@ def _goals(ws: Workspace, scores: dict, low_comfort: bool = False) -> list[dict]
     return gl
 
 
-def _goal_out(g: dict, current, low_comfort: bool = False, engine: str = COMFORT) -> GoalOut:
+def _goal_out(g: dict, values: dict, low_comfort: bool, engine: str) -> GoalOut:
+    current = _goal_value(g, values, low_comfort, engine)
     st = goals.status(g, current, today=clock.today())
-    paused = _paused(g, low_comfort, engine)
+    reason = _pause_reason(g, low_comfort, engine, values)
     return GoalOut(
         id=g["id"],
         skill=g["skill"],
@@ -262,93 +292,126 @@ def _goal_out(g: dict, current, low_comfort: bool = False, engine: str = COMFORT
         deadline=dt.date.fromisoformat(g["deadline"]),
         done=dt.date.fromisoformat(g["done"]) if g.get("done") else None,
         current=num(st.current),
-        progress=None if paused else st.progress,
+        progress=None if reason else st.progress,
         left=num(st.left),
         days_left=st.days_left,
-        state="paused" if paused else st.state,
+        state="paused" if reason else st.state,
         score_source="experimental" if g.get("score_source") == "experimental" else "legacy",
+        unit=goals.unit_of(g),
+        paused_reason=reason,
+        engine_label=ENGINE_LABELS[_engine_of(g)],
     )
 
 
-def _history(ws: Workspace, gl: list[dict]) -> list[GoalHistory]:
-    """The goal skills day by day since the oldest goal (from the saved progress), with the path to each target.
-    The saved daily scores are rated by one engine (``HISTORY_ENGINE``), so only goals set with it get a history."""
-    gl = [g for g in gl if g.get("score_source") == "experimental" and _engine_of(g) == HISTORY_ENGINE]
+def _history(ws: Workspace, gl: list[dict], values: dict, engine: str) -> list[GoalHistory]:
+    """The goals followed with the current engine, day by day since the oldest one, with the path to each target.
+    The saved daily scores are rated by one engine (``HISTORY_ENGINE``): a score goal set with it has them; any
+    other (a goal in stars) has its value today. A goal in another unit than its skill now isn't on the chart."""
+    gl = [
+        g for g in gl if _followed(g, engine) and values.get(g["skill"], (0, goals.unit_of(g)))[1] == goals.unit_of(g)
+    ]
     if not gl:
         return []
-    conn = progress.connect(ws.cache_dir)
-    try:
-        names = [n for n, _ in progress.players(conn)]
-        pref = ws.settings().player
-        player = pref if pref in names else (names[0] if names else None)
-        since = min(dt.date.fromisoformat(g["created"]) for g in gl) - dt.timedelta(days=HISTORY_LEAD_DAYS)
-        # the rolling day scores: one day's plays swing too much to follow a goal by
-        m = progress.by_period(conn, player, "day", since=since, rolling=True) if player is not None else pd.DataFrame()
-    finally:
-        conn.close()
+    m = pd.DataFrame()
+    if engine == HISTORY_ENGINE and any(goals.unit_of(g) == SCORE for g in gl):
+        conn = progress.connect(ws.cache_dir)
+        try:
+            names = [n for n, _ in progress.players(conn)]
+            pref = ws.settings().player
+            player = pref if pref in names else (names[0] if names else None)
+            since = min(dt.date.fromisoformat(g["created"]) for g in gl) - dt.timedelta(days=HISTORY_LEAD_DAYS)
+            # the rolling day scores: one day's plays swing too much to follow a goal by
+            if player is not None:
+                m = progress.by_period(conn, player, "day", since=since, rolling=True)
+        finally:
+            conn.close()
     out = []
     for g in gl:
+        unit = goals.unit_of(g)
         col = f"skill_{g['skill']}"
         points = []
-        if col in m and m[col].notna().any():
+        if unit == SCORE and engine == HISTORY_ENGINE and col in m and m[col].notna().any():
             points = [HistoryPoint(day=str(d), score=num(v)) for d, v in zip(m["month"], m[col], strict=True)]
+        else:
+            now = values.get(g["skill"])
+            if now is not None and now[1] == unit:
+                points = [HistoryPoint(day=clock.today().isoformat(), score=now[0])]
         start = num(g.get("start"))
         target = [
             HistoryPoint(day=g["created"], score=start if start is not None else float(g["target"])),
             HistoryPoint(day=g["deadline"], score=float(g["target"])),
         ]
         out.append(
-            GoalHistory(goal_id=g["id"], skill=g["skill"], label=short_label(g["skill"]), points=points, target=target)
+            GoalHistory(
+                goal_id=g["id"],
+                skill=g["skill"],
+                label=short_label(g["skill"]),
+                unit=unit,
+                points=points,
+                target=target,
+            )
         )
     return out
 
 
+def _skill_value(k: str, scores: dict, values: dict) -> SkillValue:
+    value, unit = values[k]
+    score = num(scores.get(k))
+    return SkillValue(key=k, label=short_label(k), score=score if score is not None else value, value=value, unit=unit)
+
+
+def _shown(value: float, unit: str) -> str:
+    return f"{value:.2f}★" if unit == STARS else f"{value:.0f}"
+
+
 def goals_out(ws: Workspace) -> GoalsOut:
     scores = _scores(ws)
+    values = _values(ws)
     low_comfort = _low_comfort(ws)
     engine = ws.rating_engine()
-    gl = _goals(ws, scores, low_comfort)
+    gl = _goals(ws, values, low_comfort)
     open_ = [g for g in gl if not g.get("done")]
     done = [g for g in gl if g.get("done")]
-    open_out = [_goal_out(g, _goal_score(g, scores, low_comfort, engine), low_comfort, engine) for g in open_]
-    have = [
-        SkillValue(key=k, label=short_label(k), score=float(scores[k]))
-        for k in SKILL_LABELS
-        if num(scores.get(k)) is not None
-    ]
-    open_skills = {g["skill"] for g in open_ if not _paused(g, low_comfort, engine)}
+    open_out = [_goal_out(g, values, low_comfort, engine) for g in open_]
+    have = [_skill_value(k, scores, values) for k in SKILL_LABELS if k in values]
+    open_skills = {g["skill"] for g in open_ if not _pause_reason(g, low_comfort, engine, values)}
     weak = [s for s in sorted(have, key=lambda s: s.score) if s.score <= 45 and s.key not in open_skills]
     return GoalsOut(
         has_profile=ws.profile() is not None,
         open=open_out,
-        done=[_goal_out(g, _goal_score(g, scores, low_comfort, engine), low_comfort, engine) for g in done],
+        done=[_goal_out(g, values, low_comfort, engine) for g in done],
         behind=sum(g.state in ("behind", "overdue") for g in open_out),
         skills=have,
         suggested=[
-            SuggestedGoal(skill=k, label=short_label(k), current=cur, target=tg)
-            for k, cur, tg in _plan_targets(scores, open_skills)
+            SuggestedGoal(skill=k, label=short_label(k), current=cur, target=tg, unit=unit)
+            for k, cur, tg, unit in _plan_targets(scores, values, open_skills)
         ],
         weak_without_goal=weak,
-        history=_history(ws, open_ + done) if gl and ws.profile() is not None else [],
+        history=_history(ws, open_ + done, values, engine) if gl and ws.profile() is not None else [],
     )
 
 
 def add_goal(ws: Workspace, req: GoalCreate) -> GoalsOut:
-    scores = _scores(ws)
-    if not scores:
+    values = _values(ws)
+    if ws.profile() is None:
         raise NoProfile("Analyse your replays first — goals follow your skill scores.")
-    if num(scores.get(req.skill)) is None:
+    if req.skill not in values:
         raise Invalid(f"{short_label(req.skill)} has no score yet, so it can't be followed.", "skill_without_score")
     if req.deadline < clock.today():
         raise Invalid("The deadline is in the past.", "deadline_past")
-    if req.target <= scores[req.skill]:
+    now, unit = values[req.skill]
+    if unit == STARS and req.target > MAX_STARS:
+        raise Invalid(f"A goal in stars goes up to {MAX_STARS:.0f}★.", "target_out_of_range")
+    if req.target <= now:
         raise Invalid(
-            f"{short_label(req.skill)} is already at {scores[req.skill]:.0f}: pick a higher target.", "target_reached"
+            f"{short_label(req.skill)} is already at {_shown(now, unit)}: pick a higher target.", "target_reached"
         )
     low_comfort = _low_comfort(ws)
     engine = ws.rating_engine()
-    gl = _goals(ws, scores, low_comfort)
-    if any(g["skill"] == req.skill and not g.get("done") and not _paused(g, low_comfort, engine) for g in gl):
+    gl = _goals(ws, values, low_comfort)
+    if any(
+        g["skill"] == req.skill and not g.get("done") and not _pause_reason(g, low_comfort, engine, values) for g in gl
+    ):
         raise ApiError(409, "goal_exists", f"There is already a goal for {short_label(req.skill)}: remove it first.")
     _save_goals(
         ws,
@@ -356,7 +419,7 @@ def add_goal(ws: Workspace, req: GoalCreate) -> GoalsOut:
         + [
             goals.new_goal(
                 req.skill,
-                scores.get(req.skill),
+                now,
                 req.target,
                 req.deadline,
                 goal_id=_new_id(),
@@ -364,6 +427,7 @@ def add_goal(ws: Workspace, req: GoalCreate) -> GoalsOut:
                 score_source="experimental",
                 score_version=2 if req.skill == "accuracy" else None,
                 engine=engine,
+                unit=unit,
             )
         ],
     )
@@ -376,12 +440,13 @@ def _new_id() -> str:
 
 def add_plan(ws: Workspace) -> GoalsOut:
     scores = _scores(ws)
-    if not any(score is not None for score in scores.values()):
+    values = _values(ws)
+    if not values:
         raise NoProfile("No measured skill ratings yet. Analyse more replays before making a plan.")
     low_comfort = _low_comfort(ws)
     engine = ws.rating_engine()
-    gl = _goals(ws, scores, low_comfort)
-    have_open = {g["skill"] for g in gl if not g.get("done") and not _paused(g, low_comfort, engine)}
+    gl = _goals(ws, values, low_comfort)
+    have_open = {g["skill"] for g in gl if not g.get("done") and not _pause_reason(g, low_comfort, engine, values)}
     deadline = clock.today() + dt.timedelta(weeks=PLAN_WEEKS)
     new = [
         goals.new_goal(
@@ -394,8 +459,9 @@ def add_plan(ws: Workspace) -> GoalsOut:
             score_source="experimental",
             score_version=2 if k == "accuracy" else None,
             engine=engine,
+            unit=unit,
         )
-        for k, cur, tg in _plan_targets(scores, have_open)
+        for k, cur, tg, unit in _plan_targets(scores, values, have_open)
     ]
     _save_goals(ws, gl + new)
     return goals_out(ws)

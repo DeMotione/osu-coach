@@ -4994,12 +4994,22 @@
             "type": "string",
             "title": "Label"
           },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "score",
+              "stars"
+            ],
+            "title": "Unit",
+            "default": "score"
+          },
           "points": {
             "items": {
               "$ref": "#/components/schemas/HistoryPoint"
             },
             "type": "array",
-            "title": "Points"
+            "title": "Points",
+            "description": "Day by day for a score goal of Comfort Score (the saved history); otherwise today's value."
           },
           "target": {
             "items": {
@@ -5227,6 +5237,40 @@
             ],
             "title": "Score Source",
             "description": "Rating scale used when the goal was created."
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "score",
+              "stars"
+            ],
+            "title": "Unit",
+            "description": "What start, target, current and left are in: the score, or stars.",
+            "default": "score"
+          },
+          "paused_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "old_scale",
+                  "accuracy",
+                  "engine",
+                  "unit"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused Reason",
+            "description": "Why a paused goal isn't followed: set on the scores before 0.10, a recalibrated accuracy goal, set with the other rating engine (``engine_label``), or set as a score where the skill is now in stars."
+          },
+          "engine_label": {
+            "type": "string",
+            "title": "Engine Label",
+            "description": "The rating engine the goal was set with.",
+            "default": "Comfort Score"
           }
         },
         "type": "object",
@@ -5506,7 +5550,8 @@
                 "type": "null"
               }
             ],
-            "title": "Score"
+            "title": "Score",
+            "description": "The skill's value that day, in the goal's unit."
           }
         },
         "type": "object",
@@ -10103,14 +10148,30 @@
           },
           "score": {
             "type": "number",
-            "title": "Score"
+            "title": "Score",
+            "description": "Its 0–100 score (weak at 45 or less)."
+          },
+          "value": {
+            "type": "number",
+            "title": "Value",
+            "description": "What a goal for it follows now, in ``unit``."
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "score",
+              "stars"
+            ],
+            "title": "Unit",
+            "default": "score"
           }
         },
         "type": "object",
         "required": [
           "key",
           "label",
-          "score"
+          "score",
+          "value"
         ],
         "title": "SkillValue"
       },
@@ -10673,6 +10734,15 @@
           "target": {
             "type": "number",
             "title": "Target"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "score",
+              "stars"
+            ],
+            "title": "Unit",
+            "default": "score"
           }
         },
         "type": "object",

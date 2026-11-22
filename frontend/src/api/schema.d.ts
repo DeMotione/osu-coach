@@ -1691,7 +1691,16 @@ export interface components {
             skill: string;
             /** Label */
             label: string;
-            /** Points */
+            /**
+             * Unit
+             * @default score
+             * @enum {string}
+             */
+            unit: "score" | "stars";
+            /**
+             * Points
+             * @description Day by day for a score goal of Comfort Score (the saved history); otherwise today's value.
+             */
             points: components["schemas"]["HistoryPoint"][];
             /**
              * Target
@@ -1782,6 +1791,24 @@ export interface components {
              * @enum {string}
              */
             score_source: "experimental" | "legacy";
+            /**
+             * Unit
+             * @description What start, target, current and left are in: the score, or stars.
+             * @default score
+             * @enum {string}
+             */
+            unit: "score" | "stars";
+            /**
+             * Paused Reason
+             * @description Why a paused goal isn't followed: set on the scores before 0.10, a recalibrated accuracy goal, set with the other rating engine (``engine_label``), or set as a score where the skill is now in stars.
+             */
+            paused_reason?: ("old_scale" | "accuracy" | "engine" | "unit") | null;
+            /**
+             * Engine Label
+             * @description The rating engine the goal was set with.
+             * @default Comfort Score
+             */
+            engine_label: string;
         };
         /** GoalRecommendation */
         GoalRecommendation: {
@@ -1877,7 +1904,10 @@ export interface components {
         HistoryPoint: {
             /** Day */
             day: string;
-            /** Score */
+            /**
+             * Score
+             * @description The skill's value that day, in the goal's unit.
+             */
             score: number | null;
         };
         /** HitsByAr */
@@ -3509,8 +3539,22 @@ export interface components {
             key: string;
             /** Label */
             label: string;
-            /** Score */
+            /**
+             * Score
+             * @description Its 0–100 score (weak at 45 or less).
+             */
             score: number;
+            /**
+             * Value
+             * @description What a goal for it follows now, in ``unit``.
+             */
+            value: number;
+            /**
+             * Unit
+             * @default score
+             * @enum {string}
+             */
+            unit: "score" | "stars";
         };
         /** SkippedReplay */
         SkippedReplay: {
@@ -3697,6 +3741,12 @@ export interface components {
             current: number;
             /** Target */
             target: number;
+            /**
+             * Unit
+             * @default score
+             * @enum {string}
+             */
+            unit: "score" | "stars";
         };
         /** SuggestionSection */
         SuggestionSection: {
