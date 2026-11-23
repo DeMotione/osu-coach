@@ -45,7 +45,8 @@ function Picker({ changes, start = {} }: { changes: Partial<Request>[]; start?: 
   }} />;
 }
 
-const mapCells = () => screen.getAllByRole("row").slice(1).map((row) => row.querySelector("td")?.textContent);
+// the map's name, without the player shown under it
+const mapCells = () => screen.getAllByRole("row").slice(1).map((row) => row.querySelector("td .replay-picker__map")?.firstChild?.textContent);
 
 it("finds a map by name in all your replays and picks one of its replays with its mods (#127)", () => {
   vi.useFakeTimers();
@@ -54,6 +55,9 @@ it("finds a map by name in all your replays and picks one of its replays with it
   expect(screen.getByText(/No target yet/)).toBeInTheDocument();
   // a replay that can't be analysed isn't offered
   expect(mapCells()).toHaveLength(4);
+  // the player under each map's name, not in a column of its own: the list fits half a page
+  expect(screen.getAllByRole("row")[1].querySelector("td")).toHaveTextContent("Mot1one");
+  expect(screen.queryByRole("columnheader", { name: "Player" })).toBeNull();
 
   fireEvent.change(screen.getByRole("searchbox", { name: "Find the map you want to FC" }), { target: { value: "proeza tech" } });
   // the list follows each key; all replays are searched once typing stops

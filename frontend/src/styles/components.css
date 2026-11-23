@@ -927,15 +927,29 @@ input[type="range"] {
 
 /* a replay picker (Detailed Map Analysis, FC a map): a table, and on narrow cards a card per replay (map, then mods · accuracy · played · player) */
 .replay-picker { container-type: inline-size; min-width: 0; }
+.replay-picker__map,
+.replay-picker__played { display: flex; flex-direction: column; gap: 2px; }
+.replay-picker__map .muted { font-weight: 400; }
+.replay-picker__played { align-items: flex-end; }
+
+/* the whole list in view, no sideways scroll: fixed widths for the short columns, the map's name takes the rest */
+@container (min-width: 521px) {
+  .replay-picker .table { table-layout: fixed; }
+  .replay-picker .table td.wrap { min-width: 0; overflow-wrap: break-word; }
+  .replay-picker .col-mods { width: 104px; }
+  .replay-picker .col-acc { width: 84px; }
+  .replay-picker .col-played { width: 100px; }
+}
 
 @container (max-width: 520px) {
+  .replay-picker .table colgroup { display: none; }
   .replay-picker .table,
   .replay-picker .table tbody { display: block; width: 100%; }
   .replay-picker .table thead { display: none; }
   .replay-picker .table tr {
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr) auto;
-    grid-template-areas: "map map map map" "mods acc played player";
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas: "map map map" "mods acc played";
     border-bottom: 1px solid var(--border);
   }
   .replay-picker .table td,
@@ -947,7 +961,6 @@ input[type="range"] {
   .replay-picker .table td:nth-child(2) { grid-area: mods; }
   .replay-picker .table td:nth-child(3) { grid-area: acc; }
   .replay-picker .table td:nth-child(4) { grid-area: played; }
-  .replay-picker .table td:nth-child(5) { grid-area: player; }
 }
 
 /* a finished map in a playlist: its name under a "Completed" check */
