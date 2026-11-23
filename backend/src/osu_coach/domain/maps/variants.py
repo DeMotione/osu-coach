@@ -33,6 +33,7 @@ from osu_coach.domain.maps.skillset import (
     FEATURE_POINTS,
     GOALS,
     HISTORY_WEIGHT,
+    OVER,
     PRECOMPUTED,
     REFERENCE_GRID,
     RISK_WEIGHT,
@@ -42,6 +43,7 @@ from osu_coach.domain.maps.skillset import (
     STAR_WINDOW,
     Recommendation,
     Tally,
+    over_reason,
     recommend_modified,
 )
 from osu_coach.domain.maps.suggestions import SKILLS, skill_scores
@@ -124,10 +126,11 @@ SAME = 1e-6  # a pattern statistic is "the previous rate's, scaled" within this 
 TIE = 1e-9  # scores this close are left to recommend_modified to order
 BLOCK = 4096  # maps whose stars are read at a time
 CHUNK = 100_000  # configurations scored at a time
+# the reasons a goal leaves a configuration in its star window out, by code (1, 2, ...), as recommend_modified's checks
+# order them; then over each other assessed skill's rating (``over_reason``)
 _REASONS = (
     "Target demand or relevance unknown",
     "Insufficient target relevance",
-    "Assessed map demand unknown",
     "Tapping tempo too far below target",
 )
 _OUTSIDE = -1  # reason code: not in the goal's star window
@@ -667,6 +670,7 @@ def recommend_from_table(
     history_keys, history_values = _history(table, grid, client, history)
     needs = tuple(dict.fromkeys(column for key in assessed for column in _NEEDS[key]))
     others = [key for key in assessed if key != skill]
+    texts = (*_REASONS, *(over_reason(key) for key in others))
     scale = table.scales["stars"]
 
     def evaluate(m: np.ndarray, c: np.ndarray, stars: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -696,21 +700,25 @@ def recommend_from_table(
             at = np.minimum(np.searchsorted(history_keys, flat), len(history_keys) - 1)
             told = np.where(history_keys[at] == flat, HISTORY_WEIGHT * (history_values[at] - 1), 0.0)
         unknown = ~(np.isfinite(share) & (share >= 0) & (share <= 1)) | ~np.isfinite(demands[skill])
-        partly = np.zeros(len(m), dtype=bool)
-        for key in others:
-            partly |= ~np.isfinite(demands[key])
         speed_bpm = np.where(np.isfinite(features["speed"]), features["speed"], 0.0) if skill == "speed" else None
         reasons = np.full((len(goals), len(m)), _OUTSIDE, dtype=np.int8)
         scores = np.full((len(goals), len(m)), -np.inf)
         for g in range(len(goals)):
             inside = np.abs(stars - targets[g]) <= STAR_WINDOW + 1e-12
             slow = speed_bpm < SPEED_MIN_TEMPO_RATIO * tempo[g] if speed_bpm is not None else False
-            reason = np.select([unknown, share < min_relevance, partly, slow], [1, 2, 3, 4], 0)
+            # what each other skill is asked beyond the rating and the margin (none of a skill the map has no demand of):
+            # the most over it names the reason, the first of equals as over_rating
+            over = np.full((max(1, len(others)), len(m)), -np.inf)
+            with np.errstate(all="ignore"):
+                for i, key in enumerate(others):
+                    over[i] = np.where(np.isfinite(demands[key]), demands[key] - (abilities[key] + margins[g]), -np.inf)
+            worst = len(_REASONS) + 1 + np.argmax(over, axis=0)
+            reason = np.select([unknown, share < min_relevance, slow, over.max(axis=0) > OVER], [1, 2, 3, worst], 0)
             reasons[g] = np.where(inside, reason, _OUTSIDE)
             with np.errstate(all="ignore"):
                 risk = np.zeros(len(m))
-                for key in others:
-                    risk = risk + (np.maximum(0.0, demands[key] - (abilities[key] + margins[g])) / 20.0) ** 2
+                for i in range(len(others)):
+                    risk = risk + (np.maximum(0.0, over[i]) / 20.0) ** 2
                 score = -(((stars - targets[g]) / STAR_SCALE) ** 2) + -(
                     ((demands[skill] - wanted[g]) / SKILL_SCALE) ** 2
                 )
@@ -741,7 +749,7 @@ def recommend_from_table(
             m, c = m_all[at : at + CHUNK], c_all[at : at + CHUNK]
             reasons, scores = evaluate(m + start, c, stars[m, c])
             for g in range(len(goals)):
-                for code, text in enumerate(_REASONS, start=1):
+                for code, text in enumerate(texts, start=1):
                     number = int((reasons[g] == code).sum())
                     if number:
                         counts[g][text] = counts[g].get(text, 0) + number
@@ -811,7 +819,7 @@ def recommend_from_table(
         reasons, _ = evaluate(handed_m, handed_c, np.asarray(table.stars[maps[handed_m], hr, hd, rate]) / scale)
         for g in range(len(goals)):
             counts[g]["Outside star window"] -= int((reasons[g] == _OUTSIDE).sum())
-            for code, text in enumerate(_REASONS, start=1):
+            for code, text in enumerate(texts, start=1):
                 number = int((reasons[g] == code).sum())
                 if number:
                     counts[g][text] -= number

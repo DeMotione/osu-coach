@@ -2,6 +2,11 @@
 
 Pool ``s_*`` values describe training relevance. Demands are a separate,
 unvalidated projection from pool features, relative to the player's comfort stars.
+Every assessed skill but the target (by default every skill the player has a rating
+of, :func:`rated_skills`) bounds what a map may ask of it: what a map asks beyond the
+player's rating plus the goal's margin lowers its F, and a map that asks more than
+:data:`OVER` (half a star) beyond is left out, so no suggestion is far too hard for a
+skill the playlist doesn't train.
 """
 
 from __future__ import annotations
@@ -14,7 +19,7 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from osu_coach.domain.maps.suggestions import SKILLS, map_url
+from osu_coach.domain.maps.suggestions import SKILLS, map_url, skill_label
 from osu_coach.domain.numeric.values import finite_or_none
 from osu_coach.domain.player import algorithm as alg
 from osu_coach.domain.player.engines.skill_scale import (
@@ -34,11 +39,14 @@ FEATURE_POINTS = {
     "reading": 12,
     "consistency": 12,
 }
+# a goal's star offset, its target skill's demand offset, and its margin: what the other assessed skills may be asked
+# beyond the player's rating before F counts it (a warm-up: 10 points, half a star, less than the rating)
 GOALS = {
     "Warm-up": (-0.5, -15.0, -10.0),
     "Comfort": (0.0, -5.0, 0.0),
     "Push": (0.3, 5.0, 0.0),
 }
+OVER = 10.0  # points (half a star) a map may ask another skill for beyond the rating plus the margin; more: left out
 STAR_WINDOW = 0.2
 STAR_SCALE = 0.2
 SKILL_SCALE = 20.0
@@ -206,6 +214,30 @@ def _check(
             raise ValueError(f"Invalid player rating: {key}.")
 
 
+def rated_skills(skill: str, abilities: Mapping[str, float]) -> tuple[str, ...]:
+    """The skills a map is assessed on unless others are chosen: the target and every skill the player has a rating
+    of, so that no map asks a skill for much more than the player has (:func:`over_rating`)."""
+    return (skill, *(k for k in SKILLS if k != skill and k in abilities))
+
+
+def over_rating(
+    skill: str, assessed: tuple[str, ...], demands: Mapping[str, float], abilities: Mapping[str, float], margin: float
+) -> str | None:
+    """The other assessed skill a map asks the most of beyond the player's rating plus the goal's ``margin``, if it
+    asks any for more than :data:`OVER` beyond (a skill the map has no demand of, like stamina of a map without
+    streams, it doesn't)."""
+    worst, most = None, OVER
+    for other in assessed:
+        if other != skill and other in demands and demands[other] - (abilities[other] + margin) > most:
+            worst, most = other, demands[other] - (abilities[other] + margin)
+    return worst
+
+
+def over_reason(skill: str) -> str:
+    """Why a map was left out that asks ``skill`` for too much beyond the player's rating (:func:`over_rating`)."""
+    return f"Over your {skill_label(skill)} rating"
+
+
 def _adjusted_stars(theta: float, kappa: float, abilities: Mapping[str, float], skill: str) -> float | None:
     """The comfort level moved by how far the skill's rating is from typical (None: the skill has no rating)."""
     return theta + kappa * (abilities[skill] - 50) / 50 if skill in abilities else None
@@ -351,10 +383,11 @@ class Recommendation:
 def _bottlenecks(
     skill: str, assessed: tuple[str, ...], demands: Mapping[str, float], abilities: Mapping[str, float], margin: float
 ) -> tuple[Bottleneck, ...]:
-    """The other skills' overload: only what a map asks beyond the player's rating plus the goal's margin."""
+    """The other skills' overload: only what a map asks beyond the player's rating plus the goal's margin (none of a
+    skill the map has no demand of)."""
     out = []
     for other in assessed:
-        if other == skill:
+        if other == skill or other not in demands:
             continue
         overload = max(0.0, demands[other] - (abilities[other] + margin))
         out.append(
@@ -559,8 +592,8 @@ def recommend(
                 reason = "Insufficient target relevance"
             elif target_speed_bpm is not None and _speed_bpm(row) < SPEED_MIN_TEMPO_RATIO * target_speed_bpm:
                 reason = "Tapping tempo too far below target"
-            elif any(other not in demands for other in assessed):
-                reason = "Assessed map demand unknown"
+            elif (over := over_rating(skill, assessed, demands, abilities, margin)) is not None:
+                reason = over_reason(over)
             if reason:
                 excluded[reason] = excluded.get(reason, 0) + 1
                 continue
@@ -809,10 +842,10 @@ def recommend_modified(
                     reason = "Target demand or relevance unknown"
                 elif relevance < min_relevance:
                     reason = "Insufficient target relevance"
-                elif any(k not in demands for k in assessed):
-                    reason = "Assessed map demand unknown"
                 elif target_bpm is not None and (_speed_bpm(row) or 0) < SPEED_MIN_TEMPO_RATIO * target_bpm:
                     reason = "Tapping tempo too far below target"
+                elif (over := over_rating(skill, assessed, demands, abilities, stage.margin)) is not None:
+                    reason = over_reason(over)
             if reason:
                 stage.excluded[reason] = stage.excluded.get(reason, 0) + 1
                 continue

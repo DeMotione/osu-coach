@@ -12,10 +12,10 @@ from osu_coach.common.clicks import Clicks
 from osu_coach.common.convert import integer, iso, num, nums
 from osu_coach.common.maps import map_rows
 from osu_coach.common.texts import SKILL_LABELS, message
-from osu_coach.domain.maps.skillset import recommend
+from osu_coach.domain.maps.skillset import rated_skills, recommend
 from osu_coach.domain.maps.suggestions import targets_from_profile
 from osu_coach.domain.player import Profile, weight_table
-from osu_coach.domain.player.engines import ENGINE_LABELS, Rated, compare
+from osu_coach.domain.player.engines import ENGINE_LABELS, Rated, compare, make_engine
 from osu_coach.domain.player.engines.consistency import star_consistency
 from osu_coach.domain.player.engines.readiness import MAX_GAP, default_target, targets
 from osu_coach.domain.player.records import UNRATED, SkillRating
@@ -476,8 +476,8 @@ def _fall_behind(ws: Workspace, p: Profile) -> S.FallBehind:
         if not pool.empty:
             t = targets_from_profile(p)
             easy_lo = max(9, int(comfort * 0.6))
-            stamina = num(p.skill_ratings.get("stamina", UNRATED).score)
-            abilities = {"stamina": stamina} if stamina is not None else {}
+            # every skill with a rating is checked, as on the playlists: no map asks one for much more than the rating
+            abilities = make_engine(p.engine).map_scores(p.skill_ratings, t.comfort)
             for low, high, goal in ((easy_lo, comfort, "Comfort"), (int(lo), int(hi), "Push")):
                 subset = pool[(pool["max_run"] >= low) & (pool["max_run"] <= high)]
                 data = recommend(
@@ -485,7 +485,7 @@ def _fall_behind(ws: Workspace, p: Profile) -> S.FallBehind:
                     t.comfort,
                     abilities,
                     "stamina",
-                    ("stamina",),
+                    rated_skills("stamina", abilities),
                     min_relevance=0.0,
                     played=t.played,
                 )

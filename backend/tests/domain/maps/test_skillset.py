@@ -2,7 +2,15 @@
 
 import pytest
 
-from osu_coach.domain.maps.skillset import _features, recommend, recommend_modified, star_targets
+from osu_coach.domain.maps.skillset import (
+    OVER,
+    _features,
+    rated_skills,
+    recommend,
+    recommend_modified,
+    star_targets,
+)
+from osu_coach.domain.maps.suggestions import SKILLS
 from osu_coach.infra.map_pool import POOL_PATH, load_pool
 
 pytestmark = pytest.mark.skipif(not POOL_PATH.exists(), reason="bundled pool not built")
@@ -67,3 +75,24 @@ def test_star_targets_are_the_goals_target_stars():
     ranked = recommend_modified([], [], 4.39, abilities, "accuracy", ("accuracy",), 0.7, 0.3, frozenset(), {})
     assert star_targets(4.39, 0.7, abilities, "accuracy") == tuple(s.target_stars for s in ranked.goals.values())
     assert star_targets(4.39, 0.7, {}, "accuracy") == ()
+
+
+def test_a_map_over_another_skills_rating_is_left_out():
+    # every rated skill is assessed: no map asks one but the target for more than half a star beyond the rating plus
+    # the goal's margin, and those that did are counted by the skill they were the most over
+    abilities = dict.fromkeys(SKILLS, 50.0) | {"consistency": 30.0}
+    assert rated_skills("aim", abilities) == ("aim", *(k for k in SKILLS if k != "aim"))
+    result = recommend(load_pool().to_dict("records"), 6.0, abilities, "aim", rated_skills("aim", abilities))
+    for stage in result.goals.values():
+        assert stage.excluded["Over your Consistency rating"] > 0
+        for m in stage.maps:
+            assert all(b.overload <= OVER for b in m.breakdown.bottlenecks)
+    assert any(stage.maps for stage in result.goals.values())
+
+
+def test_a_skill_a_map_has_no_demand_of_does_not_leave_it_out():
+    # no streams: no stamina to ask, so even a stamina rating of 0 keeps the map
+    rows = [r for r in load_pool().to_dict("records") if "stamina" not in _features(r)]
+    result = recommend(rows, 4.0, {"aim": 50.0, "stamina": 0.0}, "aim", ("aim", "stamina"))
+    assert all(not any(r.startswith("Over") for r in stage.excluded) for stage in result.goals.values())
+    assert any(stage.maps for stage in result.goals.values())

@@ -19,7 +19,7 @@ from osu_coach.common.errors import ApiError, Invalid
 from osu_coach.common.maps import map_rows
 from osu_coach.common.texts import explain
 from osu_coach.domain.maps.configuration import SearchOptions
-from osu_coach.domain.maps.skillset import recommend, recommend_modified, star_targets
+from osu_coach.domain.maps.skillset import rated_skills, recommend, recommend_modified, star_targets
 from osu_coach.domain.maps.suggestions import (
     SKILLS,
     Targets,
@@ -126,12 +126,13 @@ def measured_abilities(p: Profile | None, theta: float) -> dict[str, float]:
     return {k: v for k, v in scores.items() if k in SKILLS}
 
 
-def skill_levels(p: Profile | None) -> dict[str, float]:
-    """Each skill's own star level, which its playlist is made around (Star Levels; none under Comfort Score)."""
+def skill_levels(p: Profile | None, comfort: float) -> dict[str, float]:
+    """The star rating each skill's playlist is made around (Star Levels: the comfort level ``comfort`` moved toward
+    the skill's own level; none under Comfort Score)."""
     if p is None:
         return {}
     engine = make_engine(p.engine)
-    return {k: v for k in SKILLS if (v := engine.playlist_level(p.skill_ratings, k)) is not None}
+    return {k: v for k in SKILLS if (v := engine.playlist_level(p.skill_ratings, k, comfort)) is not None}
 
 
 def _manual_ratings(ratings: str | None) -> dict[str, float]:
@@ -165,9 +166,10 @@ def _options(
     min_relevance: float,
     around_skill: bool = True,
 ):
-    """The search's target skill, assessed skills, abilities, star level (θ), where θ came from and κ. With
-    ``around_skill`` and no comfort given, a skill with its own star level (Star Levels) has its playlist made around
-    that level, where its score is 50: κ then has nothing to move, and is 0."""
+    """The search's target skill, assessed skills (unless chosen: every skill with a rating), abilities, star level
+    (θ), where θ came from and κ. With ``around_skill`` and no comfort given, a skill with its own star level (Star
+    Levels) has its playlist made around the comfort level moved toward that level (``playlist_level``): κ, which
+    moves it by the skill's score, is then 0."""
     if comfort is not None and num(comfort) is None:
         raise Invalid("Comfort stars must be a finite positive number.", "invalid_recommendation_settings")
     theta = num(comfort) if comfort is not None else None
@@ -189,11 +191,11 @@ def _options(
     target = skill or default_skill(p, abilities)
     if target not in SKILLS:
         raise Invalid(f"Unknown skill {target}.", "unknown_skill")
-    level = skill_levels(p).get(target) if around_skill and comfort is None else None
+    level = skill_levels(p, theta).get(target) if around_skill and comfort is None else None
     if level is not None:
-        theta, kappa, source = level, 0.0, f"Your {skill_label(target)} level"
+        theta, kappa, source = level, 0.0, f"Comfort level moved toward your {skill_label(target)} level"
         abilities = {**measured_abilities(p, theta), **manual}
-    checked = tuple(dict.fromkeys(assessed.split(",") if assessed is not None else [target]))
+    checked = tuple(dict.fromkeys(assessed.split(",") if assessed is not None else rated_skills(target, abilities)))
     if not checked or target not in checked or set(checked) - set(SKILLS):
         raise Invalid("Assessed skills must include the target skill.", "invalid_assessed_skills")
     if (
@@ -215,7 +217,7 @@ def suggestions(
 ) -> Suggestions:
     pool = _pool(ws)
     _, _, abilities, theta, source, _ = _options(p, None, None, None, None, kappa, min_relevance, around_skill=False)
-    # Use the same measured <=45 scores and three-skill limit as Overview.
+    # Use the same measured <=45 scores and three-skill limit as Overview; a map is checked on every rated skill.
     weak = sorted(
         (key for key in SKILLS if abilities.get(key, 101) <= 45), key=lambda key: (abilities[key], SKILLS.index(key))
     )[:3]
@@ -230,7 +232,14 @@ def suggestions(
         try:
             ranked = explain(
                 recommend(
-                    pool.to_dict("records"), theta, abilities, target, tuple(weak), kappa, min_relevance, t.played
+                    pool.to_dict("records"),
+                    theta,
+                    abilities,
+                    target,
+                    rated_skills(target, abilities),
+                    kappa,
+                    min_relevance,
+                    t.played,
                 ),
                 target,
                 t,
@@ -338,7 +347,7 @@ def playlist(
 
 
 def _levels(p: Profile | None) -> dict[str, float]:
-    return {k: round(v, 2) for k, v in skill_levels(p).items()}
+    return {k: round(v, 2) for k, v in skill_levels(p, _comfort_of(p)).items()}
 
 
 def validate_search(ws: Workspace, req: PlaylistSearchRequest) -> None:

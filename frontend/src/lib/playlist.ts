@@ -59,7 +59,7 @@ export interface PlaylistControls {
   skill: string;
   measured: Record<string, number>;
   comfort: number;
-  /** Star Levels: each skill's own star level, which its playlist is made around (absent under Comfort Score). */
+  /** Star Levels: the star rating each skill's playlist is made around (absent under Comfort Score). */
   levels?: Record<string, number>;
 }
 
@@ -78,7 +78,9 @@ export interface SavedPlaylist {
   done: string[];
 }
 
-const SAVED = "osu-coach:skill-playlist";
+// -2: playlists assess every rated skill, and Star Levels' are made around the comfort level; one saved before
+// assessed the target alone, or was made around a skill's own level
+const SAVED = "osu-coach:skill-playlist-2";
 /** Set in the session storage once this session has taken the checked maps out of the saved playlist. */
 const SESSION = "osu-coach:skill-playlist-session";
 export const NO_PLAYLIST: SavedPlaylist = {

@@ -62,7 +62,9 @@ def playlist(
     min_relevance: Annotated[float, Query(ge=0, le=1)] = 0.3,
     exclude_played: bool = True,
 ) -> Playlist:
-    """``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data."""
+    """``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data;
+    ``assessed`` (the skills a map is checked on, comma-separated) defaults to every skill you have a rating of: a map
+    that asks one of them for more than your rating is left out."""
     return svc.playlist(ws, skill, comfort, assessed, ratings, kappa, min_relevance, exclude_played)
 
 

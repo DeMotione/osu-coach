@@ -55,11 +55,13 @@ class RatingEngine(Protocol):
         ...
 
     def map_scores(self, skills: Mapping[str, SkillRating], theta: float) -> dict[str, float]:
-        """The scores map suggestions work from: measurements only, on the recommender's scale at ``theta`` ★."""
+        """The scores map suggestions work from: measurements (and lower bounds), on the recommender's scale at
+        ``theta`` ★."""
         ...
 
-    def playlist_level(self, skills: Mapping[str, SkillRating], skill: str) -> float | None:
-        """The star rating a playlist for ``skill`` is made around (None: the comfort level)."""
+    def playlist_level(self, skills: Mapping[str, SkillRating], skill: str, comfort: float) -> float | None:
+        """The star rating a playlist for ``skill`` is made around, the player's comfort level being ``comfort`` ★
+        (None: the comfort level, moved by κ)."""
         ...
 
     def goal_values(self, skills: Mapping[str, SkillRating]) -> dict[str, tuple[float, str]]:

@@ -8,7 +8,7 @@ import pytest
 
 from osu_coach.domain.analysis.models import ReplayMeta
 from osu_coach.domain.player.engines.irt import constants as K
-from osu_coach.domain.player.engines.irt.engine import IrtEngine, adapter, prior_centre, state_of
+from osu_coach.domain.player.engines.irt.engine import PLAYLIST_REACH, IrtEngine, adapter, prior_centre, state_of
 from osu_coach.domain.player.engines.irt.fit import SkillFit
 from tests.domain.player.engines.irt.helpers import simulate
 
@@ -159,8 +159,11 @@ def test_map_scores_and_playlist_level_are_on_the_star_scale():
     rated = IrtEngine().rate(plays([simulate(seed=s) for s in range(4)]), [], comfort=6.0)
     engine = IrtEngine()
     aim = rated.skills["aim"]
-    assert engine.playlist_level(rated.skills, "aim") == aim.measured
-    assert engine.playlist_level(rated.skills, "consistency") is None  # not on the star scale
+    # the comfort level moved toward the skill's level: as far as it is likely at least at, half a star at most
+    moved = max(-PLAYLIST_REACH, min(PLAYLIST_REACH, aim.stars_low - 6.0))
+    assert engine.playlist_level(rated.skills, "aim", 6.0) == pytest.approx(6.0 + moved)
+    assert engine.playlist_level(rated.skills, "aim", aim.stars_low) == pytest.approx(aim.stars_low)
+    assert engine.playlist_level(rated.skills, "consistency", 6.0) is None  # not on the star scale
     at_level = engine.map_scores(rated.skills, 6.0)
     assert at_level["aim"] == pytest.approx(aim.score, abs=0.1)  # at the level: the scores shown
     around_aim = engine.map_scores(rated.skills, aim.measured)

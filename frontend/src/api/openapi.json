@@ -1977,7 +1977,7 @@
           "Maps"
         ],
         "summary": "A staged playlist (warm-up / core / push) for one skill",
-        "description": "``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data.",
+        "description": "``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data;\n``assessed`` (the skills a map is checked on, comma-separated) defaults to every skill you have a rating of: a map\nthat asks one of them for more than your rating is left out.",
         "operationId": "playlist_api_playlists_get",
         "parameters": [
           {
@@ -7996,7 +7996,7 @@
             },
             "type": "object",
             "title": "Skill Levels",
-            "description": "Star Levels: each skill's own star level (★), which its playlist is made around instead of the comfort level moved by kappa; empty under Comfort Score."
+            "description": "Star Levels: the star rating (★) each skill's playlist is made around instead of the comfort level moved by kappa: the comfort level moved toward the skill's own level, as far as the skill is likely at least at and by half a star at most; empty under Comfort Score."
           },
           "coverage_maps": {
             "anyOf": [

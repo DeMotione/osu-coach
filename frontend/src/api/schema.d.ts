@@ -648,7 +648,9 @@ export interface paths {
         };
         /**
          * A staged playlist (warm-up / core / push) for one skill
-         * @description ``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data.
+         * @description ``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data;
+         *     ``assessed`` (the skills a map is checked on, comma-separated) defaults to every skill you have a rating of: a map
+         *     that asks one of them for more than your rating is left out.
          */
         get: operations["playlist_api_playlists_get"];
         put?: never;
@@ -2776,7 +2778,7 @@ export interface components {
             engine?: string | null;
             /**
              * Skill Levels
-             * @description Star Levels: each skill's own star level (★), which its playlist is made around instead of the comfort level moved by kappa; empty under Comfort Score.
+             * @description Star Levels: the star rating (★) each skill's playlist is made around instead of the comfort level moved by kappa: the comfort level moved toward the skill's own level, as far as the skill is likely at least at and by half a star at most; empty under Comfort Score.
              */
             skill_levels?: {
                 [key: string]: number;
