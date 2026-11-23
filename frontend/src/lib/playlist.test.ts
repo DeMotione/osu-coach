@@ -106,9 +106,9 @@ describe("the playlist kept while away (#107)", () => {
   it("starts with the default playlist when nothing or something garbled is kept", () => {
     const storage = memory();
     expect(loadPlaylist(storage)).toEqual(NO_PLAYLIST);
-    storage.items.set("osu-coach:skill-playlist", "{not json");
+    storage.items.set("osu-coach:skill-playlist-2", "{not json");
     expect(loadPlaylist(storage)).toEqual(NO_PLAYLIST);
-    storage.items.set("osu-coach:skill-playlist", JSON.stringify({ options: {}, rounds: { Comfort: { at: "x" } }, controls: 3 }));
+    storage.items.set("osu-coach:skill-playlist-2", JSON.stringify({ options: {}, rounds: { Comfort: { at: "x" } }, controls: 3 }));
     expect(loadPlaylist(storage)).toEqual(NO_PLAYLIST);
   });
 

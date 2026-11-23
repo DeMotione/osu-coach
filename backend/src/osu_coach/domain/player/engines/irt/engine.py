@@ -35,6 +35,8 @@ POINTS_PER_STAR = 20.0  # around 50
 CURVE = 100 / (4 * POINTS_PER_STAR)  # ★: the S-curve's width for that slope at 50
 FALLBACK_STARS = 4.0
 CALIBRATION_RANGE = 30.0  # ★ either side of the level searched for a skill's reference
+# ★: the farthest a skill's own level moves its playlist from the comfort level (as far as Comfort Score's κ moves it)
+PLAYLIST_REACH = 0.5
 # plays under it were mostly not hit: flailing far above one's level (often with NoFail), misses no skill explains
 MIN_ACCURACY = 0.5
 
@@ -241,13 +243,18 @@ class IrtEngine:
             skills[key] = SkillAt(score=score, change=round(score - row.score, 1), demand=demand, at_least=bound)
         return readiness(comfort, target, skills)
 
-    def playlist_level(self, skills: Mapping[str, SkillRating], skill: str) -> float | None:
-        """The skill's own star level: the map star rating it holds up on (None: not measured, or not on the star
-        scale, like consistency)."""
+    def playlist_level(self, skills: Mapping[str, SkillRating], skill: str, comfort: float) -> float | None:
+        """The comfort level moved toward the skill's own star level: as far as the skill is likely at least at (the
+        low end of its likely range; an untested one's lower bound), and :data:`PLAYLIST_REACH` at most (None: no
+        level, or not on the star scale, like consistency). A map of the skill's own level asks as much of every other
+        skill: around it, a tapping level 1★ above the comfort level put the warm-up 0.6★ above it (decision 28)."""
         row = skills.get(skill)
-        if row is None or row.state not in ("measured", "provisional") or row.measured is None:
+        if row is None or row.state not in ("measured", "provisional", "untested") or not math.isfinite(comfort):
             return None
-        return row.measured if math.isfinite(row.measured) else None
+        low = row.stars_low if row.stars_low is not None else row.measured
+        if low is None or not math.isfinite(low):
+            return None
+        return comfort + max(-PLAYLIST_REACH, min(PLAYLIST_REACH, low - comfort))
 
     def goal_values(self, skills: Mapping[str, SkillRating]) -> dict[str, tuple[float, str]]:
         """A skill's goal is the map star rating it holds up on (#129); one not on the star scale (consistency)
@@ -264,11 +271,12 @@ class IrtEngine:
         return out
 
     def map_scores(self, skills: Mapping[str, SkillRating], theta: float) -> dict[str, float]:
-        # the scores against maps of theta ★, as compare_at gives them (consistency isn't on the star scale)
+        # the scores against maps of theta ★, as compare_at gives them (consistency isn't on the star scale); an untested
+        # skill by its lower bound: what it is at least, so a map isn't asked of it beyond that
         out = {
-            k: adapter(skills[k].measured, theta) if skills[k].measured is not None else float(v)
-            for k, v in measured_scores(skills).items()
-            if v is not None
+            k: adapter(row.measured, theta) if row.measured is not None else float(row.score)
+            for k, row in skills.items()
+            if row.score is not None
         }
         # the recommender reads tapping speed on the tempo scale, so it comes from the BPM measured
         speed = skills.get("speed")

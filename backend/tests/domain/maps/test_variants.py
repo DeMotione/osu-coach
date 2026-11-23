@@ -314,3 +314,19 @@ def test_a_search_without_a_rating_looks_nothing_up(made_up, pool):
             table, records, _columns(pool), SearchOptions(True), "lazer", 0.0, {"aim": 50.0}, "aim", ("aim",),
             0.5, 0.3, frozenset(), {},
         )  # fmt: skip
+
+
+def test_a_map_over_another_skills_rating_is_left_out_alike(made_up, pool):
+    # every skill rated: a configuration asking one of the others for more than half a star beyond the rating plus the
+    # goal's margin is left out, named by the skill it is the most over, by both searches (the test above)
+    table, records = made_up
+    abilities = dict.fromkeys(SKILLS, 50.0) | {"consistency": 20.0, "accuracy": 30.0}
+    options = SearchOptions(True, True, True, 1.10, 1.50)
+    found = recommend_from_table(
+        table, records, _columns(pool), options, "lazer", 4.6, abilities, "aim", SKILLS, 0.5, 0.3, frozenset(), {}
+    )
+    over = {reason for g in found.recommendation.goals.values() for reason in g.excluded if reason.startswith("Over")}
+    assert {"Over your Consistency rating", "Over your Accuracy rating"} <= over
+    for goal in found.recommendation.goals.values():
+        for m in goal.maps:
+            assert all(b.overload <= skillset.OVER for b in m.breakdown.bottlenecks)

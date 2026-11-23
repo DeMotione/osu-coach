@@ -37,9 +37,11 @@ function ratingTexts(applied: string | undefined): Record<string, string> {
 }
 
 /** Draft every control locally; the one Show maps action applies the complete selection. The draft starts from
- * ``initial``, the selection applied last (a playlist come back to, #107). With ``levels`` (Star Levels: each skill's
- * own star level) a playlist is made around the target skill's level, so there is no comfort difficulty, κₛ or
- * relevance to set, and no other skill ratings to try: a skill is a star level, not a 0–100 score (#126). */
+ * ``initial``, the selection applied last (a playlist come back to, #107); unless skills to assess were chosen there,
+ * every skill with a rating (``measured``) is assessed, so no map asks one for much more than the player has. With
+ * ``levels`` (Star Levels: the star rating each skill's playlist is made around, the comfort level moved toward the
+ * skill's own level) there is no comfort difficulty, κₛ or relevance to set, and no other skill ratings to try: a skill
+ * is a star level, not a 0–100 score (#126). */
 export function RecommendationControls({ current, measured, comfort, levels, initial = {}, onApply }: {
   current: string;
   measured: Record<string, number>;
@@ -63,7 +65,8 @@ export function RecommendationControls({ current, measured, comfort, levels, ini
   const [adjustableDt, setAdjustableDt] = useState(!!initial.adjustable_dt);
   const [minRate, setMinRate] = useState((initial.min_rate ?? 1.1).toFixed(2));
   const [maxRate, setMaxRate] = useState((initial.max_rate ?? 2).toFixed(2));
-  const selected = [skill, ...(assessed ?? []).filter((id) => id !== skill)];
+  const rated = SKILLS.map(([id]) => id).filter((id) => measured[id] !== undefined);
+  const selected = [skill, ...(assessed ?? rated).filter((id) => id !== skill)];
   const byLevel = levels !== undefined;
   const valid = (byLevel || (Number(stars) > 0 && Number(kappa) >= 0 && Number(relevance) >= 0 && Number(relevance) <= 1 &&
     [stars, kappa, relevance].every((n) => n.trim() !== "" && Number.isFinite(Number(n))))) &&
@@ -78,7 +81,7 @@ export function RecommendationControls({ current, measured, comfort, levels, ini
     onApply({
       skill,
       assessed: selected.join(","),
-      // Star Levels: no ratings to try or comfort; κₛ moves nothing around the skill's own level, and relevance keeps
+      // Star Levels: no ratings to try or comfort; κₛ is unused (the skill's level moves the playlist), and relevance keeps
       // its default
       ratings: !byLevel && Object.keys(manual).length ? JSON.stringify(manual) : undefined,
       comfort: !byLevel && starsOverride !== null ? Number(stars) : undefined,
@@ -124,7 +127,7 @@ export function RecommendationControls({ current, measured, comfort, levels, ini
             <p className="small muted">
               Difficulty:{" "}
               {levels[skill] !== undefined
-                ? `your ${skillName(skill)} level from the Overview, ${levels[skill].toFixed(1)}★.`
+                ? `${levels[skill].toFixed(2)}★: your comfort level moved toward your ${skillName(skill)} level, as far as it is likely at least and half a star at most.`
                 : `your comfort level (${skillName(skill)} has no measured star level).`}
             </p>
           ) : (
@@ -155,7 +158,7 @@ export function RecommendationControls({ current, measured, comfort, levels, ini
           </div>}
           <div className="recommendation-assessed">
             <h4>Skills to assess</h4>
-            <p className="small muted">The target skill is always included. Unchecked demands are unassessed; a checked skill with unknown player ability excludes the map.</p>
+            <p className="small muted">Every skill with a rating is checked: a map that asks one for more than half a star beyond your rating (a warm-up: beyond your rating) is left out, and one that asks it for more than your rating ranks lower. The target skill is always included; unchecked demands are unassessed; a checked skill with unknown player ability excludes the map.</p>
             <div className="recommendation-skills">
               {SKILLS.map(([id, label]) => (
                 <label key={id} className="recommendation-check">

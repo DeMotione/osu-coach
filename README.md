@@ -26,6 +26,8 @@ Analyses your own osu!standard replays and tells you what to work on:
 - **Goals & Training.** Builds a staged playlist (warm-up / core / push) for one skill and gets it into
   the game: for **lazer**, one click sends the maps straight into lazer and each map opens there with one more
   (see below); for **stable**, it adds the collection to your `collection.db` and downloads the maps (.osz).
+  Every map is checked against your rating in each skill: one that asks any of them for more than half a star
+  beyond your rating (a warm-up: beyond your rating) is left out.
 
 Everything runs locally. The only network use is downloading beatmaps you don't have, by MD5 from
 osu.direct and osu.ppy.sh (verified), and downloading playlist maps from public mirrors.

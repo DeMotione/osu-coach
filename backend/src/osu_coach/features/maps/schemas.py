@@ -77,8 +77,9 @@ class Playlist(BaseModel):
     engine: str | None = Field(None, description="The rating engine of the skill ratings (null: no replays analysed).")
     skill_levels: dict[str, float] = Field(
         default_factory=dict,
-        description="Star Levels: each skill's own star level (★), which its playlist is made around instead of the "
-        "comfort level moved by kappa; empty under Comfort Score.",
+        description="Star Levels: the star rating (★) each skill's playlist is made around instead of the comfort level "
+        "moved by kappa: the comfort level moved toward the skill's own level, as far as the skill is likely at least "
+        "at and by half a star at most; empty under Comfort Score.",
     )
     coverage_maps: int | None = Field(
         None, description="Maps with verified .osu data searched for modified configurations."

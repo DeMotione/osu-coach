@@ -19,6 +19,20 @@ it("applies exact mod search settings while keeping the selected skill controls"
   }));
 });
 
+it("assesses every skill with a rating unless others are chosen", () => {
+  const onApply = vi.fn();
+  render(<RecommendationControls current="aim" measured={{ aim: 50, speed: 60, reading: 40 }} comfort={4} onApply={onApply} />);
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ skill: "aim", assessed: "aim,speed,reading" }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Target skill" }), { target: { value: "speed" } });
+  fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
+  expect(screen.getByRole("checkbox", { name: "Reading" })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "Stamina" })).not.toBeChecked(); // no rating
+  fireEvent.click(screen.getByRole("checkbox", { name: "Reading" }));
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ skill: "speed", assessed: "speed,aim" }));
+});
+
 it("rejects a reversed DT range before applying", () => {
   render(<RecommendationControls current="aim" measured={{ aim: 50 }} comfort={4} onApply={vi.fn()} />);
   fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
@@ -39,14 +53,14 @@ it("accepts both default DT endpoints and rejects finer than hundredth rates", (
   expect(screen.getByRole("button", { name: "Show maps" })).toBeDisabled();
 });
 
-it("Star Levels: no comfort, κₛ or relevance to set; the playlist is made around the skill's own level", () => {
+it("Star Levels: no comfort, κₛ or relevance to set; the playlist is moved toward the skill's level", () => {
   const onApply = vi.fn();
   render(<RecommendationControls current="speed" measured={{ speed: 50 }} comfort={6.4} levels={{ speed: 6.82 }} initial={{ comfort: 5, kappa: 0.8 }} onApply={onApply} />);
   fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
   expect(screen.queryByRole("spinbutton", { name: /Comfort difficulty/ })).toBeNull();
   expect(screen.queryByRole("spinbutton", { name: /Skill star adjustment/ })).toBeNull();
   expect(screen.queryByRole("spinbutton", { name: /relevance/ })).toBeNull();
-  expect(screen.getByText(/your Tapping speed level from the Overview, 6\.8★/)).toBeTruthy();
+  expect(screen.getByText(/6\.82★: your comfort level moved toward your Tapping speed level/)).toBeTruthy();
   fireEvent.change(screen.getByRole("combobox", { name: "Target skill" }), { target: { value: "consistency" } });
   expect(screen.getByText(/your comfort level \(Consistency has no measured star level\)/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Show maps" }));

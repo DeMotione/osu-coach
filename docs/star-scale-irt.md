@@ -141,14 +141,24 @@ real player's library (154 lazer plays, comfort level ~6★). "Unfitted" means a
     rating (the maps it holds up on), so colouring it green, blue or red against a picked star rating added nothing
     but a second scale. All bars are one colour, and the likely range is in the hover, not drawn as a faded bar
     behind each one. Consistency, which isn't on the star scale, is still reported at the comfort level.
-28. **A skill's playlist is made around the skill's own star level** (`playlist_level`), not around the comfort
-    level moved by κ·(score − 50)/50. Around its own level the skill's score is 50 by definition, so κ moves
-    nothing and is 0. The other assessed skills are scored against maps of that level (`map_scores(θ)`, as the
-    Overview's comparison scored them). The comfort difficulty and κ are not offered under Star Levels, and the
-    relevance threshold keeps its default (0.3). Skills without a star level (consistency, or a skill not measured
-    yet) keep the comfort level. Nor is "Try other skill ratings" (#126): a skill is a star level here, and a 0–100
-    score typed in its place would mean a score against a level the engine doesn't rate by (`uses_level`); ratings
-    still sent, from a selection kept from Comfort Score, are checked and left out.
+28. **A skill's playlist is made around the comfort level moved toward the skill's own star level**
+    (`playlist_level`): as far as the skill is likely at least at (the low end of its likely range; an untested
+    skill's lower bound) and half a star at most (`PLAYLIST_REACH`, as far as Comfort Score's κ moves it), not by
+    κ·(score − 50)/50, so κ is 0. *Why:* a star level is where that skill alone fails 2% of its notes on typical maps
+    of that rating, and such a map asks as much of every other skill, so a playlist around it (as it was made at
+    first) was too hard. One player's library (721 plays, comfort level 6.56★) had tapping at 7.68★, provisional
+    (likely 6.50–8.85★): its warm-up was 7.18★, where their 16 plays of stream maps at 7.0–7.5★ had a median of 50
+    misses and 81.5% accuracy and none had 3 misses or fewer (at 6.0–6.5★: 14 misses). Now tapping is 6.50★, jumps
+    7.06★ (7.24★), reading 6.90★ (7.22★), accuracy 6.79★, stamina 6.56★, spaced streams 6.41★, and sliders,
+    untested (at least 9.1★), 7.06★, where before it had no playlist: a lower bound was no rating. The other
+    assessed skills are scored against maps of that rating (`map_scores(θ)`, as the Overview's comparison scored
+    them; an untested one by its lower bound); every skill with a rating is assessed unless others are chosen, and a
+    map that asks one for more than half a star beyond the rating plus the goal's margin is left out (`skillset.OVER`,
+    in both engines). The comfort difficulty and κ are not offered under Star Levels, and the relevance threshold
+    keeps its default (0.3). Skills without a star level (consistency, or a skill not measured yet) keep the comfort
+    level. Nor is "Try other skill ratings" (#126): a skill is a star level here, and a 0–100 score typed in its place
+    would mean a score against a level the engine doesn't rate by (`uses_level`); ratings still sent, from a
+    selection kept from Comfort Score, are checked and left out.
 29. **A skill goal is in stars** (`goal_values`, #129): "Tapping speed 6.8★ → 7.3★", reached when the skill's star
     level gets there; the 4-week plan raises a weak skill by half a star (10 points at 20 points a star). The 0–100
     score is against the player's level, so it moves when the level does and says nothing a goal can hold on to.

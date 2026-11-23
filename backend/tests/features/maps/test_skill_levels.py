@@ -1,4 +1,5 @@
-"""Star Levels: a skill's playlist is made around the skill's own star level, not the comfort level moved by κ."""
+"""Star Levels: a skill's playlist is made around the comfort level moved toward the skill's own star level, as far as
+the skill is likely at least at and half a star at most (decision 28), not around the comfort level moved by κ."""
 
 from types import SimpleNamespace
 
@@ -13,17 +14,20 @@ from osu_coach.features.maps.service import _options, skill_levels
 LEVEL = 6.4
 
 
-def rating(measured: float | None, state: str = "measured") -> SkillRating:
+def rating(measured: float | None, low: float | None, state: str = "measured") -> SkillRating:
     score = adapter(measured, LEVEL) if measured is not None else None
-    return SkillRating(score=score, maps=10, reason=Message("irt_measured"), measured=measured, state=state)
+    return SkillRating(
+        score=score, maps=10, reason=Message("irt_measured"), measured=measured, stars_low=low, state=state
+    )
 
 
 def profile(engine: str = "irt"):
     skills = {
-        "aim": rating(7.1),
-        "speed": rating(6.8, "provisional"),
-        "reading": rating(8.0, "untested"),  # a lower bound: no level
-        "consistency": SkillRating(score=34.0, maps=20, reason=Message("irt_measured")),
+        "aim": rating(7.1, 7.0),  # likely at least 0.6★ above the comfort level: half a star at most
+        "speed": rating(6.8, 6.1, "provisional"),  # likely at least 6.1★: that, though it is likely higher
+        "accuracy": rating(6.6, 6.5),
+        "reading": rating(8.0, 8.0, "untested"),  # a lower bound: what it is at least
+        "consistency": SkillRating(score=34.0, maps=20, reason=Message("irt_measured")),  # not on the star scale
     }
     return SimpleNamespace(
         engine=engine,
@@ -33,16 +37,24 @@ def profile(engine: str = "irt"):
     )
 
 
-def test_star_levels_are_the_measured_skills_own():
-    assert skill_levels(profile()) == {"aim": 7.1, "speed": 6.8}
-    assert skill_levels(profile("comfort")) == {} and skill_levels(None) == {}
+def test_playlists_are_made_around_the_comfort_level_moved_toward_the_skills_own():
+    levels = skill_levels(profile(), LEVEL)
+    assert levels == pytest.approx({"aim": 6.9, "speed": 6.1, "accuracy": 6.5, "reading": 6.9})
+    assert skill_levels(profile("comfort"), LEVEL) == {} and skill_levels(None, LEVEL) == {}
 
 
-def test_a_playlist_is_made_around_the_skills_own_level():
+def test_a_playlist_is_made_around_its_skills_level():
     target, _, abilities, theta, source, kappa = _options(profile(), "aim", "aim,consistency", None, None, 0.8, 0.3)
-    assert (target, theta, kappa) == ("aim", 7.1, 0.0)
-    assert abilities["aim"] == 50 and abilities["consistency"] == 34.0  # typical at its own level
-    assert source == "Your Jumps level"
+    assert (target, kappa) == ("aim", 0.0) and theta == pytest.approx(6.9)
+    assert abilities["aim"] == pytest.approx(adapter(7.1, theta)) and abilities["consistency"] == 34.0
+    assert source == "Comfort level moved toward your Jumps level"
+
+
+def test_every_rated_skill_is_assessed_unless_others_are_chosen():
+    # the untested one by its lower bound: a map isn't asked of a skill beyond what the player has
+    target, checked, abilities, *_ = _options(profile(), "speed", None, None, None, 0.5, 0.3)
+    assert checked == ("speed", "aim", "accuracy", "reading", "consistency") and set(checked) == set(abilities)
+    assert _options(profile(), "speed", "speed,aim", None, None, 0.5, 0.3)[1] == ("speed", "aim")
 
 
 def test_without_a_level_the_comfort_level_and_kappa_stay():
@@ -62,7 +74,8 @@ def test_star_levels_leave_manual_ratings_out():
     _, _, abilities, theta, _, _ = _options(
         profile(), "speed", "speed,consistency", '{"speed": 60, "consistency": 90}', None, 0.5, 0.3
     )
-    assert theta == 6.8 and abilities["speed"] == 50 and abilities["consistency"] == 34.0
+    assert theta == pytest.approx(6.1)
+    assert abilities["speed"] == pytest.approx(adapter(6.8, theta)) and abilities["consistency"] == 34.0
     with pytest.raises(Invalid):
         _options(profile(), "speed", None, '{"speed": 160}', None, 0.5, 0.3)
 

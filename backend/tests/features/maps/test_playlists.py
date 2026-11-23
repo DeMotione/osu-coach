@@ -168,6 +168,7 @@ def test_irt_tapping_speed_is_put_on_the_recommenders_tempo_scale():
     irt = SimpleNamespace(engine="irt", skill_ratings=rows)
     out = measured_abilities(irt, 6.0)
     assert out["speed"] == round(speed_rating(231.0, 6.0), 1) != 77.0  # the BPM it measured, on the tempo scale
-    assert out["aim"] == 63.0 and "sliders" not in out  # a lower bound doesn't steer suggestions
+    # a lower bound counts as what the skill is at least: a map isn't asked of it beyond that
+    assert out["aim"] == 63.0 and out["sliders"] == 93.0
     comfort = SimpleNamespace(engine="comfort", skill_ratings=rows)
     assert measured_abilities(comfort, 6.0)["speed"] == 77.0
