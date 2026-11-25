@@ -10,13 +10,13 @@ type Skill = Schemas["SkillScore"];
 type SkillMeta = Schemas["SkillMeta"];
 
 export const MISS_SHORT: Record<string, string> = {
-  aim: "Aim",
-  speed_aim: "Speed-aim (streams)",
-  early: "Too early",
-  late: "Too late",
-  no_tap: "No tap",
+  aim: "Aim (jumps, notes)",
+  speed_aim: "Aim in streams",
+  early: "Tapped too early",
+  late: "Tapped too late",
+  no_tap: "Didn't tap",
   lost: "Lost track",
-  notelock: "Notelock",
+  notelock: "Clicked too early (notelock)",
 };
 
 const SKILL_AXIS = (t: ChartTheme, labels: string[], width: number) =>

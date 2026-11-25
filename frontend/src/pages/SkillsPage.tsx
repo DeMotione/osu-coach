@@ -17,7 +17,7 @@ import { StageNav } from "../components/StageNav";
 import { EmptyState, ErrorCard, JobStatus, LoadingPage } from "../components/states";
 import { Alert, Badge, Card, Page, Progress, Stat, Tabs, Tiles } from "../components/ui";
 import { goalLeft, goalValue } from "../lib/goals";
-import { loadPlaylist, playlistKey, savePlaylist, STAGE_SIZE, stageMaps, useRounds, type PlaylistControls } from "../lib/playlist";
+import { loadPlaylist, playlistKey, practised, savePlaylist, STAGE_SIZE, stageMaps, useRounds, type PlaylistControls } from "../lib/playlist";
 import { speedFitNotice } from "../lib/recommendationFit";
 
 type Tab = "goals" | "playlist";
@@ -194,9 +194,17 @@ const searchPlaylist = (next: RecommendationOptions) => unwrap(api.POST("/api/pl
   min_rate: next.min_rate ?? 1.10, max_rate: next.max_rate ?? 2.00,
 } }));
 
+/** The playlist's skill has no rating (measured or typed in): no map can be ranked for it. */
+const unrated = (pl: Schemas["Playlist"]) =>
+  pl.stages.length > 0 && pl.stages.every((st) => !st.maps.length && (st.excluded ?? {})["Target player rating unknown"]);
+
 function PlaylistTab() {
-  // the playlist as it was left on another tab or page (#107)
-  const [saved] = useState(loadPlaylist);
+  // the playlist as it was left on another tab or page (#107); a "Practise this" link asks for another skill's
+  const [params, setParams] = useSearchParams();
+  const [saved] = useState(() => practised(loadPlaylist(), params.get("skill")));
+  useEffect(() => {
+    if (params.has("skill")) setParams({ tab: "playlist" }, { replace: true });
+  }, [params, setParams]);
   const [options, setOptions] = useState<RecommendationOptions>(saved.options);
   const modified = isModified(options);
   const q = usePlaylist(options, !modified);
@@ -293,7 +301,15 @@ function PlaylistTab() {
           ) : null}
           Collection name: <code>{pl.collection_name}</code>
         </p>
-        <p className="small muted">Skill-adjusted target: {pl.skill_adjusted_stars?.toFixed(2) ?? "unknown"}★.</p>
+        {pl.skill_adjusted_stars !== null && pl.skill_adjusted_stars !== undefined ? (
+          <p className="small muted">Skill-adjusted target: {pl.skill_adjusted_stars.toFixed(2)}★.</p>
+        ) : pl.has_profile && unrated(pl) ? (
+          <Alert tone="warn">
+            Your <strong>{pl.skills.find((s) => s.key === pl.skill)?.label ?? pl.skill}</strong> has no rating yet, so there is nothing to rank
+            maps against. Give it one under <strong>Try other skill ratings</strong> above (50 = your level), or play more maps with it so it
+            gets measured.
+          </Alert>
+        ) : null}
       </Card>
       {pl.stages.length ? (
         pl.stages.map((st) => {

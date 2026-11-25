@@ -5,12 +5,18 @@ import { isApiError, type Schemas } from "../api/client";
 import { useMeta, useProgress, useProgressPlayers, useProgressPlays, useSettings } from "../api/queries";
 import { Chart } from "../charts/Chart";
 import type { ChartTheme } from "../charts/palette";
-import { playedChart, skillsChart, starLevelsChart, starsChart } from "../charts/progress";
+import { starsChart } from "../charts/progress";
 import { DataTable } from "../components/DataTable";
 import { DateRangePicker } from "../components/DateRangePicker";
 import { IconTrend } from "../components/icons";
 import { EmptyState, ErrorCard, LoadingPage } from "../components/states";
+import { PlayCalendar } from "../components/PlayCalendar";
+import { SkillTrends } from "../components/SkillTrends";
 import { Card, Delta, Field, Page, Row, Segmented, Stat, Tiles } from "../components/ui";
+import { Verdict } from "../components/Verdict";
+import { playStats } from "../lib/playCalendar";
+import { ends, periodLabel, periodStart, timeline } from "../lib/progressTime";
+import { meaningful, skillTrends, type Trend } from "../lib/skillTrends";
 import { fmt, int, isoDay, localTime, pct, shortLabel, stars as starsText } from "../lib/format";
 
 type Period = Schemas["ProgressOut"]["period"];
@@ -23,8 +29,10 @@ export default function ProgressPage() {
   const settings = useSettings();
   const players = useProgressPlayers();
   const [player, setPlayer] = useState<string | undefined>(undefined);
-  const [period, setPeriod] = useState<Period>("month");
-  const [since, setSince] = useState<string | undefined>(undefined);
+  // weeks: the last year a timeline of ~50 points, not ~12
+  const [period, setPeriod] = useState<Period>("week");
+  // the last year, as the analysis takes (Dates: any range, or all of the history saved)
+  const [since, setSince] = useState<string | undefined>(() => isoDay(-365));
   const [until, setUntil] = useState<string | undefined>(undefined);
   const [replays, setReplays] = useState<Replays>("analysed");
   const names = players.data ?? [];
@@ -155,15 +163,9 @@ function ProgressBody({
   const last = rows[rows.length - 1];
   const prev = rows.length > 1 ? rows[rows.length - 2] : undefined;
   const skills = useMemo(() => (meta.data?.skills ?? []).map((s) => ({ key: s.key, label: shortLabel(s.label) })), [meta.data]);
-  const stars = useCallback((t: ChartTheme) => starsChart(rows, t), [rows]);
-  const played = useCallback((t: ChartTheme) => playedChart(rows, t), [rows]);
+  const stars = useCallback((t: ChartTheme) => starsChart(rows, period, t), [rows, period]);
   const inStars = unit === "stars";
-  const skillChart = useCallback(
-    (t: ChartTheme) => (inStars ? starLevelsChart(rows, skills, t) : skillsChart(rows, skills, t)),
-    [rows, skills, inStars],
-  );
-  const hasSkills = rows.some((r) =>
-    inStars ? Object.keys(r.star_levels ?? {}).length > 0 : Object.values(r.skills).some((v) => v !== null));
+  const trends = useMemo(() => skillTrends(rows, period, skills, inStars), [rows, period, skills, inStars]);
   return (
     <>
       <Tiles n={6}>
@@ -185,22 +187,24 @@ function ProgressBody({
       <Row>
         <Card
           title={`Star rating by ${word}`}
-          hint="Comfort = the star rating 75% of your clean plays stay under; hardest clean pass / full combo = the hardest map finished with ≤ 5 misses per 100 notes / without a miss. Hollow points: fewer than 5 plays."
+          hint="Comfort = the star rating 75% of your clean plays stay under; hardest clean pass = the hardest map finished with ≤ 5 misses per 100 notes. The axis is real time: a gap = no plays then. Hollow points: fewer than 5 plays."
         >
-          <Chart build={stars} height={320} label="Star rating by period" />
+          <ComfortVerdict rows={rows} period={period} />
+          <Chart build={stars} height={280} label="Star rating by period" />
         </Card>
-        <Card title="What you played" hint={`Bars: plays and maps played for the first time each ${word} (left axis); line: minutes played (right axis).`}>
-          <Chart build={played} height={320} label="Plays, new maps and minutes by period" />
-        </Card>
+        <CalendarCard player={player} replays={replays} />
       </Row>
       <Card
         title={`Skills by ${word}`}
         hint={inStars
-          ? `Star Levels: each skill's star level every ${word}, fitted to every play saved of that ${word} alone (the star rating it holds up on, as the Overview's). Point at a ${word} for each level's 90% range. Click a skill in the legend to hide or show it. Hollow points: fewer than 5 plays.`
-          : `The same skill ratings as the Overview's chart, every ${word} rated at ${replays === "analysed" ? "the Overview's" : "your"} comfort level${reference !== null ? ` (${starsText(reference, 1)})` : ""}: 50 = what maps of that level demand (not a typical player), higher = you played the skill better that ${word}. ${replays === "analysed" ? "Only the replays of your last analysis (the ones the Overview shows); pick All saved for your whole history." : "Every play saved, also from earlier analyses."} Click a skill in the legend to hide or show it. Hollow points: fewer than 5 plays.`}
+          ? `Star Levels: each skill's star level every ${word}, fitted to the plays of that ${word} alone (the star rating it holds up on, as the Overview's). All skills on the same scale and timeline; the line breaks where you didn't play.`
+          : `The same skill ratings as the Overview's, every ${word} rated at ${replays === "analysed" ? "the Overview's" : "your"} comfort level${reference !== null ? ` (${starsText(reference, 1)})` : ""}: 50 = what maps of that level demand, higher = you played the skill better that ${word}. All skills on the same scale and timeline; the line breaks where you didn't play.`}
       >
-        {hasSkills ? (
-          <Chart build={skillChart} height={360} label={inStars ? "Skill star levels by period" : "Skill scores by period"} />
+        {trends.length ? (
+          <>
+            <TrendVerdict trends={trends} inStars={inStars} first={firstTrendLabel(rows, trends)} word={word} />
+            <SkillTrends trends={trends} inStars={inStars} />
+          </>
         ) : (
           <EmptyState title={inStars ? "No star levels yet" : "No skill scores yet"}>
             {inStars
@@ -211,6 +215,82 @@ function ProgressBody({
       </Card>
       <PlaysCard rows={rows} period={period} player={player} replays={replays} />
     </>
+  );
+}
+
+/** Your comfort level now and how it moved over the periods shown, from the first with enough plays (a period with
+ * a play or two says little). */
+function ComfortVerdict({ rows, period }: { rows: PRow[]; period: Period }) {
+  const latest = [...rows].reverse().find((r) => r.comfort_stars !== null);
+  if (!latest) return <Verdict tone="muted">No comfort level yet: it needs a few clean, finished plays.</Verdict>;
+  const solid = rows.filter((r) => !r.few_plays && r.comfort_stars !== null);
+  const e = ends(timeline(solid, period, (r) => r.comfort_stars));
+  const now = solid.length ? solid[solid.length - 1] : latest;
+  // the latest period, when it rests on a play or two, is said apart: the number shown is the latest solid one
+  const rough = latest !== now ? ` This ${WORD[period]}: ${latest.comfort_stars!.toFixed(2)}★ from ${latest.plays} ${latest.plays === 1 ? "play" : "plays"}, rough.` : "";
+  if (!e)
+    return (
+      <Verdict tone="info" value={`${now.comfort_stars!.toFixed(2)}★`}>
+        Your comfort level. Play more {WORD[period]}s to see where it goes.{rough}
+      </Verdict>
+    );
+  const d = e.last - e.first;
+  const tone = d >= 0.1 ? "good" : d <= -0.1 ? "bad" : "info";
+  return (
+    <Verdict tone={tone} value={`${now.comfort_stars!.toFixed(2)}★`}>
+      Your comfort level {Math.abs(d) < 0.1 ? "held steady" : d > 0 ? `rose ${d.toFixed(2)}★` : `fell ${Math.abs(d).toFixed(2)}★`} since{" "}
+      {periodLabel(solid[0].key)}.{rough}
+    </Verdict>
+  );
+}
+
+function CalendarCard({ player, replays }: { player: string; replays: Replays }) {
+  const since = isoDay(-364);
+  const q = useProgress({ player, period: "day", since, until: undefined, replays }, true);
+  const plays = useMemo(() => new Map((q.data?.rows ?? []).map((r) => [r.key, r.plays])), [q.data]);
+  const st = useMemo(() => playStats(plays), [plays]);
+  return (
+    <Card title="When you played" hint="The last year, a square per day: the darker, the more plays that day. Point at a day for its plays.">
+      {q.data ? (
+        <>
+          <Verdict tone={st.lastYear ? "info" : "muted"} value={`${st.lastYear} days`}>
+            {st.lastYear
+              ? <>You played on {st.lastYear} days of the last year, {st.lastMonth} of them in the last 30 days.{st.longestBreak >= 14 ? ` Your longest break: ${st.longestBreak} days.` : ""}</>
+              : "No plays in the last year."}
+          </Verdict>
+          <PlayCalendar plays={plays} />
+        </>
+      ) : (
+        <div className="skeleton" style={{ height: 160 }} />
+      )}
+    </Card>
+  );
+}
+
+/** The first period any skill has a value in, as people say it. */
+function firstTrendLabel(rows: PRow[], trends: Trend[]): string {
+  const first = Math.min(...trends.map((t) => t.points[0]?.[0] ?? Infinity));
+  const key = rows.find((r) => periodStart(r.key)?.getTime() === first)?.key;
+  return key ? periodLabel(key) : "the first period";
+}
+
+/** The skills that moved the most since the first period shown. */
+function TrendVerdict({ trends, inStars, first, word }: { trends: Trend[]; inStars: boolean; first: string | undefined; word: string }) {
+  if (trends.every((t) => t.change === null))
+    return <Verdict tone="muted">Only one {word} with skill levels so far: they need 5+ plays in a {word}. Play more, or group by a shorter period.</Verdict>;
+  const moved = trends.filter((t) => meaningful(t.change, inStars)).sort((a, b) => b.change! - a.change!);
+  const up = moved.filter((t) => t.change! > 0);
+  const down = moved.filter((t) => t.change! < 0).reverse();
+  const amount = (c: number) => `${c > 0 ? "+" : "−"}${inStars ? `${Math.abs(c).toFixed(1)}★` : Math.abs(c).toFixed(0)}`;
+  if (!moved.length)
+    return <Verdict tone="info">No skill moved much{first ? ` since ${first}` : ""}: your skills held where they were.</Verdict>;
+  return (
+    <Verdict tone={down.length && !up.length ? "bad" : up.length && !down.length ? "good" : "info"}>
+      Since {first}:{" "}
+      {up.length > 0 && <>{up[0].label} rose most ({amount(up[0].change!)})</>}
+      {up.length > 0 && down.length > 0 && "; "}
+      {down.length > 0 && <>{down[0].label} fell most ({amount(down[0].change!)})</>}.
+    </Verdict>
   );
 }
 

@@ -1,142 +1,46 @@
 import type { Schemas } from "../api/client";
-import { base, categoryAxis, grid, legend, refLine, tooltip, valueAxis } from "./base";
+import { esc } from "../lib/format";
+import { type Period, periodStart, timeline } from "../lib/progressTime";
+import { base, grid, legend, refLine, timeAxis, tooltip, valueAxis } from "./base";
 import type { Option } from "./echarts";
 import { C, SERIES, type ChartTheme } from "./palette";
+import { params } from "./types";
 
 type Row = Schemas["PeriodRow"];
 
-/** The periods from the first one with a value on: a chart starts where its data does, not at the first play. */
-export function fromFirstValue(rows: Row[], hasValue: (r: Row) => boolean): Row[] {
-  const first = rows.findIndex(hasValue);
-  return first < 0 ? [] : rows.slice(first);
-}
-
-/** Hollow points for periods with few plays (rough numbers). */
-const points = (rows: Row[], key: keyof Row) =>
-  rows.map((r) => ({ value: r[key] as number | null, symbol: r.few_plays ? "emptyCircle" : "circle" }));
-
-export function starsChart(all: Row[], t: ChartTheme): Option {
+/** Your comfort level and your hardest clean pass on a real timeline: periods without plays are gaps, not joined. */
+export function starsChart(all: Row[], period: Period, t: ChartTheme): Option {
   const lines: [keyof Row, string, string, number][] = [
     ["comfort_stars", "comfort", C.accent, 3],
-    ["avg_stars", "average played", t.muted, 1.5],
     ["max_stars_passed", "hardest clean pass", C.info, 1.5],
-    ["max_stars_fc", "hardest full combo", C.good, 1.5],
   ];
-  const rows = fromFirstValue(all, (r) => lines.some(([key]) => r[key] !== null));
-  return base(t, {
-    grid: grid({}, true),
-    legend: legend(t),
-    tooltip: tooltip(t, { trigger: "axis", valueFormatter: (v: number | null) => (v === null || v === undefined ? "–" : `${v.toFixed(2)}★`) }),
-    xAxis: categoryAxis(
-      t,
-      rows.map((r) => r.key),
-      { boundaryGap: false },
-    ),
-    yAxis: valueAxis(t, { name: "star rating ★", nameGap: 40, nameRotate: 90, scale: true }),
-    series: lines.map(([key, name, color, width]) => ({
-      name,
-      type: "line",
-      data: points(rows, key),
-      connectNulls: true,
-      symbolSize: 8,
-      lineStyle: { color, width },
-      itemStyle: { color },
-    })),
-  });
-}
-
-export function playedChart(rows: Row[], t: ChartTheme): Option {
-  return base(t, {
-    grid: grid({}, true),
-    legend: legend(t),
-    tooltip: tooltip(t, { trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: t.split } } }),
-    xAxis: categoryAxis(
-      t,
-      rows.map((r) => r.key),
-    ),
-    yAxis: [
-      valueAxis(t, { name: "plays / maps", nameGap: 36, nameRotate: 90, min: 0 }),
-      valueAxis(t, { name: "minutes", nameGap: 36, nameRotate: -90, position: "right", min: 0, splitLine: { show: false } }),
-    ],
-    series: [
-      { name: "plays", type: "bar", barMaxWidth: 26, data: rows.map((r) => r.plays), itemStyle: { color: C.accent, borderRadius: [3, 3, 0, 0] } },
-      { name: "new maps", type: "bar", barMaxWidth: 26, data: rows.map((r) => r.new_maps), itemStyle: { color: C.info, borderRadius: [3, 3, 0, 0] } },
-      {
-        name: "minutes played",
-        type: "line",
-        yAxisIndex: 1,
-        data: rows.map((r) => (r.minutes === null ? null : Math.round(r.minutes))),
-        lineStyle: { color: C.good, width: 2 },
-        itemStyle: { color: C.good },
-        symbolSize: 7,
-      },
-    ],
-  });
-}
-
-export function skillsChart(all: Row[], skills: { key: string; label: string }[], t: ChartTheme): Option {
-  const rows = fromFirstValue(all, (r) => skills.some((s) => r.skills[s.key] !== null && r.skills[s.key] !== undefined));
-  const shown = skills.filter((s) => rows.some((r) => r.skills[s.key] !== null && r.skills[s.key] !== undefined));
-  return base(t, {
-    grid: grid({}, true),
-    legend: legend(t),
-    tooltip: tooltip(t, { trigger: "axis", valueFormatter: (v: number | null) => (v === null || v === undefined ? "–" : v.toFixed(0)) }),
-    xAxis: categoryAxis(
-      t,
-      rows.map((r) => r.key),
-      { boundaryGap: false },
-    ),
-    yAxis: valueAxis(t, { name: "score", nameGap: 32, nameRotate: 90, min: 0, max: 100 }),
-    series: shown.map((s, i) => ({
-      name: s.label,
-      type: "line",
-      data: rows.map((r) => ({ value: r.skills[s.key] ?? null, symbol: r.few_plays ? "emptyCircle" : "circle" })),
-      connectNulls: true,
-      symbolSize: 8,
-      lineStyle: { width: 2, color: SERIES[i % SERIES.length] },
-      itemStyle: { color: SERIES[i % SERIES.length] },
-    })),
-  });
-}
-
-/** Star Levels: each skill's star level by period (the star rating it holds up on, fitted to the period's plays); the
- * tooltip gives its 90% range. */
-export function starLevelsChart(all: Row[], skills: { key: string; label: string }[], t: ChartTheme): Option {
-  const level = (r: Row, key: string) => r.star_levels?.[key]?.stars ?? null;
-  const rows = fromFirstValue(all, (r) => skills.some((s) => level(r, s.key) !== null));
-  const shown = skills.filter((s) => rows.some((r) => level(r, s.key) !== null));
-  const range = (r: Row, key: string) => {
-    const l = r.star_levels?.[key];
-    return l?.low != null && l.high != null ? ` (${l.low.toFixed(2)}–${l.high.toFixed(2)})` : "";
-  };
+  const byStart = new Map(all.map((r) => [periodStart(r.key)?.getTime(), r]));
   return base(t, {
     grid: grid({}, true),
     legend: legend(t),
     tooltip: tooltip(t, {
       trigger: "axis",
-      formatter: (params: { seriesName: string; dataIndex: number; value: number | null; marker: string }[]) => {
-        const lines = params.map((p) => {
-          const skill = shown.find((s) => s.label === p.seriesName);
-          const r = rows[p.dataIndex];
-          return `${p.marker}${p.seriesName}: ${p.value === null || p.value === undefined ? "–" : `${p.value.toFixed(2)}★`}${skill && r ? range(r, skill.key) : ""}`;
-        });
-        return [rows[params[0]?.dataIndex ?? 0]?.key ?? "", ...lines].join("<br/>");
+      formatter: (p: unknown) => {
+        const ps = params(p).filter((x) => Array.isArray(x.value) && (x.value as unknown[])[1] !== null);
+        const r = ps.length ? byStart.get((ps[0].value as [number])[0]) : undefined;
+        if (!r) return "";
+        const head = `<b>${esc(r.key)}</b> · ${r.plays} plays${r.few_plays ? " (few: rough numbers)" : ""}`;
+        return [head, ...ps.map((x) => `${x.marker ?? ""}${esc(x.seriesName ?? "")}: ${((x.value as [number, number])[1]).toFixed(2)}★`)].join("<br>");
       },
     }),
-    xAxis: categoryAxis(
-      t,
-      rows.map((r) => r.key),
-      { boundaryGap: false },
-    ),
-    yAxis: valueAxis(t, { name: "★", nameGap: 32, nameRotate: 90, scale: true }),
-    series: shown.map((s, i) => ({
-      name: s.label,
+    xAxis: timeAxis(t),
+    yAxis: valueAxis(t, { name: "star rating ★", nameGap: 40, nameRotate: 90, scale: true }),
+    series: lines.map(([key, name, color, width]) => ({
+      name,
       type: "line",
-      data: rows.map((r) => ({ value: level(r, s.key), symbol: r.few_plays ? "emptyCircle" : "circle" })),
-      connectNulls: true,
-      symbolSize: 8,
-      lineStyle: { width: 2, color: SERIES[i % SERIES.length] },
-      itemStyle: { color: SERIES[i % SERIES.length] },
+      connectNulls: false,
+      data: timeline(all, period, (r) => r[key] as number | null).map(([time, v]) => ({
+        value: [time, v],
+        symbol: byStart.get(time)?.few_plays ? "emptyCircle" : "circle",
+      })),
+      symbolSize: 7,
+      lineStyle: { color, width },
+      itemStyle: { color },
     })),
   });
 }

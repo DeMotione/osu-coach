@@ -117,6 +117,17 @@ type Session = Pick<Storage, "getItem" | "setItem">;
 
 /** The playlist as it was left. In a new session (osu! coach started again) the maps checked as completed leave it
  * (unless played maps were asked for), and the rest stays where it was. */
+/** The skills a "Practise this" link can ask a playlist for. */
+const PRACTISABLE = new Set(["aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading", "consistency", "quadrant"]);
+
+/** The saved playlist, made again for ``skill`` when a "Practise this" link asks for one (an analysis page's weak
+ * spot): the other choices (mods, ratings typed in) stay, the skills to assess start again from the new target. */
+export function practised(saved: SavedPlaylist, skill: string | null): SavedPlaylist {
+  if (!skill || !PRACTISABLE.has(skill)) return saved;
+  const { assessed: _assessed, ...options } = saved.options;
+  return { ...saved, options: { ...options, skill }, playlist: null, controls: null, job: null, done: [] };
+}
+
 export function loadPlaylist(storage: Pick<Storage, "getItem"> = localStorage, session: Session = sessionStorage): SavedPlaylist {
   const saved = readPlaylist(storage);
   let started: boolean;
