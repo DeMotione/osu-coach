@@ -1,21 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
 
 import type { Schemas } from "../api/client";
 import { useAim, useAnalysedReplays, useClicks } from "../api/queries";
-import { directionsChart, distanceChart } from "../charts/aim";
 import { Chart } from "../charts/Chart";
+import { judgedBars } from "../charts/judged";
 import type { ChartTheme } from "../charts/palette";
 import { ClicksView } from "../components/Clicks";
-import { DataTable } from "../components/DataTable";
 import { DateRangePicker } from "../components/DateRangePicker";
 import { PlayfieldGrid, QuadrantGrid } from "../components/Heat";
 import { RangeSlider } from "../components/RangeSlider";
-import { EmptyState, QueryView } from "../components/states";
-import { Alert, Card, Page, Row, Segmented, Stat, Tiles } from "../components/ui";
+import { QueryView } from "../components/states";
+import { Card, Page, Row, Segmented, Stat, Tiles } from "../components/ui";
+import { ChartNote } from "../components/ChartNote";
+import { Verdict } from "../components/Verdict";
+import { ANGLE_SHORT, averageAlong, jumpAngle, jumpDirection, jumpDistance, overshoot, screenPart } from "../lib/aimWords";
 import { clickFilter, clicksCaption, starBounds } from "../lib/clicks";
 import { dayOf, type DayRange } from "../lib/dateRange";
-import { fmt, int, pct, signed } from "../lib/format";
+import { int, pct, signed } from "../lib/format";
+import { judge, type Judged, listed, MIN_NOTES, share, times, weakest } from "../lib/verdict";
 
 export default function AimPage() {
   const q = useAim();
@@ -26,11 +28,19 @@ export default function AimPage() {
   );
 }
 
+type Groups = { directions: Judged[]; distances: Judged[]; angles: Judged[]; quadrants: Judged[] };
+
 function AimBody({ aim }: { aim: Schemas["AimPage"] }) {
   const k = aim.kpis;
-  const wq = aim.worst_quadrant;
-  const dirs = useCallback((t: ChartTheme) => directionsChart(aim.directions, t), [aim.directions]);
-  const dist = useCallback((t: ChartTheme) => distanceChart(aim.distances, t), [aim.distances]);
+  const groups: Groups = useMemo(
+    () => ({
+      directions: judge(aim.directions.map((d) => ({ label: d.direction, rate: d.miss_rate, n: d.objects }))),
+      distances: judge(aim.distances.map((d) => ({ label: d.bin, rate: d.miss_rate, n: d.objects }))),
+      angles: judge(aim.angles.map((a) => ({ label: a.bin, rate: a.miss_rate, n: a.objects }))),
+      quadrants: judge(aim.quadrants.map((q) => ({ label: q.quadrant, rate: q.miss_rate, n: q.objects }))),
+    }),
+    [aim],
+  );
   return (
     <>
       <Tiles n={3}>
@@ -38,18 +48,7 @@ function AimBody({ aim }: { aim: Schemas["AimPage"] }) {
         <Stat label="Near misses" value={pct(k.near_miss_share, 0)} hint="Aim misses that landed within 1.4 radii — just outside the circle." />
         <Stat label="Jump distance error" value={signed(k.jump_along_pct, 1, "%")} hint="Median over/undershoot along the jump direction, as % of the jump length." />
       </Tiles>
-      {wq &&
-        (wq.significant ? (
-          <Alert tone="warn">
-            Weakest quadrant: <strong>{wq.quadrant}</strong> — {pct(wq.miss_rate)} misses vs {pct(wq.rest_miss_rate)} elsewhere (
-            {fmt(wq.relative_risk, 1)}×). See <Link to="/tips">Tips</Link> for how to fix it.
-          </Alert>
-        ) : (
-          <Alert tone="info">
-            Weakest quadrant: <strong>{wq.quadrant}</strong> — {pct(wq.miss_rate)} misses vs {pct(wq.rest_miss_rate)} elsewhere (
-            {fmt(wq.relative_risk, 1)}×). The difference is still within noise.
-          </Alert>
-        ))}
+      <WeakSpotsCard groups={groups} />
       <Row>
         <Card title="Miss rate by screen quadrant" hint="The playfield cut into four. Each cell: share of the notes there you missed, and misses / notes. Pinker = more misses.">
           <QuadrantGrid cells={aim.quadrants} />
@@ -60,25 +59,134 @@ function AimBody({ aim }: { aim: Schemas["AimPage"] }) {
       </Row>
       <Row>
         <ClicksCard />
-        <Card
-          title="Miss rate by jump direction"
-          hint="Each wedge is a direction the cursor moves in to reach the note (jumps of 1+ circle). The longer the wedge, the more of those jumps you missed."
-        >
-          <Chart build={dirs} height={420} label="Miss rate by jump direction" />
-        </Card>
+        <DirectionsCard groups={groups.directions} />
       </Row>
       <Row>
-        <Card
-          title="By jump distance"
-          hint="Bars: miss rate by how far the note is from the previous one (circle diameters). Line: how far past (+) or short of (−) the note you click, in circle radii."
-        >
-          <Chart build={dist} height={340} label="Miss rate and over/undershoot by jump distance" />
-        </Card>
-        <AnglesCard angles={aim.angles} />
+        <DistanceCard groups={groups.distances} rows={aim.distances} />
+        <AnglesCard groups={groups.angles} />
       </Row>
     </>
   );
 }
+
+const BAR_HINT =
+  "Red = you miss clearly more of these than usual, green = clearly fewer, grey = as usual, faint with a ? = too few jumps to tell.";
+
+/** Every kind of jump that is clearly worse than your usual, the most misses it costs you first. */
+function WeakSpotsCard({ groups }: { groups: Groups }) {
+  const spots = useMemo(() => {
+    const named = (gs: Judged[], name: (l: string) => string, kind: string) => weakest(gs).map((g) => ({ ...g, name: name(g.label), kind }));
+    return [
+      ...named(groups.directions, jumpDirection, "direction"),
+      ...named(groups.distances, jumpDistance, "distance"),
+      ...named(groups.angles, jumpAngle, "angle"),
+      ...named(groups.quadrants, screenPart, "quadrant"),
+    ].sort((a, b) => (b.rate! - (b.usual ?? 0)) * b.n - (a.rate! - (a.usual ?? 0)) * a.n).slice(0, 4);
+  }, [groups]);
+  const top = spots[0];
+  return (
+    <Card
+      title="Aim weak spots"
+      hint="Every kind of jump (direction, distance, angle, part of the screen) you miss clearly more of than usual, the one costing you the most misses first. Clearly = enough jumps that it isn't chance."
+    >
+      {top ? (
+        <>
+          <Verdict tone="bad" value={share(top.rate)} practise={top.kind === "quadrant" ? "quadrant" : "aim"}>
+            Your weakest jumps: <strong>{top.name}</strong> — {share(top.rate)} missed, {times(top.ratio)} your average {share(top.usual)}.
+          </Verdict>
+          {spots.length > 1 && (
+            <ul className="weak-list" aria-label="Other weak spots">
+              {spots.slice(1).map((g) => (
+                <li key={`${g.kind}:${g.label}`}>
+                  <span className="weak-list__what">{g.name.charAt(0).toUpperCase() + g.name.slice(1)}</span>
+                  <span className="weak-list__rate">{share(g.rate)}</span>
+                  <span className="weak-list__more">{times(g.ratio)} your average · {int(g.n)} notes</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : (
+        <Verdict tone="good">
+          No kind of jump stands out: you miss about as much of every direction, distance, angle and part of the screen.
+        </Verdict>
+      )}
+    </Card>
+  );
+}
+
+function DirectionsCard({ groups }: { groups: Judged[] }) {
+  const build = useCallback(
+    (t: ChartTheme) => judgedBars({ groups, unit: "jumps", sideways: true, describe: jumpDirection }, t),
+    [groups],
+  );
+  const bad = weakest(groups);
+  return (
+    <Card title="Miss rate by jump direction" hint={`The direction the cursor moves in to reach the note (jumps of 1+ circle), worst on top. ${BAR_HINT}`}>
+      {bad.length ? (
+        <Verdict tone="bad" value={share(bad[0].rate)} practise="aim">
+          Jumps moving <strong>{listed(bad.map((g) => g.label))}</strong>: you miss {times(bad[0].ratio)} your average.
+        </Verdict>
+      ) : (
+        <Verdict tone="good">No direction stands out: you miss about the same whichever way you move.</Verdict>
+      )}
+      <Chart build={build} height={300} label="Miss rate by jump direction" />
+      <ChartNote groups={groups} />
+    </Card>
+  );
+}
+
+function DistanceCard({ groups, rows }: { groups: Judged[]; rows: Schemas["DistanceRow"][] }) {
+  const build = useCallback(
+    (t: ChartTheme) => judgedBars({ groups, unit: "jumps", axisName: "distance from the previous note (circle widths)", describe: jumpDistance }, t),
+    [groups],
+  );
+  const bad = weakest(groups);
+  const shoot = overshoot(averageAlong(rows, MIN_NOTES));
+  return (
+    <Card title="By jump distance" hint={`How far the note is from the previous one, in circle widths. ${BAR_HINT}`}>
+      {bad.length ? (
+        <Verdict tone="bad" value={share(bad[0].rate)} practise="aim">
+          <strong>{capital(jumpDistance(bad[0].label))}</strong>: {times(bad[0].ratio)} your average miss rate. {shoot}
+        </Verdict>
+      ) : (
+        <Verdict tone="good">No jump length stands out. {shoot}</Verdict>
+      )}
+      <Chart build={build} height={300} label="Miss rate by jump distance" />
+      <ChartNote groups={groups} />
+    </Card>
+  );
+}
+
+function AnglesCard({ groups }: { groups: Judged[] }) {
+  const short = useMemo(() => groups.map((g) => ({ ...g, label: ANGLE_SHORT[g.label] ?? g.label })), [groups]);
+  const build = useCallback(
+    (t: ChartTheme) =>
+      judgedBars({ groups: short, unit: "jumps", axisName: "angle between one jump and the next", describe: (l) => jumpAngle(Object.keys(ANGLE_SHORT).find((k) => ANGLE_SHORT[k] === l) ?? l) }, t),
+    [short],
+  );
+  const bad = weakest(groups);
+  return (
+    <Card
+      title="By angle between jumps"
+      hint={`Sharp turn = back-and-forth jumps, keeps going = jumps that continue in one direction. ${BAR_HINT}`}
+    >
+      {bad.length ? (
+        <Verdict tone="bad" value={share(bad[0].rate)} practise="aim">
+          <strong>{capital(jumpAngle(bad[0].label))}</strong>: {times(bad[0].ratio)} your average miss rate.
+        </Verdict>
+      ) : groups.some((g) => g.standing !== "few") ? (
+        <Verdict tone="good">No kind of turn stands out: sharp and wide jumps cost you about the same.</Verdict>
+      ) : (
+        <Verdict tone="muted">Not enough jumps yet to compare the angles.</Verdict>
+      )}
+      <Chart build={build} height={300} label="Miss rate by angle between jumps" />
+      <ChartNote groups={groups} />
+    </Card>
+  );
+}
+
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const CLICKS_HINT = "The click that hit each note and the closest click of each aim miss, in circle radii from the note's centre.";
 
@@ -139,30 +247,6 @@ function ClicksCard() {
         <ClicksView clicks={q.data} empty={Object.keys(filter).length ? "Not enough clicks in these plays" : undefined} />
       ) : (
         <div className="skeleton grow" style={{ minHeight: 360 }} />
-      )}
-    </Card>
-  );
-}
-
-function AnglesCard({ angles }: { angles: Schemas["AngleRow"][] }) {
-  return (
-    <Card
-      title="By angle between jumps"
-      hint="Sharp = back-and-forth jumps, wide = jumps that keep going in one direction. Notes are weighted by difficulty."
-    >
-      {angles.length ? (
-        <DataTable
-          label="Miss rate by angle between jumps"
-          rows={angles}
-          rowKey={(r) => r.bin}
-          columns={[
-            { key: "bin", header: "Angle between jumps", cell: (r) => r.bin },
-            { key: "n", header: "Notes", cell: (r) => int(r.objects), value: (r) => r.objects, align: "right" },
-            { key: "rate", header: "Miss rate", cell: (r) => pct(r.miss_rate), value: (r) => r.miss_rate, align: "right" },
-          ]}
-        />
-      ) : (
-        <EmptyState title="Not enough jumps yet" />
       )}
     </Card>
   );

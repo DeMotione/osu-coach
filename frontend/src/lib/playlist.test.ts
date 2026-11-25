@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { Schemas } from "../api/client";
 import {
   canGoBack, canGoForward, FIRST_ROUND, HISTORY, loadPlaylist, loadSuggestions, moveRound, NO_PLAYLIST, NO_SUGGESTIONS,
-  playlistKey, type Rounds, savePlaylist, saveSuggestions, stageMaps, useRounds,
+  playlistKey, practised, type Rounds, type SavedPlaylist, savePlaylist, saveSuggestions, stageMaps, useRounds,
 } from "./playlist";
 
 describe("stageMaps", () => {
@@ -150,5 +150,30 @@ describe("the playlist kept while away (#107)", () => {
     expect(result.current.rounds("Comfort")).toEqual(FIRST_ROUND);
     act(() => result.current.move("Comfort", "other"));
     expect(result.current.by).toEqual({ Comfort: { at: 1, latest: 1 } });
+  });
+});
+
+describe("practised", () => {
+  const saved = {
+    options: { skill: "speed", assessed: "speed,stamina", ratings: '{"speed": 50}', allow_hd: true },
+    controls: { skill: "speed", comfort: 6, measured: {} },
+    job: "j1",
+    playlist: { skill: "speed", stages: [] } as unknown as Schemas["Playlist"],
+    maps: "k",
+    rounds: {},
+    done: ["a"],
+  } as unknown as SavedPlaylist;
+
+  it("makes the playlist again for the skill a link asks for, keeping the other choices", () => {
+    const p = practised(saved, "aim");
+    expect(p.options).toEqual({ skill: "aim", ratings: '{"speed": 50}', allow_hd: true });
+    expect(p.playlist).toBeNull();
+    expect(p.controls).toBeNull();
+    expect(p.job).toBeNull();
+  });
+
+  it("keeps the saved playlist without a known skill", () => {
+    expect(practised(saved, null)).toBe(saved);
+    expect(practised(saved, "general")).toBe(saved);
   });
 });
