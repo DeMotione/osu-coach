@@ -4,12 +4,13 @@ import { Link } from "react-router";
 import type { Schemas } from "../api/client";
 import { useMeta, useOverview, usePatchSettings, useSettings } from "../api/queries";
 import { Chart } from "../charts/Chart";
-import { compareBars, missCauses, starLevels } from "../charts/overview";
+import { compareBars, MISS_SHORT, missCauses, starLevels } from "../charts/overview";
 import type { ChartTheme } from "../charts/palette";
 import { IconCheck } from "../components/icons";
 import { StarPicker } from "../components/StarPicker";
 import { QueryView } from "../components/states";
 import { Alert, Badge, Card, Page, Row, Stat, Switch, Tiles } from "../components/ui";
+import { type PractiseSkill, Verdict } from "../components/Verdict";
 import { fmt, pct, span, stars } from "../lib/format";
 import { pickTarget, starLabel, targetOptions } from "../lib/starCompare";
 
@@ -59,7 +60,10 @@ function OverviewBody({ ov }: { ov: Overview }) {
           }
         >
           {ov.miss_causes.length ? (
-            <Chart build={missChart} height={Math.max(240, ov.miss_causes.length * 40)} label="Misses by cause" />
+            <>
+              <MissVerdict causes={ov.miss_causes} />
+              <Chart build={missChart} height={Math.max(220, ov.miss_causes.length * 36)} label="Misses by cause" />
+            </>
           ) : (
             <Alert tone="good">No misses in these replays.</Alert>
           )}
@@ -255,6 +259,7 @@ function CompareCard({
       actions={<EngineBadge current={engine} />}
       hint={irt ? irtHint : comfortHint}
     >
+      <SkillVerdict skills={skills} irt={irt} />
       {irt ? (
         <div className="stack" style={{ gap: 14 }}>
           <Chart build={build} height={Math.max(300, height - 44)} label="Skill levels in map stars" />
@@ -287,6 +292,48 @@ function CompareCard({
     </Card>
   );
 }
+
+/** What practising a miss cause means: the playlist skill for it. */
+const MISS_PRACTISE: Record<string, PractiseSkill> = {
+  aim: "aim",
+  speed_aim: "flow_aim",
+  early: "accuracy",
+  late: "accuracy",
+  no_tap: "speed",
+  lost: "reading",
+  notelock: "reading",
+};
+
+function MissVerdict({ causes }: { causes: Schemas["MissCause"][] }) {
+  const top = [...causes].sort((a, b) => b.share - a.share)[0];
+  if (!top) return null;
+  const name = (MISS_SHORT[top.cause] ?? top.cause).toLowerCase();
+  return (
+    <Verdict tone={top.share >= 0.5 ? "bad" : "info"} value={pct(top.share, 0)} practise={MISS_PRACTISE[top.cause] ?? null}>
+      {top.share >= 0.5 ? "Most" : "The biggest share"} of your misses: <strong>{name}</strong>.
+    </Verdict>
+  );
+}
+
+/** The skills that matter most here: the strongest, and the weakest measured one to work on. */
+function SkillVerdict({ skills, irt }: { skills: Schemas["SkillScore"][]; irt: boolean }) {
+  const value = (s: Schemas["SkillScore"]) => (irt ? s.stars : s.score);
+  const rated = skills.filter((s) => s.key !== "consistency" && value(s) !== null && value(s) !== undefined && s.state !== "untested");
+  if (rated.length < 2) return null;
+  const sorted = [...rated].sort((a, b) => value(b)! - value(a)!);
+  const best = sorted[0];
+  const worst = sorted[sorted.length - 1];
+  const show = (s: Schemas["SkillScore"]) => (irt ? `${value(s)!.toFixed(1)}★` : value(s)!.toFixed(0));
+  const gap = value(best)! - value(worst)!;
+  return (
+    <Verdict tone="info" value={show(worst)} practise={PRACTISABLE.has(worst.key) ? (worst.key as PractiseSkill) : null}>
+      Work on <strong>{worst.label}</strong> first: your weakest measured skill, {irt ? `${gap.toFixed(1)}★` : `${gap.toFixed(0)} points`} below{" "}
+      {best.label} ({show(best)}), your strongest.
+    </Verdict>
+  );
+}
+
+const PRACTISABLE = new Set(["aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading", "consistency"]);
 
 /** Which rating engine made the skill scores; it is chosen on the Settings page. */
 function EngineBadge({ current }: { current: Pick<Overview, "engine" | "engine_label"> }) {
