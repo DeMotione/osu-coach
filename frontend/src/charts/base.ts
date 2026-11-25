@@ -91,6 +91,11 @@ export function valueAxis(t: ChartTheme, extra: Obj = {}): Obj {
   return merge({ type: "value", ...axisStyle(t) }, extra);
 }
 
+/** A real timeline: periods sit as far apart as they are (gaps show as gaps). */
+export function timeAxis(t: ChartTheme, extra: Obj = {}): Obj {
+  return merge({ type: "time", ...axisStyle(t), splitLine: { show: false }, axisLabel: { color: t.muted, fontSize: 11, hideOverlap: true } }, extra);
+}
+
 export function categoryAxis(t: ChartTheme, data: (string | number)[], extra: Obj = {}): Obj {
   return merge({ type: "category", data, ...axisStyle(t), splitLine: { show: false } }, extra);
 }
