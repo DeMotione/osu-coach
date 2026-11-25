@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import { judge } from "../lib/verdict";
 import type { Schemas } from "../api/client";
 import { circle, merge, niceMax, responsive } from "./base";
 import { mmss, playTimingChart, rangeStats } from "./check";
 import { MISS_SHORT, compareBars, compareHover, missCauses, starLevelHover, starLevels } from "./overview";
 import { alpha, chartTheme, faded, heat, scoreColor, C } from "./palette";
-import { goalLabelLayout, goalOffsets, goalsChart, skillsChart, starLevelsChart, starsChart } from "./progress";
+import { judgedBars } from "./judged";
+import { goalLabelLayout, goalOffsets, goalsChart, starsChart } from "./progress";
 import { timingChart } from "./tapping";
 
 const t = chartTheme(true);
@@ -347,7 +349,7 @@ describe("a skill the maps haven't tested to its limit", () => {
   });
 });
 
-describe("progress charts start where their data does", () => {
+describe("progress charts", () => {
   const row = (key: string, extra: Partial<Schemas["PeriodRow"]> = {}): Schemas["PeriodRow"] => ({
     key,
     plays: 3,
@@ -366,37 +368,47 @@ describe("progress charts start where their data does", () => {
     skills: { aim: null },
     ...extra,
   });
-  // plays saved since 2017, skill scores only from 2021-07 (months with 5+ plays)
-  const rows = [row("2017-11"), row("2017-12"), row("2021-07", { skills: { aim: 66 }, comfort_stars: 5.5 }), row("2021-08", { skills: { aim: 67 } })];
-  const keys = (o: AnyOption) => (o.xAxis as { data: string[] }).data;
-
-  it("skills by month: from the first month with a skill score", () => {
-    expect(keys(skillsChart(rows, [{ key: "aim", label: "Jump aim" }], t) as AnyOption)).toEqual(["2021-07", "2021-08"]);
-  });
-
-  it("star rating by month: from the first month with a star rating", () => {
-    expect(keys(starsChart(rows, t) as AnyOption)).toEqual(["2021-07", "2021-08"]);
-  });
-
-  it("no values at all: an empty chart, not empty months", () => {
-    expect(keys(skillsChart([row("2017-11")], [{ key: "aim", label: "Jump aim" }], t) as AnyOption)).toEqual([]);
-  });
-
-  it("Star Levels: the star levels by month, their range on hover", () => {
-    const levels = [
-      row("2021-06"),
-      row("2021-07", { star_levels: { aim: { stars: 6.4, low: 6.1, high: 6.7 } } }),
-      row("2021-08", { star_levels: { aim: { stars: 6.6, low: 6.3, high: 6.9 } } }),
+  it("star rating by month: on a real timeline, the line broken across months without plays", () => {
+    const rows = [
+      row("2017-11"),
+      row("2021-07", { comfort_stars: 5.5 }),
+      row("2021-08", { comfort_stars: 5.7 }),
+      row("2024-11", { comfort_stars: 6.1, few_plays: false }),
     ];
-    const o = starLevelsChart(levels, [{ key: "aim", label: "Jump aim" }, { key: "speed", label: "Speed" }], t) as AnyOption;
-    expect(keys(o)).toEqual(["2021-07", "2021-08"]);
-    const series = o.series as { name: string; data: { value: number | null }[] }[];
-    expect(series.map((s) => s.name)).toEqual(["Jump aim"]); // no level of speed: no line
-    expect(series[0].data.map((d) => d.value)).toEqual([6.4, 6.6]);
-    const tip = (o.tooltip as { formatter: (p: unknown[]) => string }).formatter([
-      { seriesName: "Jump aim", dataIndex: 1, value: 6.6, marker: "" },
-    ]);
-    expect(tip).toBe("2021-08<br/>Jump aim: 6.60★ (6.30–6.90)");
+    const o = starsChart(rows, "month", t) as AnyOption;
+    expect((o.xAxis as { type: string }).type).toBe("time");
+    const comfort = (o.series as { name: string; data: { value: [number, number | null]; symbol: string }[] }[])[0];
+    expect(comfort.name).toBe("comfort");
+    expect(comfort.data.map((d) => d.value[1])).toEqual([5.5, 5.7, null, 6.1]);
+    expect(comfort.data[0].value[0]).toBe(new Date(2021, 6, 1).getTime());
+    expect(comfort.data.at(-1)?.symbol).toBe("circle"); // enough plays: a filled point
+    expect(comfort.data[0].symbol).toBe("emptyCircle");
   });
 });
 
+
+describe("judged bars", () => {
+  const groups = judge([
+    { label: "right", rate: 0.06, n: 900 },
+    { label: "left", rate: 0.02, n: 1000 },
+    { label: "up", rate: 0.3, n: 5 },
+  ]);
+
+  it("colours a bar by what it says, and shows the few-notes one faint with a question mark", () => {
+    const o = judgedBars({ groups, unit: "jumps", sideways: true }, t) as AnyOption;
+    const bars = (o.series as { data: { itemStyle: { color: string } }[]; label: { formatter: (p: unknown) => string } }[])[0];
+    // sideways bars are sorted, the highest on top (last)
+    expect((o.yAxis as { data: string[] }).data).toEqual(["left", "right", "up"]);
+    expect(bars.data[1].itemStyle.color).toBe(C.bad);
+    expect(bars.label.formatter({ dataIndex: 2 })).toBe("30%?");
+  });
+
+  it("tells each bar's count and how it compares in its tooltip", () => {
+    const o = judgedBars({ groups, unit: "jumps", describe: (l) => `jumps moving ${l}` }, t) as AnyOption;
+    const tip = (o.tooltip as { formatter: (p: unknown) => string }).formatter([{ dataIndex: 0 }]);
+    expect(tip).toContain("jumps moving right");
+    expect(tip).toContain("900 jumps");
+    expect(tip).toMatch(/× your average/);
+    expect((o.tooltip as { formatter: (p: unknown) => string }).formatter([{ dataIndex: 2 }])).toContain("too few to tell");
+  });
+});

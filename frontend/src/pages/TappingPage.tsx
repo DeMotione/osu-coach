@@ -4,21 +4,16 @@ import type { Schemas } from "../api/client";
 import { useTapping } from "../api/queries";
 import { Chart } from "../charts/Chart";
 import type { ChartTheme } from "../charts/palette";
-import { SERIES } from "../charts/palette";
-import {
-  fallBehindChart,
-  fallBehindSpeedChart,
-  keysChart,
-  streamSpeedChart,
-  streamsChart,
-  timingChart,
-  type StreamMetric,
-  type TimingScale,
-} from "../charts/tapping";
+import { fallBehindChart, fallBehindSpeedChart, streamSpeedChart, timingChart, type TimingScale } from "../charts/tapping";
 import { MapTable } from "../components/MapTable";
 import { EmptyState, QueryView } from "../components/states";
-import { Card, Field, Page, Pills, Row, Segmented, Stat, Tabs, Tiles } from "../components/ui";
+import { Card, Field, Meter, Page, Row, Segmented, Stat, Tabs, Tiles } from "../components/ui";
+import { Verdict } from "../components/Verdict";
 import { fmt, pct, signed } from "../lib/format";
+import { bpmRanges, keysVerdict, lateInMap, timingVerdict } from "../lib/tappingWords";
+import { listed, MIN_NOTES } from "../lib/verdict";
+
+const signedMs = (v: number | null) => (v === null ? undefined : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)} ms`);
 
 type Tapping = Schemas["TappingPage"];
 
@@ -47,26 +42,10 @@ function TappingBody({ t }: { t: Tapping }) {
       </Tiles>
       <Row>
         <TimingCard h={t.timing} />
-        <StreamsCard s={t.streams_over_time} />
+        <KeysCard keys={t.keys} alternation={k.alternation_in_streams} />
       </Row>
       <StreamSpeedCard sp={t.stream_speed} />
-      <StaminaRow fb={t.fall_behind} />
-      <Row>
-        <KeysCard keys={t.keys} />
-        <Card title="Key presses" hint="How long you hold the keys and how clean your presses are.">
-          <Tiles n={3}>
-            <Stat label="Typical key hold" value={fmt(t.keys.hold_ms, 0, " ms")} hint="Median of all presses, in real time." />
-            <Stat label="Hold in streams" value={fmt(t.keys.press_ms_streams, 0, " ms")} />
-            <Stat label="Chatter" value={fmt(t.keys.chatter_per_1000, 1)} note="per 1000 presses" hint="Double presses a few ms apart: a switch or rapid-trigger setting that bounces." />
-          </Tiles>
-          <p className="small muted">
-            Keys: K = keyboard, M = mouse / pen buttons
-            {t.keys.shares.some((s) => s.key === "L" || s.key === "R")
-              ? ", L/R = lazer left / right — lazer replays only store left/right, not whether a key or a button was used."
-              : "."}
-          </p>
-        </Card>
-      </Row>
+      <StaminaRow fb={t.fall_behind} late={lateInMap(t.streams_over_time)} />
     </>
   );
 }
@@ -75,6 +54,7 @@ function TimingCard({ h }: { h: Schemas["TimingHistogram"] }) {
   const [scale, setScale] = useState<TimingScale>("normal");
   const [share, setShare] = useState(15);
   const build = useCallback((th: ChartTheme) => timingChart(h, scale, share, th), [h, scale, share]);
+  const said = timingVerdict(h.mean);
   return (
     <Card
       title="Hit timing"
@@ -93,6 +73,11 @@ function TimingCard({ h }: { h: Schemas["TimingHistogram"] }) {
       }
       foot={`${pct(h.share300, 0)} / ${pct(h.share100, 0)} / ${pct(h.share50, 1)} of hits are 300 / 100 / 50. The edges between the colours move with OD and speed mods, so they overlap a little.`}
     >
+      {said && (
+        <Verdict tone={said.tone} value={signedMs(h.mean)} practise={said.tone === "bad" ? "accuracy" : null}>
+          {said.text}
+        </Verdict>
+      )}
       {scale === "zoom" && (
         <Field label={`Show up to ${share}% of the highest bar`} hint="Cuts the tall 300 peak so the small bars become readable.">
           <input type="range" min={1} max={100} value={share} onChange={(e) => setShare(Number(e.target.value))} />
@@ -103,69 +88,42 @@ function TimingCard({ h }: { h: Schemas["TimingHistogram"] }) {
   );
 }
 
-function StreamsCard({ s }: { s: Schemas["StreamsOverTime"] | null }) {
-  const [metric, setMetric] = useState<StreamMetric>("miss_rate");
-  const [along, setAlong] = useState<"map" | "session">("map");
-  const [keys, setKeys] = useState<string[]>(["overall"]);
-  const build = useCallback((th: ChartTheme) => (s ? streamsChart(s, metric, along, keys, th) : {}), [s, metric, along, keys]);
-  if (!s)
-    return (
-      <Card title="Streams over time" hint="When your streams start to fall apart.">
-        <EmptyState title="Not enough streams yet">Streams of 7+ notes in a row: not enough of them in these replays yet.</EmptyState>
-      </Card>
-    );
-  const options = [
-    { value: "overall", label: "Overall", color: SERIES[0] },
-    ...s.bands.map((b, i) => ({ value: String(b), label: `${b}–${b + s.band_width - 1}`, color: SERIES[(i % (SERIES.length - 1)) + 1] })),
-  ];
-  return (
-    <Card
-      title="Streams over time"
-      hint="When your streams start to fall apart: misses and timing spread (UR) as the map or the session goes on. UR is measured with each play's own average taken out; points need 30+ notes."
-    >
-      <div className="controls">
-        <Segmented label="Show" value={metric} onChange={setMetric} options={[{ value: "miss_rate", label: "Miss rate" }, { value: "ur", label: "UR" }]} />
-        <Segmented label="Along" value={along} onChange={setAlong} options={[{ value: "map", label: "Map" }, { value: "session", label: "Session" }]} />
-      </div>
-      <Pills label="Stream speed (BPM)" options={options} value={keys} onChange={setKeys} />
-      <Chart build={build} height={280} label="Streams over time" />
-    </Card>
-  );
-}
-
 function StreamSpeedCard({ sp }: { sp: Schemas["StreamSpeed"] | null }) {
   const build = useCallback((th: ChartTheme) => (sp ? streamSpeedChart(sp, th) : {}), [sp]);
   if (!sp)
     return (
-      <Card title="Stream speed" hint="Misses and UR by stream speed (BPM).">
+      <Card title="Stream speed" hint="How steady your timing is at each stream speed (BPM).">
         <EmptyState title="Not enough streams yet">Streams of 7+ notes in a row: not enough of them in these replays yet.</EmptyState>
       </Card>
     );
-  const weak = sp.rows.filter((r) => r.weak).map((r) => `${r.bpm}–${r.bpm + 9}`);
+  const weak = sp.rows.filter((r) => r.weak && r.objects >= MIN_NOTES).map((r) => r.bpm);
+  const clean = sp.comfort_bpm !== null ? `clean up to ≈ ${fmt(sp.comfort_bpm, 0)} BPM` : null;
   return (
     <Card
       title="Stream speed"
-      hint="Streams of 7+ notes by speed. Pink = misses of the fingers (no tap, too early / late), yellow = the cursor fell behind (speed-aim). Blue line: UR at that speed in the typical play; triangles = your best play; dashed = the UR expected from your other speeds."
-      foot={
-        <>
-          Your stream speed is judged on the pink part only: clean up to ≈ {fmt(sp.comfort_bpm, 0)} BPM (green line) ·{" "}
-          {sp.limit_bpm !== null ? `tapping breaks down from ≈ ${fmt(sp.limit_bpm, 0)} BPM (red line)` : "no clear breakdown speed in these replays"}.{" "}
-          {weak.length ? (
-            <>
-              <strong>Weak spots</strong> (UR clearly above the trend, big red dots): {weak.join(", ")} BPM — practise streams at exactly those speeds.
-            </>
-          ) : (
-            "No BPM sticks out above the trend."
-          )}
-        </>
-      }
+      hint="Streams of 7+ notes by speed. Bars: how much your timing spreads (UR) at that speed in a typical play — lower is steadier. Red = a weak spot: clearly more than your other speeds lead to expect (dashed line). Faint with a ? = too few notes to tell. Point at a bar for its misses and your best play."
     >
-      <Chart build={build} height={340} label="Misses and UR by stream speed" />
+      {weak.length ? (
+        <Verdict tone="bad" value={`${bpmRanges(weak)[0]}`} practise="speed">
+          Your streams wobble at <strong>{listed(bpmRanges(weak))} BPM</strong>: your timing spreads clearly more there than at your
+          other speeds. Practise streams at exactly those speeds.{clean ? ` Otherwise ${clean}.` : ""}
+        </Verdict>
+      ) : (
+        <Verdict tone="good" value={sp.comfort_bpm !== null ? `${fmt(sp.comfort_bpm, 0)}` : undefined}>
+          {clean ? `Your streams are ${clean}` : "Your streams are steady"}, with no speed that sticks out.
+          {sp.limit_bpm !== null ? ` Tapping breaks down from ≈ ${fmt(sp.limit_bpm, 0)} BPM.` : ""}
+        </Verdict>
+      )}
+      <Chart build={build} height={300} label="Timing spread by stream speed" />
+      <p className="chart-note">
+        <span className="chart-note__key chart-note__key--line" /> UR expected from your other speeds
+        <span className="chart-note__key chart-note__key--bad" /> weak spot · ? = too few notes to tell
+      </p>
     </Card>
   );
 }
 
-function StaminaRow({ fb }: { fb: Schemas["FallBehind"] }) {
+function StaminaRow({ fb, late }: { fb: Schemas["FallBehind"]; late: string | null }) {
   const [by, setBy] = useState<"length" | "speed">("length");
   const bySpeed = by === "speed" && fb.by_speed.length >= 3;
   const build = useCallback((th: ChartTheme) => (bySpeed ? fallBehindSpeedChart(fb, th) : fallBehindChart(fb, th)), [fb, bySpeed]);
@@ -203,7 +161,8 @@ function StaminaRow({ fb }: { fb: Schemas["FallBehind"] }) {
           />
         }
       >
-        <Chart build={build} height={320} label="Precision through long streams" />
+        <StaminaVerdict fb={fb} late={late} />
+        <Chart build={build} height={300} label="Precision through long streams" />
       </Card>
   );
   if (!hasSummary) return chart;
@@ -215,9 +174,25 @@ function StaminaRow({ fb }: { fb: Schemas["FallBehind"] }) {
   );
 }
 
+function StaminaVerdict({ fb, late }: { fb: Schemas["FallBehind"]; late: string | null }) {
+  const at = fb.bpm ? ` at ~${fb.bpm.toFixed(0)} BPM` : "";
+  if (fb.start_note)
+    return (
+      <Verdict tone="bad" value={`${fb.start_note} notes`} practise="stamina">
+        Your stamina gives in after about <strong>{fb.start_note} notes</strong>
+        {fb.start_seconds !== null ? ` (≈ ${fb.start_seconds.toFixed(1)} s${at})` : at}: your taps drift from {fmt(fb.base_ms, 0)} ms off
+        to ≈ {fmt((fb.base_ms ?? 0) + (fb.growth_ms ?? 0), 0)} ms by note {fb.last_note}. {late}
+      </Verdict>
+    );
+  return (
+    <Verdict tone={late ? "bad" : "good"} value={fb.comfort_notes ? `${fb.comfort_notes} notes` : undefined} practise={late ? "stamina" : null}>
+      Your precision holds through long streams{fb.comfort_notes ? ` up to ${fb.comfort_notes} notes${at}` : at}. {late}
+    </Verdict>
+  );
+}
+
 function StaminaSummary({ fb, bySpeed }: { fb: Schemas["FallBehind"]; bySpeed: boolean }) {
   const [tab, setTab] = useState<"easy" | "push">("push");
-  const at = fb.bpm ? ` at ~${fb.bpm.toFixed(0)} BPM` : "";
   const lists = fb.comfortable_maps && fb.practice_maps;
   return (
     <Card title="Stream lengths to practise" hint="Where your stamina gives in, and maps with streams of the right length.">
@@ -236,19 +211,7 @@ function StaminaSummary({ fb, bySpeed }: { fb: Schemas["FallBehind"]; bySpeed: b
             </p>
           )}
         </>
-      ) : fb.start_note ? (
-        <p>
-          <strong>Your stamina gives in after about {fb.start_note} notes</strong>
-          {fb.start_seconds !== null ? ` (≈ ${fb.start_seconds.toFixed(1)} s${at})` : at}: your taps are {fmt(fb.base_ms, 0)} ms off on
-          average before that and ≈ {fmt((fb.base_ms ?? 0) + (fb.growth_ms ?? 0), 0)} ms by note {fb.last_note}.
-        </p>
-      ) : (
-        <p>
-          <strong>Your precision holds</strong> through the streams measured
-          {fb.comfort_notes ? ` — up to ${fb.comfort_notes} notes${at}` : at} ({fb.streams} streams of 16+ notes). No point where it
-          clearly gets worse.
-        </p>
-      )}
+      ) : null}
       {fb.comfort_notes && fb.practice_notes && (
         <ul className="list list--bullets">
           <li>
@@ -285,11 +248,32 @@ function StaminaSummary({ fb, bySpeed }: { fb: Schemas["FallBehind"]; bySpeed: b
   );
 }
 
-function KeysCard({ keys }: { keys: Schemas["KeyUsage"] }) {
-  const build = useCallback((th: ChartTheme) => keysChart(keys.shares, th), [keys.shares]);
+function KeysCard({ keys, alternation }: { keys: Schemas["KeyUsage"]; alternation: number | null }) {
+  const said = keysVerdict(keys, alternation);
+  const shares = [...keys.shares].sort((a, b) => b.share - a.share);
   return (
-    <Card title="Keys used" hint="Share of your key presses per key. Even bars = you use both fingers.">
-      {keys.shares.length ? <Chart build={build} height={260} label="Key usage" /> : <EmptyState title="No key presses recorded" />}
+    <Card title="Keys" hint="Which keys you press and how cleanly: even shares between your two main keys = you use both fingers. K = keyboard, M = mouse / pen buttons, L / R = lazer's left / right (lazer replays don't say whether a key or a button was used).">
+      {said ? (
+        <Verdict tone={said.tone}>{said.text}</Verdict>
+      ) : (
+        <EmptyState title="No key presses recorded" />
+      )}
+      {shares.length > 0 && (
+        <ul className="list key-shares" aria-label="Share of presses per key">
+          {shares.map((s) => (
+            <li key={s.key}>
+              <span className="key-shares__key">{s.key}</span>
+              <Meter value={s.share * 100} color="var(--accent)" />
+              <span className="num">{Math.round(s.share * 100)}%</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Tiles n={3}>
+        <Stat label="Typical key hold" value={fmt(keys.hold_ms, 0, " ms")} hint="Median of all presses, in real time." />
+        <Stat label="Hold in streams" value={fmt(keys.press_ms_streams, 0, " ms")} />
+        <Stat label="Chatter" value={fmt(keys.chatter_per_1000, 1)} note="per 1000 presses" hint="Double presses a few ms apart: a switch or rapid-trigger setting that bounces." />
+      </Tiles>
     </Card>
   );
 }
