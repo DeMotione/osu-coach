@@ -40,29 +40,26 @@ function Body({ d }: { d: Page_ }) {
   const ar = useMemo(() => judge(d.ar_misses.map((x) => ({ label: `AR ${x.ar}`, rate: x.miss_rate, n: x.objects }))), [d.ar_misses]);
   return (
     <>
-      <Tiles n={4}>
+      {/* sliders and reading at a glance: one block of tiles on top (#143) */}
+      <Tiles n={8}>
         <Stat label="Sliders played" value={int(d.slider_misses ? d.slider_misses.cells.reduce((n, c) => n + c.n, 0) : k.sliders)} />
         <Stat label="Slider head misses" value={pct(k.head_miss_rate)} />
         <Stat label="Slider breaks" value={pct(k.break_rate)} hint="Sliders hit at the head but broken later (left the follow circle or released the key)." />
         <Stat label="Missed slider ends" value={pct(k.end_miss_rate)} />
+        <Stat label="Misses in dense parts" value={pct(r.dense_miss_rate)} hint={`Miss rate when ≥ ${fmt(r.dense_threshold, 0)} notes are on screen.`} />
+        <Stat label="Misses in sparse parts" value={pct(r.sparse_miss_rate)} hint="Miss rate when fewer notes are on screen." />
+        <Stat label="Misses after a miss" value={fmt(r.miss_after_miss_ratio, 1, "×")} hint="How much more you miss right after a miss than the difficulty explains (typical ≈ 2×)." />
+        <Stat
+          label="Misses in the last 20%"
+          value={pct(r.end_miss_share, 0)}
+          hint={`Share of misses in the last fifth of maps (${pct(r.end_object_share, 0)} of the notes).`}
+        />
       </Tiles>
       <Row>
         <BreaksCard breaks={d.breaks} />
         <ArCard groups={ar} hits={d.hits_by_ar} />
       </Row>
       <SliderMissesCard misses={d.slider_misses} />
-      <Card title="Reading and consistency" hint="Miss rates in dense parts (many notes on screen) vs the rest, and whether misses cause more misses or pile up at the end of maps.">
-        <Tiles n={4}>
-          <Stat label="Dense parts" value={pct(r.dense_miss_rate)} hint={`Miss rate when ≥ ${fmt(r.dense_threshold, 0)} notes are on screen.`} />
-          <Stat label="Sparse parts" value={pct(r.sparse_miss_rate)} />
-          <Stat label="Misses after a miss" value={fmt(r.miss_after_miss_ratio, 1, "×")} hint="How much more you miss right after a miss than the difficulty explains (typical ≈ 2×)." />
-          <Stat
-            label="Misses in the last 20%"
-            value={pct(r.end_miss_share, 0)}
-            hint={`Share of misses in the last fifth of maps (${pct(r.end_object_share, 0)} of the notes).`}
-          />
-        </Tiles>
-      </Card>
     </>
   );
 }
