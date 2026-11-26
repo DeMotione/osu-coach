@@ -54,6 +54,9 @@ class StreamSummary:
     fall_longest: Mapping[int, int]  # by 10-BPM bin: the longest stream
 
 
+BPM_SLACK = 0.5  # BPM a stream may be under a step and still be in it (millisecond rounding)
+
+
 def stream_summary(notes: HitObjects) -> StreamSummary:
     bpm = notes.stream_bpm
     finite = np.isfinite(bpm)
@@ -61,7 +64,8 @@ def stream_summary(notes: HitObjects) -> StreamSummary:
     aim = np.fromiter((r == "aim" for r in notes.miss_reason.tolist()), dtype=bool, count=len(notes))
     speed: dict[int, SpeedBin] = {}
     sel = (notes.run_len >= MIN_RUN) & (notes.run_pos >= 1) & finite
-    bins = np.where(finite, np.floor_divide(np.nan_to_num(bpm), 10) * 10, -1).astype(np.int64)
+    # 10-BPM steps; note times in whole milliseconds put a 190 BPM stream at 189.9: half a BPM of slack keeps it at 190
+    bins = np.where(finite, np.floor_divide(np.nan_to_num(bpm) + BPM_SLACK, 10) * 10, -1).astype(np.int64)
     for b in np.unique(bins[sel]).tolist():
         m = sel & (bins == b)
         h = m & hit

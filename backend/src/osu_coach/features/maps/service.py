@@ -19,6 +19,7 @@ from osu_coach.common.errors import ApiError, Invalid
 from osu_coach.common.maps import map_rows
 from osu_coach.common.texts import explain
 from osu_coach.domain.maps.configuration import SearchOptions
+from osu_coach.domain.maps.focus import parse_focus
 from osu_coach.domain.maps.skillset import rated_skills, recommend, recommend_modified, star_targets
 from osu_coach.domain.maps.suggestions import (
     SKILLS,
@@ -289,12 +290,20 @@ def playlist(
     kappa: float = 0.5,
     min_relevance: float = 0.3,
     exclude_played: bool = True,
+    focus: str | None = None,
 ) -> Playlist:
+    try:
+        on = parse_focus(focus)
+    except ValueError as exc:
+        raise Invalid(str(exc), "invalid_focus") from exc
     pool = _pool(ws)
     p = ws.profile()
     target, checked, abilities, theta, source, kappa = _options(
         p, skill, assessed, ratings, comfort, kappa, min_relevance
     )
+    if on is not None and target not in abilities:
+        # a weak spot to practise, of a skill without a rating yet: its maps at the player's level (50)
+        abilities = {**abilities, target: 50.0}
     t = targets_from_profile(p) if p else Targets(comfort=theta)
     t.comfort = theta
     t.played = _played(ws, t)
@@ -309,10 +318,13 @@ def playlist(
             kappa,
             min_relevance,
             t.played if exclude_played else frozenset(),
+            on,
         )
         ranked = explain(ranked, target, t)
     except ValueError as exc:
         raise Invalid(str(exc), "invalid_recommendation_settings") from exc
+    if on is not None and on.kind == "bpm":
+        ranked = _stream_speeds(ranked)
     stages = [
         PlaylistStage(
             stage=stage,
@@ -335,15 +347,28 @@ def playlist(
         comfort_source=source,
         stream_bpm=num(t.stream_bpm),
         maps=sum(stage.eligible for stage in stages),
-        collection_name=collection_name(target, t),
+        collection_name=collection_name(target, t) + (f" – {on.label()}" if on else ""),
         stages=stages,
         preferred_client=ws.preferred_client(),
         skill_adjusted_stars=ranked.skill_adjusted_stars,
+        focus=on.label() if on else None,
         abilities=abilities,
         measured_abilities=measured_abilities(p, _comfort_of(p)),
         engine=p.engine if p else None,
         skill_levels=_levels(p),
     )
+
+
+def _stream_speeds(ranked):
+    """A playlist of streams at some speeds says each map's stream speed, the one it was picked by (not its top
+    tapping speed, which bursts can set)."""
+
+    def said(m):
+        bpm, run = num(m.map.get("stream_bpm")), integer(m.map.get("max_run"))
+        return replace(m, why=f"streams at ~{bpm:.0f} BPM (1/4), longest {run} notes") if bpm and run else m
+
+    goals = {goal: replace(data, maps=tuple(said(m) for m in data.maps)) for goal, data in ranked.goals.items()}
+    return replace(ranked, goals=goals)
 
 
 def _levels(p: Profile | None) -> dict[str, float]:

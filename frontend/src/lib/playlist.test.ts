@@ -172,8 +172,15 @@ describe("practised", () => {
     expect(p.job).toBeNull();
   });
 
+  it("keeps to the weak spot a link asks for, without mods; a link without one practises the whole skill", () => {
+    const p = practised(saved, "speed", "bpm:120-130");
+    expect(p.options).toEqual({ skill: "speed", ratings: '{"speed": 50}', allow_hd: false, allow_hr: false, adjustable_dt: false, focus: "bpm:120-130" });
+    expect(practised(p, "aim").options).toEqual({ skill: "aim", ratings: '{"speed": 50}', allow_hd: false, allow_hr: false, adjustable_dt: false });
+  });
+
   it("keeps the saved playlist without a known skill", () => {
     expect(practised(saved, null)).toBe(saved);
     expect(practised(saved, "general")).toBe(saved);
+    expect(practised(saved, "quadrant")).toBe(saved); // no playlist of its own: the aim weak spots link to aim
   });
 });

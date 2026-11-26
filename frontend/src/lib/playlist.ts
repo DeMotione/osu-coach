@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 
 import type { Schemas } from "../api/client";
 import type { RecommendationOptions } from "../components/RecommendationControls";
+import { PRACTISABLE } from "./practise";
 
 /** How many maps of a playlist stage are shown (and exported) at a time. */
 export const STAGE_SIZE = 5;
@@ -117,15 +118,17 @@ type Session = Pick<Storage, "getItem" | "setItem">;
 
 /** The playlist as it was left. In a new session (osu! coach started again) the maps checked as completed leave it
  * (unless played maps were asked for), and the rest stays where it was. */
-/** The skills a "Practise this" link can ask a playlist for. */
-const PRACTISABLE = new Set(["aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading", "consistency", "quadrant"]);
-
 /** The saved playlist, made again for ``skill`` when a "Practise this" link asks for one (an analysis page's weak
- * spot): the other choices (mods, ratings typed in) stay, the skills to assess start again from the new target. */
-export function practised(saved: SavedPlaylist, skill: string | null): SavedPlaylist {
+ * spot, #144), keeping to its ``focus`` (none: the whole skill): the other choices (ratings typed in) stay, the
+ * skills to assess start again from the new target. A focus is on maps without mods (their BPM, AR, … as they are):
+ * one asked for leaves the mods out. */
+export function practised(saved: SavedPlaylist, skill: string | null, focus: string | null = null): SavedPlaylist {
   if (!skill || !PRACTISABLE.has(skill)) return saved;
-  const { assessed: _assessed, ...options } = saved.options;
-  return { ...saved, options: { ...options, skill }, playlist: null, controls: null, job: null, done: [] };
+  const { assessed: _assessed, focus: _focus, ...options } = saved.options;
+  const mods = focus ? { allow_hr: false, allow_hd: false, adjustable_dt: false } : {};
+  return {
+    ...saved, options: { ...options, ...mods, skill, ...(focus ? { focus } : {}) }, playlist: null, controls: null, job: null, done: [],
+  };
 }
 
 export function loadPlaylist(storage: Pick<Storage, "getItem"> = localStorage, session: Session = sessionStorage): SavedPlaylist {

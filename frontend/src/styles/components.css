@@ -2908,6 +2908,10 @@ details.disclosure-card[open] > summary .card__title::after {
 .analysis-lock__text { margin: 0; color: var(--text-2); }
 .analysis-lock__left { margin: 0; font-weight: 600; color: var(--accent-text); }
 .analysis-lock .progress__text { text-align: left; }
+.playlist-lock .btn { align-self: center; }
+/* the weak spot a playlist keeps to, and the way back to the whole skill (#144) */
+.playlist-focus { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2) var(--s-3); }
+.playlist-focus > span { flex: 1 1 280px; }
 
 .analysing-art { display: block; width: min(100%, 360px); height: auto; margin: 0 auto; }
 .analysing-art__head { transform-box: fill-box; transform-origin: 50% 90%; animation: aa-bob 2.4s ease-in-out infinite; }
@@ -2974,7 +2978,7 @@ details.disclosure-card[open] > summary .card__title::after {
 .weak-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; container-type: inline-size; }
 .weak-list li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: baseline;
   gap: var(--s-3);
   padding: 8px 12px;
@@ -2983,10 +2987,11 @@ details.disclosure-card[open] > summary .card__title::after {
 }
 .weak-list__what { font-weight: 600; }
 .weak-list__rate { color: var(--bad); font-weight: 700; font-variant-numeric: tabular-nums; }
+.weak-list li .verdict__practise { align-self: center; }
 .weak-list__more { color: var(--muted); font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
 @container (max-width: 520px) {
-  .weak-list li { grid-template-columns: minmax(0, 1fr) auto; }
-  .weak-list__more { grid-column: 1 / -1; }
+  .weak-list li { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .weak-list__more { grid-column: 1 / -1; grid-row: 2; }
 }
 
 /* under a chart of judged groups (ChartNote) */

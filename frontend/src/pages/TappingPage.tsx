@@ -9,6 +9,7 @@ import { MapTable } from "../components/MapTable";
 import { EmptyState, QueryView } from "../components/states";
 import { Card, Field, Meter, Page, Row, Segmented, Stat, Tabs, Tiles } from "../components/ui";
 import { Verdict } from "../components/Verdict";
+import { streamLengths, streamSpeeds } from "../lib/practise";
 import { fmt, pct, signed } from "../lib/format";
 import { bpmRanges, keysVerdict, lateInMap, timingVerdict } from "../lib/tappingWords";
 import { listed, MIN_NOTES } from "../lib/verdict";
@@ -74,7 +75,7 @@ function TimingCard({ h }: { h: Schemas["TimingHistogram"] }) {
       foot={`${pct(h.share300, 0)} / ${pct(h.share100, 0)} / ${pct(h.share50, 1)} of hits are 300 / 100 / 50. The edges between the colours move with OD and speed mods, so they overlap a little.`}
     >
       {said && (
-        <Verdict tone={said.tone} value={signedMs(h.mean)} practise={said.tone === "bad" ? "accuracy" : null}>
+        <Verdict tone={said.tone} value={signedMs(h.mean)} practise={said.tone === "bad" ? { skill: "accuracy" } : null}>
           {said.text}
         </Verdict>
       )}
@@ -104,7 +105,7 @@ function StreamSpeedCard({ sp }: { sp: Schemas["StreamSpeed"] | null }) {
       hint="Streams of 7+ notes by speed. Bars: how much your timing spreads (UR) at that speed in a typical play — lower is steadier. Red = a weak spot: clearly more than your other speeds lead to expect (dashed line). Faint with a ? = too few notes to tell. Point at a bar for its misses and your best play."
     >
       {weak.length ? (
-        <Verdict tone="bad" value={`${bpmRanges(weak)[0]}`} practise="speed">
+        <Verdict tone="bad" value={`${bpmRanges(weak)[0]}`} practise={streamSpeeds(weak)}>
           Your streams wobble at <strong>{listed(bpmRanges(weak))} BPM</strong>: your timing spreads clearly more there than at your
           other speeds. Practise streams at exactly those speeds.{clean ? ` Otherwise ${clean}.` : ""}
         </Verdict>
@@ -183,14 +184,14 @@ function StaminaVerdict({ fb, late }: { fb: Schemas["FallBehind"]; late: string 
   const at = fb.bpm ? ` at ~${fb.bpm.toFixed(0)} BPM` : "";
   if (fb.start_note)
     return (
-      <Verdict tone="bad" value={`${fb.start_note} notes`} practise="stamina">
+      <Verdict tone="bad" value={`${fb.start_note} notes`} practise={streamLengths(fb.practice_notes)}>
         Your stamina gives in after about <strong>{fb.start_note} notes</strong>
         {fb.start_seconds !== null ? ` (≈ ${fb.start_seconds.toFixed(1)} s${at})` : at}: your taps drift from {fmt(fb.base_ms, 0)} ms off
         to ≈ {fmt((fb.base_ms ?? 0) + (fb.growth_ms ?? 0), 0)} ms by note {fb.last_note}. {late}
       </Verdict>
     );
   return (
-    <Verdict tone={late ? "bad" : "good"} value={fb.comfort_notes ? `${fb.comfort_notes} notes` : undefined} practise={late ? "stamina" : null}>
+    <Verdict tone={late ? "bad" : "good"} value={fb.comfort_notes ? `${fb.comfort_notes} notes` : undefined} practise={late ? streamLengths(fb.practice_notes) : null}>
       Your precision holds through long streams{fb.comfort_notes ? ` up to ${fb.comfort_notes} notes${at}` : at}. {late}
     </Verdict>
   );

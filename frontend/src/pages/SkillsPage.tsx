@@ -12,6 +12,7 @@ import { CompletedMaps } from "../components/CompletedMaps";
 import { ExportPanel } from "../components/ExportPanel";
 import { IconTrash } from "../components/icons";
 import { MapTable } from "../components/MapTable";
+import { PlaylistLock } from "../components/PlaylistLock";
 import { RecommendationControls, type RecommendationOptions } from "../components/RecommendationControls";
 import { StageNav } from "../components/StageNav";
 import { EmptyState, ErrorCard, JobStatus, LoadingPage } from "../components/states";
@@ -201,9 +202,9 @@ const unrated = (pl: Schemas["Playlist"]) =>
 function PlaylistTab() {
   // the playlist as it was left on another tab or page (#107); a "Practise this" link asks for another skill's
   const [params, setParams] = useSearchParams();
-  const [saved] = useState(() => practised(loadPlaylist(), params.get("skill")));
+  const [saved] = useState(() => practised(loadPlaylist(), params.get("skill"), params.get("focus")));
   useEffect(() => {
-    if (params.has("skill")) setParams({ tab: "playlist" }, { replace: true });
+    if (params.has("skill") || params.has("focus")) setParams({ tab: "playlist" }, { replace: true });
   }, [params, setParams]);
   const [options, setOptions] = useState<RecommendationOptions>(saved.options);
   const modified = isModified(options);
@@ -224,7 +225,10 @@ function PlaylistTab() {
   const pl = waiting ? (fresh ?? (modified ? null : kept)) : kept;
   const [controls, setControls] = useState<PlaylistControls | null>(saved.controls);
   const controlData = controls ?? controlsOf(q.data ?? pl);
-  const apply = (next: RecommendationOptions) => {
+  const apply = (choice: RecommendationOptions) => {
+    // the weak spot stays for the same skill without mods (the controls don't show it); Whole skill drops it
+    const keep = !isModified(choice) && choice.skill === options.skill && !("focus" in choice) ? options.focus : choice.focus;
+    const next: RecommendationOptions = { ...choice, focus: isModified(choice) ? undefined : keep };
     if (!controls && q.data) setControls(controlsOf(q.data));
     setOptions(next);
     setWaiting(true);
@@ -275,10 +279,14 @@ function PlaylistTab() {
     [shown],
   );
 
-  if (!pl && q.isPending && !modified) return <LoadingPage tiles={2} />;
+  // the playlist being made: a cover over the page until it is there (#144)
+  const making = waiting && (modified ? search.running || (jobId === null && !search.error) : !q.error);
+  const lock = <PlaylistLock open={making} focused={!!options.focus} job={modified ? search.job : null} onCancel={search.cancel} />;
+  if (!pl && q.isPending && !modified) return <>{lock}<LoadingPage tiles={2} /></>;
   if (q.error && !pl) return <ErrorCard error={q.error} onRetry={() => void q.refetch()} />;
   return (
     <>
+      {lock}
       {controlData && <RecommendationControls current={controlData.skill} measured={controlData.measured} comfort={controlData.comfort}
         levels={(controlsOf(q.data ?? pl) ?? controlData).levels} initial={options} onApply={apply} />}
       {modified && <><JobStatus job={search.job} error={search.error} onCancel={search.cancel} />
@@ -291,10 +299,23 @@ function PlaylistTab() {
           playlist when osu! coach is started again or Show maps makes a new one; completed maps are listed under Completed maps.
         </Alert>
       ) : newer && <Alert tone="info">This playlist was made before your latest plays were analysed. Press Show maps to make it again with them.</Alert>}
+      {options.focus && pl.focus && (
+        <Alert tone="info">
+          <span className="playlist-focus">
+            <span>
+              This playlist practises <strong>{pl.focus}</strong>: the weak spot your analysis found. Every map is about it; maps without
+              mods.
+            </span>
+            <button type="button" className="btn btn--sm" onClick={() => apply({ ...options, focus: undefined })}>
+              Whole skill instead
+            </button>
+          </span>
+        </Alert>
+      )}
       <Card>
         {!pl.has_profile && <Alert tone="info">No replays analysed yet — enter comfort stars and player ratings to get a personal playlist.</Alert>}
         <p className="muted">
-          {(pl.skill === "speed" || pl.skill === "stamina") && pl.stream_bpm ? (
+          {(pl.skill === "speed" || pl.skill === "stamina") && pl.stream_bpm && !pl.focus ? (
             <>
               Stream target ≈ <strong>{pl.stream_bpm.toFixed(0)} BPM</strong> ·{" "}
             </>

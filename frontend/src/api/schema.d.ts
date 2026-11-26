@@ -650,7 +650,8 @@ export interface paths {
          * A staged playlist (warm-up / core / push) for one skill
          * @description ``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data;
          *     ``assessed`` (the skills a map is checked on, comma-separated) defaults to every skill you have a rating of: a map
-         *     that asks one of them for more than your rating is left out.
+         *     that asks one of them for more than your rating is left out. ``focus`` keeps to a weak spot an analysis page
+         *     found (``kind:spec``, e.g. ``bpm:120-130,150-160`` for streams at those speeds: see ``domain/maps/focus.py``).
          */
         get: operations["playlist_api_playlists_get"];
         put?: never;
@@ -2747,6 +2748,11 @@ export interface components {
             comfort_source: string;
             /** Stream Bpm */
             stream_bpm: number | null;
+            /**
+             * Focus
+             * @description The weak spot the playlist keeps to (``focus``), in words; null: the whole skill.
+             */
+            focus?: string | null;
             /** Maps */
             maps: number;
             /** Collection Name */
@@ -5339,6 +5345,7 @@ export interface operations {
                 kappa?: number;
                 min_relevance?: number;
                 exclude_played?: boolean;
+                focus?: string | null;
             };
             header?: never;
             path?: never;

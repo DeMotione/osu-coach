@@ -15,6 +15,8 @@ export interface RecommendationOptions {
   adjustable_dt?: boolean;
   min_rate?: number;
   max_rate?: number;
+  /** the weak spot the playlist keeps to ("Practise this" on an analysis page, #144); maps without mods only */
+  focus?: string;
 }
 
 const SKILLS = [
