@@ -11,6 +11,7 @@ import { SliderMissesCard } from "../components/SliderMisses";
 import { EmptyState, QueryView } from "../components/states";
 import { Card, Page, Row, Stat, Tiles } from "../components/ui";
 import { Verdict } from "../components/Verdict";
+import { approachRates } from "../lib/practise";
 import { fmt, int, pct } from "../lib/format";
 import { judge, type Judged, listed, share, times, weakest } from "../lib/verdict";
 
@@ -74,7 +75,7 @@ function BreaksCard({ breaks }: { breaks: Schemas["BreakShare"][] }) {
     <Card title="Why your sliders break" hint="Sliders hit at the head but broken later (weighted by difficulty), by what went wrong.">
       {top ? (
         <>
-          <Verdict tone={top.share >= 0.5 ? "bad" : "info"} value={pct(top.share, 0)} practise="sliders">
+          <Verdict tone={top.share >= 0.5 ? "bad" : "info"} value={pct(top.share, 0)}>
             Most of your slider breaks: you <strong>{name}</strong>.
           </Verdict>
           <ul className="list list--fill">
@@ -111,7 +112,7 @@ function ArCard({ groups, hits }: { groups: Judged[]; hits: Schemas["HitsByAr"][
       ) : (
         <>
           {bad.length ? (
-            <Verdict tone="bad" value={share(bad[0].rate)} practise="reading">
+            <Verdict tone="bad" value={share(bad[0].rate)} practise={approachRates(bad.map((g) => g.label))}>
               At <strong>{listed(bad.map((g) => g.label))}</strong> you miss {times(bad[0].ratio)} your average: practise reading at that
               approach rate.
             </Verdict>

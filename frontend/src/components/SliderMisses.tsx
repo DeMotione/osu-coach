@@ -5,6 +5,7 @@ import { Chart } from "../charts/Chart";
 import { judgedBars } from "../charts/judged";
 import type { ChartTheme } from "../charts/palette";
 import { int } from "../lib/format";
+import { sliderStretch } from "../lib/practise";
 import {
   byLength, bySpeed, judgeSteps, type JudgedStep, lengthLabel, lengthWords, missed, speedLabel, speedWords, standing, type Step, total,
   worseStretches,
@@ -56,7 +57,7 @@ function Body({ m }: { m: Schemas["SliderMisses"] }) {
   return (
     <>
       {picked.length ? (
-        <PickedVerdict step={total(m, picked)} average={average} words={speedWords(picked, m.speed_top)} />
+        <PickedVerdict step={total(m, picked)} average={average} words={speedWords(picked, m.speed_top)} picked={picked} />
       ) : (
         <AllVerdict lengths={lengths} speeds={speeds} average={average} m={m} />
       )}
@@ -110,13 +111,13 @@ function AllVerdict({ lengths, speeds, average, m }: { lengths: JudgedStep[]; sp
   const excess = (s: Step) => missed(s) - s.n * (average ?? 0);
   const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
   const found = [
-    ...(fast ? [{ s: fast, what: `at ${speedWords(range(fast.from, fast.to), m.speed_top)}` }] : []),
-    ...(long ? [{ s: long, what: lengthWords(long.from, long.to, m.length_top) }] : []),
+    ...(fast ? [{ s: fast, what: `at ${speedWords(range(fast.from, fast.to), m.speed_top)}`, by: "speed" as const }] : []),
+    ...(long ? [{ s: long, what: lengthWords(long.from, long.to, m.length_top), by: "length" as const }] : []),
   ].sort((a, b) => excess(b.s) - excess(a.s));
   if (!found.length) return <Verdict tone="good">No length and no speed of slider stands out.</Verdict>;
   const ratio = (s: Step) => times(average ? missed(s) / s.n / average : null);
   return (
-    <Verdict tone="bad" value={share(missed(found[0].s) / found[0].s.n)} practise="sliders">
+    <Verdict tone="bad" value={share(missed(found[0].s) / found[0].s.n)} practise={sliderStretch(found[0].by, found[0].s.from, found[0].s.to)}>
       Sliders <strong>{found[0].what}</strong>: {counted(found[0].s)}, {ratio(found[0].s)} your average.
       {found[1] && (
         <>
@@ -130,12 +131,12 @@ function AllVerdict({ lengths, speeds, average, m }: { lengths: JudgedStep[]; sp
 }
 
 /** The speeds picked against your average over all sliders. */
-function PickedVerdict({ step, average, words }: { step: Step; average: number | null; words: string }) {
+function PickedVerdict({ step, average, words, picked }: { step: Step; average: number | null; words: string; picked: number[] }) {
   const s = standing(step, average);
   const rate = step.n ? missed(step) / step.n : null;
   const vs = average && rate !== null ? `, ${times(rate / average)} your average` : "";
   return (
-    <Verdict tone={s === "worse" ? "bad" : s === "better" ? "good" : s === "few" ? "muted" : "info"} value={share(rate)} practise={s === "worse" ? "sliders" : null}>
+    <Verdict tone={s === "worse" ? "bad" : s === "better" ? "good" : s === "few" ? "muted" : "info"} value={share(rate)} practise={s === "worse" ? sliderStretch("speed", Math.min(...picked), Math.max(...picked)) : null}>
       At <strong>{words}</strong>: {counted(step)}
       {s === "few" ? " — too few sliders to tell." : `${vs}.`} {s === "worse" && how(step)}
     </Verdict>

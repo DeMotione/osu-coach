@@ -10,7 +10,8 @@ import { IconCheck } from "../components/icons";
 import { StarPicker } from "../components/StarPicker";
 import { QueryView } from "../components/states";
 import { Alert, Badge, Card, Page, Row, Stat, Switch, Tiles } from "../components/ui";
-import { type PractiseSkill, Verdict } from "../components/Verdict";
+import { Verdict } from "../components/Verdict";
+import { PRACTISABLE, type PractiseSkill } from "../lib/practise";
 import { fmt, pct, span, stars } from "../lib/format";
 import { pickTarget, starLabel, targetOptions } from "../lib/starCompare";
 
@@ -309,7 +310,7 @@ function MissVerdict({ causes }: { causes: Schemas["MissCause"][] }) {
   if (!top) return null;
   const name = (MISS_SHORT[top.cause] ?? top.cause).toLowerCase();
   return (
-    <Verdict tone={top.share >= 0.5 ? "bad" : "info"} value={pct(top.share, 0)} practise={MISS_PRACTISE[top.cause] ?? null}>
+    <Verdict tone={top.share >= 0.5 ? "bad" : "info"} value={pct(top.share, 0)} practise={MISS_PRACTISE[top.cause] ? { skill: MISS_PRACTISE[top.cause] } : null}>
       {top.share >= 0.5 ? "Most" : "The biggest share"} of your misses: <strong>{name}</strong>.
     </Verdict>
   );
@@ -326,14 +327,13 @@ function SkillVerdict({ skills, irt }: { skills: Schemas["SkillScore"][]; irt: b
   const show = (s: Schemas["SkillScore"]) => (irt ? `${value(s)!.toFixed(1)}★` : value(s)!.toFixed(0));
   const gap = value(best)! - value(worst)!;
   return (
-    <Verdict tone="info" value={show(worst)} practise={PRACTISABLE.has(worst.key) ? (worst.key as PractiseSkill) : null}>
+    <Verdict tone="info" value={show(worst)} practise={PRACTISABLE.has(worst.key) ? { skill: worst.key as PractiseSkill } : null}>
       Work on <strong>{worst.label}</strong> first: your weakest measured skill, {irt ? `${gap.toFixed(1)}★` : `${gap.toFixed(0)} points`} below{" "}
       {best.label} ({show(best)}), your strongest.
     </Verdict>
   );
 }
 
-const PRACTISABLE = new Set(["aim", "flow_aim", "speed", "stamina", "accuracy", "sliders", "reading", "consistency"]);
 
 /** Which rating engine made the skill scores; it is chosen on the Settings page. */
 function EngineBadge({ current }: { current: Pick<Overview, "engine" | "engine_label"> }) {

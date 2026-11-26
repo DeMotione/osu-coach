@@ -12,7 +12,8 @@ import { RangeSlider } from "../components/RangeSlider";
 import { QueryView } from "../components/states";
 import { Card, Page, Row, Segmented, Stat, Tiles } from "../components/ui";
 import { ChartNote } from "../components/ChartNote";
-import { Verdict } from "../components/Verdict";
+import { PractiseLink, Verdict } from "../components/Verdict";
+import { type AimKind, aimSpot } from "../lib/practise";
 import { ANGLE_SHORT, averageAlong, jumpAngle, jumpDirection, jumpDistance, overshoot, screenPart } from "../lib/aimWords";
 import { clickFilter, clicksCaption, starBounds } from "../lib/clicks";
 import { dayOf, type DayRange } from "../lib/dateRange";
@@ -75,7 +76,8 @@ const BAR_HINT =
 /** Every kind of jump that is clearly worse than your usual, the most misses it costs you first. */
 function WeakSpotsCard({ groups }: { groups: Groups }) {
   const spots = useMemo(() => {
-    const named = (gs: Judged[], name: (l: string) => string, kind: string) => weakest(gs).map((g) => ({ ...g, name: name(g.label), kind }));
+    const named = (gs: Judged[], name: (l: string) => string, kind: AimKind) =>
+      weakest(gs).map((g) => ({ ...g, name: name(g.label), kind, practise: aimSpot(kind, g.label) }));
     return [
       ...named(groups.directions, jumpDirection, "direction"),
       ...named(groups.distances, jumpDistance, "distance"),
@@ -87,11 +89,11 @@ function WeakSpotsCard({ groups }: { groups: Groups }) {
   return (
     <Card
       title="Aim weak spots"
-      hint="Every kind of jump (direction, distance, angle, part of the screen) you miss clearly more of than usual, the one costing you the most misses first. Clearly = enough jumps that it isn't chance."
+      hint="Every kind of jump (direction, distance, angle, part of the screen) you miss clearly more of than usual, the one costing you the most misses first. Clearly = enough jumps that it isn't chance. Practise makes a playlist of maps full of that kind of jump (a direction no map statistic tells)."
     >
       {top ? (
         <>
-          <Verdict tone="bad" value={share(top.rate)} practise={top.kind === "quadrant" ? "quadrant" : "aim"}>
+          <Verdict tone="bad" value={share(top.rate)} practise={top.practise}>
             Your weakest jumps: <strong>{top.name}</strong> — {share(top.rate)} missed, {times(top.ratio)} your average {share(top.usual)}.
           </Verdict>
           {spots.length > 1 && (
@@ -101,6 +103,7 @@ function WeakSpotsCard({ groups }: { groups: Groups }) {
                   <span className="weak-list__what">{g.name.charAt(0).toUpperCase() + g.name.slice(1)}</span>
                   <span className="weak-list__rate">{share(g.rate)}</span>
                   <span className="weak-list__more">{times(g.ratio)} your average · {int(g.n)} notes</span>
+                  {g.practise && <PractiseLink practise={g.practise}>Practise</PractiseLink>}
                 </li>
               ))}
             </ul>
@@ -124,7 +127,7 @@ function DirectionsCard({ groups }: { groups: Judged[] }) {
   return (
     <Card title="Miss rate by jump direction" hint={`The direction the cursor moves in to reach the note (jumps of 1+ circle), worst on top. ${BAR_HINT}`}>
       {bad.length ? (
-        <Verdict tone="bad" value={share(bad[0].rate)} practise="aim">
+        <Verdict tone="bad" value={share(bad[0].rate)}>
           Jumps moving <strong>{listed(bad.map((g) => g.label))}</strong>: you miss {times(bad[0].ratio)} your average.
         </Verdict>
       ) : (
@@ -146,7 +149,7 @@ function DistanceCard({ groups, rows }: { groups: Judged[]; rows: Schemas["Dista
   return (
     <Card title="By jump distance" hint={`How far the note is from the previous one, in circle widths. ${BAR_HINT}`}>
       {bad.length ? (
-        <Verdict tone="bad" value={share(bad[0].rate)} practise="aim">
+        <Verdict tone="bad" value={share(bad[0].rate)}>
           <strong>{capital(jumpDistance(bad[0].label))}</strong>: {times(bad[0].ratio)} your average miss rate. {shoot}
         </Verdict>
       ) : (
@@ -172,7 +175,7 @@ function AnglesCard({ groups }: { groups: Judged[] }) {
       hint={`Sharp turn = back-and-forth jumps, keeps going = jumps that continue in one direction. ${BAR_HINT}`}
     >
       {bad.length ? (
-        <Verdict tone="bad" value={share(bad[0].rate)} practise="aim">
+        <Verdict tone="bad" value={share(bad[0].rate)}>
           <strong>{capital(jumpAngle(bad[0].label))}</strong>: {times(bad[0].ratio)} your average miss rate.
         </Verdict>
       ) : groups.some((g) => g.standing !== "few") ? (

@@ -65,6 +65,9 @@ class Playlist(BaseModel):
         description="Replay comfort, manual input, recent level fallback, or stated assumption."
     )
     stream_bpm: float | None
+    focus: str | None = Field(
+        None, description="The weak spot the playlist keeps to (``focus``), in words; null: the whole skill."
+    )
     maps: int
     collection_name: str
     stages: list[PlaylistStage]

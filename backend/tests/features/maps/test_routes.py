@@ -1,5 +1,7 @@
 """Map suggestions and skill playlists (routes)."""
 
+import re
+
 import pytest
 
 from osu_coach.domain.maps.skillset import recommend
@@ -129,3 +131,27 @@ def test_completed_maps(analysed):
     done = {m["md5"] for m in maps}
     playlist = analysed.get("/api/playlists").json()
     assert done.isdisjoint(m["md5"] for st in playlist["stages"] for m in st["maps"])
+
+
+def test_a_playlist_keeps_to_a_weak_spot(client):
+    """ "Practise this" on an analysis page: only the maps on the weak spot, said in the heading and the collection."""
+    base = {"skill": "speed", "comfort": 5.0, "ratings": '{"speed":50}', "assessed": "speed"}
+    whole = client.get("/api/playlists", params=base).json()
+    pl = client.get("/api/playlists", params={**base, "focus": "bpm:170-190"}).json()
+    assert whole["focus"] is None
+    assert pl["focus"] == "streams at 170–189 BPM" and pl["collection_name"].endswith("– streams at 170–189 BPM")
+    assert 0 < pl["maps"] < whole["maps"]
+    assert all(st["excluded"]["Not on the weak spot practised"] > 0 for st in pl["stages"])
+    # each map says the stream speed it was picked by
+    said = [float(re.match(r"streams at ~(\d+) BPM", m["why"])[1]) for st in pl["stages"] for m in st["maps"]]
+    assert said and all(169 <= bpm <= 190 for bpm in said)
+    bad = client.get("/api/playlists", params={**base, "focus": "bpm:190-170"})
+    assert bad.status_code == 422 and bad.json()["code"] == "invalid_focus"
+
+
+def test_a_weak_spot_of_a_skill_without_a_rating_is_practised_at_your_level(client):
+    """Without a rating the skill's playlist is empty; its weak spot is practised as if it were at the level (50)."""
+    base = {"skill": "speed", "comfort": 5.0, "ratings": '{"aim":50}', "assessed": "speed"}
+    assert client.get("/api/playlists", params=base).json()["maps"] == 0
+    pl = client.get("/api/playlists", params={**base, "focus": "run:10-40"}).json()
+    assert pl["maps"] > 0 and pl["abilities"]["speed"] == 50

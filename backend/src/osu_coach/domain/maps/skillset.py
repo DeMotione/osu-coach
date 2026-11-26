@@ -19,6 +19,7 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from osu_coach.domain.maps.focus import Focus
 from osu_coach.domain.maps.suggestions import SKILLS, map_url, skill_label
 from osu_coach.domain.numeric.values import finite_or_none
 from osu_coach.domain.player import algorithm as alg
@@ -53,6 +54,7 @@ SKILL_SCALE = 20.0
 RISK_WEIGHT = 1.0
 HISTORY_WEIGHT = 0.5
 SPEED_MIN_TEMPO_RATIO = 0.8
+FOCUS_REASON = "Not on the weak spot practised"
 
 
 def _get(row: dict, key: str, default: float = 0.0) -> float:
@@ -551,8 +553,10 @@ def recommend(
     kappa: float = 0.5,
     min_relevance: float = 0.3,
     played: frozenset[str] = frozenset(),
+    focus: Focus | None = None,
 ) -> Recommendation:
-    """Return every eligible map for each goal, plus explicit exclusion counts."""
+    """Return every eligible map for each goal, plus explicit exclusion counts. With a ``focus`` (a weak spot), only
+    the maps on it; one that picks the tapping speed itself drops the speed playlist's tempo check."""
     _check(theta, abilities, skill, assessed, kappa, min_relevance)
     low_accuracy = skill == "accuracy" and theta < 5.5
     od_min = min(8.5, 3.0 + theta) if low_accuracy else None
@@ -565,7 +569,7 @@ def recommend(
         target = adjusted + star_offset if adjusted is not None else None
         target_speed_bpm = (
             speed_bpm_for_rating(abilities[skill] + skill_offset, theta)
-            if skill == "speed" and skill in abilities
+            if skill == "speed" and skill in abilities and not (focus and focus.sets_tempo)
             else None
         )
         if target is not None and target <= 0:
@@ -578,6 +582,8 @@ def recommend(
             reason = None
             if md5 in played:
                 reason = "Already played"
+            elif focus is not None and not focus.matches(row):
+                reason = FOCUS_REASON
             elif skill not in abilities:
                 reason = "Target player rating unknown"
             elif any(other not in abilities for other in assessed):

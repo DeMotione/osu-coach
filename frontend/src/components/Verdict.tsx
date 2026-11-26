@@ -1,26 +1,15 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 
+import { type Practise, practiseUrl } from "../lib/practise";
 import { IconArrowRight } from "./icons";
 
 export type VerdictTone = "bad" | "good" | "info" | "muted";
 
-/** The skills a playlist can be made for (Goals & Training → Playlist for a skill). */
-export type PractiseSkill =
-  | "aim"
-  | "flow_aim"
-  | "speed"
-  | "stamina"
-  | "accuracy"
-  | "sliders"
-  | "reading"
-  | "consistency"
-  | "quadrant";
-
-/** A playlist of maps for ``skill``, opened on Goals & Training. */
-export function PractiseLink({ skill, children = "Practise this" }: { skill: PractiseSkill; children?: ReactNode }) {
+/** A playlist of maps for the weak spot, made at once on Goals & Training. */
+export function PractiseLink({ practise, children = "Practise this" }: { practise: Practise; children?: ReactNode }) {
   return (
-    <Link className="btn btn--sm verdict__practise" to={`/skills?tab=playlist&skill=${skill}`}>
+    <Link className="btn btn--sm verdict__practise" to={practiseUrl(practise)}>
       {children} <IconArrowRight width={14} height={14} />
     </Link>
   );
@@ -36,14 +25,15 @@ export function Verdict({ tone, value, children, practise }: {
   /** the number the sentence is about, shown big */
   value?: ReactNode;
   children: ReactNode;
-  practise?: PractiseSkill | null;
+  /** the playlist that practises what it says (#144) */
+  practise?: Practise | null;
 }) {
   return (
     <div className={`verdict verdict--${tone}`} role="status">
       {value !== undefined && value !== null && <div className="verdict__value">{value}</div>}
       <div className="verdict__body">
         <p className="verdict__text">{children}</p>
-        {practise && <PractiseLink skill={practise} />}
+        {practise && <PractiseLink practise={practise} />}
       </div>
     </div>
   );
