@@ -116,8 +116,13 @@ function StreamSpeedCard({ sp }: { sp: Schemas["StreamSpeed"] | null }) {
       )}
       <Chart build={build} height={300} label="Timing spread by stream speed" />
       <p className="chart-note">
-        <span className="chart-note__key chart-note__key--line" /> UR expected from your other speeds
-        <span className="chart-note__key chart-note__key--bad" /> weak spot · ? = too few notes to tell
+        <span className="chart-note__item">
+          <span className="chart-note__key chart-note__key--line" /> UR expected from your other speeds
+        </span>
+        <span className="chart-note__item">
+          <span className="chart-note__key chart-note__key--bad" /> weak spot
+        </span>
+        <span className="chart-note__item">? = too few notes to tell</span>
       </p>
     </Card>
   );

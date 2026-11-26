@@ -3610,22 +3610,36 @@ export interface components {
             /** Reason */
             reason: string;
         };
-        /** SliderBin */
-        SliderBin: {
-            /** Bin */
-            bin: string;
+        /**
+         * SliderCell
+         * @description The sliders of one length and one speed step (plain counts).
+         */
+        SliderCell: {
+            /**
+             * Length
+             * @description Whole circle diameters of slider path; ``length_top`` = that long or longer.
+             */
+            length: number;
+            /**
+             * Speed
+             * @description Whole circle diameters per second; ``speed_top`` = that fast or faster.
+             */
+            speed: number;
+            /**
+             * N
+             * @description Sliders played.
+             */
+            n: number;
             /**
              * Head
-             * @description % head missed
+             * @description Of them, missed at the head.
              */
             head: number;
             /**
              * Broke
-             * @description % hit but broken later
+             * @description Of them, hit at the head but broken later.
              */
             broke: number;
-            /** N */
-            n: number;
         };
         /** SliderKpis */
         SliderKpis: {
@@ -3638,12 +3652,17 @@ export interface components {
             /** End Miss Rate */
             end_miss_rate: number | null;
         };
-        /** SliderRates */
-        SliderRates: {
-            /** Rows */
-            rows: components["schemas"]["SliderBin"][];
-            /** Worst */
-            worst: string | null;
+        /** SliderMisses */
+        SliderMisses: {
+            /** Length Top */
+            length_top: number;
+            /** Speed Top */
+            speed_top: number;
+            /**
+             * Cells
+             * @description Only the length and speed steps with sliders.
+             */
+            cells: components["schemas"]["SliderCell"][];
         };
         /** SlidersReadingPage */
         SlidersReadingPage: {
@@ -3652,8 +3671,8 @@ export interface components {
             breaks: components["schemas"]["BreakShare"][];
             /** Ar Misses */
             ar_misses: components["schemas"]["ArMissRow"][];
-            by_length: components["schemas"]["SliderRates"] | null;
-            by_speed: components["schemas"]["SliderRates"] | null;
+            /** @description null with too few sliders. */
+            slider_misses: components["schemas"]["SliderMisses"] | null;
             /** Hits By Ar */
             hits_by_ar: components["schemas"]["HitsByAr"][];
             reading: components["schemas"]["ReadingKpis"];

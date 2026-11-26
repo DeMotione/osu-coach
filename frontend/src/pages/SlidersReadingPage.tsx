@@ -7,6 +7,7 @@ import type { ChartTheme } from "../charts/palette";
 import { judgedBars } from "../charts/judged";
 import { ChartNote } from "../components/ChartNote";
 import { DataTable } from "../components/DataTable";
+import { SliderMissesCard } from "../components/SliderMisses";
 import { EmptyState, QueryView } from "../components/states";
 import { Card, Page, Row, Stat, Tiles } from "../components/ui";
 import { Verdict } from "../components/Verdict";
@@ -37,12 +38,10 @@ function Body({ d }: { d: Page_ }) {
   const k = d.kpis;
   const r = d.reading;
   const ar = useMemo(() => judge(d.ar_misses.map((x) => ({ label: `AR ${x.ar}`, rate: x.miss_rate, n: x.objects }))), [d.ar_misses]);
-  const byLen = useMemo(() => sliderGroups(d.by_length), [d.by_length]);
-  const bySpeed = useMemo(() => sliderGroups(d.by_speed), [d.by_speed]);
   return (
     <>
       <Tiles n={4}>
-        <Stat label="Sliders played" value={int(k.sliders)} />
+        <Stat label="Sliders played" value={int(d.slider_misses ? d.slider_misses.cells.reduce((n, c) => n + c.n, 0) : k.sliders)} />
         <Stat label="Slider head misses" value={pct(k.head_miss_rate)} />
         <Stat label="Slider breaks" value={pct(k.break_rate)} hint="Sliders hit at the head but broken later (left the follow circle or released the key)." />
         <Stat label="Missed slider ends" value={pct(k.end_miss_rate)} />
@@ -51,24 +50,7 @@ function Body({ d }: { d: Page_ }) {
         <BreaksCard breaks={d.breaks} />
         <ArCard groups={ar} hits={d.hits_by_ar} />
       </Row>
-      <Row>
-        <SliderCard
-          title="Slider misses by length"
-          hint="Sliders missed at the head or broken later, by how long the slider is (circle widths)."
-          axisName="slider length (circle widths)"
-          describe={(l) => `sliders ${l} circle widths long`}
-          rates={d.by_length}
-          groups={byLen}
-        />
-        <SliderCard
-          title="Slider misses by speed"
-          hint="The same by how fast the ball moves (circle widths per second)."
-          axisName="ball speed (circle widths per second)"
-          describe={(l) => `sliders moving ${l} circle widths a second`}
-          rates={d.by_speed}
-          groups={bySpeed}
-        />
-      </Row>
+      <SliderMissesCard misses={d.slider_misses} />
       <Card title="Reading and consistency" hint="Miss rates in dense parts (many notes on screen) vs the rest, and whether misses cause more misses or pile up at the end of maps.">
         <Tiles n={4}>
           <Stat label="Dense parts" value={pct(r.dense_miss_rate)} hint={`Miss rate when ≥ ${fmt(r.dense_threshold, 0)} notes are on screen.`} />
@@ -87,11 +69,6 @@ function Body({ d }: { d: Page_ }) {
 
 const BAR_HINT =
   "Red = you miss clearly more of these than on average, green = clearly fewer, grey = as usual, faint with a ? = too few to tell.";
-
-/** A slider group's share missed at the head or broken later, as a 0–1 rate. */
-function sliderGroups(rates: Schemas["SliderRates"] | null): Judged[] {
-  return rates ? judge(rates.rows.map((b) => ({ label: b.bin, rate: (b.head + b.broke) / 100, n: b.n }))) : [];
-}
 
 function BreaksCard({ breaks }: { breaks: Schemas["BreakShare"][] }) {
   const top = breaks[0];
@@ -169,47 +146,3 @@ function ArCard({ groups, hits }: { groups: Judged[]; hits: Schemas["HitsByAr"][
     </Card>
   );
 }
-
-function SliderCard({ title, hint, axisName, describe, rates, groups }: {
-  title: string;
-  hint: string;
-  axisName: string;
-  describe: (label: string) => string;
-  rates: Schemas["SliderRates"] | null;
-  groups: Judged[];
-}) {
-  const build = useCallback(
-    (t: ChartTheme) => judgedBars({ groups, unit: "sliders", axisName, describe }, t),
-    [groups, axisName, describe],
-  );
-  const bad = weakest(groups);
-  const worst = bad[0] && rates?.rows.find((b) => b.bin === bad[0].label);
-  const how = !worst
-    ? ""
-    : Math.abs(worst.broke - worst.head) < 0.2 * (worst.broke + worst.head)
-      ? "missed at the head and broken later about equally: hit the start, then stay on the ball to the end"
-      : worst.broke > worst.head
-        ? "mostly broken after you hit the head: stay on the ball and hold the key to the end"
-        : "mostly missed at the head: hit the start of the slider";
-  return (
-    <Card title={title} hint={`${hint} ${BAR_HINT}`}>
-      {!rates ? (
-        <EmptyState title="Not enough sliders yet">Needs 100+ sliders.</EmptyState>
-      ) : (
-        <>
-          {bad.length ? (
-            <Verdict tone="bad" value={share(bad[0].rate)} practise="sliders">
-              <strong>{capital(describe(bad[0].label))}</strong>: {times(bad[0].ratio)} your average misses and breaks, {how}.
-            </Verdict>
-          ) : (
-            <Verdict tone="good">No kind of slider stands out here.</Verdict>
-          )}
-          <Chart build={build} height={240} label={title} />
-          <ChartNote groups={groups} unit="sliders" />
-        </>
-      )}
-    </Card>
-  );
-}
-
-const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

@@ -380,16 +380,20 @@ class ArMissRow(BaseModel):
     objects: float
 
 
-class SliderBin(BaseModel):
-    bin: str
-    head: float = Field(description="% head missed")
-    broke: float = Field(description="% hit but broken later")
-    n: int
+class SliderCell(BaseModel):
+    """The sliders of one length and one speed step (plain counts)."""
+
+    length: int = Field(description="Whole circle diameters of slider path; ``length_top`` = that long or longer.")
+    speed: int = Field(description="Whole circle diameters per second; ``speed_top`` = that fast or faster.")
+    n: int = Field(description="Sliders played.")
+    head: int = Field(description="Of them, missed at the head.")
+    broke: int = Field(description="Of them, hit at the head but broken later.")
 
 
-class SliderRates(BaseModel):
-    rows: list[SliderBin]
-    worst: str | None
+class SliderMisses(BaseModel):
+    length_top: int
+    speed_top: int
+    cells: list[SliderCell] = Field(description="Only the length and speed steps with sliders.")
 
 
 class HitsByAr(BaseModel):
@@ -415,7 +419,6 @@ class SlidersReadingPage(BaseModel):
     kpis: SliderKpis
     breaks: list[BreakShare]
     ar_misses: list[ArMissRow]
-    by_length: SliderRates | None
-    by_speed: SliderRates | None
+    slider_misses: SliderMisses | None = Field(description="null with too few sliders.")
     hits_by_ar: list[HitsByAr]
     reading: ReadingKpis
