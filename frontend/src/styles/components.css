@@ -2990,9 +2990,10 @@ details.disclosure-card[open] > summary .card__title::after {
 }
 
 /* under a chart of judged groups (ChartNote) */
-.chart-note { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; color: var(--muted); font-size: var(--t-xs); }
-.chart-note__key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-left: 8px; }
-.chart-note__key:first-child { margin-left: 0; }
+.chart-note { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--muted); font-size: var(--t-xs); }
+/* a key and what it stands for wrap together */
+.chart-note__item { display: inline-flex; align-items: center; gap: 6px; }
+.chart-note__key { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 2px; }
 .chart-note__key--line { width: 14px; height: 0; border-top: 1px dashed var(--muted); border-radius: 0; }
 .chart-note__key--bad { background: #ff5a6e; }
 .chart-note__key--good { background: #88da20; }
@@ -3035,3 +3036,36 @@ details.disclosure-card[open] > summary .card__title::after {
 .skill-trend__change { font-size: var(--t-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
 .skill-trend__change--up { color: var(--good); }
 .skill-trend__change--down { color: var(--bad); }
+
+/* the ball speeds of the slider chart, each with its misses (SliderMisses) */
+.speed-picker { display: grid; gap: 6px; min-width: 0; container-type: inline-size; }
+/* All and 17 speeds: 18 buttons fill rows of 18, 9 or 6 */
+.speed-buttons { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+@container (min-width: 480px) {
+  .speed-buttons { grid-template-columns: repeat(9, minmax(0, 1fr)); }
+}
+@container (min-width: 840px) {
+  .speed-buttons { grid-template-columns: repeat(18, minmax(0, 1fr)); }
+}
+.speed-button {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  min-width: 0;
+  padding: 5px 2px;
+  border: 1px solid var(--control-stroke);
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.speed-button__misses { color: var(--muted); font-size: var(--t-xs); font-weight: 500; }
+.speed-button--worse .speed-button__misses { color: var(--bad); font-weight: 700; }
+.speed-button--better .speed-button__misses { color: var(--good); font-weight: 700; }
+.speed-button:hover:not(:disabled, [aria-pressed="true"]) { background: var(--surface-2); }
+.speed-button[aria-pressed="true"] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.speed-button:disabled { opacity: 0.4; cursor: default; }

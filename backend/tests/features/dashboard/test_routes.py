@@ -152,6 +152,10 @@ def test_tapping_and_sliders_pages(analysed):
     assert t["keys"]["shares"] and t["kpis"]["ur"] > 0
     s = analysed.get("/api/profile/sliders-reading").json()
     assert s["kpis"]["sliders"] > 0
+    m = s["slider_misses"]
+    # every slider counts once in the chart; the tile weighs them by difficulty (a weight is at most 1)
+    assert sum(c["n"] for c in m["cells"]) >= s["kpis"]["sliders"]
+    assert all(0 <= c["length"] <= m["length_top"] and 0 <= c["speed"] <= m["speed_top"] for c in m["cells"])
     for row in s["hits_by_ar"]:
         assert row["r300"] + row["r100"] + row["r50"] + row["miss"] == pytest.approx(100)
 

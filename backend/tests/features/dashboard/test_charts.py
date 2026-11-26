@@ -122,14 +122,30 @@ def test_fall_behind_by_speed_finds_where_stamina_gives_in():
     assert insights.fall_behind_by_speed(None) == {"groups": [], "worst": None}
 
 
-def test_slider_rates_by_length_and_speed(prof):
-    r = insights.slider_rates(prof)
-    assert r is not None and set(r) == {"length", "speed"}
-    for part in r.values():
-        rows = part["rows"]
-        assert (rows["n"] >= insights.SLIDER_BIN_MIN).all()
-        assert part["worst"] in set(rows["bin"])
-        assert ((rows["head"] + rows["broke"]) <= 100 + 1e-9).all()
+def test_sliders_are_counted_by_whole_steps_of_length_and_speed():
+    """Every slider in one step, the longest and the fastest in the last one; a slider is missed at the head or
+    broken later, never both (#142)."""
+    S = pd.DataFrame(
+        {
+            "len_d": [0.99, 1.0, 1.4, 6.5, 8.0, 31.0, np.nan],
+            "speed_d": [0.2, 13.0, 13.9, 4.0, 16.0, 69.0, 5.0],
+            "head_hit": [True, False, True, True, True, False, False],
+            "broke": [False, True, True, False, True, False, False],
+        }
+    )
+    cells = {
+        (r["length"], r["speed"]): (r["n"], r["head"], r["broke"]) for r in insights.slider_cells(S).to_dict("records")
+    }
+    assert cells == {(0, 0): (1, 0, 0), (1, 13): (2, 1, 1), (6, 4): (1, 0, 0), (8, 16): (2, 1, 1)}
+
+
+def test_slider_misses_count_every_slider(prof):
+    cells = insights.slider_misses(prof)
+    P = insights.played(prof)
+    assert cells["n"].sum() == ((P["kind"] == "slider") & P["slider_len"].notna()).sum()
+    assert ((cells["head"] + cells["broke"]) <= cells["n"]).all()
+    assert cells["length"].between(0, insights.SLIDER_LEN_TOP).all()
+    assert cells["speed"].between(0, insights.SLIDER_SPEED_TOP).all()
 
 
 def test_hits_by_ar_rows_add_up(prof):

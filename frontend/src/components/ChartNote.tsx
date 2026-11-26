@@ -6,10 +6,16 @@ export function ChartNote({ groups, unit = "notes" }: { groups: Judged[]; unit?:
   const few = groups.some((g) => g.standing === "few" && g.rate !== null);
   return (
     <p className="chart-note">
-      <span className="chart-note__key chart-note__key--line" /> your average miss rate{average !== null ? ` (${share(average)})` : ""}
-      <span className="chart-note__key chart-note__key--bad" /> clearly worse
-      <span className="chart-note__key chart-note__key--good" /> clearly better
-      {few && <> · ? = too few {unit} to tell</>}
+      <span className="chart-note__item">
+        <span className="chart-note__key chart-note__key--line" /> your average miss rate{average !== null ? ` (${share(average)})` : ""}
+      </span>
+      <span className="chart-note__item">
+        <span className="chart-note__key chart-note__key--bad" /> clearly worse
+      </span>
+      <span className="chart-note__item">
+        <span className="chart-note__key chart-note__key--good" /> clearly better
+      </span>
+      {few && <span className="chart-note__item">? = too few {unit} to tell</span>}
     </p>
   );
 }

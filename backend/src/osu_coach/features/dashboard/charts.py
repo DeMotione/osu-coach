@@ -226,38 +226,31 @@ def fall_behind_by_speed(cb: pd.DataFrame | None) -> dict:
 
 
 # ------------------------------------------------------------------ sliders & reading
-SLIDER_LEN_BINS = [0, 1, 2, 4, 8, 1000]  # circle diameters of slider path
-SLIDER_SPEED_BINS = [0, 2, 4, 6, 9, 1000]  # circle diameters per second
-SLIDER_MIN = 100  # sliders needed for the charts
-SLIDER_BIN_MIN = 20  # sliders a bar needs
-SLIDER_BIG_BIN = 50  # bars with this many sliders are preferred for "worst"
+SLIDER_LEN_TOP = 8  # slider path, whole circle diameters: the last step is "8 and longer"
+SLIDER_SPEED_TOP = 16  # ball speed, whole circle diameters per second: the last step is "16 and faster"
+SLIDER_MIN = 100  # sliders needed for the chart
 
 
-def _slider_rates(S: pd.DataFrame, col: str, bins: list) -> pd.DataFrame:
-    cut = pd.cut(S[col], bins, right=False)
-    rows = []
-    for iv, g in S.groupby(cut, observed=True):
-        if len(g) < SLIDER_BIN_MIN:
-            continue
-        w = g["w"].to_numpy(float)
-        head = ~g["head_hit"].astype(bool)
-        brk = g["broke"].fillna(False).astype(bool) & ~head
-        hi = "+" if iv.right >= 1000 else f"–{iv.right:g}"
-        rows.append(
-            {
-                "bin": f"{iv.left:g}{hi}",
-                "head": float(np.average(head, weights=w)) * 100,
-                "broke": float(np.average(brk, weights=w)) * 100,
-                "n": int(len(g)),
-            }
-        )
-    return pd.DataFrame(rows, columns=["bin", "head", "broke", "n"])
+def slider_cells(S: pd.DataFrame) -> pd.DataFrame:
+    """Sliders counted by their length (``len_d``, circle diameters) and speed (``speed_d``, diameters per second), in
+    whole steps: how many were played (``n``), missed at the head (``head``) and hit there but broken later
+    (``broke``). Plain counts, not weighted by difficulty, so "5 of 68" is what it says; only the steps with sliders."""
+    S = S[S["len_d"].notna() & S["speed_d"].notna()]
+    head = ~S["head_hit"].astype(bool)
+    cells = pd.DataFrame(
+        {
+            "length": np.minimum(np.floor(S["len_d"].to_numpy(float)), SLIDER_LEN_TOP).astype(int),
+            "speed": np.minimum(np.floor(S["speed_d"].to_numpy(float)), SLIDER_SPEED_TOP).astype(int),
+            "n": 1,
+            "head": head.to_numpy(int),
+            "broke": (S["broke"].fillna(False).astype(bool) & ~head).to_numpy(int),
+        }
+    )
+    return cells.groupby(["length", "speed"], as_index=False).sum()
 
 
-def slider_rates(p: Profile) -> dict | None:
-    """Slider head misses and breaks (after hitting the head, %) by slider length (circle diameters) and by
-    slider speed (diameters per second), each with its worst bin. None with fewer than :data:`SLIDER_MIN`
-    sliders."""
+def slider_misses(p: Profile) -> pd.DataFrame | None:
+    """:func:`slider_cells` of the profile's sliders. None with fewer than :data:`SLIDER_MIN` of them."""
     P = played(p)
     S = P[(P["kind"] == "slider") & P["slider_len"].notna()].copy()
     if len(S) < SLIDER_MIN:
@@ -265,15 +258,7 @@ def slider_rates(p: Profile) -> dict | None:
     d = (2 * S["radius"]).replace(0, np.nan)
     S["len_d"] = S["slider_len"] / d
     S["speed_d"] = S["slider_vel_real"] * 1000 / d
-    out = {}
-    for name, col, bins in (("length", "len_d", SLIDER_LEN_BINS), ("speed", "speed_d", SLIDER_SPEED_BINS)):
-        R = _slider_rates(S, col, bins)
-        worst = None
-        if not R.empty:
-            big = R[R["n"] >= SLIDER_BIG_BIN] if (R["n"] >= SLIDER_BIG_BIN).any() else R
-            worst = big.assign(t=big["head"] + big["broke"]).sort_values("t").iloc[-1]["bin"]
-        out[name] = {"rows": R, "worst": worst}
-    return out
+    return slider_cells(S)
 
 
 AR_MIN_NOTES = 200  # notes needed for the chart

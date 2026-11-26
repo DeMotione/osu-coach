@@ -570,14 +570,14 @@ def tapping(ws: Workspace, p: Profile) -> S.TappingPage:
 
 
 # ------------------------------------------------------------------ sliders & reading
-def _slider_part(part: dict | None) -> S.SliderRates | None:
-    if part is None:
+def _slider_misses(cells) -> S.SliderMisses | None:
+    if cells is None:
         return None
-    rows = [
-        S.SliderBin(bin=str(r["bin"]), head=float(r["head"]), broke=float(r["broke"]), n=int(r["n"]))
-        for r in part["rows"].to_dict("records")
-    ]
-    return S.SliderRates(rows=rows, worst=part["worst"]) if rows else None
+    return S.SliderMisses(
+        length_top=charts.SLIDER_LEN_TOP,
+        speed_top=charts.SLIDER_SPEED_TOP,
+        cells=[S.SliderCell(**{k: int(v) for k, v in r.items()}) for r in cells.to_dict("records")],
+    )
 
 
 def sliders_reading(ws: Workspace, p: Profile) -> S.SlidersReadingPage:
@@ -599,7 +599,7 @@ def sliders_reading(ws: Workspace, p: Profile) -> S.SlidersReadingPage:
             S.ArMissRow(ar=str(r["ar_bin"]), miss_rate=num(r["miss_rate"]), objects=float(r["objects"]))
             for r in ar.reset_index().to_dict("records")
         ]
-    rates = ws.memo("sliders", lambda: charts.slider_rates(p)) or {}
+    cells = ws.memo("sliders", lambda: charts.slider_misses(p))
     hits = ws.memo("hits_by_ar", lambda: charts.hits_by_ar(p))
     hits_by_ar = [
         S.HitsByAr(
@@ -625,8 +625,7 @@ def sliders_reading(ws: Workspace, p: Profile) -> S.SlidersReadingPage:
         kpis=kpis,
         breaks=breaks,
         ar_misses=ar_misses,
-        by_length=_slider_part(rates.get("length")),
-        by_speed=_slider_part(rates.get("speed")),
+        slider_misses=_slider_misses(cells),
         hits_by_ar=hits_by_ar,
         reading=reading,
     )

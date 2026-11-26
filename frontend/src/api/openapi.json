@@ -10316,35 +10316,44 @@
         ],
         "title": "SkippedReplay"
       },
-      "SliderBin": {
+      "SliderCell": {
         "properties": {
-          "bin": {
-            "type": "string",
-            "title": "Bin"
+          "length": {
+            "type": "integer",
+            "title": "Length",
+            "description": "Whole circle diameters of slider path; ``length_top`` = that long or longer."
           },
-          "head": {
-            "type": "number",
-            "title": "Head",
-            "description": "% head missed"
-          },
-          "broke": {
-            "type": "number",
-            "title": "Broke",
-            "description": "% hit but broken later"
+          "speed": {
+            "type": "integer",
+            "title": "Speed",
+            "description": "Whole circle diameters per second; ``speed_top`` = that fast or faster."
           },
           "n": {
             "type": "integer",
-            "title": "N"
+            "title": "N",
+            "description": "Sliders played."
+          },
+          "head": {
+            "type": "integer",
+            "title": "Head",
+            "description": "Of them, missed at the head."
+          },
+          "broke": {
+            "type": "integer",
+            "title": "Broke",
+            "description": "Of them, hit at the head but broken later."
           }
         },
         "type": "object",
         "required": [
-          "bin",
+          "length",
+          "speed",
+          "n",
           "head",
-          "broke",
-          "n"
+          "broke"
         ],
-        "title": "SliderBin"
+        "title": "SliderCell",
+        "description": "The sliders of one length and one speed step (plain counts)."
       },
       "SliderKpis": {
         "properties": {
@@ -10395,33 +10404,32 @@
         ],
         "title": "SliderKpis"
       },
-      "SliderRates": {
+      "SliderMisses": {
         "properties": {
-          "rows": {
+          "length_top": {
+            "type": "integer",
+            "title": "Length Top"
+          },
+          "speed_top": {
+            "type": "integer",
+            "title": "Speed Top"
+          },
+          "cells": {
             "items": {
-              "$ref": "#/components/schemas/SliderBin"
+              "$ref": "#/components/schemas/SliderCell"
             },
             "type": "array",
-            "title": "Rows"
-          },
-          "worst": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Worst"
+            "title": "Cells",
+            "description": "Only the length and speed steps with sliders."
           }
         },
         "type": "object",
         "required": [
-          "rows",
-          "worst"
+          "length_top",
+          "speed_top",
+          "cells"
         ],
-        "title": "SliderRates"
+        "title": "SliderMisses"
       },
       "SlidersReadingPage": {
         "properties": {
@@ -10442,25 +10450,16 @@
             "type": "array",
             "title": "Ar Misses"
           },
-          "by_length": {
+          "slider_misses": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SliderRates"
+                "$ref": "#/components/schemas/SliderMisses"
               },
               {
                 "type": "null"
               }
-            ]
-          },
-          "by_speed": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SliderRates"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            ],
+            "description": "null with too few sliders."
           },
           "hits_by_ar": {
             "items": {
@@ -10478,8 +10477,7 @@
           "kpis",
           "breaks",
           "ar_misses",
-          "by_length",
-          "by_speed",
+          "slider_misses",
           "hits_by_ar",
           "reading"
         ],
