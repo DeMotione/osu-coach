@@ -62,12 +62,16 @@ def playlist(
     min_relevance: Annotated[float, Query(ge=0, le=1)] = 0.3,
     exclude_played: bool = True,
     focus: str | None = None,
+    ar: str | None = None,
 ) -> Playlist:
     """``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data;
-    ``assessed`` (the skills a map is checked on, comma-separated) defaults to every skill you have a rating of: a map
+    ``assessed`` (the skills a map is checked on, comma-separated) defaults to every skill you have a rating of but
+    accuracy and reading (never checked unless the target): a map
     that asks one of them for more than your rating is left out. ``focus`` keeps to a weak spot an analysis page
-    found (``kind:spec``, e.g. ``bpm:120-130,150-160`` for streams at those speeds: see ``domain/maps/focus.py``)."""
-    return svc.playlist(ws, skill, comfort, assessed, ratings, kappa, min_relevance, exclude_played, focus)
+    found (``kind:spec``, e.g. ``bpm:120-130,150-160`` for streams at those speeds: see ``domain/maps/focus.py``).
+    ``ar``: the approach rates to keep to, ``level`` (the default: the typical AR of maps at your level, ±0.3),
+    ``any``, or two like ``9.2-9.8``."""
+    return svc.playlist(ws, skill, comfort, assessed, ratings, kappa, min_relevance, exclude_played, focus, ar)
 
 
 @router.post(

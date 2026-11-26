@@ -319,7 +319,7 @@ const completedKey = [...keys.playlists, "completed"] as const;
 export const useCompletedMaps = () =>
   useQuery({ queryKey: completedKey, queryFn: () => unwrap(api.GET("/api/maps/completed")), staleTime: 60_000 });
 
-export const usePlaylist = (params: { skill?: string; assessed?: string; ratings?: string; comfort?: number; kappa?: number; min_relevance?: number; exclude_played?: boolean; focus?: string }, enabled = true) =>
+export const usePlaylist = (params: { skill?: string; assessed?: string; ratings?: string; comfort?: number; kappa?: number; min_relevance?: number; exclude_played?: boolean; focus?: string; ar?: string }, enabled = true) =>
   useQuery({
     queryKey: [...keys.playlists, params],
     queryFn: () => unwrap(api.GET("/api/playlists", { params: { query: params } })),

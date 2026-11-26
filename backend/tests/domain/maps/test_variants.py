@@ -330,3 +330,24 @@ def test_a_map_over_another_skills_rating_is_left_out_alike(made_up, pool):
     for goal in found.recommendation.goals.values():
         for m in goal.maps:
             assert all(b.overload <= skillset.OVER for b in m.breakdown.bottlenecks)
+
+
+@pytest.mark.parametrize("ar_range", [(9.0, 9.8), (10.0, 11.0)])
+def test_an_ar_range_is_kept_alike(made_up, pool, ar_range):
+    # the AR range is on the AR with the mods (HR raises it, DT shortens the time a note is visible), in both searches
+    table, records = made_up
+    options = SearchOptions(True, False, True, 1.10, 1.60)
+    abilities = {"aim": 55.0, "consistency": 40.0}
+    found = recommend_from_table(
+        table, records, _columns(pool), options, "lazer", 4.6, abilities, "aim", ("aim", "consistency"), 0.5, 0.3,
+        frozenset(), {}, 100, ar_range=ar_range,
+    )  # fmt: skip
+    rows = list(table_rows(table, records, options, "lazer"))
+    whole = recommend_modified(
+        records, rows, 4.6, abilities, "aim", ("aim", "consistency"), 0.5, 0.3, frozenset(), {}, 100,
+        reference_curves(_columns(pool), ("aim", "consistency")), ar_range,
+    )  # fmt: skip
+    assert found.recommendation == whole
+    shown = [m for g in whole.goals.values() for m in g.maps]
+    assert shown and all(ar_range[0] - 1e-6 <= m.map["ar"] <= ar_range[1] + 1e-6 for m in shown)
+    assert all(g.excluded.get("AR outside the chosen range", 0) > 0 for g in whole.goals.values())

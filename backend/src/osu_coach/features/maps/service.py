@@ -7,6 +7,7 @@ import json
 import math
 import multiprocessing
 import os
+import re
 from collections import deque
 from dataclasses import replace
 from typing import TYPE_CHECKING
@@ -20,7 +21,14 @@ from osu_coach.common.maps import map_rows
 from osu_coach.common.texts import explain
 from osu_coach.domain.maps.configuration import SearchOptions
 from osu_coach.domain.maps.focus import parse_focus
-from osu_coach.domain.maps.skillset import rated_skills, recommend, recommend_modified, star_targets
+from osu_coach.domain.maps.skillset import (
+    NOT_ASSESSED,
+    rated_skills,
+    recommend,
+    recommend_modified,
+    star_targets,
+    typical_ar,
+)
 from osu_coach.domain.maps.suggestions import (
     SKILLS,
     Targets,
@@ -197,6 +205,7 @@ def _options(
         theta, kappa, source = level, 0.0, f"Comfort level moved toward your {skill_label(target)} level"
         abilities = {**measured_abilities(p, theta), **manual}
     checked = tuple(dict.fromkeys(assessed.split(",") if assessed is not None else rated_skills(target, abilities)))
+    checked = tuple(k for k in checked if k == target or k not in NOT_ASSESSED)  # never held to them (rated_skills)
     if not checked or target not in checked or set(checked) - set(SKILLS):
         raise Invalid("Assessed skills must include the target skill.", "invalid_assessed_skills")
     if (
@@ -291,11 +300,13 @@ def playlist(
     min_relevance: float = 0.3,
     exclude_played: bool = True,
     focus: str | None = None,
+    ar: str | None = None,
 ) -> Playlist:
     try:
         on = parse_focus(focus)
     except ValueError as exc:
         raise Invalid(str(exc), "invalid_focus") from exc
+    chosen = _ar_choice(ar)
     pool = _pool(ws)
     p = ws.profile()
     target, checked, abilities, theta, source, kappa = _options(
@@ -308,9 +319,13 @@ def playlist(
     t.comfort = theta
     t.played = _played(ws, t)
     default = default_skill(p, abilities)
+    records = pool.to_dict("records")
+    level_ar = typical_ar(records, theta)
+    # a weak spot of AR picks the AR itself; else the range chosen, or the one around the level
+    ar_range = None if on is not None and on.kind == "ar" else (level_ar if chosen == "level" else chosen)
     try:
         ranked = recommend(
-            pool.to_dict("records"),
+            records,
             theta,
             abilities,
             target,
@@ -319,6 +334,7 @@ def playlist(
             min_relevance,
             t.played if exclude_played else frozenset(),
             on,
+            ar_range,
         )
         ranked = explain(ranked, target, t)
     except ValueError as exc:
@@ -352,6 +368,8 @@ def playlist(
         preferred_client=ws.preferred_client(),
         skill_adjusted_stars=ranked.skill_adjusted_stars,
         focus=on.label() if on else None,
+        ar_range=list(ar_range) if ar_range else None,
+        level_ar=list(level_ar) if level_ar else None,
         abilities=abilities,
         measured_abilities=measured_abilities(p, _comfort_of(p)),
         engine=p.engine if p else None,
@@ -371,12 +389,25 @@ def _stream_speeds(ranked):
     return replace(ranked, goals=goals)
 
 
+def _ar_choice(text: str | None) -> tuple[float, float] | str | None:
+    """The AR range asked for: "level" (none given: the typical AR around the level), None ("any") or (lo, hi)."""
+    if text is None or not text.strip() or text.strip() == "level":
+        return "level"
+    if text.strip() == "any":
+        return None
+    m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\s*", text)
+    if not m or not float(m[1]) <= float(m[2]) <= 11:
+        raise Invalid(f"Invalid AR range {text!r}: give 'level', 'any' or two ARs like 9.2-9.8.", "invalid_ar_range")
+    return float(m[1]), float(m[2])
+
+
 def _levels(p: Profile | None) -> dict[str, float]:
     return {k: round(v, 2) for k, v in skill_levels(p, _comfort_of(p)).items()}
 
 
 def validate_search(ws: Workspace, req: PlaylistSearchRequest) -> None:
     SearchOptions(req.allow_hr, req.allow_hd, req.adjustable_dt, req.min_rate, req.max_rate)
+    _ar_choice(req.ar)
     _options(ws.profile(), req.skill, req.assessed, req.ratings, req.comfort, req.kappa, req.min_relevance)
 
 
@@ -524,6 +555,9 @@ def _columns(pool: pd.DataFrame) -> dict[str, np.ndarray]:
 def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
     """Exact available-map search, run only inside a cancellable background job."""
     options = SearchOptions(req.allow_hr, req.allow_hd, req.adjustable_dt, req.min_rate, req.max_rate)
+    chosen = _ar_choice(req.ar)
+    # the AR of a map changes with its mods and speed: no range around the level fits them all, so any AR unless chosen
+    ar_range = None if chosen == "level" else chosen
     pool = _pool(ws)
     p = ws.profile()
     target, checked, abilities, theta, source, kappa = _options(
@@ -580,6 +614,7 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
             req.min_relevance,
             played,
             history,
+            ar_range=ar_range,
         )
         ranked = found.recommendation
         coverage, unavailable = found.maps, found.missing_maps
@@ -587,7 +622,17 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
         report(len(records), len(records), "Ranking complete")
     else:
         ranked = recommend_modified(
-            records, rows(), theta, abilities, target, checked, kappa, req.min_relevance, played, history
+            records,
+            rows(),
+            theta,
+            abilities,
+            target,
+            checked,
+            kappa,
+            req.min_relevance,
+            played,
+            history,
+            ar_range=ar_range,
         )
     ranked = explain(ranked, target, t)
     if ranked.candidate_count == 0 and all(key in abilities for key in checked):
@@ -628,4 +673,6 @@ def search(ws: Workspace, req: PlaylistSearchRequest, report) -> Playlist:
         calculator_unavailable_maps=calculator_unavailable,
         unavailable_configurations=unavailable_configurations,
         result_limit=ranked.result_limit,
+        ar_range=list(ar_range) if ar_range else None,
+        level_ar=list(level) if (level := typical_ar(records, theta)) else None,
     )
