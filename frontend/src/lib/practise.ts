@@ -70,7 +70,7 @@ export function aimSpot(kind: AimKind, label: string): Practise | null {
     return null;
   }
   if (kind === "distance") {
-    const lo = Number.parseFloat(label.replace("<", "0"));
+    const lo = label.startsWith("<") ? 0 : Number.parseFloat(label); // "<0.5" starts at 0, "2-3" at 2, "4+" at 4
     if (!Number.isFinite(lo)) return null;
     if (lo < 2) return { skill: "flow_aim" };
     return { skill: "aim", focus: lo >= 3 ? "jump:long" : "jump:short" };
