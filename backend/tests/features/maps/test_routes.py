@@ -169,8 +169,10 @@ def test_a_playlist_keeps_to_the_approach_rates_around_the_level(client):
     chosen = client.get("/api/playlists", params={**base, "ar": "9.2-9.8"}).json()
     assert chosen["ar_range"] == [9.2, 9.8]
     assert all(9.2 <= m["ar"] <= 9.8 for st in chosen["stages"] for m in st["maps"])
-    bad = client.get("/api/playlists", params={**base, "ar": "9.8-9.2"})
-    assert bad.status_code == 422 and bad.json()["code"] == "invalid_ar_range"
+    for text in ("9.8-9.2", "9-", "-9", "9..2-9.8", ".9-9.8", "9.-9.8", "9.2-12", "0" * 5000 + "-9", "a-b"):
+        bad = client.get("/api/playlists", params={**base, "ar": text})
+        assert bad.status_code == 422 and bad.json()["code"] == "invalid_ar_range", text
+    assert client.get("/api/playlists", params={**base, "ar": " 9-10 "}).json()["ar_range"] == [9.0, 10.0]
     # a weak spot of AR ("Practise this" on Sliders & Reading) picks the AR itself
     reading = {**base, "skill": "reading", "ratings": '{"reading":50}', "assessed": "reading"}
     focused = client.get("/api/playlists", params={**reading, "focus": "ar:8-8.5"}).json()

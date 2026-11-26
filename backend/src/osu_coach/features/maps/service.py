@@ -7,7 +7,6 @@ import json
 import math
 import multiprocessing
 import os
-import re
 from collections import deque
 from dataclasses import replace
 from typing import TYPE_CHECKING
@@ -395,10 +394,17 @@ def _ar_choice(text: str | None) -> tuple[float, float] | str | None:
         return "level"
     if text.strip() == "any":
         return None
-    m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\s*", text)
-    if not m or not float(m[1]) <= float(m[2]) <= 11:
+    lo, dash, hi = text.strip().partition("-")
+    if not dash or not _plain_number(lo) or not _plain_number(hi) or not float(lo) <= float(hi) <= 11:
         raise Invalid(f"Invalid AR range {text!r}: give 'level', 'any' or two ARs like 9.2-9.8.", "invalid_ar_range")
-    return float(m[1]), float(m[2])
+    return float(lo), float(hi)
+
+
+def _plain_number(text: str) -> bool:
+    """Digits with at most one decimal point between them ("9", "9.25"), read without a regular expression: the text
+    is the player's, and a regex over it could take long on a crafted one (CodeQL)."""
+    whole, _, part = text.partition(".")
+    return len(text) <= 8 and whole.isdecimal() and (part.isdecimal() or "." not in text)
 
 
 def _levels(p: Profile | None) -> dict[str, float]:
