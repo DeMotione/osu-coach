@@ -56,9 +56,11 @@ HISTORY_WEIGHT = 0.5
 SPEED_MIN_TEMPO_RATIO = 0.8
 FOCUS_REASON = "Not on the weak spot practised"
 AR_REASON = "AR outside the chosen range"
-# skills a playlist doesn't hold a map to unless it trains them: no map is left out for its accuracy or reading demand
-# (accuracy can't be practised apart from the rest; the AR range takes the place of reading)
-NOT_ASSESSED = ("accuracy", "reading")
+# skills a playlist doesn't hold a map to unless it trains them: no map is left out for its accuracy, reading or
+# consistency demand (accuracy can't be practised apart from the rest; the AR range takes the place of reading;
+# consistency is rated on another scale, how steadily combo and accuracy hold from map to map, not against what maps
+# at the level ask: a low one left out nearly every map, #149)
+NOT_ASSESSED = ("accuracy", "reading", "consistency")
 AR_SPREAD = 0.3  # the AR range around your level: the typical AR of maps at it, this much either way
 
 
