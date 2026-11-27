@@ -63,6 +63,15 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs Python 3.11 and 3
 - `backend/tests/conftest.py` sets `OSU_COACH_NO_AUTODETECT=1` so tests never touch a real osu! install; keep it that way.
 - Add backend tests next to their layer: `tests/domain/<subject>/`, `tests/infra/` or `tests/features/<slice>/`; route tests set `pytestmark = pytest.mark.usefixtures("_isolated")` (temporary data folder, no network) and use the `client` / `analysed` fixtures. Frontend unit tests sit next to the source (`*.test.ts`).
 
+## Behaviour tests (protected)
+
+`backend/tests/behaviour/`, `frontend/src/behaviour/` and `frontend/e2e/` hold the behaviour tests: each pins down one rule of how the app must behave (the specification, with the issue it comes from), not how the code happens to work (#172).
+
+- **Never edit, delete, skip or weaken a behaviour test without the maintainer's explicit permission in this conversation**, by any means (file tools or shell). `.claude/settings.json` makes Claude Code ask before any file-tool edit there; the rule covers shell edits too.
+- **A failing behaviour test means the code broke a rule.** Fix the code. If you believe the rule itself is wrong or out of date, stop and say which test, what it expects, what the code does and why; change it only once the maintainer agrees.
+- When the maintainer changes a rule, update its test in the same change and name the rule and the reason in the commit message.
+- New behaviour (a feature, a bug fix a player could see) gets its rule added here, in a player's words, with its issue number.
+
 ## Environment variables
 
 `OSU_COACH_CACHE` (data dir), `OSU_COACH_WEB_DIR` (built web app to serve), `OSU_COACH_API` (Vite proxy target), `OSU_COACH_PYTHON` (e2e interpreter), `OSU_COACH_NO_AUTODETECT` (skip osu! detection), `OSU_COACH_API_DOCS` (serve `/docs` and show the web app's API link; default true), `OSU_COACH_DEMO` (replay folder(s) used when none were saved; for demos), `OSU_COACH_RECENT_DAYS` (how many days back a scanned library's replays are analysed; default 366, `0` = any age, as the e2e tests and demos with old replays need).
