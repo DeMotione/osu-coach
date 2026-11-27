@@ -19,9 +19,9 @@ Analyses your own osu!standard replays and tells you what to work on:
   HD / DT with concrete accuracy objectives.
 - **Skill Development**: maps that train your weakest skills, and **Goals & Training**: a staged playlist (warm-up /
   comfort / push) for one skill, with or without mods, from a bundled pool of ~50,000 ranked maps (see below), and
-  skill goals to track. Every map is checked against your rating in each skill but accuracy and reading: one that
-  asks any of them for more than half a star beyond your rating (a warm-up: beyond your rating) is left out, and its
-  approach rate is the one typical of your level unless you choose another range. One click gets the playlist into
+  skill goals to track. Every map is checked against your rating in each skill but accuracy, reading and
+  consistency: one that asks any of them for more than half a star beyond your rating (a warm-up: beyond your
+  rating) is left out, and its approach rate is the one typical of your level unless you choose another range. One click gets the playlist into
   the game: for **lazer** the maps go straight into lazer and each map opens there from the app; for **stable** it
   adds the collection to your `collection.db` and downloads the maps (.osz).
 - **Progress** by month, week or day, kept even after replays are deleted.
@@ -152,8 +152,9 @@ In **Fine-tune**, allow Hard Rock, Hidden, and adjustable DT independently. DT r
 from 1.10× to 2.00×, inclusive, at 0.01× steps; standard DT is 1.50×. **Approach rate** keeps the maps at the AR
 typical of your level (the median AR of pool maps at your stars, 0.3 either way), at any AR, or in a range you
 choose; the range is the AR you read, with the mods (HR and DT raise it), so with mods the default is any AR.
-Accuracy and reading aren't among the skills a map is checked on: accuracy can't be trained apart from the rest,
-and the AR range takes reading's place. Empty stages show their exclusion reasons,
+Accuracy, reading and consistency aren't among the skills a map is checked on: accuracy can't be trained apart from
+the rest, the AR range takes reading's place, and consistency is rated by how steadily you hold combo and accuracy
+from map to map, not against what a map asks. Empty stages show their exclusion reasons,
 including missing player ratings and no configurations passing the star and relevance filters. A downloaded
 collection or map pack contains beatmaps only; the text list records the exact mods and speed to set in osu!.
 

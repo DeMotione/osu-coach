@@ -19,17 +19,18 @@ it("applies exact mod search settings while keeping the selected skill controls"
   }));
 });
 
-it("assesses every skill with a rating unless others are chosen, but accuracy and reading", () => {
+it("assesses every skill with a rating unless others are chosen, but accuracy, reading and consistency", () => {
   const onApply = vi.fn();
-  render(<RecommendationControls current="aim" measured={{ aim: 50, speed: 60, reading: 40, accuracy: 45, consistency: 55 }} comfort={4} onApply={onApply} />);
+  render(<RecommendationControls current="aim" measured={{ aim: 50, speed: 60, reading: 40, accuracy: 45, consistency: 55, sliders: 52 }} comfort={4} onApply={onApply} />);
   fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
-  expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ skill: "aim", assessed: "aim,speed,consistency" }));
+  expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ skill: "aim", assessed: "aim,speed,sliders" }));
   fireEvent.change(screen.getByRole("combobox", { name: "Target skill" }), { target: { value: "speed" } });
   fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
   expect(screen.queryByRole("checkbox", { name: "Reading" })).toBeNull(); // the AR range takes its place
   expect(screen.queryByRole("checkbox", { name: "Accuracy" })).toBeNull();
+  expect(screen.queryByRole("checkbox", { name: "Consistency" })).toBeNull(); // not rated against what maps ask (#149)
   expect(screen.getByRole("checkbox", { name: "Stamina" })).not.toBeChecked(); // no rating
-  fireEvent.click(screen.getByRole("checkbox", { name: "Consistency" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Sliders" }));
   fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
   expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ skill: "speed", assessed: "speed,aim" }));
 });

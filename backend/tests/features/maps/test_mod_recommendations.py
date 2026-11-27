@@ -307,7 +307,7 @@ def test_missing_ratings_produce_explicit_empty_stages(abilities, assessed, reas
     ("ratings", "assessed", "reason"),
     [
         (None, "aim", "Target player rating unknown"),
-        ('{"aim":50}', "aim,consistency", "Assessed player rating unknown"),
+        ('{"aim":50}', "aim,stamina", "Assessed player rating unknown"),
     ],
 )
 def test_missing_rating_search_skips_map_retrieval_and_reports_zero_coverage(

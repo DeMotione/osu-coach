@@ -2,6 +2,7 @@
 
 import pytest
 
+from osu_coach.domain.maps.focus import parse_focus
 from osu_coach.domain.maps.skillset import (
     OVER,
     _features,
@@ -80,14 +81,15 @@ def test_star_targets_are_the_goals_target_stars():
 
 
 def test_a_map_over_another_skills_rating_is_left_out():
-    # every rated skill but accuracy and reading is assessed: no map asks one but the target for more than half a star
-    # beyond the rating plus the goal's margin, and those that did are counted by the skill they were the most over
-    abilities = dict.fromkeys(SKILLS, 50.0) | {"consistency": 30.0}
-    assert rated_skills("aim", abilities) == ("aim", *(k for k in SKILLS if k not in ("aim", "accuracy", "reading")))
+    # every rated skill but accuracy, reading and consistency is assessed: no map asks one but the target for more than
+    # half a star beyond the rating plus the goal's margin, and those that did are counted by the skill most over
+    abilities = dict.fromkeys(SKILLS, 50.0) | {"flow_aim": 30.0}
+    skipped = ("aim", "accuracy", "reading", "consistency")
+    assert rated_skills("aim", abilities) == ("aim", *(k for k in SKILLS if k not in skipped))
     assert rated_skills("reading", abilities)[0] == "reading"  # the target always is
     result = recommend(load_pool().to_dict("records"), 6.0, abilities, "aim", rated_skills("aim", abilities))
     for stage in result.goals.values():
-        assert stage.excluded["Over your Consistency rating"] > 0
+        assert stage.excluded["Over your Spaced streams rating"] > 0
         for m in stage.maps:
             assert all(b.overload <= OVER for b in m.breakdown.bottlenecks)
     assert any(stage.maps for stage in result.goals.values())
@@ -112,3 +114,18 @@ def test_an_ar_range_keeps_the_maps_with_those_approach_rates():
     assert shown and all(9.2 <= m.map["ar"] <= 9.8 for m in shown)
     assert all(stage.excluded["AR outside the chosen range"] > 0 for stage in result.goals.values())
     assert in_ar_range(None, None) and not in_ar_range(None, (9, 10)) and in_ar_range(9.8, (9.2, 9.8))
+
+
+def test_a_low_consistency_leaves_no_map_out():
+    # #149: consistency is rated by how steadily combo and accuracy hold from map to map, not against what maps at the
+    # level ask, so a low one (30 here) left out nearly every map; it isn't assessed, and the playlist is the same
+    pool = load_pool().to_dict("records")
+    steady = {"aim": 58.0, "flow_aim": 46.0, "stamina": 47.0, "sliders": 81.0, "speed": 50.0, "consistency": 81.0}
+    shaky = steady | {"consistency": 30.0}
+    assert "consistency" not in rated_skills("speed", shaky)
+    focus = parse_focus("bpm:120-180,260-270")
+    a = recommend(pool, 6.9, steady, "speed", rated_skills("speed", steady), focus=focus)
+    b = recommend(pool, 6.9, shaky, "speed", rated_skills("speed", shaky), focus=focus)
+    assert [g.eligible for g in a.goals.values()] == [g.eligible for g in b.goals.values()]
+    assert all(g.eligible > 0 for g in b.goals.values())
+    assert not any("Consistency" in reason for g in b.goals.values() for reason in g.excluded)

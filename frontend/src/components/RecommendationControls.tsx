@@ -22,9 +22,9 @@ export interface RecommendationOptions {
   ar?: string;
 }
 
-/** Skills no map is checked on (unless it is the target): accuracy can't be practised apart from the rest, and the
- * approach rate range takes reading's place. */
-const NOT_ASSESSED = new Set(["accuracy", "reading"]);
+/** Skills no map is checked on (unless it is the target): accuracy can't be practised apart from the rest, the
+ * approach rate range takes reading's place, and consistency isn't rated against what maps ask (#149). */
+const NOT_ASSESSED = new Set(["accuracy", "reading", "consistency"]);
 
 type ArMode = "level" | "any" | "choose";
 const AR_DEFAULT: [number, number] = [9.2, 9.8];
@@ -209,7 +209,7 @@ export function RecommendationControls({ current, measured, comfort, levels, lev
           </div>
           <div className="recommendation-assessed">
             <h4>Skills to assess</h4>
-            <p className="small muted">Every skill with a rating is checked: a map that asks one for more than half a star beyond your rating (a warm-up: beyond your rating) is left out, and one that asks it for more than your rating ranks lower. The target skill is always included; unchecked demands are unassessed; a checked skill with unknown player ability excludes the map. Accuracy and reading aren't checked: accuracy can't be trained apart from the rest, and the approach rate above takes reading's place.</p>
+            <p className="small muted">Every skill with a rating is checked: a map that asks one for more than half a star beyond your rating (a warm-up: beyond your rating) is left out, and one that asks it for more than your rating ranks lower. The target skill is always included; unchecked demands are unassessed; a checked skill with unknown player ability excludes the map. Accuracy, reading and consistency aren't checked: accuracy can't be trained apart from the rest, the approach rate above takes reading's place, and consistency is rated by how steadily you hold combo and accuracy, not against what a map asks.</p>
             <div className="recommendation-skills">
               {SKILLS.filter(([id]) => id === skill || !NOT_ASSESSED.has(id)).map(([id, label]) => (
                 <label key={id} className="recommendation-check">
