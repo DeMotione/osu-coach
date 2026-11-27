@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "ask": [
+      "Edit(/backend/tests/behaviour/**)",
+      "Edit(/frontend/src/behaviour/**)",
+      "Edit(/frontend/e2e/**)"
+    ]
+  }
+}
