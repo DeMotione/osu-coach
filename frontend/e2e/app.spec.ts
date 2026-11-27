@@ -323,7 +323,7 @@ test.describe("after the setup", () => {
     await expect(dialog).toBeHidden();
   });
 
-  test("playlist stages show five maps each; Other maps and Forward show the next five, Back goes to the ones before", async ({ page }) => {
+  test("playlist stages show five maps each; Other maps shows the next five, Back and Forward go between them", async ({ page }) => {
     for (const path of ["/skills?tab=playlist", "/maps"]) {
       await page.goto(path);
       const tables = page.locator(".map-table");
@@ -337,12 +337,15 @@ test.describe("after the setup", () => {
         const forward = stage.getByRole("button", { name: "Forward" });
         const before = await firstMap();
         await expect(stage.getByText(/showing 1–5 of \d+/)).toBeVisible();
-        // both arrows stay in place: Back is off at the first group, Forward at the newest one brings a new group
+        // both arrows stay in place (no buttons shifting under the pointer), off where there is nothing that way:
+        // Back at the first group, Forward at the newest one (#150)
         await expect(back).toBeDisabled();
-        await forward.click();
+        await expect(forward).toBeDisabled();
+        await stage.getByRole("button", { name: "Other maps" }).click();
         await expect(stage.getByText(/showing 6–\d+ of \d+/)).toBeVisible();
         const second = await firstMap();
         expect(second).not.toBe(before);
+        await expect(forward).toBeDisabled(); // the newest group
         await back.click();
         await expect(stage.getByText(/showing 1–5 of \d+/)).toBeVisible();
         expect(await firstMap(), path).toBe(before);
@@ -350,8 +353,7 @@ test.describe("after the setup", () => {
         await forward.click();
         await expect(stage.getByText(/showing 6–\d+ of \d+/)).toBeVisible();
         expect(await firstMap(), path).toBe(second);
-        await stage.getByRole("button", { name: "Other maps" }).click();
-        await expect(stage.getByText(/showing 11–\d+ of \d+|showing 1–5 of \d+/)).toBeVisible();
+        await expect(forward).toBeDisabled();
       }
       expect(await layoutProblems(page), path).toEqual([]);
     }

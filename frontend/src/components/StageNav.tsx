@@ -2,8 +2,8 @@ import { canGoBack, canGoForward, type Rounds } from "../lib/playlist";
 import { IconArrowLeft, IconArrowRight, IconRefresh } from "./icons";
 
 /** Which five of a stage's ``total`` maps are on screen, with Back / Forward through the groups shown before and
- * Other maps for a new one. Both arrows stay in place: Back is off at the first group, and Forward at the newest one
- * brings a new group, like Other maps. */
+ * Other maps for a new one. Both arrows stay in place, so the buttons never shift under the pointer: Back is off at
+ * the first group and Forward at the newest one (#150: nothing is ahead of it; Other maps brings a new group). */
 export function StageNav({ rounds, first, count, total, onMove }: {
   rounds: Rounds;
   first: number;
@@ -11,7 +11,6 @@ export function StageNav({ rounds, first, count, total, onMove }: {
   total: number;
   onMove: (to: "back" | "forward" | "other") => void;
 }) {
-  const forward = canGoForward(rounds);
   return (
     <div className="stage-nav">
       <span className="small muted">
@@ -21,8 +20,8 @@ export function StageNav({ rounds, first, count, total, onMove }: {
         disabled={!canGoBack(rounds)} onClick={() => onMove("back")}>
         <IconArrowLeft />
       </button>
-      <button type="button" className="btn btn--sm btn--icon" aria-label="Forward"
-        title={forward ? "The maps shown after these" : "The next five maps of this stage"} onClick={() => onMove(forward ? "forward" : "other")}>
+      <button type="button" className="btn btn--sm btn--icon" aria-label="Forward" title="The maps shown after these"
+        disabled={!canGoForward(rounds)} onClick={() => onMove("forward")}>
         <IconArrowRight />
       </button>
       <button type="button" className="btn btn--sm" title="Show the next five maps of this stage" onClick={() => onMove("other")}>
