@@ -13,6 +13,7 @@ import { Alert, Badge, Card, Page, Row, Stat, Switch, Tiles } from "../component
 import { Verdict } from "../components/Verdict";
 import { PRACTISABLE, type PractiseSkill } from "../lib/practise";
 import { fmt, pct, span, stars } from "../lib/format";
+import { bestAndWorst } from "../lib/skillVerdict";
 import { pickTarget, starLabel, targetOptions } from "../lib/starCompare";
 
 type Overview = Schemas["Overview"];
@@ -318,14 +319,11 @@ function MissVerdict({ causes }: { causes: Schemas["MissCause"][] }) {
 
 /** The skills that matter most here: the strongest, and the weakest measured one to work on. */
 function SkillVerdict({ skills, irt }: { skills: Schemas["SkillScore"][]; irt: boolean }) {
-  const value = (s: Schemas["SkillScore"]) => (irt ? s.stars : s.score);
-  const rated = skills.filter((s) => s.key !== "consistency" && value(s) !== null && value(s) !== undefined && s.state !== "untested");
-  if (rated.length < 2) return null;
-  const sorted = [...rated].sort((a, b) => value(b)! - value(a)!);
-  const best = sorted[0];
-  const worst = sorted[sorted.length - 1];
-  const show = (s: Schemas["SkillScore"]) => (irt ? `${value(s)!.toFixed(1)}★` : value(s)!.toFixed(0));
-  const gap = value(best)! - value(worst)!;
+  const found = bestAndWorst(skills, irt);
+  if (!found) return null;
+  const { best, worst, value } = found;
+  const show = (s: Schemas["SkillScore"]) => (irt ? `${value(s).toFixed(1)}★` : value(s).toFixed(0));
+  const gap = value(best) - value(worst);
   return (
     <Verdict tone="info" value={show(worst)} practise={PRACTISABLE.has(worst.key) ? { skill: worst.key as PractiseSkill } : null}>
       Work on <strong>{worst.label}</strong> first: your weakest measured skill, {irt ? `${gap.toFixed(1)}★` : `${gap.toFixed(0)} points`} below{" "}
