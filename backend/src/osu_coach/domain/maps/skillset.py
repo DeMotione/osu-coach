@@ -55,6 +55,11 @@ RISK_WEIGHT = 1.0
 HISTORY_WEIGHT = 0.5
 SPEED_MIN_TEMPO_RATIO = 0.8
 FOCUS_REASON = "Not on the weak spot practised"
+AR_REASON = "AR outside the chosen range"
+# skills a playlist doesn't hold a map to unless it trains them: no map is left out for its accuracy or reading demand
+# (accuracy can't be practised apart from the rest; the AR range takes the place of reading)
+NOT_ASSESSED = ("accuracy", "reading")
+AR_SPREAD = 0.3  # the AR range around your level: the typical AR of maps at it, this much either way
 
 
 def _get(row: dict, key: str, default: float = 0.0) -> float:
@@ -218,8 +223,32 @@ def _check(
 
 def rated_skills(skill: str, abilities: Mapping[str, float]) -> tuple[str, ...]:
     """The skills a map is assessed on unless others are chosen: the target and every skill the player has a rating
-    of, so that no map asks a skill for much more than the player has (:func:`over_rating`)."""
-    return (skill, *(k for k in SKILLS if k != skill and k in abilities))
+    of but :data:`NOT_ASSESSED`, so that no map asks a skill for much more than the player has
+    (:func:`over_rating`)."""
+    return (skill, *(k for k in SKILLS if k != skill and k in abilities and k not in NOT_ASSESSED))
+
+
+def in_ar_range(ar: float | None, ar_range: tuple[float, float] | None) -> bool:
+    """Whether a map's approach rate (with its mods) is in the chosen range (none: any AR is)."""
+    if ar_range is None:
+        return True
+    return ar is not None and ar_range[0] - 1e-9 <= ar <= ar_range[1] + 1e-9
+
+
+def typical_ar(pool: Sequence[Mapping[str, Any]], stars: float) -> tuple[float, float] | None:
+    """The AR range around a level: the median AR of the pool's maps (without mods) nearest ``stars`` (within a
+    quarter of a star, wider when there are fewer than 30), :data:`AR_SPREAD` either way, in tenths."""
+    rated = [
+        (abs(s - stars), a)
+        for r in pool
+        if (s := finite_or_none(r.get("stars"))) is not None and (a := finite_or_none(r.get("ar"))) is not None
+    ]
+    for width in (0.25, 0.5, 1.0, math.inf):
+        near = [a for d, a in rated if d <= width]
+        if len(near) >= 30 or (width == math.inf and near):
+            middle = statistics.median(near)
+            return round(max(0.0, middle - AR_SPREAD), 1), round(min(11.0, middle + AR_SPREAD), 1)
+    return None
 
 
 def over_rating(
@@ -554,6 +583,7 @@ def recommend(
     min_relevance: float = 0.3,
     played: frozenset[str] = frozenset(),
     focus: Focus | None = None,
+    ar_range: tuple[float, float] | None = None,
 ) -> Recommendation:
     """Return every eligible map for each goal, plus explicit exclusion counts. With a ``focus`` (a weak spot), only
     the maps on it; one that picks the tapping speed itself drops the speed playlist's tempo check."""
@@ -592,6 +622,8 @@ def recommend(
                 reason = f"Timing OD below {od_min:g}"
             elif target is None or not in_star_window(stars, target):
                 reason = "Outside star window"
+            elif not in_ar_range(finite_or_none(row.get("ar")), ar_range):
+                reason = AR_REASON
             elif skill not in demands or skill not in relevance:
                 reason = "Target demand or relevance unknown"
             elif relevance[skill] < min_relevance:
@@ -733,8 +765,10 @@ def recommend_modified(
     history: dict[str, float],
     limit: int = 100,
     references: Mapping[str, Sequence[float | None]] | None = None,
+    ar_range: tuple[float, float] | None = None,
 ) -> Recommendation:
-    """Stream exact variants through all goals, retaining their highest F values.
+    """Stream exact variants through all goals, retaining their highest F values. ``ar_range``: only the
+    configurations whose approach rate (with the mods) is in it.
 
     `limit` bounds the serialized job result; the best candidate still comes from
     the complete set of available configurations, never from a coarse shortlist.
@@ -838,6 +872,8 @@ def recommend_modified(
                 reason = "Modified stars unavailable"
             elif not in_star_window(stars, target):
                 reason = "Outside star window"
+            elif not in_ar_range(finite_or_none(row.get("ar")), ar_range):
+                reason = AR_REASON
             else:
                 if projected is None:
                     projected = project(row, stars)

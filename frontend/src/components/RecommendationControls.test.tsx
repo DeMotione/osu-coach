@@ -19,18 +19,35 @@ it("applies exact mod search settings while keeping the selected skill controls"
   }));
 });
 
-it("assesses every skill with a rating unless others are chosen", () => {
+it("assesses every skill with a rating unless others are chosen, but accuracy and reading", () => {
   const onApply = vi.fn();
-  render(<RecommendationControls current="aim" measured={{ aim: 50, speed: 60, reading: 40 }} comfort={4} onApply={onApply} />);
+  render(<RecommendationControls current="aim" measured={{ aim: 50, speed: 60, reading: 40, accuracy: 45, consistency: 55 }} comfort={4} onApply={onApply} />);
   fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
-  expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ skill: "aim", assessed: "aim,speed,reading" }));
+  expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ skill: "aim", assessed: "aim,speed,consistency" }));
   fireEvent.change(screen.getByRole("combobox", { name: "Target skill" }), { target: { value: "speed" } });
   fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
-  expect(screen.getByRole("checkbox", { name: "Reading" })).toBeChecked();
+  expect(screen.queryByRole("checkbox", { name: "Reading" })).toBeNull(); // the AR range takes its place
+  expect(screen.queryByRole("checkbox", { name: "Accuracy" })).toBeNull();
   expect(screen.getByRole("checkbox", { name: "Stamina" })).not.toBeChecked(); // no rating
-  fireEvent.click(screen.getByRole("checkbox", { name: "Reading" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Consistency" }));
   fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
   expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ skill: "speed", assessed: "speed,aim" }));
+});
+
+it("keeps to the AR around your level, any AR, or a range chosen", () => {
+  const onApply = vi.fn();
+  render(<RecommendationControls current="aim" measured={{ aim: 50 }} comfort={6.6} levelAr={[9.1, 9.7]} onApply={onApply} />);
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ ar: undefined })); // around the level
+  fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
+  expect(screen.getByRole("radio", { name: "Around your level (9.1–9.7)" })).toBeChecked();
+  fireEvent.click(screen.getByRole("radio", { name: "Choose" }));
+  fireEvent.change(screen.getByRole("slider", { name: "Lowest" }), { target: { value: "9.4" } });
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ ar: "9.4-9.7" }));
+  fireEvent.click(screen.getByRole("radio", { name: "Any AR" }));
+  fireEvent.click(screen.getByRole("button", { name: "Show maps" }));
+  expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ ar: "any" }));
 });
 
 it("rejects a reversed DT range before applying", () => {

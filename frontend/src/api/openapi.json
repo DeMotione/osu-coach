@@ -1977,7 +1977,7 @@
           "Maps"
         ],
         "summary": "A staged playlist (warm-up / core / push) for one skill",
-        "description": "``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data;\n``assessed`` (the skills a map is checked on, comma-separated) defaults to every skill you have a rating of: a map\nthat asks one of them for more than your rating is left out. ``focus`` keeps to a weak spot an analysis page\nfound (``kind:spec``, e.g. ``bpm:120-130,150-160`` for streams at those speeds: see ``domain/maps/focus.py``).",
+        "description": "``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data;\n``assessed`` (the skills a map is checked on, comma-separated) defaults to every skill you have a rating of but\naccuracy and reading (never checked unless the target): a map\nthat asks one of them for more than your rating is left out. ``focus`` keeps to a weak spot an analysis page\nfound (``kind:spec``, e.g. ``bpm:120-130,150-160`` for streams at those speeds: see ``domain/maps/focus.py``).\n``ar``: the approach rates to keep to, ``level`` (the default: the typical AR of maps at your level, ±0.3),\n``any``, or two like ``9.2-9.8``.",
         "operationId": "playlist_api_playlists_get",
         "parameters": [
           {
@@ -2092,6 +2092,22 @@
                 }
               ],
               "title": "Focus"
+            }
+          },
+          {
+            "name": "ar",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ar"
             }
           }
         ],
@@ -7957,6 +7973,36 @@
             "title": "Focus",
             "description": "The weak spot the playlist keeps to (``focus``), in words; null: the whole skill."
           },
+          "ar_range": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ar Range",
+            "description": "The approach rates (with mods) the playlist keeps to, [low, high]; null: any AR."
+          },
+          "level_ar": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level Ar",
+            "description": "The AR range around the level (maps without mods): what ``ar`` = level keeps to."
+          },
           "maps": {
             "type": "integer",
             "title": "Maps"
@@ -8304,6 +8350,18 @@
             "minimum": 1.1,
             "title": "Max Rate",
             "default": 2.0
+          },
+          "ar": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ar",
+            "description": "Approach rates to keep to (with the mods): 'any', or two like '9.2-9.8'; none: any AR."
           }
         },
         "additionalProperties": false,

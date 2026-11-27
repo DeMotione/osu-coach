@@ -4,22 +4,13 @@ Where osu! coach is heading on the way to 1.0. This is a plan, not a promise: re
 content can change as we learn what players need. Each item links to its issue where there is one; ideas and feedback
 are welcome in [issues](https://github.com/DeMotione/osu-coach/issues).
 
-## Goal-focused play
-
-**Play Goals** now brings three immediate workflows together without replacing the existing analysis pages:
-FC a chosen map, find local PP opportunities, and train HD or DT. Recommendations include explicit play objectives
-and allow useful repeats. Map-specific reachability and empirical accuracy ranges are evidence-gated; unsupported
-estimates are not shown. The initial offline goal pool has 62 difficulties with common mod/client configurations.
-Expanding its coverage and evaluating estimates on broader player histories remain follow-up work; this does not
-claim calibrated FC probabilities, account PP prediction, or the complete long-term training loop.
-
-Last updated: 2026-10-20 (current release: [0.10.0](https://github.com/DeMotione/osu-coach/releases/tag/v0.10.0)).
+Last updated: 2026-11-26 (current release: [0.10.3](https://github.com/DeMotione/osu-coach/releases/tag/v0.10.3)).
 
 ```mermaid
 flowchart LR
     subgraph s1 ["Clearer and trustworthy"]
         direction LR
-        A["0.10.1<br/>Clearer UI"] --> B["0.11.0<br/>Trusted advice"] --> C["0.11.1<br/>Every platform"] --> D["0.11.2<br/>Compare and share"]
+        A["0.10.x<br/>Clearer UI, bigger pool"] --> N["Next<br/>Answers first"] --> B["0.11.0<br/>Trusted advice"] --> C["0.11.1<br/>Every platform"] --> D["0.11.2<br/>Compare and share"]
     end
     subgraph s2 ["More players"]
         direction LR
@@ -32,52 +23,83 @@ flowchart LR
 languages and osu! chat. Analysis always stays on your computer. From 0.12.2 osu! coach can also sign in to osu! for
 the chat bot; without signing in, everything else works as before.
 
-## 0.10.x: fixes and a clearer UI
+## Released in 0.10.x
 
-Clears the open issues and reworks the pages so each piece of information appears once, with explanations one hover
-away.
+0.10.0 to 0.10.3 cleared the open issues, reworked the pages and grew the map pool ten times.
 
-Fixes:
-
+- [x] **Play Goals**: FC a map, Farm PP and Improve a mod (HD / DT), with concrete play objectives.
 - [x] Cancel a running job, such as a map download, so it no longer blocks scanning and imports
   ([#45](https://github.com/DeMotione/osu-coach/issues/45)).
 - [x] Show the map score calculation as readable values instead of raw JSON
   ([#46](https://github.com/DeMotione/osu-coach/issues/46)).
-- [x] Hide maps you have already completed from the playlist, with a "show completed" toggle
+- [x] Hide maps you have already completed from the playlist, with a Completed maps list
   ([#47](https://github.com/DeMotione/osu-coach/issues/47)).
 - [x] Rename Map Suggestion to **Skill Development** and Skill Development to **Goals & Training**
   ([#48](https://github.com/DeMotione/osu-coach/issues/48)).
+- [x] A **"?"** next to every section heading: how the section works and how its numbers are calculated, one hover,
+  focus or tap away.
+- [x] Works on touch screens and in small windows.
+- [x] An Arch Linux package (`.pkg.tar.zst`, [#44](https://github.com/DeMotione/osu-coach/issues/44)).
+- [x] New plays are analysed by themselves while osu! coach is open
+  ([#71](https://github.com/DeMotione/osu-coach/issues/71)).
+- [x] **A map pool of ~50,000 ranked maps** instead of ~5,000
+  ([#96](https://github.com/DeMotione/osu-coach/issues/96)), with mods (HR, HD, any DT speed from 1.10× to 2.00×)
+  ([#98](https://github.com/DeMotione/osu-coach/issues/98)). A bundled table of every pool map with every mod makes a
+  search with mods take seconds, without downloading any map.
+- [x] **Faster analysis** ([#95](https://github.com/DeMotione/osu-coach/issues/95)): analyse your latest 100, 500 or
+  1000 replays of the last year, with the time it will take shown before you start and a screen that covers the app
+  while it runs. The pages of the last analysis are back at once when the app starts
+  ([#97](https://github.com/DeMotione/osu-coach/issues/97)).
+- [x] **Star Levels** (experimental) next to Comfort Score: each skill as the map star rating it holds up on.
+- [x] Playlists stay as you left them when you switch tabs or start the app again
+  ([#107](https://github.com/DeMotione/osu-coach/issues/107)).
+- [x] osu!lazer: playlist maps go straight into lazer, and each map opens in lazer from the app.
 
-UI rework:
+## Next release: answers first
 
-- [ ] A **"?"** next to every section heading. The explanation text under headings moves into a popup that opens on
-  hover, keyboard focus or tap, and explains how the section works and how its numbers are calculated.
-- [ ] Say each thing once: no text or numbers repeated across pages.
-- [ ] Charts any player can read: a title that says what the chart shows, named axes with units, fewer series at
-  once, labels on the values that matter, and "how to read this" in its "?".
-- [ ] Works on touch screens and in small windows.
+Already on `main`, not released yet.
+
+- [x] Star ratings follow osu!'s 2026 star rating update ([#128](https://github.com/DeMotione/osu-coach/issues/128)).
+- [x] **FC a map** redesigned: find the map among all your replays and pick a replay
+  ([#127](https://github.com/DeMotione/osu-coach/issues/127)).
+- [x] Star Levels: goals in stars ([#129](https://github.com/DeMotione/osu-coach/issues/129)), and no "Try other skill
+  ratings" in its playlists ([#126](https://github.com/DeMotione/osu-coach/issues/126)).
+- [x] Setup Tips check a changed setting only on the plays made with it
+  ([#131](https://github.com/DeMotione/osu-coach/issues/131)).
+- [x] Play Goals search the whole pool, with custom DT speeds.
+- [x] Settings: the osu! installs to read and whether to download missing beatmaps, chosen once.
+- [x] **Charts that say the answer first.** Every chart starts with one sentence and its key number (what it means
+  for you), marks what is clearly worse or better than your average, and leaves out what is too little to tell.
+- [x] Slider misses by length and speed in one chart ([#142](https://github.com/DeMotione/osu-coach/issues/142)), and
+  the slider and reading numbers in one block ([#143](https://github.com/DeMotione/osu-coach/issues/143)).
+- [x] **"Practise this" makes the playlist for the weak spot found**
+  ([#144](https://github.com/DeMotione/osu-coach/issues/144)): streams at the BPMs where your timing spreads, jumps
+  into the part of the screen you miss, sliders of the length you break, and so on.
 
 ## 0.11.0: trustworthy ratings, maps and setup advice
 
-- [ ] **One rating scale.** The comfort-relative skill ratings lose their "experimental" label and replace the old
-  scale everywhere, including goals.
+- [ ] **One rating scale.** Comfort Score and Star Levels (experimental) sit side by side since 0.10.3; one of them
+  becomes the scale everywhere, including goals, once Star Levels is fitted on other players' replays (see
+  [docs/star-scale-irt.md](docs/star-scale-irt.md)).
 - [x] **Skills against a 10★ reference** that realistically predicts how you would do on a 10★ map
   ([#39](https://github.com/DeMotione/osu-coach/issues/39)).
 - [ ] **Rating tests** on fixed sets of replays at several levels, run on every change.
-- [ ] **Better map pool** with newer ranked maps and good coverage at every star level and skill.
-- [ ] **Better map suggestions**: ranked by how well a map trains the chosen skill at your level, without maps you
-  have already passed.
+- [x] **Better map pool** with newer ranked maps and good coverage at every star level and skill
+  ([#96](https://github.com/DeMotione/osu-coach/issues/96)).
+- [x] **Better map suggestions**: ranked by how well a map trains the chosen skill at your level, without maps you
+  have already passed ([#32](https://github.com/DeMotione/osu-coach/issues/32),
+  [#33](https://github.com/DeMotione/osu-coach/issues/33), [#47](https://github.com/DeMotione/osu-coach/issues/47)).
+- [ ] **Say each thing once**: no text or numbers repeated across pages.
 - [ ] **Setup calibration with real answers.** Every setup tip ends in new values: tablet area width, height and
   X/Y, mouse sensitivity, rapid-trigger and SayoDevice settings. "Keep it" only when the change would be within
   noise.
-- [ ] **"Use suggested settings" button** in Tips & Setup. One click fills in and saves the suggested values (the
+- [ ] **"Use suggested settings" button** in Setup Tips. One click fills in and saves the suggested values (the
   previous setup can be restored). You still change osu! and your devices (tablet driver, keyboard software) by
   hand; the page lists exactly what to set where.
 
 ## 0.11.1: every platform
 
-- [x] More Linux distributions: an Arch Linux package (`.pkg.tar.zst`,
-  [#44](https://github.com/DeMotione/osu-coach/issues/44)), and AppImage or Flatpak for the rest.
+- [ ] AppImage or Flatpak for the Linux distributions without a package.
 - [ ] A macOS app (`.dmg`), signed and notarized.
 - [ ] Signed Windows installers, so SmartScreen stops warning.
 
@@ -119,5 +141,4 @@ platform.
   answers while the app is open), or from a summary the app uploads (the bot answers anytime)?
 - Should taiko, catch and mania arrive together, or one mode per release, and which first?
 - Help wanted: translators and reviewers for Russian, Spanish, French and German.
-- Not scheduled yet: a training loop (goal, playlist, new plays, goal progress), analysing new replays automatically
-  while osu! runs, and a report after each session.
+- Not scheduled yet: a training loop (goal, playlist, new plays, goal progress) and a report after each session.

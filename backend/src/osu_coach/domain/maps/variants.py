@@ -30,6 +30,7 @@ import numpy as np
 
 from osu_coach.domain.maps.configuration import SearchOptions
 from osu_coach.domain.maps.skillset import (
+    AR_REASON,
     FEATURE_POINTS,
     GOALS,
     HISTORY_WEIGHT,
@@ -129,6 +130,7 @@ CHUNK = 100_000  # configurations scored at a time
 # the reasons a goal leaves a configuration in its star window out, by code (1, 2, ...), as recommend_modified's checks
 # order them; then over each other assessed skill's rating (``over_reason``)
 _REASONS = (
+    AR_REASON,
     "Target demand or relevance unknown",
     "Insufficient target relevance",
     "Tapping tempo too far below target",
@@ -644,8 +646,10 @@ def recommend_from_table(
     played: frozenset[str],
     history: dict[str, float],
     limit: int = 100,
+    ar_range: tuple[float, float] | None = None,
 ) -> TableSearch:
-    """``recommend_modified`` over every configuration ``options`` asks for of every pool map the table has."""
+    """``recommend_modified`` over every configuration ``options`` asks for of every pool map the table has (with an
+    ``ar_range``, those whose approach rate with the mods is in it)."""
     grid = _grid(options, client)
     maps, record_of = in_pool(table, records)
     n = len(maps)
@@ -655,7 +659,19 @@ def recommend_from_table(
 
     def ranked(rows) -> Recommendation:
         return recommend_modified(
-            records, rows, theta, abilities, skill, assessed, kappa, min_relevance, played, history, limit, references
+            records,
+            rows,
+            theta,
+            abilities,
+            skill,
+            assessed,
+            kappa,
+            min_relevance,
+            played,
+            history,
+            limit,
+            references,
+            ar_range,
         )
 
     empty = ranked(())  # the inputs are checked, and the goals known
@@ -669,6 +685,8 @@ def recommend_from_table(
     was_played = np.array([str(records[record_of[t]].get("md5")) in played for t in maps.tolist()], dtype=bool)
     history_keys, history_values = _history(table, grid, client, history)
     needs = tuple(dict.fromkeys(column for key in assessed for column in _NEEDS[key]))
+    if ar_range is not None:
+        needs = tuple(dict.fromkeys((*needs, "ar")))
     others = [key for key in assessed if key != skill]
     texts = (*_REASONS, *(over_reason(key) for key in others))
     scale = table.scales["stars"]
@@ -700,6 +718,10 @@ def recommend_from_table(
             at = np.minimum(np.searchsorted(history_keys, flat), len(history_keys) - 1)
             told = np.where(history_keys[at] == flat, HISTORY_WEIGHT * (history_values[at] - 1), 0.0)
         unknown = ~(np.isfinite(share) & (share >= 0) & (share <= 1)) | ~np.isfinite(demands[skill])
+        off_ar = np.zeros(len(m), dtype=bool)
+        if ar_range is not None:  # as in_ar_range: an unknown AR is outside
+            ar = np.asarray(cols["ar"], dtype=np.float64)
+            off_ar = ~((ar >= ar_range[0] - 1e-9) & (ar <= ar_range[1] + 1e-9))
         speed_bpm = np.where(np.isfinite(features["speed"]), features["speed"], 0.0) if skill == "speed" else None
         reasons = np.full((len(goals), len(m)), _OUTSIDE, dtype=np.int8)
         scores = np.full((len(goals), len(m)), -np.inf)
@@ -713,7 +735,8 @@ def recommend_from_table(
                 for i, key in enumerate(others):
                     over[i] = np.where(np.isfinite(demands[key]), demands[key] - (abilities[key] + margins[g]), -np.inf)
             worst = len(_REASONS) + 1 + np.argmax(over, axis=0)
-            reason = np.select([unknown, share < min_relevance, slow, over.max(axis=0) > OVER], [1, 2, 3, worst], 0)
+            conditions = [off_ar, unknown, share < min_relevance, slow, over.max(axis=0) > OVER]
+            reason = np.select(conditions, [1, 2, 3, 4, worst], 0)
             reasons[g] = np.where(inside, reason, _OUTSIDE)
             with np.errstate(all="ignore"):
                 risk = np.zeros(len(m))

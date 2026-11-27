@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 
-import { Card, Field } from "./ui";
+import { RangeSlider } from "./RangeSlider";
+import { Card, Field, Segmented } from "./ui";
 
 export interface RecommendationOptions {
   skill?: string;
@@ -17,6 +18,22 @@ export interface RecommendationOptions {
   max_rate?: number;
   /** the weak spot the playlist keeps to ("Practise this" on an analysis page, #144); maps without mods only */
   focus?: string;
+  /** approach rates to keep to (with mods): none = around your level (without mods; with mods any), "any", "9.2-9.8" */
+  ar?: string;
+}
+
+/** Skills no map is checked on (unless it is the target): accuracy can't be practised apart from the rest, and the
+ * approach rate range takes reading's place. */
+const NOT_ASSESSED = new Set(["accuracy", "reading"]);
+
+type ArMode = "level" | "any" | "choose";
+const AR_DEFAULT: [number, number] = [9.2, 9.8];
+
+/** The AR choice as applied back into the control: its mode and its range ("9.2-9.8"). */
+function arChoice(applied: string | undefined, level: [number, number] | null): { mode: ArMode; range: [number, number] } {
+  const m = /^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/.exec(applied ?? "");
+  if (m) return { mode: "choose", range: [Number(m[1]), Number(m[2])] };
+  return { mode: applied === "any" ? "any" : "level", range: level ?? AR_DEFAULT };
 }
 
 const SKILLS = [
@@ -44,11 +61,13 @@ function ratingTexts(applied: string | undefined): Record<string, string> {
  * ``levels`` (Star Levels: the star rating each skill's playlist is made around, the comfort level moved toward the
  * skill's own level) there is no comfort difficulty, κₛ or relevance to set, and no other skill ratings to try: a skill
  * is a star level, not a 0–100 score (#126). */
-export function RecommendationControls({ current, measured, comfort, levels, initial = {}, onApply }: {
+export function RecommendationControls({ current, measured, comfort, levels, levelAr = null, initial = {}, onApply }: {
   current: string;
   measured: Record<string, number>;
   comfort: number;
   levels?: Record<string, number>;
+  /** the AR range around the level (maps without mods): what "Around your level" keeps to */
+  levelAr?: [number, number] | null;
   initial?: RecommendationOptions;
   onApply: (options: RecommendationOptions) => void;
 }) {
@@ -67,8 +86,11 @@ export function RecommendationControls({ current, measured, comfort, levels, ini
   const [adjustableDt, setAdjustableDt] = useState(!!initial.adjustable_dt);
   const [minRate, setMinRate] = useState((initial.min_rate ?? 1.1).toFixed(2));
   const [maxRate, setMaxRate] = useState((initial.max_rate ?? 2).toFixed(2));
+  const [ar, setAr] = useState(() => arChoice(initial.ar, levelAr));
   const rated = SKILLS.map(([id]) => id).filter((id) => measured[id] !== undefined);
-  const selected = [skill, ...(assessed ?? rated).filter((id) => id !== skill)];
+  const selected = [skill, ...(assessed ?? rated).filter((id) => id !== skill && !NOT_ASSESSED.has(id))];
+  const modded = allowHr || allowHd || adjustableDt;
+  const tenth = (v: number) => v.toFixed(1);
   const byLevel = levels !== undefined;
   const valid = (byLevel || (Number(stars) > 0 && Number(kappa) >= 0 && Number(relevance) >= 0 && Number(relevance) <= 1 &&
     [stars, kappa, relevance].every((n) => n.trim() !== "" && Number.isFinite(Number(n))))) &&
@@ -95,6 +117,7 @@ export function RecommendationControls({ current, measured, comfort, levels, ini
       adjustable_dt: adjustableDt,
       min_rate: Number(minRate),
       max_rate: Number(maxRate),
+      ar: ar.mode === "level" ? undefined : ar.mode === "any" ? "any" : `${tenth(ar.range[0])}-${tenth(ar.range[1])}`,
     });
   };
 
@@ -159,10 +182,36 @@ export function RecommendationControls({ current, measured, comfort, levels, ini
             <Field label="Maximum DT rate"><input className="input" type="number" min="1.10" max="2.00" step="0.01" value={maxRate} onChange={(event) => setMaxRate(event.target.value)} /></Field>
           </div>}
           <div className="recommendation-assessed">
+            <h4>Approach rate</h4>
+            <Segmented
+              label="Approach rate"
+              value={ar.mode}
+              onChange={(mode) => setAr({ mode, range: mode === "choose" && ar.mode !== "choose" ? (levelAr ?? AR_DEFAULT) : ar.range })}
+              options={[
+                { value: "level", label: levelAr && !modded ? `Around your level (${tenth(levelAr[0])}–${tenth(levelAr[1])})` : "Around your level" },
+                { value: "any", label: "Any AR" },
+                { value: "choose", label: "Choose" },
+              ]}
+            />
+            {ar.mode === "choose" && (
+              <RangeSlider label="AR (with mods)" min={5} max={11} step={0.1} value={ar.range} format={tenth}
+                onChange={(range) => setAr({ mode: "choose", range })} />
+            )}
+            <p className="small muted">
+              {ar.mode === "level"
+                ? modded
+                  ? "With mods, a map's AR changes with each mod and speed, so any AR is kept: choose a range to limit it."
+                  : "Maps at the approach rate typical of your level, 0.3 either way."
+                : ar.mode === "any"
+                  ? "Maps at any approach rate."
+                  : "Only maps whose approach rate (with the mods: HR and DT raise it) is in this range."}
+            </p>
+          </div>
+          <div className="recommendation-assessed">
             <h4>Skills to assess</h4>
-            <p className="small muted">Every skill with a rating is checked: a map that asks one for more than half a star beyond your rating (a warm-up: beyond your rating) is left out, and one that asks it for more than your rating ranks lower. The target skill is always included; unchecked demands are unassessed; a checked skill with unknown player ability excludes the map.</p>
+            <p className="small muted">Every skill with a rating is checked: a map that asks one for more than half a star beyond your rating (a warm-up: beyond your rating) is left out, and one that asks it for more than your rating ranks lower. The target skill is always included; unchecked demands are unassessed; a checked skill with unknown player ability excludes the map. Accuracy and reading aren't checked: accuracy can't be trained apart from the rest, and the approach rate above takes reading's place.</p>
             <div className="recommendation-skills">
-              {SKILLS.map(([id, label]) => (
+              {SKILLS.filter(([id]) => id === skill || !NOT_ASSESSED.has(id)).map(([id, label]) => (
                 <label key={id} className="recommendation-check">
                   <input type="checkbox" checked={selected.includes(id)} disabled={id === skill} onChange={(event) => setAssessed(
                     event.target.checked ? [...selected, id] : selected.filter((value) => value !== id),

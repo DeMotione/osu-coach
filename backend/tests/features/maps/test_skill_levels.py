@@ -51,10 +51,13 @@ def test_a_playlist_is_made_around_its_skills_level():
 
 
 def test_every_rated_skill_is_assessed_unless_others_are_chosen():
-    # the untested one by its lower bound: a map isn't asked of a skill beyond what the player has
+    # the untested one by its lower bound: a map isn't asked of a skill beyond what the player has; accuracy and
+    # reading never are (the AR range takes reading's place), asked for or not, unless they are the target
     target, checked, abilities, *_ = _options(profile(), "speed", None, None, None, 0.5, 0.3)
-    assert checked == ("speed", "aim", "accuracy", "reading", "consistency") and set(checked) == set(abilities)
+    assert checked == ("speed", "aim", "consistency") and set(abilities) >= {"accuracy", "reading"}
     assert _options(profile(), "speed", "speed,aim", None, None, 0.5, 0.3)[1] == ("speed", "aim")
+    assert _options(profile(), "speed", "speed,aim,accuracy,reading", None, None, 0.5, 0.3)[1] == ("speed", "aim")
+    assert _options(profile(), "reading", None, None, None, 0.5, 0.3)[1][0] == "reading"
 
 
 def test_without_a_level_the_comfort_level_and_kappa_stay():

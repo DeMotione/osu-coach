@@ -192,8 +192,12 @@ const searchPlaylist = (next: RecommendationOptions) => unwrap(api.POST("/api/pl
   skill: next.skill, assessed: next.assessed, ratings: next.ratings, comfort: next.comfort,
   kappa: next.kappa ?? 0.5, min_relevance: next.min_relevance ?? 0.3, exclude_played: next.exclude_played ?? true,
   allow_hr: !!next.allow_hr, allow_hd: !!next.allow_hd, adjustable_dt: !!next.adjustable_dt,
-  min_rate: next.min_rate ?? 1.10, max_rate: next.max_rate ?? 2.00,
+  min_rate: next.min_rate ?? 1.10, max_rate: next.max_rate ?? 2.00, ar: next.ar,
 } }));
+
+/** The AR range around the level the playlist was made with (the controls' "Around your level"). */
+const levelAr = (p: Schemas["Playlist"] | null | undefined): [number, number] | null =>
+  p?.level_ar?.length === 2 ? [p.level_ar[0], p.level_ar[1]] : null;
 
 /** The playlist's skill has no rating (measured or typed in): no map can be ranked for it. */
 const unrated = (pl: Schemas["Playlist"]) =>
@@ -288,7 +292,7 @@ function PlaylistTab() {
     <>
       {lock}
       {controlData && <RecommendationControls current={controlData.skill} measured={controlData.measured} comfort={controlData.comfort}
-        levels={(controlsOf(q.data ?? pl) ?? controlData).levels} initial={options} onApply={apply} />}
+        levels={(controlsOf(q.data ?? pl) ?? controlData).levels} levelAr={levelAr(q.data ?? pl)} initial={options} onApply={apply} />}
       {modified && <><JobStatus job={search.job} error={search.error} onCancel={search.cancel} />
         {pl ? <p className="small muted">Searched {pl.coverage_maps ?? 0} maps with verified data; {pl.unavailable_maps ?? 0} missing files; {pl.calculator_unavailable_maps ?? 0} without any supported calculation; {pl.unavailable_configurations ?? 0} individual configurations could not be calculated. Showing up to {pl.result_limit ?? 0} distinct maps per stage.</p>
           : <Alert tone="info">Searching exact map configurations. Available maps and exclusions will be shown when the search finishes.</Alert>}</>}
@@ -318,6 +322,12 @@ function PlaylistTab() {
           {(pl.skill === "speed" || pl.skill === "stamina") && pl.stream_bpm && !pl.focus ? (
             <>
               Stream target ≈ <strong>{pl.stream_bpm.toFixed(0)} BPM</strong> ·{" "}
+            </>
+          ) : null}
+          {pl.ar_range?.length === 2 ? (
+            <>
+              AR {pl.ar_range[0].toFixed(1)}–{pl.ar_range[1].toFixed(1)}
+              {options.ar === undefined ? " (around your level)" : ""} ·{" "}
             </>
           ) : null}
           Collection name: <code>{pl.collection_name}</code>

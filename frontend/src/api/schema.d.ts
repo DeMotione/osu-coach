@@ -649,9 +649,12 @@ export interface paths {
         /**
          * A staged playlist (warm-up / core / push) for one skill
          * @description ``skill`` defaults to your weakest one; ``comfort`` and ``ratings`` can supply missing player data;
-         *     ``assessed`` (the skills a map is checked on, comma-separated) defaults to every skill you have a rating of: a map
+         *     ``assessed`` (the skills a map is checked on, comma-separated) defaults to every skill you have a rating of but
+         *     accuracy and reading (never checked unless the target): a map
          *     that asks one of them for more than your rating is left out. ``focus`` keeps to a weak spot an analysis page
          *     found (``kind:spec``, e.g. ``bpm:120-130,150-160`` for streams at those speeds: see ``domain/maps/focus.py``).
+         *     ``ar``: the approach rates to keep to, ``level`` (the default: the typical AR of maps at your level, ±0.3),
+         *     ``any``, or two like ``9.2-9.8``.
          */
         get: operations["playlist_api_playlists_get"];
         put?: never;
@@ -2753,6 +2756,16 @@ export interface components {
              * @description The weak spot the playlist keeps to (``focus``), in words; null: the whole skill.
              */
             focus?: string | null;
+            /**
+             * Ar Range
+             * @description The approach rates (with mods) the playlist keeps to, [low, high]; null: any AR.
+             */
+            ar_range?: number[] | null;
+            /**
+             * Level Ar
+             * @description The AR range around the level (maps without mods): what ``ar`` = level keeps to.
+             */
+            level_ar?: number[] | null;
             /** Maps */
             maps: number;
             /** Collection Name */
@@ -2907,6 +2920,11 @@ export interface components {
              * @default 2
              */
             max_rate: number;
+            /**
+             * Ar
+             * @description Approach rates to keep to (with the mods): 'any', or two like '9.2-9.8'; none: any AR.
+             */
+            ar?: string | null;
         };
         /** PlaylistSkill */
         PlaylistSkill: {
@@ -5346,6 +5364,7 @@ export interface operations {
                 min_relevance?: number;
                 exclude_played?: boolean;
                 focus?: string | null;
+                ar?: string | null;
             };
             header?: never;
             path?: never;

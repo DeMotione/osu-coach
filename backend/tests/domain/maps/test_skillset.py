@@ -5,10 +5,12 @@ import pytest
 from osu_coach.domain.maps.skillset import (
     OVER,
     _features,
+    in_ar_range,
     rated_skills,
     recommend,
     recommend_modified,
     star_targets,
+    typical_ar,
 )
 from osu_coach.domain.maps.suggestions import SKILLS
 from osu_coach.infra.map_pool import POOL_PATH, load_pool
@@ -78,10 +80,11 @@ def test_star_targets_are_the_goals_target_stars():
 
 
 def test_a_map_over_another_skills_rating_is_left_out():
-    # every rated skill is assessed: no map asks one but the target for more than half a star beyond the rating plus
-    # the goal's margin, and those that did are counted by the skill they were the most over
+    # every rated skill but accuracy and reading is assessed: no map asks one but the target for more than half a star
+    # beyond the rating plus the goal's margin, and those that did are counted by the skill they were the most over
     abilities = dict.fromkeys(SKILLS, 50.0) | {"consistency": 30.0}
-    assert rated_skills("aim", abilities) == ("aim", *(k for k in SKILLS if k != "aim"))
+    assert rated_skills("aim", abilities) == ("aim", *(k for k in SKILLS if k not in ("aim", "accuracy", "reading")))
+    assert rated_skills("reading", abilities)[0] == "reading"  # the target always is
     result = recommend(load_pool().to_dict("records"), 6.0, abilities, "aim", rated_skills("aim", abilities))
     for stage in result.goals.values():
         assert stage.excluded["Over your Consistency rating"] > 0
@@ -96,3 +99,16 @@ def test_a_skill_a_map_has_no_demand_of_does_not_leave_it_out():
     result = recommend(rows, 4.0, {"aim": 50.0, "stamina": 0.0}, "aim", ("aim", "stamina"))
     assert all(not any(r.startswith("Over") for r in stage.excluded) for stage in result.goals.values())
     assert any(stage.maps for stage in result.goals.values())
+
+
+def test_an_ar_range_keeps_the_maps_with_those_approach_rates():
+    pool = load_pool().to_dict("records")
+    lo, hi = typical_ar(pool, 6.6)
+    assert 8.8 <= lo < hi <= 10.0 and round(hi - lo, 1) == 0.6  # ~9.1-9.7 at 6.6 stars
+    assert typical_ar(pool, 3.0)[1] < 9.0  # lower levels read lower AR
+    abilities = {"aim": 50.0}
+    result = recommend(pool, 6.6, abilities, "aim", ("aim",), ar_range=(9.2, 9.8))
+    shown = [m for stage in result.goals.values() for m in stage.maps]
+    assert shown and all(9.2 <= m.map["ar"] <= 9.8 for m in shown)
+    assert all(stage.excluded["AR outside the chosen range"] > 0 for stage in result.goals.values())
+    assert in_ar_range(None, None) and not in_ar_range(None, (9, 10)) and in_ar_range(9.8, (9.2, 9.8))

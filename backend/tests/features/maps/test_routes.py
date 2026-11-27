@@ -155,3 +155,25 @@ def test_a_weak_spot_of_a_skill_without_a_rating_is_practised_at_your_level(clie
     assert client.get("/api/playlists", params=base).json()["maps"] == 0
     pl = client.get("/api/playlists", params={**base, "focus": "run:10-40"}).json()
     assert pl["maps"] > 0 and pl["abilities"]["speed"] == 50
+
+
+def test_a_playlist_keeps_to_the_approach_rates_around_the_level(client):
+    """Fine-tune → Approach rate: around the level by default, any, or a range chosen."""
+    base = {"skill": "aim", "comfort": 6.5, "ratings": '{"aim":50}', "assessed": "aim"}
+    level = client.get("/api/playlists", params=base).json()
+    lo, hi = level["level_ar"]
+    assert level["ar_range"] == [lo, hi] and round(hi - lo, 1) == 0.6
+    assert all(lo <= m["ar"] <= hi for st in level["stages"] for m in st["maps"]) and level["maps"] > 0
+    anything = client.get("/api/playlists", params={**base, "ar": "any"}).json()
+    assert anything["ar_range"] is None and anything["maps"] > level["maps"]
+    chosen = client.get("/api/playlists", params={**base, "ar": "9.2-9.8"}).json()
+    assert chosen["ar_range"] == [9.2, 9.8]
+    assert all(9.2 <= m["ar"] <= 9.8 for st in chosen["stages"] for m in st["maps"])
+    for text in ("9.8-9.2", "9-", "-9", "9..2-9.8", ".9-9.8", "9.-9.8", "9.2-12", "0" * 5000 + "-9", "a-b"):
+        bad = client.get("/api/playlists", params={**base, "ar": text})
+        assert bad.status_code == 422 and bad.json()["code"] == "invalid_ar_range", text
+    assert client.get("/api/playlists", params={**base, "ar": " 9-10 "}).json()["ar_range"] == [9.0, 10.0]
+    # a weak spot of AR ("Practise this" on Sliders & Reading) picks the AR itself
+    reading = {**base, "skill": "reading", "ratings": '{"reading":50}', "assessed": "reading"}
+    focused = client.get("/api/playlists", params={**reading, "focus": "ar:8-8.5"}).json()
+    assert focused["ar_range"] is None

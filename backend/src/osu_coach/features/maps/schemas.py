@@ -68,6 +68,12 @@ class Playlist(BaseModel):
     focus: str | None = Field(
         None, description="The weak spot the playlist keeps to (``focus``), in words; null: the whole skill."
     )
+    ar_range: list[float] | None = Field(
+        None, description="The approach rates (with mods) the playlist keeps to, [low, high]; null: any AR."
+    )
+    level_ar: list[float] | None = Field(
+        None, description="The AR range around the level (maps without mods): what ``ar`` = level keeps to."
+    )
     maps: int
     collection_name: str
     stages: list[PlaylistStage]
@@ -113,6 +119,9 @@ class PlaylistSearchRequest(Request):
     adjustable_dt: bool = False
     min_rate: float = Field(1.10, ge=1.10, le=2.00)
     max_rate: float = Field(2.00, ge=1.10, le=2.00)
+    ar: str | None = Field(
+        None, description="Approach rates to keep to (with the mods): 'any', or two like '9.2-9.8'; none: any AR."
+    )
 
 
 class PlaylistJob(JobBase):
