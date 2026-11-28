@@ -46,7 +46,7 @@ function AimBody({ aim }: { aim: Schemas["AimPage"] }) {
     <>
       <Tiles n={3}>
         <Stat label="Jump miss rate" value={pct(k.jump_miss_rate)} />
-        <Stat label="Near misses" value={pct(k.near_miss_share, 0)} hint="Aim misses that landed within 1.4 radii — just outside the circle." />
+        <Stat label="Near misses" value={pct(k.near_miss_share, 0)} hint="Aim misses that landed within a 1.4 radius of the circle, where the base circle size is 1." />
         <Stat label="Jump distance error" value={signed(k.jump_along_pct, 1, "%")} hint="Median over/undershoot along the jump direction, as % of the jump length." />
       </Tiles>
       <WeakSpotsCard groups={groups} />
